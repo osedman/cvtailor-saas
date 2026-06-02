@@ -11,9 +11,8 @@ import { EmptyState } from "@/components/cv-tailor/empty-state"
 import { InterviewPitches } from "@/components/cv-tailor/interview-pitches"
 import { SignInModal } from "@/components/auth/sign-in-modal"
 import { useAuth } from "@/components/auth/auth-provider"
-import type { TailorResult } from "@/lib/anthropic"
+import type { TailorResult, CoverLetterResult, PitchesResult } from "@/lib/anthropic"
 
-// Isolated component so useSearchParams doesn't break the whole page
 function AuthErrorHandler() {
   const searchParams = useSearchParams()
   useEffect(() => {
@@ -42,75 +41,50 @@ export default function CVTailorPage() {
   const hasContent = cvText.length > 0 || jobDescription.length > 0
   const canTailor = cvText.length > 0 && jobDescription.length > 0
 
-  const [loadingStatus, setLoadingStatus] = useState<string>("Tailoring…")
+  const [loadingStatus, setLoadingStatus] = useState("Tailoring…")
+  const [coverLetter, setCoverLetter] = useState<string | null>(null)
+  const [pitches, setPitches] = useState<PitchesResult["interviewPitches"] | null>(null)
+  const [loadingCoverLetter, setLoadingCoverLetter] = useState(false)
+  const [loadingPitches, setLoadingPitches] = useState(false)
 
   const handleTailor = useCallback(async () => {
     if (!canTailor) return
-
-    if (!user) {
-      setShowSignIn(true)
-      return
-    }
+    if (!user) { setShowSignIn(true); return }
 
     setIsLoading(true)
     setResults(null)
-    setLoadingStatus("Analysing…")
-
-    const statusLabels: Record<string, string> = {
-      analysing: "Analysing job fit…",
-      rewriting: "Rewriting bullets…",
-      refining:  "Refining CV…",
-      finishing: "Finishing up…",
-      done:      "Done!",
-    }
+    setCoverLetter(null)
+    setPitches(null)
+    setLoadingStatus("Analysing job fit…")
 
     try {
+      // Cycle status messages while waiting
+      const statusCycle = ["Analysing job fit…", "Rewriting bullets…", "Checking ATS…", "Finishing up…"]
+      let si = 0
+      const interval = setInterval(() => {
+        si = (si + 1) % statusCycle.length
+        setLoadingStatus(statusCycle[si])
+      }, 4000)
+
       const res = await fetch("/api/tailor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cv: cvText, jobDescription }),
       })
 
-      if (!res.ok || !res.body) {
-        const text = await res.text()
-        let errMsg = "Something went wrong"
-        try { errMsg = JSON.parse(text).error ?? errMsg } catch {}
-        throw new Error(errMsg)
+      clearInterval(interval)
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || `Server error ${res.status}`)
       }
 
-      // Consume the SSE stream
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ""
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-
-        const lines = buffer.split("\n")
-        buffer = lines.pop() ?? ""
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue
-          try {
-            const payload = JSON.parse(line.slice(6))
-            if (payload.status && statusLabels[payload.status]) {
-              setLoadingStatus(statusLabels[payload.status])
-            }
-            if (payload.status === "error") {
-              throw new Error(payload.error || "Claude returned an error")
-            }
-            if (payload.status === "done" && payload.result) {
-              setResults(payload.result)
-            }
-          } catch (parseErr) {
-            if (parseErr instanceof Error && parseErr.message !== "Unexpected token") {
-              throw parseErr
-            }
-          }
-        }
+      if (!data.result) {
+        throw new Error("No result returned from server")
       }
+
+      setResults(data.result as TailorResult)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to tailor CV. Please try again.")
     } finally {
@@ -118,6 +92,42 @@ export default function CVTailorPage() {
       setLoadingStatus("Tailoring…")
     }
   }, [canTailor, user, cvText, jobDescription])
+
+  const handleGenerateCoverLetter = useCallback(async () => {
+    setLoadingCoverLetter(true)
+    try {
+      const res = await fetch("/api/cover-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cv: cvText, jobDescription }),
+      })
+      const data: CoverLetterResult = await res.json()
+      if (!res.ok) throw new Error((data as { error?: string }).error || "Failed")
+      setCoverLetter(data.coverLetter)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate cover letter.")
+    } finally {
+      setLoadingCoverLetter(false)
+    }
+  }, [cvText, jobDescription])
+
+  const handleGeneratePitches = useCallback(async () => {
+    setLoadingPitches(true)
+    try {
+      const res = await fetch("/api/pitches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cv: cvText, jobDescription }),
+      })
+      const data: PitchesResult = await res.json()
+      if (!res.ok) throw new Error((data as { error?: string }).error || "Failed")
+      setPitches(data.interviewPitches)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate pitches.")
+    } finally {
+      setLoadingPitches(false)
+    }
+  }, [cvText, jobDescription])
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -160,8 +170,17 @@ export default function CVTailorPage() {
         <div className="pb-12">
           {results ? (
             <>
-              <ResultsTabs results={results} />
-              <InterviewPitches pitches={results.interviewPitches} />
+              <ResultsTabs
+                results={results}
+                coverLetter={coverLetter}
+                loadingCoverLetter={loadingCoverLetter}
+                onGenerateCoverLetter={handleGenerateCoverLetter}
+              />
+              <InterviewPitches
+                pitches={pitches}
+                loading={loadingPitches}
+                onGenerate={handleGeneratePitches}
+              />
             </>
           ) : !hasContent ? (
             <EmptyState />

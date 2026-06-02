@@ -1,12 +1,15 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Check, Download, AlertCircle, CheckCircle } from "lucide-react"
+import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles } from "lucide-react"
 
 import type { TailorResult } from "@/lib/anthropic"
 
 interface ResultsTabsProps {
   results: TailorResult
+  coverLetter: string | null
+  loadingCoverLetter: boolean
+  onGenerateCoverLetter: () => void
 }
 
 const tabs = [
@@ -20,7 +23,7 @@ const tabs = [
 
 type TabName = (typeof tabs)[number]
 
-export function ResultsTabs({ results }: ResultsTabsProps) {
+export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenerateCoverLetter }: ResultsTabsProps) {
   const [activeTab, setActiveTab] = useState<TabName>("Tailored CV")
   const [copied, setCopied] = useState(false)
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 })
@@ -88,25 +91,38 @@ export function ResultsTabs({ results }: ResultsTabsProps) {
       <div className="mt-6 animate-fade-in-up">
         {activeTab === "Cover Letter" && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-            <div className="flex justify-end gap-3 mb-4">
-              <button
-                onClick={async () => {
-                  await navigator.clipboard.writeText(results.coverLetter)
-                  setCopied(true)
-                  setTimeout(() => setCopied(false), 2000)
-                }}
-                className={`px-3 py-1.5 text-sm rounded-lg transition-all duration-150 ${
-                  copied ? "bg-green-50 text-green-600" : "bg-gray-50 text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                {copied ? (
-                  <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5" />Copied</span>
-                ) : "Copy"}
-              </button>
-            </div>
-            <div className="prose prose-sm max-w-none leading-relaxed whitespace-pre-wrap text-[#0f0f0f]">
-              {results.coverLetter}
-            </div>
+            {coverLetter ? (
+              <>
+                <div className="flex justify-end gap-3 mb-4">
+                  <button
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(coverLetter)
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 2000)
+                    }}
+                    className={`px-3 py-1.5 text-sm rounded-lg transition-all duration-150 ${
+                      copied ? "bg-green-50 text-green-600" : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    {copied ? <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5" />Copied</span> : "Copy"}
+                  </button>
+                </div>
+                <div className="prose prose-sm max-w-none leading-relaxed whitespace-pre-wrap text-[#0f0f0f]">
+                  {coverLetter}
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 gap-4">
+                <p className="text-sm text-gray-500">Generate a tailored cover letter based on your CV and this role.</p>
+                <button
+                  onClick={onGenerateCoverLetter}
+                  disabled={loadingCoverLetter}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#2563eb] rounded-lg hover:bg-[#1d4ed8] disabled:opacity-60 transition-colors"
+                >
+                  {loadingCoverLetter ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : <><Sparkles className="w-4 h-4" />Generate Cover Letter</>}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
