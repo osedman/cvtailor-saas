@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { Header } from "@/components/cv-tailor/header"
@@ -13,24 +13,27 @@ import { SignInModal } from "@/components/auth/sign-in-modal"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { TailorResult } from "@/lib/anthropic"
 
-export default function CVTailorPage() {
-  const { user } = useAuth()
+// Isolated component so useSearchParams doesn't break the whole page
+function AuthErrorHandler() {
   const searchParams = useSearchParams()
-  const [cvText, setCvText] = useState("")
-
-  // Show a friendly toast if the magic link expired or was already used
   useEffect(() => {
     const error = searchParams.get("error")
-    const desc = searchParams.get("error_description")
+    const desc = searchParams.get("error_description") ?? ""
     if (error) {
-      const msg = desc?.includes("expired")
+      const msg = desc.includes("expired")
         ? "That sign-in link has expired — please request a new one."
-        : desc?.includes("already")
+        : desc.includes("already")
         ? "This link has already been used. Please request a new one."
         : "Sign-in failed. Please try again."
       toast.error(msg, { duration: 6000 })
     }
   }, [searchParams])
+  return null
+}
+
+export default function CVTailorPage() {
+  const { user } = useAuth()
+  const [cvText, setCvText] = useState("")
   const [jobDescription, setJobDescription] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState<TailorResult | null>(null)
@@ -73,6 +76,7 @@ export default function CVTailorPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
+      <Suspense fallback={null}><AuthErrorHandler /></Suspense>
       <Header onSignInClick={() => setShowSignIn(true)} />
 
       <main className="flex-1 flex flex-col max-w-6xl mx-auto w-full px-4">

@@ -27,25 +27,28 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Call Claude with forced tool use for structured output
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8192,
-      system: [
-        {
-          type: 'text',
-          text: SYSTEM_PROMPT,
-          cache_control: { type: 'ephemeral' },
-        },
-      ],
-      tools: [TAILOR_TOOL],
-      tool_choice: { type: 'tool', name: 'submit_tailored_result' },
-      messages: [
-        {
-          role: 'user',
-          content: `Here is my current CV:\n\n${cv}\n\n---\n\nHere is the job description I'm targeting:\n\n${jobDescription}`,
-        },
-      ],
-    })
+    const message = await anthropic.messages.create(
+      {
+        model: 'claude-sonnet-4-6',
+        max_tokens: 8192,
+        system: [
+          {
+            type: 'text',
+            text: SYSTEM_PROMPT,
+            cache_control: { type: 'ephemeral' },
+          },
+        ],
+        tools: [TAILOR_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_tailored_result' },
+        messages: [
+          {
+            role: 'user',
+            content: `Here is my current CV:\n\n${cv}\n\n---\n\nHere is the job description I'm targeting:\n\n${jobDescription}`,
+          },
+        ],
+      },
+      { headers: { 'anthropic-beta': 'prompt-caching-2024-07-31' } }
+    )
 
     // 4. Extract structured result from tool call
     const toolUse = message.content.find((b) => b.type === 'tool_use')
@@ -60,7 +63,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ result })
   } catch (err) {
-    console.error('[tailor] error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[tailor] error:', message)
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
