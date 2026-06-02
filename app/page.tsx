@@ -170,12 +170,15 @@ export default function CVTailorPage() {
         <div className="pb-12">
           {results ? (
             <>
-              <ResultsTabs
-                results={results}
-                coverLetter={coverLetter}
-                loadingCoverLetter={loadingCoverLetter}
-                onGenerateCoverLetter={handleGenerateCoverLetter}
-              />
+              <div className="relative z-10 bg-white">
+                <ResultsTabs
+                  results={results}
+                  coverLetter={coverLetter}
+                  loadingCoverLetter={loadingCoverLetter}
+                  onGenerateCoverLetter={handleGenerateCoverLetter}
+                />
+              </div>
+              <div className="mt-2 border-t border-gray-100" />
               <InterviewPitches
                 pitches={pitches}
                 loading={loadingPitches}

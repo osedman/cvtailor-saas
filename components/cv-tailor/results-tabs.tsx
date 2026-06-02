@@ -5,6 +5,46 @@ import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles } from "lu
 
 import type { TailorResult } from "@/lib/anthropic"
 
+/** Renders plain-text CV with visual hierarchy: bold section headers, indented bullets */
+function FormattedCV({ text }: { text: string }) {
+  const lines = text.split("\n")
+  return (
+    <div className="font-mono text-sm text-[#0f0f0f] leading-relaxed space-y-0.5">
+      {lines.map((line, i) => {
+        const trimmed = line.trim()
+        if (!trimmed) return <div key={i} className="h-3" />
+
+        // ALL-CAPS lines or lines ending with colon → section heading
+        const isHeading = /^[A-Z][A-Z\s&/,]+$/.test(trimmed) || /^[A-Z][A-Z\s&/,]+(:|–)/.test(trimmed)
+        // Bullet lines
+        const isBullet = /^[•\-\*·]/.test(trimmed)
+        // Name line (first non-empty line) — larger
+        const isFirst = lines.slice(0, i).every(l => !l.trim()) && i < 5
+
+        if (isFirst && !isBullet) {
+          return <p key={i} className="text-base font-bold text-[#0f0f0f] tracking-tight">{trimmed}</p>
+        }
+        if (isHeading) {
+          return <p key={i} className="text-xs font-bold uppercase tracking-widest text-gray-500 pt-4 pb-1 border-b border-gray-100">{trimmed}</p>
+        }
+        if (isBullet) {
+          return (
+            <p key={i} className="pl-4 text-gray-700">
+              <span className="text-[#2563eb] mr-2">•</span>
+              {trimmed.replace(/^[•\-\*·]\s*/, "")}
+            </p>
+          )
+        }
+        // Role/company line — slightly bolder
+        if (/\d{4}/.test(trimmed) && trimmed.length < 120) {
+          return <p key={i} className="font-medium text-[#0f0f0f]">{trimmed}</p>
+        }
+        return <p key={i} className="text-gray-700">{line}</p>
+      })}
+    </div>
+  )
+}
+
 interface ResultsTabsProps {
   results: TailorResult
   coverLetter: string | null
@@ -56,7 +96,7 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
   }
 
   return (
-    <div className="animate-slide-up">
+    <div className="animate-slide-up relative z-10 bg-white">
       {/* Tab bar */}
       <div className="relative border-b border-gray-100">
         <div className="flex gap-1">
@@ -132,24 +172,13 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
               <button
                 onClick={handleCopy}
                 className={`px-3 py-1.5 text-sm rounded-lg transition-all duration-150 ${
-                  copied
-                    ? "bg-green-50 text-green-600"
-                    : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                  copied ? "bg-green-50 text-green-600" : "bg-gray-50 text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                {copied ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Check className="w-3.5 h-3.5" />
-                    Copied
-                  </span>
-                ) : (
-                  "Copy"
-                )}
+                {copied ? <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5" />Copied</span> : "Copy"}
               </button>
             </div>
-            <div className="prose prose-sm max-w-none leading-relaxed whitespace-pre-wrap text-[#0f0f0f]">
-              {results.tailoredCV}
-            </div>
+            <FormattedCV text={results.tailoredCV} />
             <button
               onClick={handleDownload}
               className="mt-6 inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors duration-150"
