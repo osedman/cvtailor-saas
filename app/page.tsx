@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { Header } from "@/components/cv-tailor/header"
 import { ResizablePanels } from "@/components/cv-tailor/resizable-panels"
@@ -14,7 +15,22 @@ import type { TailorResult } from "@/lib/anthropic"
 
 export default function CVTailorPage() {
   const { user } = useAuth()
+  const searchParams = useSearchParams()
   const [cvText, setCvText] = useState("")
+
+  // Show a friendly toast if the magic link expired or was already used
+  useEffect(() => {
+    const error = searchParams.get("error")
+    const desc = searchParams.get("error_description")
+    if (error) {
+      const msg = desc?.includes("expired")
+        ? "That sign-in link has expired — please request a new one."
+        : desc?.includes("already")
+        ? "This link has already been used. Please request a new one."
+        : "Sign-in failed. Please try again."
+      toast.error(msg, { duration: 6000 })
+    }
+  }, [searchParams])
   const [jobDescription, setJobDescription] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState<TailorResult | null>(null)
