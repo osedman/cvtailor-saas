@@ -42,6 +42,8 @@ export default function CVTailorPage() {
   const hasContent = cvText.length > 0 || jobDescription.length > 0
   const canTailor = cvText.length > 0 && jobDescription.length > 0
 
+  const [loadingStatus, setLoadingStatus] = useState<string>("Tailoring…")
+
   const handleTailor = useCallback(async () => {
     if (!canTailor) return
 
@@ -52,6 +54,15 @@ export default function CVTailorPage() {
 
     setIsLoading(true)
     setResults(null)
+    setLoadingStatus("Analysing…")
+
+    const statusLabels: Record<string, string> = {
+      analysing: "Analysing job fit…",
+      rewriting: "Rewriting bullets…",
+      refining:  "Refining CV…",
+      finishing: "Finishing up…",
+      done:      "Done!",
+    }
 
     try {
       const res = await fetch("/api/tailor", {
@@ -60,17 +71,51 @@ export default function CVTailorPage() {
         body: JSON.stringify({ cv: cvText, jobDescription }),
       })
 
-      if (!res.ok) {
-        const { error } = await res.json()
-        throw new Error(error || "Something went wrong")
+      if (!res.ok || !res.body) {
+        const text = await res.text()
+        let errMsg = "Something went wrong"
+        try { errMsg = JSON.parse(text).error ?? errMsg } catch {}
+        throw new Error(errMsg)
       }
 
-      const { result } = await res.json()
-      setResults(result)
+      // Consume the SSE stream
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? ""
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue
+          try {
+            const payload = JSON.parse(line.slice(6))
+            if (payload.status && statusLabels[payload.status]) {
+              setLoadingStatus(statusLabels[payload.status])
+            }
+            if (payload.status === "error") {
+              throw new Error(payload.error || "Claude returned an error")
+            }
+            if (payload.status === "done" && payload.result) {
+              setResults(payload.result)
+            }
+          } catch (parseErr) {
+            if (parseErr instanceof Error && parseErr.message !== "Unexpected token") {
+              throw parseErr
+            }
+          }
+        }
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to tailor CV. Please try again.")
     } finally {
       setIsLoading(false)
+      setLoadingStatus("Tailoring…")
     }
   }, [canTailor, user, cvText, jobDescription])
 
@@ -101,6 +146,7 @@ export default function CVTailorPage() {
         <div className="py-6 flex flex-col items-center gap-2 border-t border-gray-100">
           <TailorButton
             isLoading={isLoading}
+            loadingStatus={loadingStatus}
             onClick={handleTailor}
             disabled={!canTailor}
             isLimitReached={false}
