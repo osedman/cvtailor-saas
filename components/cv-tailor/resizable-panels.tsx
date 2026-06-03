@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useRef, useCallback, useEffect, DragEvent } from "react"
-import { GripVertical, Upload, X, FileText, Link, Loader2, AlertCircle } from "lucide-react"
+import { useState, useRef, useCallback, useEffect, DragEvent, useId } from "react"
+import { GripVertical, Upload, X, FileText, Link, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 interface ResizablePanelsProps {
@@ -56,7 +56,7 @@ export function ResizablePanels({
   const [scrapingUrl, setScrapingUrl] = useState(false)
   const [restoredFromStorage, setRestoredFromStorage] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputId = useId()
 
   // Restore CV from localStorage on mount
   useEffect(() => {
@@ -210,19 +210,19 @@ export function ResizablePanels({
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={parsingFile}
-                className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-gray-500 bg-white border border-gray-200 rounded hover:border-gray-300 hover:text-gray-700 disabled:opacity-50 transition-all"
+              <label
+                htmlFor={fileInputId}
+                className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-gray-500 bg-white border border-gray-200 rounded hover:border-gray-300 hover:text-gray-700 transition-all ${parsingFile ? "opacity-50 cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
               >
                 {parsingFile ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                {parsingFile ? "Parsing…" : "Upload PDF/DOCX"}
-              </button>
+                {parsingFile ? "Parsing…" : "Upload PDF / DOCX"}
+              </label>
               <input
-                ref={fileInputRef}
+                id={fileInputId}
                 type="file"
-                accept=".pdf,.docx"
-                className="hidden"
+                accept=".pdf,.docx,.txt"
+                className="sr-only"
+                disabled={parsingFile}
                 onChange={handleFileInput}
               />
             </div>

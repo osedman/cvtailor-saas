@@ -2,6 +2,32 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const maxDuration = 30
 
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  // Disable worker — not needed in Node.js environment
+  pdfjsLib.GlobalWorkerOptions.workerSrc = ''
+
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) })
+  const pdf = await loadingTask.promise
+
+  const pages: string[] = []
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    const pageText = content.items
+      .map((item) => ('str' in item ? item.str : ''))
+      .join(' ')
+    pages.push(pageText)
+  }
+  return pages.join('\n\n')
+}
+
+async function extractDocxText(buffer: Buffer): Promise<string> {
+  const mammoth = await import('mammoth')
+  const result = await mammoth.extractRawText({ buffer })
+  return result.value
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
@@ -10,42 +36,46 @@ export async function POST(req: NextRequest) {
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File too large (max 10 MB)' }, { status: 400 })
+    }
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
     const ext = file.name.split('.').pop()?.toLowerCase()
 
     let text = ''
-
     if (ext === 'pdf') {
-      // Dynamically import to avoid Next.js bundling issues with pdf-parse
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>
-      const result = await pdfParse(buffer)
-      text = result.text
+      text = await extractPdfText(buffer)
     } else if (ext === 'docx') {
-      const mammoth = await import('mammoth')
-      const result = await mammoth.extractRawText({ buffer })
-      text = result.value
+      text = await extractDocxText(buffer)
+    } else if (ext === 'txt') {
+      text = buffer.toString('utf-8')
     } else {
-      return NextResponse.json({ error: 'Only PDF and DOCX files are supported' }, { status: 400 })
+      return NextResponse.json({ error: 'Only PDF, DOCX, and TXT files are supported' }, { status: 400 })
     }
 
-    // Clean up the extracted text
+    // Normalise whitespace
     text = text
       .replace(/\r\n/g, '\n')
       .replace(/\r/g, '\n')
       .replace(/\n{4,}/g, '\n\n\n')
       .trim()
 
-    if (!text || text.length < 50) {
-      return NextResponse.json({ error: 'Could not extract text from this file. Try copying and pasting instead.' }, { status: 422 })
+    if (!text || text.length < 30) {
+      return NextResponse.json(
+        { error: 'Could not extract text — the file may be image-based. Try copying and pasting instead.' },
+        { status: 422 }
+      )
     }
 
     return NextResponse.json({ text })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[parse-cv] error:', msg)
-    return NextResponse.json({ error: 'Failed to parse file. Try copying and pasting instead.' }, { status: 500 })
+    return NextResponse.json(
+      { error: `Failed to parse file: ${msg}. Please copy and paste your CV text instead.` },
+      { status: 500 }
+    )
   }
 }
