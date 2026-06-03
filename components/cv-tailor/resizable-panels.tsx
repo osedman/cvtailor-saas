@@ -17,22 +17,14 @@ function wordCount(text: string) {
 
 function WordCountBadge({ count }: { count: number }) {
   if (!count) return null
-  const ideal = count >= 400 && count <= 700
-  const tooShort = count < 300
-  const tooLong = count > 900
 
-  const color = ideal
+  const color = count >= 400
     ? "text-green-600 bg-green-50 border-green-200"
-    : tooShort || tooLong
-    ? "text-red-500 bg-red-50 border-red-200"
-    : "text-amber-600 bg-amber-50 border-amber-200"
+    : count >= 300
+    ? "text-amber-600 bg-amber-50 border-amber-200"
+    : "text-red-500 bg-red-50 border-red-200"
 
-  const label = ideal
-    ? "Ideal length"
-    : count < 300 ? "Too short"
-    : count < 400 ? "A bit short"
-    : count <= 900 ? "A bit long"
-    : "Too long"
+  const label = count >= 400 ? "Good length" : count >= 300 ? "A bit short" : "Too short"
 
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border font-medium ${color}`}>
