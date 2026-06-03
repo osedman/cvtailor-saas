@@ -221,28 +221,57 @@ export function ResizablePanels({
                 id={fileInputId}
                 type="file"
                 accept=".pdf,.docx,.txt"
-                className="sr-only"
+                className="hidden"
                 disabled={parsingFile}
                 onChange={handleFileInput}
               />
             </div>
           </div>
 
-          {/* Drop zone hint (shown when empty and not dragging) */}
-          {!cvText && !parsingFile && (
-            <div className={`absolute inset-0 top-10 flex flex-col items-center justify-center gap-2 pointer-events-none transition-opacity ${isDroppingCv ? "opacity-100" : "opacity-0"}`}>
-              <Upload className="w-8 h-8 text-[#2563eb]" />
-              <p className="text-sm font-medium text-[#2563eb]">Drop your CV here</p>
+          {/* Body: drop zone when empty, textarea when populated */}
+          {parsingFile ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-400">
+              <Loader2 className="w-8 h-8 animate-spin text-[#2563eb]" />
+              <p className="text-sm">Reading your CV…</p>
             </div>
+          ) : !cvText ? (
+            <label
+              htmlFor={fileInputId}
+              className={`flex-1 flex flex-col items-center justify-center gap-3 cursor-pointer m-2 rounded-lg border-2 border-dashed transition-all duration-150 group ${
+                isDroppingCv
+                  ? "border-[#2563eb] bg-blue-50/40"
+                  : "border-gray-200 hover:border-[#2563eb] hover:bg-blue-50/20"
+              }`}
+            >
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${isDroppingCv ? "bg-[#2563eb]/10" : "bg-gray-100 group-hover:bg-[#2563eb]/10"}`}>
+                <Upload className={`w-6 h-6 transition-colors ${isDroppingCv ? "text-[#2563eb]" : "text-gray-400 group-hover:text-[#2563eb]"}`} />
+              </div>
+              <div className="text-center px-4">
+                <p className={`text-sm font-medium transition-colors ${isDroppingCv ? "text-[#2563eb]" : "text-gray-500 group-hover:text-[#2563eb]"}`}>
+                  {isDroppingCv ? "Release to upload" : "Drop your CV here or click to browse"}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">PDF · DOCX · TXT supported</p>
+              </div>
+              <p className="text-xs text-gray-300">or paste your CV text below</p>
+            </label>
+          ) : (
+            <textarea
+              value={cvText}
+              onChange={(e) => setCvText(e.target.value)}
+              className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none font-mono text-sm text-[#0f0f0f] leading-relaxed placeholder:text-gray-300"
+              placeholder="Your CV text…"
+            />
           )}
 
-          {/* Textarea */}
-          <textarea
-            value={cvText}
-            onChange={(e) => setCvText(e.target.value)}
-            className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none font-mono text-sm text-[#0f0f0f] leading-relaxed placeholder:text-gray-300"
-            placeholder={parsingFile ? "" : "Paste your CV here, or drop a PDF/DOCX above…"}
-          />
+          {/* Always-visible paste area when empty (below the drop zone) */}
+          {!cvText && !parsingFile && (
+            <textarea
+              value={cvText}
+              onChange={(e) => setCvText(e.target.value)}
+              className="w-full h-20 px-3 py-2 bg-transparent resize-none focus:outline-none font-mono text-sm text-[#0f0f0f] leading-relaxed placeholder:text-gray-300 border-t border-gray-100"
+              placeholder="…or paste your CV text here"
+            />
+          )}
 
           {/* Footer: word count */}
           <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 border-t border-gray-100 bg-gray-50/50">
