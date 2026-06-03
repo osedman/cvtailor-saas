@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/cv-tailor/empty-state"
 import { InterviewPitches } from "@/components/cv-tailor/interview-pitches"
 import { SignInModal } from "@/components/auth/sign-in-modal"
 import { useAuth } from "@/components/auth/auth-provider"
+import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
 import type { TailorResult, CoverLetterResult, PitchesResult } from "@/lib/anthropic"
 
 function AuthErrorHandler() {
@@ -42,6 +43,7 @@ export default function CVTailorPage() {
   const canTailor = cvText.length > 0 && jobDescription.length > 0
 
   const [loadingStatus, setLoadingStatus] = useState("Tailoring…")
+  const [progressStep, setProgressStep] = useState(0)
   const [coverLetter, setCoverLetter] = useState<string | null>(null)
   const [pitches, setPitches] = useState<PitchesResult["interviewPitches"] | null>(null)
   const [loadingCoverLetter, setLoadingCoverLetter] = useState(false)
@@ -55,16 +57,19 @@ export default function CVTailorPage() {
     setResults(null)
     setCoverLetter(null)
     setPitches(null)
-    setLoadingStatus("Analysing job fit…")
+    setProgressStep(0)
+    setLoadingStatus("Analysing job requirements…")
 
     try {
-      // Cycle status messages while waiting
-      const statusCycle = ["Analysing job fit…", "Rewriting bullets…", "Checking ATS…", "Finishing up…"]
-      let si = 0
-      const interval = setInterval(() => {
-        si = (si + 1) % statusCycle.length
-        setLoadingStatus(statusCycle[si])
-      }, 4000)
+      // Step through progress indicators while Claude works (~5s per step)
+      const stepInterval = setInterval(() => {
+        setProgressStep((s) => {
+          const next = s + 1
+          const labels = ["Analysing job requirements…", "Matching your experience…", "Rewriting bullet points…", "Checking ATS compatibility…", "Finalising your CV…"]
+          if (next < labels.length) setLoadingStatus(labels[next])
+          return Math.min(next, 4)
+        })
+      }, 5000)
 
       const res = await fetch("/api/tailor", {
         method: "POST",
@@ -72,7 +77,8 @@ export default function CVTailorPage() {
         body: JSON.stringify({ cv: cvText, jobDescription }),
       })
 
-      clearInterval(interval)
+      clearInterval(stepInterval)
+      setProgressStep(4)
 
       const data = await res.json()
 
@@ -90,6 +96,7 @@ export default function CVTailorPage() {
     } finally {
       setIsLoading(false)
       setLoadingStatus("Tailoring…")
+      setProgressStep(0)
     }
   }, [canTailor, user, cvText, jobDescription])
 
@@ -153,7 +160,7 @@ export default function CVTailorPage() {
         )}
 
         {/* CTA */}
-        <div className="py-6 flex flex-col items-center gap-2 border-t border-gray-100">
+        <div className="py-6 flex flex-col items-center gap-3 border-t border-gray-100">
           <TailorButton
             isLoading={isLoading}
             loadingStatus={loadingStatus}
@@ -161,6 +168,7 @@ export default function CVTailorPage() {
             disabled={!canTailor}
             isLimitReached={false}
           />
+          {isLoading && <ProgressSteps currentStep={progressStep} />}
           {!user && canTailor && !isLoading && (
             <p className="text-xs text-gray-400">Sign in to tailor your CV</p>
           )}
