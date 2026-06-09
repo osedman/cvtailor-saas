@@ -1,0 +1,387 @@
+"use client"
+
+import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import {
+  ArrowLeft, Building2, ExternalLink, Trash2, Loader2,
+  AlertCircle, CheckCircle, Clock, RefreshCw,
+} from "lucide-react"
+import { toast } from "sonner"
+import { useAuth } from "@/components/auth/auth-provider"
+import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
+import type { TailorResult } from "@/lib/anthropic"
+
+interface HistoryItem {
+  id: string
+  created_at: string
+  job_title: string
+  company_name: string
+  job_url: string
+  job_snippet: string
+  match_score: number
+  result: TailorResult
+}
+
+// ── helpers ────────────────────────────────────────────────────────────
+
+function formatDate(iso: string) {
+  const d = new Date(iso)
+  const now = new Date()
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000)
+  if (diffDays === 0) return "Today, " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  if (diffDays === 1) return "Yesterday"
+  if (diffDays < 7) return d.toLocaleDateString([], { weekday: "long" })
+  return d.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })
+}
+
+function ScoreRing({ score, size = 52 }: { score: number; size?: number }) {
+  const r = (size - 5) / 2
+  const c = 2 * Math.PI * r
+  const dash = (score / 100) * c
+  const color = score >= 75 ? "#16a34a" : score >= 50 ? "#d97706" : "#dc2626"
+  return (
+    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#f3f4f6" strokeWidth={4.5} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={4.5}
+          strokeDasharray={`${dash} ${c}`} strokeLinecap="round" />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center leading-none">
+        <span className="text-[13px] font-bold" style={{ color }}>{score}</span>
+        <span className="text-[7px] text-gray-400 uppercase tracking-wide">match</span>
+      </div>
+    </div>
+  )
+}
+
+function MatchLabel({ score }: { score: number }) {
+  const cfg = score >= 75
+    ? { label: "Strong match", cls: "bg-green-50 text-green-700" }
+    : score >= 50
+    ? { label: "Moderate match", cls: "bg-amber-50 text-amber-700" }
+    : { label: "Low match", cls: "bg-red-50 text-red-600" }
+  return (
+    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${cfg.cls}`}>
+      {cfg.label}
+    </span>
+  )
+}
+
+// ── Card ───────────────────────────────────────────────────────────────
+
+function HistoryCard({
+  item,
+  selected,
+  onSelect,
+  onDelete,
+  deleting,
+}: {
+  item: HistoryItem
+  selected: boolean
+  onSelect: () => void
+  onDelete: (e: React.MouseEvent) => void
+  deleting: boolean
+}) {
+  const atsPass = item.result?.atsNotes?.status === "pass"
+  const changesCount = item.result?.keyChanges?.length ?? 0
+  const gapsCount = item.result?.gaps?.length ?? 0
+
+  return (
+    <article
+      onClick={onSelect}
+      className={`group relative flex flex-col rounded-xl border cursor-pointer transition-all duration-200 overflow-hidden
+        ${selected
+          ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.12)] bg-white"
+          : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-md"
+        }`}
+    >
+      {/* Top accent bar when selected */}
+      {selected && (
+        <div className="h-0.5 w-full bg-[#2563eb]" />
+      )}
+
+      <div className="p-5 flex flex-col gap-4 flex-1">
+        {/* Header row */}
+        <div className="flex items-start gap-3">
+          <ScoreRing score={item.match_score} />
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-[#0f0f0f] truncate leading-snug">
+              {item.job_title || "Untitled role"}
+            </h3>
+            {item.company_name && (
+              <div className="flex items-center gap-1 mt-1">
+                <Building2 className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                <span className="text-xs text-gray-500 truncate">{item.company_name}</span>
+              </div>
+            )}
+            <div className="mt-1.5">
+              <MatchLabel score={item.match_score} />
+            </div>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* ATS */}
+          <div className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full
+            ${atsPass ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600"}`}>
+            {atsPass
+              ? <CheckCircle className="w-3 h-3" />
+              : <AlertCircle className="w-3 h-3" />}
+            {atsPass ? "ATS pass" : "ATS warning"}
+          </div>
+
+          {/* Changes */}
+          <span className="text-[10px] text-gray-400">
+            {changesCount} change{changesCount !== 1 ? "s" : ""}
+          </span>
+
+          {/* Gaps */}
+          {gapsCount > 0 && (
+            <span className="text-[10px] text-gray-400">
+              {gapsCount} gap{gapsCount !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+
+        {/* Snippet */}
+        <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">
+          {item.job_snippet}
+        </p>
+      </div>
+
+      {/* Footer */}
+      <div className="px-5 py-3 border-t border-gray-50 flex items-center justify-between bg-gray-50/60">
+        <span className="text-[10px] text-gray-400 flex items-center gap-1">
+          <Clock className="w-3 h-3" />
+          {formatDate(item.created_at)}
+        </span>
+        <div className="flex items-center gap-1">
+          {item.job_url && (
+            <a
+              href={item.job_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="p-1.5 rounded-lg text-gray-300 hover:text-[#2563eb] hover:bg-blue-50 transition-colors"
+              title="Open original job posting"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            className="p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+            title="Delete"
+          >
+            {deleting
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <Trash2 className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+// ── Empty state ────────────────────────────────────────────────────────
+
+function EmptyHistory() {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center">
+        <Clock className="w-7 h-7 text-gray-200" />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-gray-500">No tailored CVs yet</p>
+        <p className="text-xs text-gray-300 mt-1">
+          Every time you tailor your CV it will be saved here.
+        </p>
+      </div>
+      <Link
+        href="/tailor"
+        className="mt-2 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#2563eb] rounded-lg hover:bg-[#1d4ed8] transition-colors"
+      >
+        Tailor your first CV
+      </Link>
+    </div>
+  )
+}
+
+// ── Page ───────────────────────────────────────────────────────────────
+
+export default function HistoryPage() {
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
+
+  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const selectedItem = history.find(h => h.id === selectedId) ?? null
+
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!authLoading && !user) router.push("/tailor")
+  }, [authLoading, user, router])
+
+  const fetchHistory = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch("/api/history")
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setHistory(data.history)
+      // Auto-select first item
+      if (data.history.length > 0) setSelectedId(data.history[0].id)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load history")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (user) fetchHistory()
+  }, [user, fetchHistory])
+
+  const handleDelete = useCallback(async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/history/${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed")
+      setHistory(prev => {
+        const next = prev.filter(h => h.id !== id)
+        // If we deleted the selected item, select the next one
+        if (selectedId === id) setSelectedId(next[0]?.id ?? null)
+        return next
+      })
+      toast.success("Removed")
+    } catch {
+      toast.error("Could not delete")
+    } finally {
+      setDeletingId(null)
+    }
+  }, [selectedId])
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50/40">
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-white border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
+          <Link
+            href="/tailor"
+            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#0f0f0f] transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </Link>
+          <div className="w-px h-4 bg-gray-200" />
+          <h1 className="text-sm font-semibold text-[#0f0f0f]">Tailor history</h1>
+          {history.length > 0 && (
+            <span className="text-[10px] font-medium text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
+              {history.length}
+            </span>
+          )}
+          <div className="flex-1" />
+          <button
+            onClick={fetchHistory}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#2563eb] transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh
+          </button>
+        </div>
+      </header>
+
+      {history.length === 0 ? (
+        <EmptyHistory />
+      ) : (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex flex-col lg:flex-row gap-6 items-start">
+
+          {/* ── Left: card grid ── */}
+          <div className="w-full lg:w-[380px] flex-shrink-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
+              {history.map(item => (
+                <HistoryCard
+                  key={item.id}
+                  item={item}
+                  selected={selectedId === item.id}
+                  onSelect={() => setSelectedId(item.id)}
+                  onDelete={(e) => handleDelete(item.id, e)}
+                  deleting={deletingId === item.id}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* ── Right: detail panel ── */}
+          {selectedItem && (
+            <div className="flex-1 min-w-0">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                {/* Detail header */}
+                <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <ScoreRing score={selectedItem.match_score} size={56} />
+                    <div>
+                      <h2 className="text-base font-semibold text-[#0f0f0f]">
+                        {selectedItem.job_title || "Untitled role"}
+                      </h2>
+                      {selectedItem.company_name && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                          <span className="text-sm text-gray-500">{selectedItem.company_name}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <MatchLabel score={selectedItem.match_score} />
+                        <span className="text-xs text-gray-300">·</span>
+                        <span className="text-xs text-gray-400">{formatDate(selectedItem.created_at)}</span>
+                        {selectedItem.job_url && (
+                          <>
+                            <span className="text-xs text-gray-300">·</span>
+                            <a
+                              href={selectedItem.job_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-[#2563eb] hover:underline flex items-center gap-1"
+                            >
+                              View job posting
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="px-6 py-4">
+                  <ResultsTabs
+                    results={selectedItem.result}
+                    coverLetter={null}
+                    loadingCoverLetter={false}
+                    onGenerateCoverLetter={() => {}}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

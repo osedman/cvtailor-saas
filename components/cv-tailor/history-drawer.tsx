@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { X, Trash2, Clock, ChevronRight, Loader2, ExternalLink, Building2 } from "lucide-react"
 import { toast } from "sonner"
 import type { TailorResult } from "@/lib/anthropic"
@@ -19,7 +20,7 @@ export interface HistoryItem {
 interface HistoryDrawerProps {
   open: boolean
   onClose: () => void
-  onRestore: (item: HistoryItem) => void
+  onRestore?: (item: HistoryItem) => void  // kept for backwards compat, now unused
 }
 
 function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
@@ -65,7 +66,8 @@ function formatDate(iso: string) {
   }
 }
 
-export function HistoryDrawer({ open, onClose, onRestore }: HistoryDrawerProps) {
+export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
+  const router = useRouter()
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -106,10 +108,10 @@ export function HistoryDrawer({ open, onClose, onRestore }: HistoryDrawerProps) 
     }
   }, [])
 
-  const handleRestore = useCallback((item: HistoryItem) => {
-    onRestore(item)
+  const handleNavigate = useCallback(() => {
     onClose()
-  }, [onRestore, onClose])
+    router.push("/history")
+  }, [onClose, router])
 
   return (
     <>
@@ -163,9 +165,9 @@ export function HistoryDrawer({ open, onClose, onRestore }: HistoryDrawerProps) 
               {history.map((item) => (
                 <li key={item.id}>
                   <div className="group relative">
-                    {/* Main restore button */}
+                    {/* Main navigate button */}
                     <button
-                      onClick={() => handleRestore(item)}
+                      onClick={handleNavigate}
                       className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-start gap-3"
                     >
                       {/* Score ring */}
@@ -242,19 +244,25 @@ export function HistoryDrawer({ open, onClose, onRestore }: HistoryDrawerProps) 
           )}
         </div>
 
-        {/* Footer — refresh */}
-        {fetched && (
-          <div className="flex-shrink-0 border-t border-gray-100 px-4 py-2.5">
+        {/* Footer */}
+        <div className="flex-shrink-0 border-t border-gray-100 px-4 py-2.5 flex items-center justify-between">
+          <button
+            onClick={fetchHistory}
+            disabled={loading}
+            className="text-[11px] text-gray-400 hover:text-[#2563eb] transition-colors flex items-center gap-1"
+          >
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+            Refresh
+          </button>
+          {history.length > 0 && (
             <button
-              onClick={fetchHistory}
-              disabled={loading}
-              className="text-[11px] text-gray-400 hover:text-[#2563eb] transition-colors flex items-center gap-1"
+              onClick={handleNavigate}
+              className="text-[11px] font-medium text-[#2563eb] hover:underline"
             >
-              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-              Refresh
+              View all →
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </aside>
     </>
   )
