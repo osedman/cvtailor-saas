@@ -55,7 +55,9 @@ create table if not exists public.tailor_history (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references auth.users on delete cascade,
   created_at   timestamptz not null default now(),
-  job_title    text not null default '',   -- first line of JD, ≤ 80 chars
+  job_title    text not null default '',   -- extracted by Claude from the JD
+  company_name text not null default '',   -- extracted by Claude from the JD
+  job_url      text not null default '',   -- original URL if scraped, else ''
   job_snippet  text not null default '',   -- first 200 chars of JD
   match_score  integer not null default 0,
   result       jsonb not null              -- full TailorResult object

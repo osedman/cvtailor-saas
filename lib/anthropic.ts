@@ -6,6 +6,8 @@ export const anthropic = new Anthropic({
 
 // Core result — fast to generate (~15-25s)
 export interface TailorResult {
+  jobTitle: string
+  companyName: string
   matchScore: number
   tailoredCV: string
   keyChanges: Array<{ type: "improved" | "reordered" | "removed" | "added"; text: string }>
@@ -42,6 +44,14 @@ export const TAILOR_TOOL: Anthropic.Tool = {
   input_schema: {
     type: "object" as const,
     properties: {
+      jobTitle: {
+        type: "string",
+        description: "The exact job title from the job description, e.g. 'Senior Product Manager'",
+      },
+      companyName: {
+        type: "string",
+        description: "The hiring company name from the job description. Empty string if not found.",
+      },
       matchScore: {
         type: "number",
         description: "0–100 score of how well the CV genuinely matches the JD",
@@ -82,7 +92,7 @@ export const TAILOR_TOOL: Anthropic.Tool = {
         description: "ATS readiness notes, max 4 items",
       },
     },
-    required: ["matchScore", "tailoredCV", "keyChanges", "gaps", "followUps", "atsNotes"],
+    required: ["jobTitle", "companyName", "matchScore", "tailoredCV", "keyChanges", "gaps", "followUps", "atsNotes"],
   },
 }
 

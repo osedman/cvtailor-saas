@@ -50,6 +50,7 @@ export default function CVTailorPage() {
   const [loadingCoverLetter, setLoadingCoverLetter] = useState(false)
   const [loadingPitches, setLoadingPitches] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [scrapedJobUrl, setScrapedJobUrl] = useState("")
 
   const handleTailor = useCallback(async () => {
     if (!canTailor) return
@@ -76,7 +77,7 @@ export default function CVTailorPage() {
       const res = await fetch("/api/tailor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cv: cvText, jobDescription }),
+        body: JSON.stringify({ cv: cvText, jobDescription, jobUrl: scrapedJobUrl }),
       })
 
       clearInterval(stepInterval)
@@ -160,6 +161,7 @@ export default function CVTailorPage() {
             setCvText={setCvText}
             jobDescription={jobDescription}
             setJobDescription={setJobDescription}
+            onJobUrlScraped={setScrapedJobUrl}
           />
         </div>
 

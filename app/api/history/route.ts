@@ -11,7 +11,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('tailor_history')
-      .select('id, created_at, job_title, job_snippet, match_score, result')
+      .select('id, created_at, job_title, company_name, job_url, job_snippet, match_score, result')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(50)

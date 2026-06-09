@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { X, Trash2, Clock, ChevronRight, Loader2 } from "lucide-react"
+import { X, Trash2, Clock, ChevronRight, Loader2, ExternalLink, Building2 } from "lucide-react"
 import { toast } from "sonner"
 import type { TailorResult } from "@/lib/anthropic"
 
@@ -9,6 +9,8 @@ export interface HistoryItem {
   id: string
   created_at: string
   job_title: string
+  company_name: string
+  job_url: string
   job_snippet: string
   match_score: number
   result: TailorResult
@@ -160,32 +162,71 @@ export function HistoryDrawer({ open, onClose, onRestore }: HistoryDrawerProps) 
             <ul className="divide-y divide-gray-50">
               {history.map((item) => (
                 <li key={item.id}>
-                  <button
-                    onClick={() => handleRestore(item)}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors group flex items-start gap-3"
-                  >
-                    {/* Score ring */}
-                    <ScoreRing score={item.match_score} />
+                  <div className="group relative">
+                    {/* Main restore button */}
+                    <button
+                      onClick={() => handleRestore(item)}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-start gap-3"
+                    >
+                      {/* Score ring */}
+                      <ScoreRing score={item.match_score} />
 
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-[#0f0f0f] leading-snug truncate">
-                        {item.job_title || "Untitled role"}
-                      </p>
-                      <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-2 leading-relaxed">
-                        {item.job_snippet}
-                      </p>
-                      <span className="text-[10px] text-gray-300 mt-1 block">
-                        {formatDate(item.created_at)}
-                      </span>
-                    </div>
+                      {/* Content */}
+                      <div className="flex-1 min-w-0 pr-12">
+                        {/* Job title */}
+                        <p className="text-xs font-semibold text-[#0f0f0f] leading-snug truncate">
+                          {item.job_title || item.result?.jobTitle || "Untitled role"}
+                        </p>
 
-                    {/* Actions */}
-                    <div className="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Company */}
+                        {(item.company_name || item.result?.companyName) && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Building2 className="w-2.5 h-2.5 text-gray-400 flex-shrink-0" />
+                            <span className="text-[10px] text-gray-500 truncate">
+                              {item.company_name || item.result?.companyName}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Date + score label */}
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] text-gray-300">
+                            {formatDate(item.created_at)}
+                          </span>
+                          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
+                            item.match_score >= 75 ? "bg-green-50 text-green-600" :
+                            item.match_score >= 50 ? "bg-amber-50 text-amber-600" :
+                            "bg-red-50 text-red-500"
+                          }`}>
+                            {item.match_score >= 75 ? "Strong match" :
+                             item.match_score >= 50 ? "Moderate" : "Low match"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <ChevronRight className="absolute right-10 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-200 group-hover:text-gray-400 transition-colors" />
+                    </button>
+
+                    {/* Action buttons (top-right corner) */}
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* Open job URL */}
+                      {item.job_url && (
+                        <a
+                          href={item.job_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-1.5 rounded text-gray-300 hover:text-[#2563eb] hover:bg-blue-50 transition-colors"
+                          title="Open original job posting"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                      {/* Delete */}
                       <button
                         onClick={(e) => handleDelete(item.id, e)}
                         disabled={deletingId === item.id}
-                        className="p-1 rounded text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+                        className="p-1.5 rounded text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
                         title="Remove from history"
                       >
                         {deletingId === item.id
@@ -193,9 +234,8 @@ export function HistoryDrawer({ open, onClose, onRestore }: HistoryDrawerProps) 
                           : <Trash2 className="w-3 h-3" />
                         }
                       </button>
-                      <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
                     </div>
-                  </button>
+                  </div>
                 </li>
               ))}
             </ul>

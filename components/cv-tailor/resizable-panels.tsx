@@ -9,6 +9,7 @@ interface ResizablePanelsProps {
   setCvText: (text: string) => void
   jobDescription: string
   setJobDescription: (text: string) => void
+  onJobUrlScraped?: (url: string) => void
 }
 
 function wordCount(text: string) {
@@ -38,6 +39,7 @@ export function ResizablePanels({
   setCvText,
   jobDescription,
   setJobDescription,
+  onJobUrlScraped,
 }: ResizablePanelsProps) {
   const [leftWidth, setLeftWidth] = useState(50)
   const [isDragging, setIsDragging] = useState(false)
@@ -149,6 +151,7 @@ export function ResizablePanels({
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setJobDescription(data.text)
+      onJobUrlScraped?.(jobUrl.trim())
       setJobUrl("")
       toast.success("Job description fetched!")
     } catch (err) {
