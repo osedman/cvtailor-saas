@@ -46,8 +46,21 @@ export async function POST(req: NextRequest) {
 
     const result = toolUse.input
 
-    // 5. Track usage (non-blocking)
-    supabase.rpc('increment_tailors_used', { user_id: user.id }).then(() => {})
+    // 5. Track usage + save to history (non-blocking)
+    const jobLines = jobDescription.trim().split('\n').filter(Boolean)
+    const jobTitle  = jobLines[0]?.slice(0, 80) ?? ''
+    const jobSnippet = jobDescription.trim().slice(0, 200)
+
+    Promise.all([
+      supabase.rpc('increment_tailors_used', { user_id: user.id }),
+      supabase.from('tailor_history').insert({
+        user_id:     user.id,
+        job_title:   jobTitle,
+        job_snippet: jobSnippet,
+        match_score: (result as { matchScore?: number }).matchScore ?? 0,
+        result,
+      }),
+    ]).then(() => {})
 
     return NextResponse.json({ result })
   } catch (err) {

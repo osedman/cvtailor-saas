@@ -1,15 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { LogOut, ChevronDown } from "lucide-react"
+import { LogOut, ChevronDown, Clock } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { SignInModal } from "@/components/auth/sign-in-modal"
 
 interface HeaderProps {
   onSignInClick?: () => void
+  onHistoryClick?: () => void
 }
 
-export function Header({ onSignInClick }: HeaderProps) {
+export function Header({ onSignInClick, onHistoryClick }: HeaderProps) {
   const [scrolled, setScrolled] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -37,6 +38,17 @@ export function Header({ onSignInClick }: HeaderProps) {
           <span className="text-lg font-medium text-[#0f0f0f] tracking-tight">CV Tailor</span>
 
           <div className="flex items-center gap-4">
+            {/* History button — only for signed-in users */}
+            {!loading && user && onHistoryClick && (
+              <button
+                onClick={onHistoryClick}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-[#2563eb] hover:bg-blue-50 rounded-lg transition-colors"
+                title="Tailor history"
+              >
+                <Clock className="w-4 h-4" />
+                <span className="hidden sm:block">History</span>
+              </button>
+            )}
             {!loading && (
               user ? (
                 <div className="relative">
