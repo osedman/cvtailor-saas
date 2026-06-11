@@ -49,6 +49,8 @@ Steps to follow internally:
 6. ATS-safe output: standard headings, plain text, consistent dates, no tables or columns.
 7. Score the match 0–100 based on genuine fit.
 
+Length: Keep the tailored CV tight and senior-appropriate — aim for ~450–650 words (one to two pages). Be economical; cut weak bullets rather than padding. Keep every analysis item to a single concise sentence.
+
 Rules: Truth over optimisation. Every claim must trace to the original CV.`
 
 export const TAILOR_TOOL: Anthropic.Tool = {
@@ -71,7 +73,7 @@ export const TAILOR_TOOL: Anthropic.Tool = {
       },
       tailoredCV: {
         type: "string",
-        description: "Full tailored CV in plain text, ATS-safe formatting",
+        description: "The tailored CV in plain text, ATS-safe formatting. Concise — typically 450–650 words, no padding.",
       },
       keyChanges: {
         type: "array",
@@ -83,7 +85,7 @@ export const TAILOR_TOOL: Anthropic.Tool = {
           },
           required: ["type", "text"],
         },
-        description: "Specific changes made, max 6 items",
+        description: "Specific changes made, each one concise sentence, max 5 items",
       },
       gaps: {
         type: "array",

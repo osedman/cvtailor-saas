@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const message = await anthropic.messages.create(
       {
         model: 'claude-sonnet-4-6',
-        max_tokens: 8000,
+        max_tokens: 5000,
         system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
         tools: [TAILOR_TOOL],
         tool_choice: { type: 'tool', name: 'submit_tailored_result' },
