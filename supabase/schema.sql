@@ -81,3 +81,37 @@ create policy "Users can insert own history"
 create policy "Users can delete own history"
   on public.tailor_history for delete
   using (auth.uid() = user_id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Job tracker — Kanban board (Saved → Applied → Interview → Offer)
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.job_tracker (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references auth.users on delete cascade,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  status          text not null default 'saved',   -- saved|applied|interview|offer
+  position        integer not null default 0,
+  job_title       text not null default '',
+  company_name    text not null default '',
+  job_url         text not null default '',
+  job_description text not null default '',
+  tailored_cv     text not null default '',
+  history_id      uuid references public.tailor_history(id) on delete set null,
+  match_score     integer,
+  notes           jsonb not null default '[]'::jsonb  -- [{text, created_at}]
+);
+
+create index if not exists job_tracker_user_status
+  on public.job_tracker (user_id, status, position);
+
+alter table public.job_tracker enable row level security;
+
+create policy "Users can read own jobs"
+  on public.job_tracker for select using (auth.uid() = user_id);
+create policy "Users can insert own jobs"
+  on public.job_tracker for insert with check (auth.uid() = user_id);
+create policy "Users can update own jobs"
+  on public.job_tracker for update using (auth.uid() = user_id);
+create policy "Users can delete own jobs"
+  on public.job_tracker for delete using (auth.uid() = user_id);
