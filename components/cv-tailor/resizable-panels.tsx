@@ -176,7 +176,7 @@ export function ResizablePanels({
         <div
           className={`relative flex-1 flex flex-col rounded-lg bg-gray-50/50 overflow-hidden transition-all duration-150 ${
             isDroppingCv
-              ? "ring-2 ring-[#2563eb] shadow-[inset_0_2px_12px_rgba(37,99,235,0.1)]"
+              ? "ring-2 ring-[#dc4f33] shadow-[inset_0_2px_12px_rgba(220,79,51,0.1)]"
               : "shadow-[inset_0_1px_3px_rgba(0,0,0,0.04)]"
           }`}
           onDragOver={(e) => { e.preventDefault(); setIsDroppingCv(true) }}
@@ -186,7 +186,7 @@ export function ResizablePanels({
           {/* Panel header */}
           <div className="flex-shrink-0 flex items-center justify-between px-3 pt-2.5 pb-1.5 bg-gray-50/80 border-b border-gray-100">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-[#2563eb]">Your CV</span>
+              <span className="text-xs font-medium text-[#dc4f33]">Your CV</span>
               {cvFileName && (
                 <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
                   <FileText className="w-2.5 h-2.5" />
@@ -226,7 +226,7 @@ export function ResizablePanels({
           {/* Body: drop zone when empty, textarea when populated */}
           {parsingFile ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-400">
-              <Loader2 className="w-8 h-8 animate-spin text-[#2563eb]" />
+              <Loader2 className="w-8 h-8 animate-spin text-[#dc4f33]" />
               <p className="text-sm">Reading your CV…</p>
             </div>
           ) : !cvText ? (
@@ -234,15 +234,15 @@ export function ResizablePanels({
               htmlFor={fileInputId}
               className={`flex-1 flex flex-col items-center justify-center gap-3 cursor-pointer m-2 rounded-lg border-2 border-dashed transition-all duration-150 group ${
                 isDroppingCv
-                  ? "border-[#2563eb] bg-blue-50/40"
-                  : "border-gray-200 hover:border-[#2563eb] hover:bg-blue-50/20"
+                  ? "border-[#dc4f33] bg-[#ffeae4]/40"
+                  : "border-gray-200 hover:border-[#dc4f33] hover:bg-[#ffeae4]/20"
               }`}
             >
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${isDroppingCv ? "bg-[#2563eb]/10" : "bg-gray-100 group-hover:bg-[#2563eb]/10"}`}>
-                <Upload className={`w-6 h-6 transition-colors ${isDroppingCv ? "text-[#2563eb]" : "text-gray-400 group-hover:text-[#2563eb]"}`} />
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${isDroppingCv ? "bg-[#dc4f33]/10" : "bg-gray-100 group-hover:bg-[#dc4f33]/10"}`}>
+                <Upload className={`w-6 h-6 transition-colors ${isDroppingCv ? "text-[#dc4f33]" : "text-gray-400 group-hover:text-[#dc4f33]"}`} />
               </div>
               <div className="text-center px-4">
-                <p className={`text-sm font-medium transition-colors ${isDroppingCv ? "text-[#2563eb]" : "text-gray-500 group-hover:text-[#2563eb]"}`}>
+                <p className={`text-sm font-medium transition-colors ${isDroppingCv ? "text-[#dc4f33]" : "text-gray-500 group-hover:text-[#dc4f33]"}`}>
                   {isDroppingCv ? "Release to upload" : "Drop your CV here or click to browse"}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">PDF · DOCX · TXT supported</p>
@@ -253,7 +253,7 @@ export function ResizablePanels({
             <textarea
               value={cvText}
               onChange={(e) => setCvText(e.target.value)}
-              className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none font-mono text-sm text-[#0f0f0f] leading-relaxed placeholder:text-gray-300"
+              className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none font-mono text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300"
               placeholder="Your CV text…"
             />
           )}
@@ -263,7 +263,7 @@ export function ResizablePanels({
             <textarea
               value={cvText}
               onChange={(e) => setCvText(e.target.value)}
-              className="w-full h-20 px-3 py-2 bg-transparent resize-none focus:outline-none font-mono text-sm text-[#0f0f0f] leading-relaxed placeholder:text-gray-300 border-t border-gray-100"
+              className="w-full h-20 px-3 py-2 bg-transparent resize-none focus:outline-none font-mono text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300 border-t border-gray-100"
               placeholder="…or paste your CV text here"
             />
           )}
@@ -282,11 +282,11 @@ export function ResizablePanels({
 
       {/* ── Divider ── */}
       <div
-        className={`relative w-px cursor-col-resize group ${isDragging ? "bg-[#2563eb]" : "bg-gray-200"}`}
+        className={`relative w-px cursor-col-resize group ${isDragging ? "bg-[#dc4f33]" : "bg-gray-200"}`}
         onMouseDown={handleMouseDown}
       >
         <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-10 flex items-center justify-center rounded-lg transition-all duration-150 ${
-          isDragging ? "bg-[#2563eb] text-white" : "bg-white border border-gray-200 text-gray-400 group-hover:border-gray-300 group-hover:text-gray-500"
+          isDragging ? "bg-[#dc4f33] text-white" : "bg-white border border-gray-200 text-gray-400 group-hover:border-gray-300 group-hover:text-gray-500"
         }`}>
           <GripVertical className="w-4 h-4" />
         </div>
@@ -297,7 +297,7 @@ export function ResizablePanels({
         <div className="relative flex-1 flex flex-col rounded-lg bg-gray-50/50 overflow-hidden shadow-[inset_0_1px_3px_rgba(0,0,0,0.04)]">
           {/* Panel header */}
           <div className="flex-shrink-0 px-3 pt-2.5 pb-1.5 bg-gray-50/80 border-b border-gray-100">
-            <span className="text-xs font-medium text-[#2563eb]">Job Description</span>
+            <span className="text-xs font-medium text-[#dc4f33]">Job Description</span>
           </div>
 
           {/* URL scraper bar */}
@@ -309,13 +309,13 @@ export function ResizablePanels({
               onChange={(e) => setJobUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleScrapeUrl()}
               placeholder="Paste LinkedIn / Indeed URL to auto-fill…"
-              className="flex-1 text-xs bg-transparent focus:outline-none text-[#0f0f0f] placeholder:text-gray-300 min-w-0"
+              className="flex-1 text-xs bg-transparent focus:outline-none text-[#1e1813] placeholder:text-gray-300 min-w-0"
             />
             {jobUrl && (
               <button
                 onClick={handleScrapeUrl}
                 disabled={scrapingUrl}
-                className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-white bg-[#2563eb] rounded hover:bg-[#1d4ed8] disabled:opacity-60 transition-colors"
+                className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-white bg-[#dc4f33] rounded hover:bg-[#b3341b] disabled:opacity-60 transition-colors"
               >
                 {scrapingUrl ? <Loader2 className="w-3 h-3 animate-spin" /> : "Fetch"}
               </button>
@@ -326,7 +326,7 @@ export function ResizablePanels({
           <textarea
             value={jobDescription}
             onChange={(e) => setJobDescription(e.target.value)}
-            className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none text-sm text-[#0f0f0f] leading-relaxed placeholder:text-gray-300"
+            className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300"
             placeholder="Or paste the job description here…"
           />
 

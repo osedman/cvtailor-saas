@@ -84,7 +84,7 @@ function browserOf(ua: string) {
 
 // ── Bar chart (hand-rolled, no deps) ───────────────────────────────────
 
-function BarChart({ data, color = "#2563eb", height = 120 }: {
+function BarChart({ data, color = "#dc4f33", height = 120 }: {
   data: { label: string; value: number }[]
   color?: string
   height?: number
@@ -98,7 +98,7 @@ function BarChart({ data, color = "#2563eb", height = 120 }: {
         {data.map((d, i) => (
           <div key={d.label} className="flex-1 flex flex-col items-center justify-end h-full group relative">
             {/* Tooltip */}
-            <div className="absolute -top-7 hidden group-hover:block bg-[#0f0f0f] text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10">
+            <div className="absolute -top-7 hidden group-hover:block bg-[#1e1813] text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10">
               {d.label.slice(5)}: {d.value}
             </div>
             <div
@@ -139,7 +139,7 @@ function StatCard({ icon, label, value, sub }: {
         {icon}
         <span className="text-[11px] font-medium uppercase tracking-wide">{label}</span>
       </div>
-      <p className="text-2xl font-bold text-[#0f0f0f] mt-2 tabular-nums">{value}</p>
+      <p className="text-2xl font-bold text-[#1e1813] mt-2 tabular-nums">{value}</p>
       {sub && <p className="text-[11px] text-gray-400 mt-1">{sub}</p>}
     </div>
   )
@@ -221,7 +221,7 @@ export default function AdminPage() {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-3">
         <UserX className="w-8 h-8 text-gray-300" />
         <p className="text-sm text-gray-500">You don&apos;t have access to this page.</p>
-        <Link href="/tailor" className="text-sm text-[#2563eb] hover:underline">Back to Tailr</Link>
+        <Link href="/tailor" className="text-sm text-[#dc4f33] hover:underline">Back to Tailr</Link>
       </div>
     )
   }
@@ -232,17 +232,17 @@ export default function AdminPage() {
     (b.last_sign_in_at ?? "").localeCompare(a.last_sign_in_at ?? ""))
 
   return (
-    <div className="min-h-screen bg-gray-50/40">
+    <div className="min-h-screen bg-[#f9f6f0]">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
-          <Link href="/tailor" className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#0f0f0f] transition-colors">
+          <Link href="/tailor" className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#1e1813] transition-colors">
             <ArrowLeft className="w-4 h-4" />Back
           </Link>
           <div className="w-px h-4 bg-gray-200" />
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-[#2563eb]" />
-            <h1 className="text-sm font-semibold text-[#0f0f0f]">Admin dashboard</h1>
+            <ShieldCheck className="w-4 h-4 text-[#dc4f33]" />
+            <h1 className="text-sm font-semibold text-[#1e1813]">Admin dashboard</h1>
           </div>
           <div className="flex-1" />
           <span className="text-[10px] text-gray-300 hidden sm:block">
@@ -250,7 +250,7 @@ export default function AdminPage() {
           </span>
           <button
             onClick={fetchStats}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#2563eb] transition-colors"
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#dc4f33] transition-colors"
           >
             <RefreshCw className="w-3.5 h-3.5" />Refresh
           </button>
@@ -290,15 +290,15 @@ export default function AdminPage() {
         {/* ── Charts row ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-xs font-semibold text-[#0f0f0f] mb-1">Logins per day</h2>
+            <h2 className="text-xs font-semibold text-[#1e1813] mb-1">Logins per day</h2>
             <p className="text-[10px] text-gray-400 mb-4">
               Last 30 days · {stats.loginEvents.length} events
               {stats.loginEvents.length === 0 && " — collecting from now on; check back after the next sign-in"}
             </p>
-            <BarChart data={derived.loginsPerDay} color="#2563eb" />
+            <BarChart data={derived.loginsPerDay} color="#dc4f33" />
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-xs font-semibold text-[#0f0f0f] mb-1">Signups per day</h2>
+            <h2 className="text-xs font-semibold text-[#1e1813] mb-1">Signups per day</h2>
             <p className="text-[10px] text-gray-400 mb-4">Last 30 days</p>
             <BarChart data={derived.signupsPerDay} color="#16a34a" />
           </div>
@@ -307,20 +307,20 @@ export default function AdminPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Tailor runs chart */}
           <div className="bg-white rounded-xl border border-gray-200 p-5 lg:col-span-2">
-            <h2 className="text-xs font-semibold text-[#0f0f0f] mb-1">Tailoring runs per day</h2>
+            <h2 className="text-xs font-semibold text-[#1e1813] mb-1">Tailoring runs per day</h2>
             <p className="text-[10px] text-gray-400 mb-4">Last 14 days</p>
             <BarChart data={derived.tailorsPerDay} color="#7c3aed" height={100} />
           </div>
 
           {/* Top users */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-xs font-semibold text-[#0f0f0f] mb-4">Top users by tailors</h2>
+            <h2 className="text-xs font-semibold text-[#1e1813] mb-4">Top users by tailors</h2>
             <div className="space-y-3">
               {derived.topUsers.map((p, i) => (
                 <div key={p.id} className="flex items-center gap-3">
                   <span className="text-[10px] font-bold text-gray-300 w-4">#{i + 1}</span>
-                  <span className="text-xs text-[#0f0f0f] truncate flex-1">{p.email}</span>
-                  <span className="text-xs font-semibold text-[#2563eb] tabular-nums">{p.tailors_used}</span>
+                  <span className="text-xs text-[#1e1813] truncate flex-1">{p.email}</span>
+                  <span className="text-xs font-semibold text-[#dc4f33] tabular-nums">{p.tailors_used}</span>
                 </div>
               ))}
               {derived.topUsers.length === 0 && (
@@ -333,7 +333,7 @@ export default function AdminPage() {
         {/* ── Recent logins feed ── */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="text-xs font-semibold text-[#0f0f0f]">Recent logins</h2>
+            <h2 className="text-xs font-semibold text-[#1e1813]">Recent logins</h2>
             <p className="text-[10px] text-gray-400 mt-0.5">
               From login_events — captures magic-link sign-ins from today onward
             </p>
@@ -355,7 +355,7 @@ export default function AdminPage() {
               <tbody>
                 {stats.loginEvents.slice(0, 20).map((e, i) => (
                   <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-                    <td className="px-5 py-2.5 text-xs text-[#0f0f0f]">{e.email}</td>
+                    <td className="px-5 py-2.5 text-xs text-[#1e1813]">{e.email}</td>
                     <td className="px-5 py-2.5 text-xs text-gray-500">{fmtDateTime(e.created_at)}</td>
                     <td className="px-5 py-2.5 text-xs text-gray-400 hidden sm:table-cell font-mono">{e.ip || "—"}</td>
                     <td className="px-5 py-2.5 text-xs text-gray-400 hidden md:table-cell">{browserOf(e.user_agent)}</td>
@@ -369,7 +369,7 @@ export default function AdminPage() {
         {/* ── All users table ── */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="text-xs font-semibold text-[#0f0f0f]">All users ({stats.users.length})</h2>
+            <h2 className="text-xs font-semibold text-[#1e1813]">All users ({stats.users.length})</h2>
             <p className="text-[10px] text-gray-400 mt-0.5">Sorted by most recent sign-in · from Supabase auth</p>
           </div>
           <div className="overflow-x-auto">
@@ -388,7 +388,7 @@ export default function AdminPage() {
                   const profile = stats.profiles.find(p => p.id === u.id)
                   return (
                     <tr key={u.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-                      <td className="px-5 py-2.5 text-xs text-[#0f0f0f]">{u.email}</td>
+                      <td className="px-5 py-2.5 text-xs text-[#1e1813]">{u.email}</td>
                       <td className="px-5 py-2.5 text-xs">
                         <span className={`${relDay(u.last_sign_in_at) === "Today" ? "text-green-600 font-medium" : "text-gray-500"}`}>
                           {relDay(u.last_sign_in_at)}

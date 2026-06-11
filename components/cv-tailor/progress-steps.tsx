@@ -24,14 +24,14 @@ export function ProgressSteps({ currentStep }: ProgressStepsProps) {
           <div
             key={step}
             className={`flex items-center gap-2.5 text-xs transition-all duration-300 ${
-              done ? "text-gray-400" : active ? "text-[#0f0f0f] font-medium" : "text-gray-300"
+              done ? "text-gray-400" : active ? "text-[#1e1813] font-medium" : "text-gray-300"
             }`}
           >
             <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
               done
                 ? "bg-green-100 text-green-500"
                 : active
-                ? "bg-[#2563eb] text-white"
+                ? "bg-[#dc4f33] text-white"
                 : "bg-gray-100 text-gray-300"
             }`}>
               {done ? (

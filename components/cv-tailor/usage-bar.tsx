@@ -25,7 +25,7 @@ export function UsageBar({ used, total }: UsageBarProps) {
               i < used
                 ? isAtLimit
                   ? "bg-amber-500"
-                  : "bg-[#2563eb]"
+                  : "bg-[#dc4f33]"
                 : "bg-gray-200"
             }`}
           />

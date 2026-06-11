@@ -31,8 +31,8 @@ export function TailorButton({
         disabled
           ? "bg-gray-100 text-gray-400 cursor-not-allowed"
           : isLoading
-          ? "bg-[#2563eb] text-white cursor-wait"
-          : "bg-[#2563eb] text-white hover:bg-[#1d4ed8] active:scale-[0.98]"
+          ? "bg-[#dc4f33] text-white cursor-wait"
+          : "bg-[#dc4f33] text-white hover:bg-[#b3341b] active:scale-[0.98]"
       }`}
     >
       {isLoading ? (

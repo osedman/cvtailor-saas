@@ -19,7 +19,7 @@ export function InterviewPitches({ pitches, loading, onGenerate }: InterviewPitc
         <div className="p-1.5 bg-amber-50 rounded-lg">
           <Lightbulb className="w-4 h-4 text-amber-500" />
         </div>
-        <h2 className="text-base font-semibold text-[#0f0f0f]">Interview Pitches</h2>
+        <h2 className="text-base font-semibold text-[#1e1813]">Interview Pitches</h2>
         <span className="text-xs text-gray-400 ml-1">STAR stories from your experience</span>
       </div>
 
@@ -31,7 +31,7 @@ export function InterviewPitches({ pitches, loading, onGenerate }: InterviewPitc
           <button
             onClick={onGenerate}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#2563eb] rounded-lg hover:bg-[#1d4ed8] disabled:opacity-60 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] disabled:opacity-60 transition-colors"
           >
             {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : <><Sparkles className="w-4 h-4" />Generate Interview Pitches</>}
           </button>
@@ -45,7 +45,7 @@ export function InterviewPitches({ pitches, loading, onGenerate }: InterviewPitc
                 className="w-full p-4 text-left flex items-center justify-between gap-4"
               >
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-[#0f0f0f] mb-1">{pitch.title}</h3>
+                  <h3 className="text-sm font-medium text-[#1e1813] mb-1">{pitch.title}</h3>
                   <div className="flex flex-wrap gap-1.5">
                     {pitch.relevantTo.map((tag, j) => (
                       <span key={j} className="px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-500">{tag}</span>
@@ -59,7 +59,7 @@ export function InterviewPitches({ pitches, loading, onGenerate }: InterviewPitc
                   <div className="pt-4 border-t border-gray-100 space-y-4">
                     {(["situation", "task", "action", "result"] as const).map((key) => (
                       <div key={key}>
-                        <p className="text-xs font-medium text-[#2563eb] uppercase tracking-wide mb-1">{key}</p>
+                        <p className="text-xs font-medium text-[#dc4f33] uppercase tracking-wide mb-1">{key}</p>
                         <p className="text-sm text-gray-600 leading-relaxed">{pitch[key]}</p>
                       </div>
                     ))}

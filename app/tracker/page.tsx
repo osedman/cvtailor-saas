@@ -51,9 +51,9 @@ const COLUMNS: { id: Status; label: string; icon: React.ReactNode; color: string
     id: "applied",
     label: "Applied",
     icon: <Send className="w-3.5 h-3.5" />,
-    color: "text-blue-600",
-    bg: "bg-blue-50",
-    border: "border-blue-200",
+    color: "text-[#dc4f33]",
+    bg: "bg-[#ffeae4]",
+    border: "border-[#ffd8cd]",
   },
   {
     id: "interview",
@@ -135,7 +135,7 @@ function AddJobModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-[#0f0f0f]">Add job</h2>
+          <h2 className="text-sm font-semibold text-[#1e1813]">Add job</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded">
             <X className="w-4 h-4" />
           </button>
@@ -148,7 +148,7 @@ function AddJobModal({
               <input
                 value={form.job_title}
                 onChange={e => setForm(f => ({ ...f, job_title: e.target.value }))}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]/20"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/20"
                 placeholder="Senior Product Manager"
               />
             </div>
@@ -157,7 +157,7 @@ function AddJobModal({
               <input
                 value={form.company_name}
                 onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]/20"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/20"
                 placeholder="Acme Corp"
               />
             </div>
@@ -188,7 +188,7 @@ function AddJobModal({
               type="url"
               value={form.job_url}
               onChange={e => setForm(f => ({ ...f, job_url: e.target.value }))}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]/20"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/20"
               placeholder="https://linkedin.com/jobs/…"
             />
           </div>
@@ -199,7 +199,7 @@ function AddJobModal({
               value={form.job_description}
               onChange={e => setForm(f => ({ ...f, job_description: e.target.value }))}
               rows={4}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]/20 resize-none"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/20 resize-none"
               placeholder="Paste the job description…"
             />
           </div>
@@ -210,20 +210,20 @@ function AddJobModal({
               value={form.tailored_cv}
               onChange={e => setForm(f => ({ ...f, tailored_cv: e.target.value }))}
               rows={4}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]/20 resize-none font-mono"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/20 resize-none font-mono"
               placeholder="Paste your tailored CV for this role…"
             />
           </div>
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-[#0f0f0f] transition-colors">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-[#1e1813] transition-colors">
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#2563eb] rounded-lg hover:bg-[#1d4ed8] disabled:opacity-60 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] disabled:opacity-60 transition-colors"
           >
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
             Add job
@@ -349,7 +349,7 @@ function JobDetailSheet({
               <input
                 value={local.job_title}
                 onChange={e => patch({ job_title: e.target.value })}
-                className="w-full text-base font-semibold text-[#0f0f0f] bg-transparent border-none outline-none placeholder:text-gray-300"
+                className="w-full text-base font-semibold text-[#1e1813] bg-transparent border-none outline-none placeholder:text-gray-300"
                 placeholder="Job title"
               />
               <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -364,7 +364,7 @@ function JobDetailSheet({
                 </div>
                 {local.job_url && (
                   <a href={local.job_url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs text-[#2563eb] hover:underline">
+                    className="flex items-center gap-1 text-xs text-[#dc4f33] hover:underline">
                     <ExternalLink className="w-3 h-3" />View job
                   </a>
                 )}
@@ -404,7 +404,7 @@ function JobDetailSheet({
               key={t}
               onClick={() => setTab(t)}
               className={`px-5 py-3 text-xs font-medium capitalize transition-colors border-b-2 -mb-px
-                ${tab === t ? "border-[#2563eb] text-[#0f0f0f]" : "border-transparent text-gray-400 hover:text-gray-600"}`}
+                ${tab === t ? "border-[#dc4f33] text-[#1e1813]" : "border-transparent text-gray-400 hover:text-gray-600"}`}
             >
               {t === "notes" ? `Notes (${local.notes.length})` : t === "cv" ? "Tailored CV" : "Overview"}
             </button>
@@ -421,7 +421,7 @@ function JobDetailSheet({
                   type="url"
                   value={local.job_url}
                   onChange={e => patch({ job_url: e.target.value })}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#2563eb]"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#dc4f33]"
                   placeholder="https://…"
                 />
               </div>
@@ -431,7 +431,7 @@ function JobDetailSheet({
                   value={local.job_description}
                   onChange={e => patch({ job_description: e.target.value })}
                   rows={14}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#2563eb] resize-none leading-relaxed"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#dc4f33] resize-none leading-relaxed"
                   placeholder="Paste the job description…"
                 />
               </div>
@@ -450,7 +450,7 @@ function JobDetailSheet({
                 value={local.tailored_cv}
                 onChange={e => patch({ tailored_cv: e.target.value })}
                 rows={24}
-                className="w-full text-sm font-mono border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#2563eb] resize-none leading-relaxed"
+                className="w-full text-sm font-mono border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#dc4f33] resize-none leading-relaxed"
                 placeholder="Paste your tailored CV for this role…"
               />
             </div>
@@ -467,7 +467,7 @@ function JobDetailSheet({
                     const realIdx = local.notes.length - 1 - i
                     return (
                       <div key={i} className="group bg-gray-50 rounded-xl p-4">
-                        <p className="text-sm text-[#0f0f0f] leading-relaxed whitespace-pre-wrap">{n.text}</p>
+                        <p className="text-sm text-[#1e1813] leading-relaxed whitespace-pre-wrap">{n.text}</p>
                         <div className="flex items-center justify-between mt-2">
                           <span className="text-[10px] text-gray-400">{noteTime(n.created_at)}</span>
                           <button
@@ -491,13 +491,13 @@ function JobDetailSheet({
                   onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleAddNote() }}
                   rows={3}
                   placeholder="Add a note… (⌘↵ to save)"
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]/20 resize-none"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/20 resize-none"
                 />
                 <div className="flex justify-end mt-2">
                   <button
                     onClick={handleAddNote}
                     disabled={addingNote || !noteText.trim()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#2563eb] rounded-lg hover:bg-[#1d4ed8] disabled:opacity-50 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] disabled:opacity-50 transition-colors"
                   >
                     {addingNote ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                     Add note
@@ -548,7 +548,7 @@ function KanbanCard({
       {/* Title + company */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-[#0f0f0f] truncate">{job.job_title || "Untitled"}</p>
+          <p className="text-sm font-semibold text-[#1e1813] truncate">{job.job_title || "Untitled"}</p>
           {job.company_name && (
             <div className="flex items-center gap-1 mt-0.5">
               <Building2 className="w-3 h-3 text-gray-400 flex-shrink-0" />
@@ -562,7 +562,7 @@ function KanbanCard({
             target="_blank"
             rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-[#2563eb] transition-all flex-shrink-0"
+            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-[#dc4f33] transition-all flex-shrink-0"
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
@@ -635,7 +635,7 @@ function KanbanColumn({
         onDragOver={onDragOver}
         onDrop={(e) => onDrop(e, col.id)}
         className={`flex-1 flex flex-col gap-2.5 rounded-xl p-2 min-h-[120px] transition-all duration-150
-          ${isDragOver ? `ring-2 ring-[#2563eb] ring-offset-2 bg-blue-50/30` : "bg-transparent"}`}
+          ${isDragOver ? `ring-2 ring-[#dc4f33] ring-offset-2 bg-[#ffeae4]/30` : "bg-transparent"}`}
       >
         {jobs.map(job => (
           <KanbanCard
@@ -647,7 +647,7 @@ function KanbanColumn({
         ))}
         {jobs.length === 0 && (
           <div className={`flex-1 flex items-center justify-center rounded-xl border-2 border-dashed text-xs text-gray-300 py-8
-            ${isDragOver ? "border-[#2563eb] text-[#2563eb]" : "border-gray-100"} transition-colors`}>
+            ${isDragOver ? "border-[#dc4f33] text-[#dc4f33]" : "border-gray-100"} transition-colors`}>
             Drop here
           </div>
         )}
@@ -742,22 +742,22 @@ export default function TrackerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/40 flex flex-col">
+    <div className="min-h-screen bg-[#f9f6f0] flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
-          <Link href="/tailor" className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#0f0f0f] transition-colors">
+          <Link href="/tailor" className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#1e1813] transition-colors">
             <ArrowLeft className="w-4 h-4" />Back
           </Link>
           <div className="w-px h-4 bg-gray-200" />
-          <h1 className="text-sm font-semibold text-[#0f0f0f]">Job tracker</h1>
+          <h1 className="text-sm font-semibold text-[#1e1813]">Job tracker</h1>
           <span className="text-[10px] text-gray-400 bg-gray-100 rounded px-1.5 py-0.5 font-medium">
             {jobs.length} job{jobs.length !== 1 ? "s" : ""}
           </span>
           <div className="flex-1" />
           <button
             onClick={() => setAddingForStatus("saved")}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[#2563eb] rounded-lg hover:bg-[#1d4ed8] transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] transition-colors"
           >
             <Plus className="w-4 h-4" />Add job
           </button>

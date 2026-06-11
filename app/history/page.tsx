@@ -92,13 +92,13 @@ function HistoryCard({
       onClick={onSelect}
       className={`group relative flex flex-col rounded-xl border cursor-pointer transition-all duration-200 overflow-hidden
         ${selected
-          ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.12)] bg-white"
+          ? "border-[#dc4f33] shadow-[0_0_0_3px_rgba(220,79,51,0.12)] bg-white"
           : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-md"
         }`}
     >
       {/* Top accent bar when selected */}
       {selected && (
-        <div className="h-0.5 w-full bg-[#2563eb]" />
+        <div className="h-0.5 w-full bg-[#dc4f33]" />
       )}
 
       <div className="p-5 flex flex-col gap-4 flex-1">
@@ -106,7 +106,7 @@ function HistoryCard({
         <div className="flex items-start gap-3">
           <ScoreRing score={item.match_score} />
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold text-[#0f0f0f] truncate leading-snug">
+            <h3 className="text-sm font-semibold text-[#1e1813] truncate leading-snug">
               {item.job_title || "Untitled role"}
             </h3>
             {item.company_name && (
@@ -164,7 +164,7 @@ function HistoryCard({
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="p-1.5 rounded-lg text-gray-300 hover:text-[#2563eb] hover:bg-blue-50 transition-colors"
+              className="p-1.5 rounded-lg text-gray-300 hover:text-[#dc4f33] hover:bg-[#ffeae4] transition-colors"
               title="Open original job posting"
             >
               <ExternalLink className="w-3.5 h-3.5" />
@@ -202,7 +202,7 @@ function EmptyHistory() {
       </div>
       <Link
         href="/tailor"
-        className="mt-2 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#2563eb] rounded-lg hover:bg-[#1d4ed8] transition-colors"
+        className="mt-2 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] transition-colors"
       >
         Tailor your first CV
       </Link>
@@ -277,19 +277,19 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/40">
+    <div className="min-h-screen bg-[#f9f6f0]">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
           <Link
             href="/tailor"
-            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#0f0f0f] transition-colors"
+            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#1e1813] transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
           </Link>
           <div className="w-px h-4 bg-gray-200" />
-          <h1 className="text-sm font-semibold text-[#0f0f0f]">Tailor history</h1>
+          <h1 className="text-sm font-semibold text-[#1e1813]">Tailor history</h1>
           {history.length > 0 && (
             <span className="text-[10px] font-medium text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
               {history.length}
@@ -298,7 +298,7 @@ export default function HistoryPage() {
           <div className="flex-1" />
           <button
             onClick={fetchHistory}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#2563eb] transition-colors"
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#dc4f33] transition-colors"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             Refresh
@@ -336,7 +336,7 @@ export default function HistoryPage() {
                   <div className="flex items-start gap-4">
                     <ScoreRing score={selectedItem.match_score} size={56} />
                     <div>
-                      <h2 className="text-base font-semibold text-[#0f0f0f]">
+                      <h2 className="text-base font-semibold text-[#1e1813]">
                         {selectedItem.job_title || "Untitled role"}
                       </h2>
                       {selectedItem.company_name && (
@@ -356,7 +356,7 @@ export default function HistoryPage() {
                               href={selectedItem.job_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs text-[#2563eb] hover:underline flex items-center gap-1"
+                              className="text-xs text-[#dc4f33] hover:underline flex items-center gap-1"
                             >
                               View job posting
                               <ExternalLink className="w-3 h-3" />

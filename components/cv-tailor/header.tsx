@@ -37,7 +37,7 @@ export function Header({ onSignInClick, onHistoryClick }: HeaderProps) {
         }`}
       >
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <span className="text-lg font-medium text-[#0f0f0f] tracking-tight">Tailr</span>
+          <span className="text-lg font-medium text-[#1e1813] tracking-tight">Tailr</span>
 
           <div className="flex items-center gap-4">
             {/* Nav links — only for signed-in users */}
@@ -46,7 +46,7 @@ export function Header({ onSignInClick, onHistoryClick }: HeaderProps) {
                 {onHistoryClick && (
                   <button
                     onClick={onHistoryClick}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-[#2563eb] hover:bg-blue-50 rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-[#dc4f33] hover:bg-[#ffeae4] rounded-lg transition-colors"
                     title="Tailor history"
                   >
                     <Clock className="w-4 h-4" />
@@ -55,7 +55,7 @@ export function Header({ onSignInClick, onHistoryClick }: HeaderProps) {
                 )}
                 <Link
                   href="/tracker"
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-[#2563eb] hover:bg-blue-50 rounded-lg transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-[#dc4f33] hover:bg-[#ffeae4] rounded-lg transition-colors"
                   title="Job tracker"
                 >
                   <Kanban className="w-4 h-4" />
@@ -64,7 +64,7 @@ export function Header({ onSignInClick, onHistoryClick }: HeaderProps) {
                 {isAdminEmail(user.email) && (
                   <Link
                     href="/admin"
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-[#2563eb] hover:bg-blue-50 rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-[#dc4f33] hover:bg-[#ffeae4] rounded-lg transition-colors"
                     title="Admin dashboard"
                   >
                     <ShieldCheck className="w-4 h-4" />
@@ -78,9 +78,9 @@ export function Header({ onSignInClick, onHistoryClick }: HeaderProps) {
                 <div className="relative">
                   <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-[#0f0f0f] transition-colors rounded-lg hover:bg-gray-50"
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-[#1e1813] transition-colors rounded-lg hover:bg-gray-50"
                   >
-                    <div className="w-6 h-6 rounded-full bg-[#2563eb] flex items-center justify-center text-white text-xs font-medium">
+                    <div className="w-6 h-6 rounded-full bg-[#dc4f33] flex items-center justify-center text-white text-xs font-medium">
                       {user.email?.[0].toUpperCase()}
                     </div>
                     <span className="hidden sm:block max-w-[160px] truncate">{user.email}</span>
@@ -104,7 +104,7 @@ export function Header({ onSignInClick, onHistoryClick }: HeaderProps) {
               ) : (
                 <button
                   onClick={handleSignInClick}
-                  className="px-3.5 py-1.5 text-sm font-medium text-white bg-[#2563eb] rounded-lg hover:bg-[#1d4ed8] transition-colors duration-150"
+                  className="px-3.5 py-1.5 text-sm font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] transition-colors duration-150"
                 >
                   Get started free
                 </button>

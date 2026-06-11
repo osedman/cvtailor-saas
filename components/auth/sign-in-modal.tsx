@@ -45,7 +45,7 @@ export function SignInModal({ onClose }: SignInModalProps) {
             <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-6 h-6 text-green-500" />
             </div>
-            <h2 className="text-base font-semibold text-[#0f0f0f] mb-2">Check your email</h2>
+            <h2 className="text-base font-semibold text-[#1e1813] mb-2">Check your email</h2>
             <p className="text-sm text-gray-500">
               We sent a magic link to <strong>{email}</strong>. Click it to sign in — no password needed.
             </p>
@@ -53,10 +53,10 @@ export function SignInModal({ onClose }: SignInModalProps) {
         ) : (
           <>
             <div className="mb-6">
-              <div className="w-10 h-10 bg-[#2563eb]/10 rounded-xl flex items-center justify-center mb-4">
-                <Mail className="w-5 h-5 text-[#2563eb]" />
+              <div className="w-10 h-10 bg-[#dc4f33]/10 rounded-xl flex items-center justify-center mb-4">
+                <Mail className="w-5 h-5 text-[#dc4f33]" />
               </div>
-              <h2 className="text-base font-semibold text-[#0f0f0f] mb-1">Sign in to Tailr</h2>
+              <h2 className="text-base font-semibold text-[#1e1813] mb-1">Sign in to Tailr</h2>
               <p className="text-sm text-gray-500">Enter your email and we&apos;ll send you a magic link.</p>
             </div>
 
@@ -67,13 +67,13 @@ export function SignInModal({ onClose }: SignInModalProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]/20 transition-all"
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/20 transition-all"
               />
               {error && <p className="text-xs text-red-500">{error}</p>}
               <button
                 type="submit"
                 disabled={loading || !email}
-                className="w-full py-2.5 text-sm font-medium text-white bg-[#2563eb] rounded-lg hover:bg-[#1d4ed8] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-2.5 text-sm font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 {loading ? "Sending..." : "Send magic link"}

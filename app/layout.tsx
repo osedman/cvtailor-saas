@@ -28,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="bg-white">
-      <body className="font-sans antialiased bg-white text-[#0f0f0f]">
+      <body className="font-sans antialiased bg-white text-[#1e1813]">
         <AuthProvider>
           {children}
           <Toaster position="bottom-right" />

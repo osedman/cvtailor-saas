@@ -10,7 +10,7 @@ import type { InterviewPrepResult, QuestionCategory } from "@/lib/anthropic"
 type Question = InterviewPrepResult["interviewQuestions"][number]
 
 const CATEGORY_STYLE: Record<QuestionCategory, { label: string; cls: string }> = {
-  "behavioural":   { label: "Behavioural",   cls: "bg-blue-50 text-blue-600" },
+  "behavioural":   { label: "Behavioural",   cls: "bg-[#ffeae4] text-[#dc4f33]" },
   "technical":     { label: "Technical",     cls: "bg-violet-50 text-violet-600" },
   "role-specific": { label: "Role-specific", cls: "bg-teal-50 text-teal-600" },
   "motivation":    { label: "Motivation",    cls: "bg-amber-50 text-amber-600" },
@@ -50,10 +50,10 @@ export function InterviewPrep({ questions, loading, onGenerate }: InterviewPrepP
   return (
     <div className="mt-8 animate-fade-in-up">
       <div className="flex items-center gap-2 mb-4">
-        <div className="p-1.5 bg-blue-50 rounded-lg">
-          <MessageCircleQuestion className="w-4 h-4 text-[#2563eb]" />
+        <div className="p-1.5 bg-[#ffeae4] rounded-lg">
+          <MessageCircleQuestion className="w-4 h-4 text-[#dc4f33]" />
         </div>
-        <h2 className="text-base font-semibold text-[#0f0f0f]">Interview Prep</h2>
+        <h2 className="text-base font-semibold text-[#1e1813]">Interview Prep</h2>
         <span className="text-xs text-gray-400 ml-1">likely questions with answer frameworks</span>
       </div>
 
@@ -66,7 +66,7 @@ export function InterviewPrep({ questions, loading, onGenerate }: InterviewPrepP
           <button
             onClick={onGenerate}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#2563eb] rounded-lg hover:bg-[#1d4ed8] disabled:opacity-60 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] disabled:opacity-60 transition-colors"
           >
             {loading
               ? <><Loader2 className="w-4 h-4 animate-spin" />Predicting questions…</>
@@ -86,7 +86,7 @@ export function InterviewPrep({ questions, loading, onGenerate }: InterviewPrepP
                   onClick={() => { setFilter(f.id); setExpanded(null) }}
                   className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all
                     ${filter === f.id
-                      ? "bg-[#0f0f0f] text-white border-[#0f0f0f]"
+                      ? "bg-[#1e1813] text-white border-[#1e1813]"
                       : "bg-white text-gray-500 border-gray-200 hover:border-gray-300"}`}
                 >
                   {f.label} <span className="opacity-60">{count}</span>
@@ -113,7 +113,7 @@ export function InterviewPrep({ questions, loading, onGenerate }: InterviewPrepP
                       <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium mb-1.5 ${cat.cls}`}>
                         {cat.label}
                       </span>
-                      <h3 className="text-sm font-medium text-[#0f0f0f] leading-snug">
+                      <h3 className="text-sm font-medium text-[#1e1813] leading-snug">
                         &ldquo;{q.question}&rdquo;
                       </h3>
                     </div>
@@ -134,9 +134,9 @@ export function InterviewPrep({ questions, loading, onGenerate }: InterviewPrepP
 
                         {/* Framework */}
                         <div className="flex gap-2.5">
-                          <Compass className="w-4 h-4 text-[#2563eb] mt-0.5 flex-shrink-0" />
+                          <Compass className="w-4 h-4 text-[#dc4f33] mt-0.5 flex-shrink-0" />
                           <div>
-                            <p className="text-xs font-medium text-[#2563eb] uppercase tracking-wide mb-0.5">Answer framework</p>
+                            <p className="text-xs font-medium text-[#dc4f33] uppercase tracking-wide mb-0.5">Answer framework</p>
                             <p className="text-sm text-gray-600 leading-relaxed">{q.framework}</p>
                           </div>
                         </div>

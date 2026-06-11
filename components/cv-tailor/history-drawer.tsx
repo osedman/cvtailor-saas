@@ -132,8 +132,8 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between px-4 py-3.5 border-b border-gray-100">
           <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-[#2563eb]" />
-            <span className="text-sm font-semibold text-[#0f0f0f]">Tailor history</span>
+            <Clock className="w-4 h-4 text-[#dc4f33]" />
+            <span className="text-sm font-semibold text-[#1e1813]">Tailor history</span>
             {history.length > 0 && (
               <span className="text-[10px] font-medium text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
                 {history.length}
@@ -176,7 +176,7 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
                       {/* Content */}
                       <div className="flex-1 min-w-0 pr-12">
                         {/* Job title */}
-                        <p className="text-xs font-semibold text-[#0f0f0f] leading-snug truncate">
+                        <p className="text-xs font-semibold text-[#1e1813] leading-snug truncate">
                           {item.job_title || item.result?.jobTitle || "Untitled role"}
                         </p>
 
@@ -218,7 +218,7 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="p-1.5 rounded text-gray-300 hover:text-[#2563eb] hover:bg-blue-50 transition-colors"
+                          className="p-1.5 rounded text-gray-300 hover:text-[#dc4f33] hover:bg-[#ffeae4] transition-colors"
                           title="Open original job posting"
                         >
                           <ExternalLink className="w-3 h-3" />
@@ -249,7 +249,7 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
           <button
             onClick={fetchHistory}
             disabled={loading}
-            className="text-[11px] text-gray-400 hover:text-[#2563eb] transition-colors flex items-center gap-1"
+            className="text-[11px] text-gray-400 hover:text-[#dc4f33] transition-colors flex items-center gap-1"
           >
             {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
             Refresh
@@ -257,7 +257,7 @@ export function HistoryDrawer({ open, onClose }: HistoryDrawerProps) {
           {history.length > 0 && (
             <button
               onClick={handleNavigate}
-              className="text-[11px] font-medium text-[#2563eb] hover:underline"
+              className="text-[11px] font-medium text-[#dc4f33] hover:underline"
             >
               View all →
             </button>

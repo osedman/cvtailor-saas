@@ -9,7 +9,7 @@ import type { TailorResult } from "@/lib/anthropic"
 function FormattedCV({ text }: { text: string }) {
   const lines = text.split("\n")
   return (
-    <div className="font-mono text-sm text-[#0f0f0f] leading-relaxed space-y-0.5">
+    <div className="font-mono text-sm text-[#1e1813] leading-relaxed space-y-0.5">
       {lines.map((line, i) => {
         const trimmed = line.trim()
         if (!trimmed) return <div key={i} className="h-3" />
@@ -22,7 +22,7 @@ function FormattedCV({ text }: { text: string }) {
         const isFirst = lines.slice(0, i).every(l => !l.trim()) && i < 5
 
         if (isFirst && !isBullet) {
-          return <p key={i} className="text-base font-bold text-[#0f0f0f] tracking-tight">{trimmed}</p>
+          return <p key={i} className="text-base font-bold text-[#1e1813] tracking-tight">{trimmed}</p>
         }
         if (isHeading) {
           return <p key={i} className="text-xs font-bold uppercase tracking-widest text-gray-500 pt-4 pb-1 border-b border-gray-100">{trimmed}</p>
@@ -30,14 +30,14 @@ function FormattedCV({ text }: { text: string }) {
         if (isBullet) {
           return (
             <p key={i} className="pl-4 text-gray-700">
-              <span className="text-[#2563eb] mr-2">•</span>
+              <span className="text-[#dc4f33] mr-2">•</span>
               {trimmed.replace(/^[•\-\*·]\s*/, "")}
             </p>
           )
         }
         // Role/company line — slightly bolder
         if (/\d{4}/.test(trimmed) && trimmed.length < 120) {
-          return <p key={i} className="font-medium text-[#0f0f0f]">{trimmed}</p>
+          return <p key={i} className="font-medium text-[#1e1813]">{trimmed}</p>
         }
         return <p key={i} className="text-gray-700">{line}</p>
       })}
@@ -109,7 +109,7 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-3 text-sm transition-colors duration-150 ${
                 activeTab === tab
-                  ? "text-[#0f0f0f] font-medium"
+                  ? "text-[#1e1813] font-medium"
                   : "text-gray-400 hover:text-gray-600"
               }`}
             >
@@ -119,7 +119,7 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
         </div>
         {/* Animated underline */}
         <div
-          className="absolute bottom-0 h-0.5 bg-[#2563eb] transition-all duration-150 ease-out"
+          className="absolute bottom-0 h-0.5 bg-[#dc4f33] transition-all duration-150 ease-out"
           style={{
             left: underlineStyle.left,
             width: underlineStyle.width,
@@ -147,7 +147,7 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
                     {copied ? <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5" />Copied</span> : "Copy"}
                   </button>
                 </div>
-                <div className="prose prose-sm max-w-none leading-relaxed whitespace-pre-wrap text-[#0f0f0f]">
+                <div className="prose prose-sm max-w-none leading-relaxed whitespace-pre-wrap text-[#1e1813]">
                   {coverLetter}
                 </div>
               </>
@@ -157,7 +157,7 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
                 <button
                   onClick={onGenerateCoverLetter}
                   disabled={loadingCoverLetter}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#2563eb] rounded-lg hover:bg-[#1d4ed8] disabled:opacity-60 transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] disabled:opacity-60 transition-colors"
                 >
                   {loadingCoverLetter ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : <><Sparkles className="w-4 h-4" />Generate Cover Letter</>}
                 </button>
@@ -207,7 +207,7 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
                 >
                   {change.type.charAt(0).toUpperCase() + change.type.slice(1)}
                 </span>
-                <span className="text-sm text-[#0f0f0f]">{change.text}</span>
+                <span className="text-sm text-[#1e1813]">{change.text}</span>
               </div>
             ))}
           </div>
@@ -234,7 +234,7 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
                 key={i}
                 className="p-4 bg-white rounded-lg shadow-sm border border-gray-100"
               >
-                <span className="text-sm text-[#0f0f0f]">{question}</span>
+                <span className="text-sm text-[#1e1813]">{question}</span>
               </div>
             ))}
           </div>
