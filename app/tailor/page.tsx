@@ -16,6 +16,31 @@ import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
 import { HistoryDrawer, type HistoryItem } from "@/components/cv-tailor/history-drawer"
 import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult } from "@/lib/anthropic"
 
+/**
+ * Safely read a JSON API response. If the body isn't JSON — e.g. Vercel's
+ * "An error occurred…" gateway page when a function times out (the source of
+ * the old "Unexpected token A" error) — return a clear, status-aware message
+ * instead of letting JSON.parse throw a cryptic error.
+ */
+async function readJson<T>(res: Response): Promise<T> {
+  const text = await res.text()
+  let data: unknown = null
+  try {
+    data = text ? JSON.parse(text) : null
+  } catch {
+    // Non-JSON body — almost always a platform timeout/crash page
+    if (res.status === 504 || res.status === 408 || /timeout|timed out/i.test(text)) {
+      throw new Error("That took too long to process. Try a shorter CV or job description, then run it again.")
+    }
+    throw new Error(`The server returned an unexpected response (${res.status}). Please try again in a moment.`)
+  }
+  if (!res.ok) {
+    const msg = (data as { error?: string })?.error
+    throw new Error(msg || `Server error ${res.status}. Please try again.`)
+  }
+  return data as T
+}
+
 function AuthErrorHandler() {
   const searchParams = useSearchParams()
   useEffect(() => {
@@ -78,28 +103,39 @@ export default function CVTailorPage() {
         })
       }, 5000)
 
-      const res = await fetch("/api/tailor", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cv: cvText, jobDescription, jobUrl: scrapedJobUrl }),
-      })
+      // Client-side timeout slightly under the platform limit, so we show a
+      // clean message rather than waiting on a gateway error page.
+      const ac = new AbortController()
+      const timer = setTimeout(() => ac.abort(), 70_000)
 
-      clearInterval(stepInterval)
+      let data: { result?: TailorResult; error?: string }
+      try {
+        const res = await fetch("/api/tailor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cv: cvText, jobDescription, jobUrl: scrapedJobUrl }),
+          signal: ac.signal,
+        })
+        data = await readJson<{ result?: TailorResult; error?: string }>(res)
+      } finally {
+        clearTimeout(timer)
+        clearInterval(stepInterval)
+      }
+
       setProgressStep(4)
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || `Server error ${res.status}`)
-      }
-
       if (!data.result) {
-        throw new Error("No result returned from server")
+        throw new Error("No result returned from server. Please try again.")
       }
 
-      setResults(data.result as TailorResult)
+      setResults(data.result)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to tailor CV. Please try again.")
+      const aborted = err instanceof DOMException && err.name === "AbortError"
+      toast.error(
+        aborted
+          ? "That took too long to process. Try a shorter CV or job description, then run it again."
+          : err instanceof Error ? err.message : "Failed to tailor CV. Please try again."
+      )
     } finally {
       setIsLoading(false)
       setLoadingStatus("Tailoring…")
@@ -115,8 +151,7 @@ export default function CVTailorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cv: cvText, jobDescription }),
       })
-      const data: CoverLetterResult = await res.json()
-      if (!res.ok) throw new Error((data as { error?: string }).error || "Failed")
+      const data = await readJson<CoverLetterResult>(res)
       setCoverLetter(data.coverLetter)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate cover letter.")
@@ -133,8 +168,7 @@ export default function CVTailorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cv: cvText, jobDescription }),
       })
-      const data: PitchesResult = await res.json()
-      if (!res.ok) throw new Error((data as { error?: string }).error || "Failed")
+      const data = await readJson<PitchesResult>(res)
       setPitches(data.interviewPitches)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate pitches.")
@@ -151,8 +185,7 @@ export default function CVTailorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cv: cvText, jobDescription }),
       })
-      const data: InterviewPrepResult = await res.json()
-      if (!res.ok) throw new Error((data as { error?: string }).error || "Failed")
+      const data = await readJson<InterviewPrepResult>(res)
       setPrepQuestions(data.interviewQuestions)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate interview prep.")
