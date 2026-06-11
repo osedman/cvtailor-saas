@@ -1,392 +1,329 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Newsreader, Hanken_Grotesk, JetBrains_Mono } from "next/font/google"
-import "./landing.css"
+import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google"
+import {
+  ArrowRight, Check, Sparkles, Target, Kanban, FileText,
+  MessageCircleQuestion, Building2, ShieldCheck, Zap, Clock,
+  Link2, Download, History,
+} from "lucide-react"
 
-const newsreader = Newsreader({
-  subsets: ["latin"],
-  variable: "--font-newsreader",
-  display: "swap",
-  weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
-})
 const hanken = Hanken_Grotesk({
   subsets: ["latin"],
   variable: "--font-hanken",
   display: "swap",
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
 })
 const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-jetbrains",
   display: "swap",
-  weight: ["400", "500", "600"],
+  weight: ["400", "500"],
 })
 
-// ── hooks ────────────────────────────────────────────────────────────
+const ACCENT = "#dc4f33"
+const INK = "#1e1813"
 
-function useInView(opts = { threshold: 0.18 }) {
+// ── Reveal on scroll ─────────────────────────────────────────────────────
+
+function Reveal({ children, delay = 0, className = "" }: {
+  children: React.ReactNode; delay?: number; className?: string
+}) {
   const ref = useRef<HTMLDivElement>(null)
   const [seen, setSeen] = useState(false)
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const fallback = setTimeout(() => setSeen(true), 1400)
     const io = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) { setSeen(true); clearTimeout(fallback); io.disconnect() }
-    }, opts)
+      if (e.isIntersecting) { setSeen(true); io.disconnect() }
+    }, { threshold: 0.15 })
     io.observe(el)
-    const r = el.getBoundingClientRect()
-    if (r.top < (window.innerHeight || 800)) setSeen(true)
-    return () => { io.disconnect(); clearTimeout(fallback) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (el.getBoundingClientRect().top < (window.innerHeight || 800)) setSeen(true)
+    return () => io.disconnect()
   }, [])
-  return [ref, seen] as const
-}
-
-function useCountUp(target: number, run: boolean, dur = 1600) {
-  const [v, setV] = useState(0)
-  const started = useRef(false)
-  useEffect(() => {
-    if (!run || started.current) return
-    started.current = true
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-    if (reduce) { setV(target); return }
-    let raf: number, t0: number
-    const tick = (t: number) => {
-      if (!t0) t0 = t
-      const p = Math.min(1, (t - t0) / dur)
-      const e = 1 - Math.pow(1 - p, 3)
-      setV(target * e)
-      if (p < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [run, target, dur])
-  return v
-}
-
-// ── tiny components ──────────────────────────────────────────────────
-
-function Reveal({ children, delay = 0, style = {}, className = "" }: {
-  children: React.ReactNode; delay?: number; style?: React.CSSProperties; className?: string
-}) {
-  const [ref, seen] = useInView()
-  const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-  const hidden = !seen && !reduce
   return (
-    <div ref={ref} className={className} style={{
-      opacity: hidden ? 0 : 1,
-      transform: hidden ? "translateY(18px)" : "none",
-      transition: "opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1)",
-      transitionDelay: (seen ? delay : 0) + "ms",
-      ...style
-    }}>
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: seen ? 1 : 0,
+        transform: seen ? "none" : "translateY(16px)",
+        transition: `opacity .6s cubic-bezier(.2,.7,.2,1) ${delay}ms, transform .6s cubic-bezier(.2,.7,.2,1) ${delay}ms`,
+      }}
+    >
       {children}
     </div>
   )
 }
 
-function Wordmark() {
+// ── Wordmark ─────────────────────────────────────────────────────────────
+
+function Wordmark({ light = false }: { light?: boolean }) {
   return (
-    <a href="#top" style={{ display: "inline-flex", alignItems: "baseline", gap: 2,
-      fontFamily: "var(--font-newsreader), Georgia, serif",
-      fontSize: 25, fontWeight: 600, letterSpacing: "-0.02em" }}>
+    <span className="inline-flex items-baseline gap-0.5 text-[22px] font-extrabold tracking-tight" style={{ color: light ? "#fff" : INK }}>
       tailr
-      <span style={{ width: 6, height: 6, borderRadius: 99, background: "var(--thread)", display: "inline-block",
-        transform: "translateY(-1px)" }} />
-    </a>
+      <span className="w-1.5 h-1.5 rounded-full inline-block -translate-y-px" style={{ background: ACCENT }} />
+    </span>
   )
 }
 
-function TrustRow() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-      <div style={{ display: "flex" }}>
-        {(["#c98a5b","#7d9a8b","#b06a6a","#8a86b0"] as const).map((c, i) => (
-          <span key={i} style={{ width: 30, height: 30, borderRadius: 99, background: c,
-            border: "2px solid var(--paper)", marginLeft: i ? -9 : 0, display: "grid",
-            placeItems: "center", color: "#fff", fontSize: 12, fontWeight: 700,
-            fontFamily: "var(--font-newsreader), Georgia, serif" }}>
-            {["A","J","M","K"][i]}
-          </span>
-        ))}
-      </div>
-      <div className="mono" style={{ fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.4 }}>
-        <strong style={{ color: "var(--ink)" }}>40,000+</strong> CVs tailored ·{" "}
-        <span style={{ color: "var(--thread-deep)" }}>★★★★★</span> 4.9
-      </div>
-    </div>
-  )
-}
+// ── Nav ──────────────────────────────────────────────────────────────────
 
-function MatchRing({ score = 92, run = true, size = 96, stroke = 8, label = "Match" }: {
-  score?: number; run?: boolean; size?: number; stroke?: number; label?: string
-}) {
-  const v = useCountUp(score, run)
-  const r = (size - stroke) / 2
-  const c = 2 * Math.PI * r
-  const off = c * (1 - v / 100)
-  return (
-    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
-      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--line)" strokeWidth={stroke} />
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--thread)" strokeWidth={stroke}
-          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off}
-          style={{ transition: "stroke-dashoffset .1s linear" }} />
-      </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
-        <span className="serif tnum" style={{ fontSize: size * 0.32, fontWeight: 600 }}>{Math.round(v)}</span>
-        {label && <span className="mono" style={{ fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase",
-          color: "var(--ink-faint)", marginTop: 3 }}>{label}</span>}
-      </div>
-    </div>
-  )
-}
-
-function CvDoc({ tailored = false, animate = false }: { tailored?: boolean; animate?: boolean }) {
-  const tinted = [1, 3, 6, 8, 9]
-  const [lit, setLit] = useState(tailored)
+function Nav() {
+  const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
-    if (!animate) { setLit(tailored); return }
-    setLit(false)
-    const t = setTimeout(() => setLit(true), 350)
-    return () => clearTimeout(t)
-  }, [animate, tailored])
-
-  const Line = ({ w, i, h = 7 }: { w: string; i: number; h?: number }) => (
-    <div className={"doc-line" + (lit && tinted.includes(i) ? " tinted" : "")}
-      style={{ width: w, height: h }} />
-  )
-
-  return (
-    <div className="doc thin-scroll" style={{ padding: 26, width: "100%" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
-        <div>
-          <div className="doc-name">Alex Rivera</div>
-          <div className="doc-meta" style={{ marginTop: 4 }}>Product Marketing Manager</div>
-        </div>
-        <div className="doc-meta" style={{ textAlign: "right", lineHeight: 1.5 }}>
-          alex@rivera.co<br/>London, UK
-        </div>
-      </div>
-      <div className="doc-rule" style={{ margin: "16px 0" }} />
-      <div className="doc-h">Summary</div>
-      <div style={{ display: "grid", gap: 7, margin: "9px 0 18px" }}>
-        <Line w="100%" i={0} /><Line w="92%" i={1} /><Line w="74%" i={2} />
-      </div>
-      <div className="doc-h">Experience</div>
-      <div style={{ display: "grid", gap: 7, margin: "9px 0 18px" }}>
-        <Line w="60%" i={3} h={8} />
-        <Line w="100%" i={4} /><Line w="96%" i={5} /><Line w="88%" i={6} />
-        <Line w="52%" i={7} h={8} />
-        <Line w="100%" i={8} /><Line w="80%" i={9} />
-      </div>
-      <div className="doc-h">Skills</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-        {["Positioning","GTM","Lifecycle","SQL","Figma","A/B testing"].map((s, i) => (
-          <span key={s} style={{
-            fontFamily: "var(--font-jetbrains), ui-monospace, monospace", fontSize: 9, padding: "3px 8px",
-            borderRadius: 99, border: "1px solid var(--line)",
-            background: lit && i < 3 ? "var(--thread-tint)" : "transparent",
-            color: lit && i < 3 ? "var(--thread-deep)" : "var(--ink-soft)",
-            transition: "all .4s ease"
-          }}>{s}</span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function CvDocAuto() {
-  const [on, setOn] = useState(false)
-  useEffect(() => {
-    const id = setInterval(() => setOn(o => !o), 2600)
-    return () => clearInterval(id)
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    window.addEventListener("scroll", onScroll)
+    return () => window.removeEventListener("scroll", onScroll)
   }, [])
-  return <CvDoc tailored={on} />
-}
-
-// ── sections ─────────────────────────────────────────────────────────
-
-function Nav({ onCta }: { onCta: () => void }) {
   return (
-    <header style={{ position: "sticky", top: 0, zIndex: 40,
-      background: "color-mix(in oklab, var(--paper) 82%, transparent)",
-      backdropFilter: "blur(12px)", borderBottom: "1px solid var(--line-soft)" }}>
-      <div className="wrap" style={{ display: "flex", alignItems: "center", gap: 24, height: 68 }}>
-        <Wordmark />
-        <nav style={{ display: "flex", gap: 26, marginLeft: 14 }} className="nav-links">
-          {(["How it works","Features","Beta"] as const).map(l => (
-            <a key={l} href={"#" + l.toLowerCase().replace(/ /g, "-")}
-              style={{ fontSize: 14.5, color: "var(--ink-soft)", fontWeight: 500,
-                transition: "color .15s ease" }}
-              onMouseEnter={e => (e.currentTarget.style.color = "var(--ink)")}
-              onMouseLeave={e => (e.currentTarget.style.color = "var(--ink-soft)")}>{l}</a>
+    <header className={`sticky top-0 z-50 transition-all duration-200 ${scrolled ? "bg-white/85 backdrop-blur-md border-b border-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.03)]" : "bg-white"}`}>
+      <div className="max-w-6xl mx-auto px-5 h-16 flex items-center gap-8">
+        <a href="#top"><Wordmark /></a>
+        <nav className="hidden md:flex items-center gap-7">
+          {[["How it works", "#how-it-works"], ["Features", "#features"], ["Beta", "#beta"]].map(([l, h]) => (
+            <a key={l} href={h} className="text-[14.5px] font-medium text-gray-500 hover:text-[#1e1813] transition-colors">{l}</a>
           ))}
         </nav>
-        <div style={{ flex: 1 }} />
-        <Link href="/tailor" style={{ fontSize: 14.5, fontWeight: 600 }} className="nav-signin">Sign in</Link>
-        <button className="btn btn-dark" onClick={onCta} style={{ padding: "10px 18px", fontSize: 14.5 }}>
-          Start free
-        </button>
+        <div className="flex-1" />
+        <Link href="/tailor" className="text-[14.5px] font-semibold text-gray-600 hover:text-[#1e1813] transition-colors">Sign in</Link>
+        <Link
+          href="/tailor"
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-[14px] font-semibold text-white rounded-lg transition-colors"
+          style={{ background: INK }}
+        >
+          Tailor my CV
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
     </header>
   )
 }
 
-function HeroA({ onCta }: { onCta: () => void }) {
-  return (
-    <section className="section" style={{ paddingTop: 72, paddingBottom: 84 }}>
-      <div className="wrap hero-grid" style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 56, alignItems: "center" }}>
-        <div className="hero-copy">
-          <span className="eyebrow">Made to measure</span>
-          <h1 className="display" style={{ fontSize: "clamp(44px, 6vw, 78px)", marginTop: 20 }}>
-            Your CV,<br/><em>cut to fit</em> every<br/>job you want.
-          </h1>
-          <p className="lede" style={{ marginTop: 24, fontSize: 20 }}>
-            Drop in your CV, paste the job, and Tailr re-cuts every line to match —
-            ATS-safe, in about ten seconds.
-          </p>
-          <div style={{ display: "flex", gap: 12, marginTop: 30, flexWrap: "wrap" }}>
-            <button className="btn btn-primary btn-lg" onClick={onCta}>✦ Tailor my CV — free</button>
-            <a className="btn btn-ghost btn-lg" href="#how-it-works">See how it works</a>
-          </div>
-          <div style={{ marginTop: 30 }}><TrustRow /></div>
-        </div>
+// ── Product mockup (hero) ────────────────────────────────────────────────
 
-        <div style={{ position: "relative" }}>
-          <div style={{ position: "absolute", top: -22, right: 6, zIndex: 2,
-            background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 14,
-            boxShadow: "var(--shadow-md)", padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-            <MatchRing score={92} run size={60} stroke={6} label="" />
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 13 }}>Strong match</div>
-              <div className="mono" style={{ fontSize: 10, color: "var(--ink-soft)" }}>9 lines retuned</div>
-            </div>
-          </div>
-          <CvDocAuto />
-          <div style={{ position: "absolute", bottom: -18, left: -18, zIndex: 2 }}>
-            <span className="chip" style={{ boxShadow: "var(--shadow-md)", background: "var(--paper)" }}>
-              <span className="dot green" />ATS clear
-            </span>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function HowItWorks() {
-  const steps = [
-    { n: "01", t: "Drop in your CV", d: "Upload a PDF, DOCX or TXT — or paste it straight in. We remember it for next time.", tag: "30 sec" },
-    { n: "02", t: "Paste the job", d: "Drop any LinkedIn, Indeed or Reed link and we fetch the description automatically.", tag: "1 click" },
-    { n: "03", t: "Tailor & apply", d: "Get a re-cut CV, a match score, a cover letter and your interview pitches — ready to send.", tag: "~10 sec" },
-  ]
+function ScoreRing({ score, size = 64 }: { score: number; size?: number }) {
+  const r = (size - 8) / 2
+  const c = 2 * Math.PI * r
   return (
-    <section id="how-it-works" className="section" style={{ background: "var(--paper-2)", borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>
-      <div className="wrap">
-        <div className="section-head">
-          <span className="eyebrow">How it works</span>
-          <h2 className="display">Three steps from <em>generic</em> to <em>get-the-call</em>.</h2>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 }} className="steps-grid">
-          {steps.map((s, i) => (
-            <Reveal key={s.n} delay={i * 120} style={{ position: "relative", padding: "0 28px",
-              borderLeft: i ? "1.5px dashed var(--line)" : "none" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span className="serif" style={{ fontSize: 46, color: "var(--thread)", fontWeight: 600, lineHeight: 1 }}>{s.n}</span>
-                <span className="chip">{s.tag}</span>
-              </div>
-              <h3 className="serif" style={{ fontSize: 25, marginTop: 18, letterSpacing: "-0.01em" }}>{s.t}</h3>
-              <p className="muted" style={{ marginTop: 10, fontSize: 16, lineHeight: 1.55 }}>{s.d}</p>
-            </Reveal>
-          ))}
-        </div>
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#f3f4f6" strokeWidth={6} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#16a34a" strokeWidth={6}
+          strokeDasharray={`${(score / 100) * c} ${c}`} strokeLinecap="round" />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center leading-none">
+        <span className="text-base font-bold text-[#1e1813]">{score}</span>
+        <span className="text-[7px] uppercase tracking-widest text-gray-400">match</span>
       </div>
-    </section>
-  )
-}
-
-function StatItem({ to, suffix = "", prefix = "", label, decimals = 0 }: {
-  to: number; suffix?: string; prefix?: string; label: string; decimals?: number
-}) {
-  const [ref, seen] = useInView({ threshold: 0.5 })
-  const v = useCountUp(to, seen, 1600)
-  const shown = decimals ? v.toFixed(decimals) : Math.round(v).toLocaleString()
-  return (
-    <div ref={ref} style={{ textAlign: "center", padding: "0 18px" }}>
-      <div className="serif tnum" style={{ fontSize: "clamp(40px,5vw,62px)", fontWeight: 600, lineHeight: 1, letterSpacing: "-0.02em" }}>
-        {prefix}{shown}{suffix}
-      </div>
-      <div className="mono" style={{ fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase",
-        color: "var(--ink-soft)", marginTop: 12 }}>{label}</div>
     </div>
   )
 }
 
-function Stats() {
+function Line({ w, tinted = false }: { w: string; tinted?: boolean }) {
+  return <div className="h-[7px] rounded-full" style={{ width: w, background: tinted ? "#ffd8cd" : "#eceae6" }} />
+}
+
+function HeroMockup() {
   return (
-    <section className="section" style={{ paddingTop: 72, paddingBottom: 72 }}>
-      <div className="wrap stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 24 }}>
-        <StatItem to={40000} suffix="+" label="CVs tailored" />
-        <StatItem to={3.1} suffix="×" decimals={1} label="More interviews*" />
-        <StatItem to={92} suffix="%" label="Avg ATS pass rate" />
-        <StatItem to={11} suffix="s" label="Median tailor time" />
+    <div className="relative mx-auto max-w-4xl">
+      {/* Browser chrome */}
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-[0_30px_80px_rgba(30,24,19,0.12),0_8px_24px_rgba(30,24,19,0.06)] overflow-hidden">
+        <div className="flex items-center gap-1.5 px-4 py-3 border-b border-gray-100 bg-gray-50/60">
+          <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
+          <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
+          <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
+          <div className="mx-auto px-12 py-1 rounded-md bg-white border border-gray-100 text-[10px] text-gray-400 font-medium">
+            gettailr.vercel.app
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5 bg-white">
+          {/* Left: CV panel */}
+          <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: ACCENT }}>Your CV</span>
+              <span className="text-[9px] text-gray-400 bg-white border border-gray-100 rounded px-1.5 py-0.5">cv-alex-morgan.pdf</span>
+            </div>
+            <div className="space-y-2">
+              <Line w="55%" /><Line w="92%" /><Line w="85%" tinted /><Line w="78%" />
+              <div className="h-2" />
+              <Line w="45%" /><Line w="88%" tinted /><Line w="94%" /><Line w="70%" tinted />
+            </div>
+          </div>
+          {/* Right: results */}
+          <div className="rounded-xl border border-gray-100 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Tailored result</span>
+              <ScoreRing score={87} size={48} />
+            </div>
+            <div className="space-y-2">
+              {[
+                ["Strong", "#dcfce7", "#16a34a", "Stakeholder management"],
+                ["Strong", "#dcfce7", "#16a34a", "SQL & data analysis"],
+                ["Transferable", "#ffeae4", ACCENT, "Media platform delivery"],
+                ["Partial", "#fef3c7", "#d97706", "Team leadership"],
+              ].map(([label, bg, color, req], i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: bg as string, color: color as string }}>{label}</span>
+                  <span className="text-[10px] text-gray-500 truncate">{req}</span>
+                </div>
+              ))}
+              <div className="pt-2 flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 text-[9px] font-medium px-2 py-1 rounded-md text-white" style={{ background: ACCENT }}>
+                  <Sparkles className="w-2.5 h-2.5" />Tailored in 28s
+                </span>
+                <span className="inline-flex items-center gap-1 text-[9px] font-medium px-2 py-1 rounded-md bg-green-50 text-green-600">
+                  <Check className="w-2.5 h-2.5" />ATS pass
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="wrap" style={{ marginTop: 22 }}>
-        <p className="mono" style={{ fontSize: 11, color: "var(--ink-faint)", textAlign: "center" }}>
-          *Self-reported by Made-to-Measure users over 90 days. Your mileage will vary — but probably upward.
-        </p>
+
+      {/* Floating chips */}
+      <div className="absolute -left-4 sm:-left-10 top-1/3 hidden md:block">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-lg px-3.5 py-2.5 flex items-center gap-2">
+          <MessageCircleQuestion className="w-4 h-4" style={{ color: ACCENT }} />
+          <div>
+            <p className="text-[11px] font-semibold text-[#1e1813]">Interview prep ready</p>
+            <p className="text-[9px] text-gray-400">9 likely questions predicted</p>
+          </div>
+        </div>
+      </div>
+      <div className="absolute -right-4 sm:-right-8 bottom-8 hidden md:block">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-lg px-3.5 py-2.5 flex items-center gap-2">
+          <Kanban className="w-4 h-4 text-violet-500" />
+          <div>
+            <p className="text-[11px] font-semibold text-[#1e1813]">Moved to Interview</p>
+            <p className="text-[9px] text-gray-400">Senior BA · StreamCo</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Hero ─────────────────────────────────────────────────────────────────
+
+function Hero() {
+  return (
+    <section className="pt-20 pb-24 px-5">
+      <div className="max-w-3xl mx-auto text-center">
+        <Reveal>
+          <span className="inline-flex items-center gap-2 text-[12px] font-semibold px-3.5 py-1.5 rounded-full border" style={{ color: ACCENT, borderColor: "#ffd8cd", background: "#fff7f4" }}>
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: ACCENT }} />
+            Free while in beta
+          </span>
+        </Reveal>
+        <Reveal delay={80}>
+          <h1 className="mt-6 text-[clamp(40px,6.5vw,68px)] font-extrabold tracking-[-0.03em] leading-[1.04] text-[#1e1813]">
+            The CV platform built<br className="hidden sm:block" /> for every application
+          </h1>
+        </Reveal>
+        <Reveal delay={160}>
+          <p className="mt-6 text-lg sm:text-xl text-gray-500 leading-relaxed max-w-2xl mx-auto">
+            Tailr rewrites your CV for each job, scores the match against real evidence,
+            preps you for the interview, and tracks every application — in about 30 seconds.
+          </p>
+        </Reveal>
+        <Reveal delay={240}>
+          <div className="mt-9 flex items-center justify-center gap-3 flex-wrap">
+            <Link
+              href="/tailor"
+              className="inline-flex items-center gap-2 px-7 py-3.5 text-[15px] font-semibold text-white rounded-xl shadow-[0_8px_24px_rgba(220,79,51,0.3)] hover:shadow-[0_10px_28px_rgba(220,79,51,0.4)] transition-all hover:-translate-y-0.5"
+              style={{ background: ACCENT }}
+            >
+              Tailor my CV — free
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <a
+              href="#how-it-works"
+              className="inline-flex items-center gap-2 px-7 py-3.5 text-[15px] font-semibold text-[#1e1813] rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all"
+            >
+              See how it works
+            </a>
+          </div>
+        </Reveal>
+        <Reveal delay={300}>
+          <p className="mt-5 text-[13px] text-gray-400">No card required · Magic-link sign-in · ATS-safe output</p>
+        </Reveal>
+      </div>
+
+      <Reveal delay={350} className="mt-16">
+        <HeroMockup />
+      </Reveal>
+    </section>
+  )
+}
+
+// ── Stats strip ──────────────────────────────────────────────────────────
+
+function Stats() {
+  const stats = [
+    ["~30s", "median tailor time"],
+    ["2-pass", "evidence-checked engine"],
+    ["100%", "claims traced to your CV"],
+    ["£0", "while in beta"],
+  ]
+  return (
+    <section className="border-y border-gray-100 bg-gray-50/50">
+      <div className="max-w-6xl mx-auto px-5 py-12 grid grid-cols-2 lg:grid-cols-4 gap-8">
+        {stats.map(([v, l], i) => (
+          <Reveal key={l} delay={i * 70} className="text-center">
+            <p className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#1e1813]">{v}</p>
+            <p className={`${jetbrains.className} mt-2 text-[11px] uppercase tracking-[0.14em] text-gray-400`}>{l}</p>
+          </Reveal>
+        ))}
       </div>
     </section>
   )
 }
 
-function FeatGlyph({ k }: { k: string }) {
-  const box: React.CSSProperties = { width: 44, height: 44, borderRadius: 11, background: "var(--thread-wash)",
-    border: "1px solid var(--thread-tint)", display: "grid", placeItems: "center" }
-  const s = { stroke: "var(--thread-deep)", strokeWidth: 1.6, fill: "none", strokeLinecap: "round" as const, strokeLinejoin: "round" as const }
-  const glyphs: Record<string, React.ReactNode> = {
-    tailor: <><path d="M5 6 L19 18 M19 6 L5 18" {...s} /><circle cx="5" cy="6" r="2" {...s} /><circle cx="5" cy="18" r="2" {...s} /></>,
-    score:  <><circle cx="12" cy="12" r="7.5" {...s} /><path d="M12 4.5 A7.5 7.5 0 0 1 18.5 9" {...s} stroke="var(--thread)" strokeWidth="2.4" /></>,
-    diff:   <><path d="M5 8 H14 M5 12 H17 M5 16 H11" {...s} /><circle cx="19" cy="8" r="1.5" fill="var(--thread)" stroke="none" /></>,
-    gaps:   <><path d="M12 4 V13 M12 17 V18.5" {...s} stroke="var(--thread)" strokeWidth="2.2" /><path d="M4 20 H20" {...s} /></>,
-    scrape: <><path d="M9 13 a3 3 0 0 1 0-4 l2-2 a3 3 0 0 1 4 4 l-1 1" {...s} /><path d="M15 11 a3 3 0 0 1 0 4 l-2 2 a3 3 0 0 1-4-4 l1-1" {...s} /></>,
-    extras: <><rect x="5" y="4" width="14" height="16" rx="2" {...s} /><path d="M8 9 H16 M8 12 H16 M8 15 H13" {...s} /></>,
-  }
-  return <div style={box}><svg width="24" height="24" viewBox="0 0 24 24">{glyphs[k]}</svg></div>
-}
+// ── How it works ─────────────────────────────────────────────────────────
 
-function Features() {
-  const feats = [
-    { t: "Line-by-line tailoring", d: "Every bullet rewritten to mirror the job's language — reordered, sharpened, and ATS-safe.", k: "tailor" },
-    { t: "Match score, 0–100", d: "A ring badge that tells you how well you fit before you hit apply.", k: "score" },
-    { t: "Key changes, colour-coded", d: "See exactly what was improved, reordered, removed or added — no black box.", k: "diff" },
-    { t: "Gaps & follow-ups", d: "The requirements your CV can't yet support, plus interview questions to prep.", k: "gaps" },
-    { t: "Job-link auto-scrape", d: "Paste a LinkedIn, Indeed, Reed or Glassdoor URL — we fetch the description for you.", k: "scrape" },
-    { t: "Cover letters & pitches", d: "Generate a matched cover letter and 2–3 STAR interview stories on demand.", k: "extras" },
+function HowItWorks() {
+  const steps = [
+    {
+      n: "01", t: "Drop in your CV",
+      d: "Upload a PDF, DOCX or TXT — or paste it straight in. We remember it for next time.",
+      icon: <FileText className="w-5 h-5" />,
+    },
+    {
+      n: "02", t: "Paste the job",
+      d: "Drop any LinkedIn, Indeed or Reed link and we fetch the description automatically.",
+      icon: <Link2 className="w-5 h-5" />,
+    },
+    {
+      n: "03", t: "Tailor & apply",
+      d: "A re-cut CV, evidence-based match score, interview prep and a tracked application — ready to send.",
+      icon: <Sparkles className="w-5 h-5" />,
+    },
   ]
   return (
-    <section id="features" className="section">
-      <div className="wrap">
-        <div className="section-head">
-          <span className="eyebrow">What&apos;s in the kit</span>
-          <h2 className="display">Not a rewrite button.<br/>A whole <em>tailor&apos;s table</em>.</h2>
-          <p className="lede">Everything you need to go from &ldquo;I&apos;ll just send the same one&rdquo; to a CV that reads like it was written for the role.</p>
-        </div>
-        <div className="feat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 18 }}>
-          {feats.map((f, i) => (
-            <Reveal key={f.t} delay={(i % 3) * 90}>
-              <article className="feat-card" style={{ background: "var(--paper)", border: "1px solid var(--line)",
-                borderRadius: 14, padding: 24, height: "100%" }}>
-                <FeatGlyph k={f.k} />
-                <h3 className="serif" style={{ fontSize: 21, marginTop: 18, letterSpacing: "-0.01em" }}>{f.t}</h3>
-                <p className="muted" style={{ marginTop: 9, fontSize: 15.5, lineHeight: 1.55 }}>{f.d}</p>
-              </article>
+    <section id="how-it-works" className="py-24 px-5">
+      <div className="max-w-6xl mx-auto">
+        <Reveal className="text-center max-w-2xl mx-auto">
+          <p className={`${jetbrains.className} text-[12px] font-medium uppercase tracking-[0.16em]`} style={{ color: ACCENT }}>How it works</p>
+          <h2 className="mt-4 text-[clamp(30px,4.5vw,44px)] font-extrabold tracking-[-0.025em] leading-tight text-[#1e1813]">
+            Three steps from generic to get-the-call
+          </h2>
+        </Reveal>
+        <div className="mt-14 grid grid-cols-1 md:grid-cols-3 gap-6">
+          {steps.map((s, i) => (
+            <Reveal key={s.n} delay={i * 100}>
+              <div className="h-full rounded-2xl border border-gray-100 bg-white p-7 hover:shadow-[0_12px_32px_rgba(30,24,19,0.06)] hover:border-gray-200 transition-all duration-200">
+                <div className="flex items-center justify-between">
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "#fff7f4", color: ACCENT }}>
+                    {s.icon}
+                  </div>
+                  <span className="text-4xl font-extrabold text-gray-100">{s.n}</span>
+                </div>
+                <h3 className="mt-5 text-lg font-bold text-[#1e1813]">{s.t}</h3>
+                <p className="mt-2 text-[15px] text-gray-500 leading-relaxed">{s.d}</p>
+              </div>
             </Reveal>
           ))}
         </div>
@@ -395,153 +332,338 @@ function Features() {
   )
 }
 
-function FeatList({ items, dark }: { items: string[]; dark?: boolean }) {
+// ── Feature modules (alternating) ────────────────────────────────────────
+
+function ModuleMockCoverage() {
   return (
-    <ul style={{ listStyle: "none", padding: 0, margin: "24px 0 0", display: "grid", gap: 13 }}>
-      {items.map((it) => (
-        <li key={it} style={{ display: "flex", alignItems: "flex-start", gap: 11, fontSize: 15.5, lineHeight: 1.35 }}>
-          <span style={{ flexShrink: 0, marginTop: 1, width: 18, height: 18, borderRadius: 99,
-            background: dark ? "var(--thread)" : "var(--thread-wash)",
-            display: "grid", placeItems: "center" }}>
-            <svg width="11" height="11" viewBox="0 0 12 12">
-              <path d="M2.5 6.2 L5 8.6 L9.5 3.5" fill="none"
-                stroke={dark ? "#fff" : "var(--thread-deep)"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </span>
-          <span style={{ flex: 1, minWidth: 0, color: dark ? "oklch(0.9 0.012 78)" : "var(--ink)" }}>{it}</span>
-        </li>
+    <div className="rounded-2xl border border-gray-100 bg-white shadow-[0_16px_48px_rgba(30,24,19,0.08)] p-5">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Requirements coverage</p>
+      {[
+        ["Strong", "#dcfce7", "#16a34a", "SQL & data analysis", "must-have"],
+        ["Strong", "#dcfce7", "#16a34a", "Requirements gathering", "must-have"],
+        ["Transferable", "#ffeae4", ACCENT, "Media platform experience", "must-have"],
+        ["Partial", "#fef3c7", "#d97706", "Team leadership", ""],
+        ["Missing", "#fee2e2", "#dc2626", "Python", ""],
+      ].map(([label, bg, color, req, must], i) => (
+        <div key={i} className="flex items-center gap-2.5 py-2 border-b border-gray-50 last:border-0">
+          <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: bg as string, color: color as string }}>{label}</span>
+          <span className="text-[12px] text-[#1e1813] truncate">{req}</span>
+          {must && <span className="ml-auto text-[8px] font-bold uppercase tracking-wide text-gray-300">{must}</span>}
+        </div>
       ))}
-    </ul>
+      <div className="mt-3 flex items-center justify-between rounded-xl bg-gray-50 px-3.5 py-2.5">
+        <span className="text-[11px] font-medium text-gray-500">Computed match score</span>
+        <span className="text-sm font-extrabold text-[#1e1813]">82 / 100</span>
+      </div>
+    </div>
   )
 }
 
-function Beta({ onCta }: { onCta: () => void }) {
-  const betaFeats = [
-    "Unlimited tailoring while in beta",
-    "Match score, ATS check & key changes",
-    "Cover letters & STAR interview pitches",
-    "Interview prep with answer frameworks",
-    "Job-link auto-scrape & history",
-    "Kanban job tracker",
-  ]
-
+function ModuleMockPrep() {
   return (
-    <section id="beta" className="section" style={{ background: "var(--paper-2)", borderTop: "1px solid var(--line)" }}>
-      <div className="wrap">
-        <div className="section-head" style={{ marginInline: "auto", textAlign: "center", maxWidth: 680 }}>
-          <span className="eyebrow" style={{ justifyContent: "center" }}>Pre-release</span>
-          <h2 className="display">Tailr is in <em>beta</em>.<br/>Everything&apos;s free for now.</h2>
+    <div className="rounded-2xl border border-gray-100 bg-white shadow-[0_16px_48px_rgba(30,24,19,0.08)] p-5 space-y-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Interview prep</p>
+      {[
+        ["Gap probing", "#fee2e2", "#dc2626", "“Your CV doesn’t mention Python — how would you close that gap?”"],
+        ["Behavioural", "#ffeae4", ACCENT, "“Tell me about a migration you led under pressure.”"],
+        ["Technical", "#ede9fe", "#7c3aed", "“How do you size delivery options with SQL?”"],
+      ].map(([cat, bg, color, q], i) => (
+        <div key={i} className="rounded-xl border border-gray-100 p-3">
+          <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded" style={{ background: bg as string, color: color as string }}>{cat}</span>
+          <p className="mt-1.5 text-[12px] font-medium text-[#1e1813] leading-snug">{q}</p>
         </div>
+      ))}
+    </div>
+  )
+}
 
-        <div style={{ maxWidth: 620, marginInline: "auto" }}>
-          <div style={{ position: "relative", background: "var(--paper)", border: "1px solid var(--line)",
-            borderRadius: 18, padding: 36, boxShadow: "var(--shadow-md)", textAlign: "center" }}>
-            <span className="chip" style={{ display: "inline-flex", alignItems: "center", gap: 7,
-              background: "var(--thread-wash)", color: "var(--thread-deep)", border: "1px solid var(--thread-tint)" }}>
-              <span className="dot green" />Beta · no card needed
-            </span>
+function ModuleMockCompany() {
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white shadow-[0_16px_48px_rgba(30,24,19,0.08)] p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#fff7f4" }}>
+          <Building2 className="w-4 h-4" style={{ color: ACCENT }} />
+        </div>
+        <div>
+          <p className="text-[12px] font-bold text-[#1e1813]">StreamCo</p>
+          <p className="text-[9px] text-gray-400">Researched live · 3 sources</p>
+        </div>
+      </div>
+      {[
+        ["WHAT THEY DO", "Streaming infrastructure for broadcasters in 14 markets"],
+        ["RECENT", "Acquired MediaFlow in March · expanding analytics team"],
+        ["ASK THEM", "How does the BA team shape the analytics roadmap post-acquisition?"],
+      ].map(([h, t], i) => (
+        <div key={i} className="py-2 border-b border-gray-50 last:border-0">
+          <p className={`${jetbrains.className} text-[8px] tracking-[0.14em] mb-1`} style={{ color: ACCENT }}>{h}</p>
+          <p className="text-[11.5px] text-gray-600 leading-snug">{t}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
 
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 8, marginTop: 22 }}>
-              <span className="serif" style={{ fontSize: 60, fontWeight: 600, letterSpacing: "-0.02em" }}>£0</span>
-              <span className="muted">during beta</span>
-            </div>
-
-            <p className="muted" style={{ marginTop: 10, fontSize: 16, lineHeight: 1.55, maxWidth: 440, marginInline: "auto" }}>
-              We&apos;re still building Tailr in the open. Use every feature free while we&apos;re
-              in pre-release — paid plans will arrive later, and early users get plenty of notice.
-            </p>
-
-            <button className="btn btn-primary btn-lg" onClick={onCta} style={{ marginTop: 26 }}>
-              ✦ Try the beta — free
-            </button>
-
-            <div style={{ marginTop: 8 }}>
-              <FeatList items={betaFeats} />
+function ModuleMockTracker() {
+  const cols: Array<[string, string, Array<[string, string]>]> = [
+    ["Saved", "#6b7280", [["Product Analyst", "DataCo"]]],
+    ["Applied", ACCENT, [["Senior BA", "StreamCo"], ["Lead BA", "FinServ"]]],
+    ["Interview", "#7c3aed", [["BA Manager", "MediaCo"]]],
+  ]
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white shadow-[0_16px_48px_rgba(30,24,19,0.08)] p-5">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Job tracker</p>
+      <div className="grid grid-cols-3 gap-2.5">
+        {cols.map(([col, color, jobs]) => (
+          <div key={col as string}>
+            <p className="text-[9px] font-bold mb-2" style={{ color: color as string }}>{col} · {(jobs as Array<[string, string]>).length}</p>
+            <div className="space-y-2">
+              {(jobs as Array<[string, string]>).map(([title, co], i) => (
+                <div key={i} className="rounded-lg border border-gray-100 bg-gray-50/50 p-2">
+                  <p className="text-[10px] font-semibold text-[#1e1813] truncate">{title}</p>
+                  <p className="text-[8px] text-gray-400 truncate">{co}</p>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
-        <p className="mono" style={{ fontSize: 11.5, color: "var(--ink-faint)", textAlign: "center", marginTop: 22 }}>
-          Magic-link sign-in · no passwords · your feedback shapes what ships next
-        </p>
+function Modules() {
+  const modules = [
+    {
+      eyebrow: "Tailoring engine",
+      title: "Evidence-checked tailoring, not keyword stuffing",
+      body: "A two-pass engine extracts every requirement from the job description, maps it to real evidence in your CV, then rewrites with that map as ground truth. The match score is computed from coverage — never invented.",
+      points: ["Match score backed by a visible requirements table", "Keywords woven in only where your CV supports them", "Deterministic ATS keyword check on the final text"],
+      mock: <ModuleMockCoverage />,
+    },
+    {
+      eyebrow: "Interview prep",
+      title: "Walk in knowing what they'll ask",
+      body: "Tailr predicts the questions you're likely to face — including the uncomfortable ones probing your gaps — with an answer framework and talking points drawn from your own experience.",
+      points: ["8–10 predicted questions per role", "Gap-probing questions targeting your weak spots", "STAR pitches built from your real experience"],
+      mock: <ModuleMockPrep />,
+    },
+    {
+      eyebrow: "Company analysis",
+      title: "Research the company in one click",
+      body: "Live web research summarised for your specific role: what they do, recent developments, culture signals, and smart questions to ask at the end of the interview.",
+      points: ["Live web search, not stale training data", "Framed around the role you're applying for", "Smart questions that show you did the work"],
+      mock: <ModuleMockCompany />,
+    },
+    {
+      eyebrow: "Job tracker",
+      title: "Every application, one board",
+      body: "A Kanban board for your search: Saved → Applied → Interview → Offer. Each card keeps the job description, your tailored CV version, and a notes log — added straight from your tailoring history.",
+      points: ["Drag between stages, saved instantly", "Tailored CV and JD stored on every card", "Notes with timestamps for every conversation"],
+      mock: <ModuleMockTracker />,
+    },
+  ]
+  return (
+    <section id="features" className="py-24 px-5 bg-gray-50/50 border-y border-gray-100">
+      <div className="max-w-6xl mx-auto">
+        <Reveal className="text-center max-w-2xl mx-auto mb-20">
+          <p className={`${jetbrains.className} text-[12px] font-medium uppercase tracking-[0.16em]`} style={{ color: ACCENT }}>Features</p>
+          <h2 className="mt-4 text-[clamp(30px,4.5vw,44px)] font-extrabold tracking-[-0.025em] leading-tight text-[#1e1813]">
+            Not a rewrite button.<br />A complete application platform.
+          </h2>
+        </Reveal>
+
+        <div className="space-y-24">
+          {modules.map((m, i) => (
+            <div key={m.eyebrow} className={`grid grid-cols-1 lg:grid-cols-2 gap-12 items-center ${i % 2 === 1 ? "lg:[&>*:first-child]:order-2" : ""}`}>
+              <Reveal delay={60}>
+                <p className={`${jetbrains.className} text-[11px] font-medium uppercase tracking-[0.16em]`} style={{ color: ACCENT }}>{m.eyebrow}</p>
+                <h3 className="mt-3 text-[clamp(24px,3vw,32px)] font-extrabold tracking-[-0.02em] leading-tight text-[#1e1813]">{m.title}</h3>
+                <p className="mt-4 text-[16px] text-gray-500 leading-relaxed">{m.body}</p>
+                <ul className="mt-6 space-y-3">
+                  {m.points.map((p) => (
+                    <li key={p} className="flex items-start gap-2.5 text-[14.5px] text-gray-600">
+                      <span className="mt-0.5 w-4.5 h-4.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center" style={{ background: "#ffeae4" }}>
+                        <Check className="w-2.5 h-2.5" style={{ color: ACCENT }} />
+                      </span>
+                      {p}
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
+              <Reveal delay={140}>{m.mock}</Reveal>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   )
 }
 
-function Footer({ onCta }: { onCta: () => void }) {
+// ── Benefits grid ────────────────────────────────────────────────────────
+
+function Benefits() {
+  const items = [
+    { icon: <ShieldCheck className="w-5 h-5" />, t: "Truth-guaranteed", d: "Every claim traces to your original CV. Nothing invented, ever." },
+    { icon: <Zap className="w-5 h-5" />, t: "~30 second runs", d: "Two fast passes instead of one slow one. Built for momentum." },
+    { icon: <Target className="w-5 h-5" />, t: "Computed match score", d: "Weighted requirement coverage you can audit — not model vibes." },
+    { icon: <Download className="w-5 h-5" />, t: "Word & text export", d: "Download as .doc or .txt, formatted and ATS-safe." },
+    { icon: <History className="w-5 h-5" />, t: "Full history", d: "Every tailored version saved with side-by-side comparison." },
+    { icon: <Clock className="w-5 h-5" />, t: "Role-aware writing", d: "Engineering, sales, healthcare — bullets follow your field's rules." },
+  ]
+  return (
+    <section className="py-24 px-5">
+      <div className="max-w-6xl mx-auto">
+        <Reveal className="text-center max-w-2xl mx-auto mb-14">
+          <h2 className="text-[clamp(30px,4.5vw,44px)] font-extrabold tracking-[-0.025em] leading-tight text-[#1e1813]">
+            Built to be trusted
+          </h2>
+          <p className="mt-4 text-lg text-gray-500">The details that make the difference between a tool and a platform.</p>
+        </Reveal>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {items.map((it, i) => (
+            <Reveal key={it.t} delay={(i % 3) * 80}>
+              <div className="h-full rounded-2xl border border-gray-100 p-6 hover:shadow-[0_12px_32px_rgba(30,24,19,0.06)] hover:border-gray-200 transition-all duration-200">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#fff7f4", color: ACCENT }}>
+                  {it.icon}
+                </div>
+                <h3 className="mt-4 text-[16px] font-bold text-[#1e1813]">{it.t}</h3>
+                <p className="mt-1.5 text-[14px] text-gray-500 leading-relaxed">{it.d}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ── Beta section ─────────────────────────────────────────────────────────
+
+function Beta() {
+  const feats = [
+    "Unlimited tailoring while in beta",
+    "Evidence-checked match scores",
+    "Interview prep & STAR pitches",
+    "Live company analysis",
+    "Kanban job tracker",
+    "Word & text downloads",
+  ]
+  return (
+    <section id="beta" className="py-24 px-5 bg-gray-50/50 border-y border-gray-100">
+      <div className="max-w-3xl mx-auto text-center">
+        <Reveal>
+          <p className={`${jetbrains.className} text-[12px] font-medium uppercase tracking-[0.16em]`} style={{ color: ACCENT }}>Pre-release</p>
+          <h2 className="mt-4 text-[clamp(30px,4.5vw,44px)] font-extrabold tracking-[-0.025em] leading-tight text-[#1e1813]">
+            Tailr is in beta. Everything&apos;s free for now.
+          </h2>
+          <p className="mt-4 text-lg text-gray-500 max-w-xl mx-auto">
+            We&apos;re building Tailr in the open. Use every feature free while we&apos;re in
+            pre-release — paid plans arrive later, and early users get plenty of notice.
+          </p>
+        </Reveal>
+        <Reveal delay={120}>
+          <div className="mt-10 rounded-2xl border border-gray-200 bg-white shadow-[0_16px_48px_rgba(30,24,19,0.07)] p-8 sm:p-10">
+            <div className="flex items-baseline justify-center gap-2">
+              <span className="text-6xl font-extrabold tracking-tight text-[#1e1813]">£0</span>
+              <span className="text-gray-400 font-medium">during beta</span>
+            </div>
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-left max-w-xl mx-auto">
+              {feats.map((f) => (
+                <div key={f} className="flex items-start gap-2.5 text-[14.5px] text-gray-600">
+                  <span className="mt-0.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center" style={{ background: "#ffeae4" }}>
+                    <Check className="w-2.5 h-2.5" style={{ color: ACCENT }} />
+                  </span>
+                  {f}
+                </div>
+              ))}
+            </div>
+            <Link
+              href="/tailor"
+              className="mt-9 inline-flex items-center gap-2 px-7 py-3.5 text-[15px] font-semibold text-white rounded-xl shadow-[0_8px_24px_rgba(220,79,51,0.3)] hover:-translate-y-0.5 transition-all"
+              style={{ background: ACCENT }}
+            >
+              Try the beta — free
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <p className="mt-4 text-[12px] text-gray-400">No card needed · magic-link sign-in · your feedback shapes what ships next</p>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  )
+}
+
+// ── Final CTA + footer ───────────────────────────────────────────────────
+
+function Footer() {
   const cols: [string, string[]][] = [
-    ["Product", ["How it works", "Features", "Beta", "Changelog"]],
-    ["Company", ["About", "Blog", "Careers", "Contact"]],
+    ["Product", ["How it works", "Features", "Beta"]],
+    ["Company", ["About", "Blog", "Contact"]],
     ["Legal", ["Privacy", "Terms", "Data & security"]],
   ]
   return (
-    <footer style={{ background: "var(--ink)", color: "var(--paper)" }}>
-      <div className="wrap" style={{ padding: "84px 32px 64px", textAlign: "center", borderBottom: "1px solid oklch(0.32 0.014 62)" }}>
-        <h2 className="display" style={{ fontSize: "clamp(36px,5vw,60px)" }}>
-          The next job won&apos;t <em style={{ color: "var(--thread)" }}>tailor itself</em>.
+    <footer style={{ background: INK }}>
+      <div className="max-w-6xl mx-auto px-5 pt-20 pb-16 text-center border-b border-white/10">
+        <h2 className="text-[clamp(30px,5vw,52px)] font-extrabold tracking-[-0.025em] leading-tight text-white">
+          The next job won&apos;t <span style={{ color: ACCENT }}>tailor itself</span>.
         </h2>
-        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 28, flexWrap: "wrap" }}>
-          <button className="btn btn-primary btn-lg" onClick={onCta}>✦ Tailor my CV — free</button>
-          <a className="btn btn-lg" href="#beta"
-            style={{ color: "var(--paper)", border: "1px solid oklch(0.4 0.014 62)" }}>About the beta</a>
+        <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
+          <Link
+            href="/tailor"
+            className="inline-flex items-center gap-2 px-7 py-3.5 text-[15px] font-semibold text-white rounded-xl hover:-translate-y-0.5 transition-all"
+            style={{ background: ACCENT }}
+          >
+            Tailor my CV — free
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+          <a href="#beta" className="inline-flex items-center px-7 py-3.5 text-[15px] font-semibold text-white rounded-xl border border-white/20 hover:border-white/40 transition-all">
+            About the beta
+          </a>
         </div>
       </div>
-      <div className="wrap foot-grid" style={{ padding: "52px 32px", display: "grid",
-        gridTemplateColumns: "1.4fr repeat(3, 1fr)", gap: 32 }}>
-        <div>
-          <div style={{ display: "inline-flex", alignItems: "baseline", gap: 2,
-            fontFamily: "var(--font-newsreader), Georgia, serif", fontSize: 26, fontWeight: 600 }}>
-            tailr<span style={{ width: 6, height: 6, borderRadius: 99, background: "var(--thread)", display: "inline-block" }} />
-          </div>
-          <p style={{ marginTop: 14, fontSize: 14.5, color: "oklch(0.74 0.012 78)", maxWidth: "34ch", lineHeight: 1.6 }}>
-            Made-to-measure CVs for every job worth applying to. Tailor, score, apply.
+      <div className="max-w-6xl mx-auto px-5 py-14 grid grid-cols-2 md:grid-cols-[1.4fr_1fr_1fr_1fr] gap-10">
+        <div className="col-span-2 md:col-span-1">
+          <Wordmark light />
+          <p className="mt-4 text-[14px] text-white/50 leading-relaxed max-w-[32ch]">
+            Tailored CVs for every job worth applying to. Tailor, score, prep, track.
           </p>
         </div>
         {cols.map(([h, links]) => (
           <div key={h}>
-            <div className="mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "oklch(0.62 0.012 78)" }}>{h}</div>
-            <ul style={{ listStyle: "none", padding: 0, margin: "16px 0 0", display: "grid", gap: 11 }}>
-              {links.map(l => (
+            <p className={`${jetbrains.className} text-[10px] uppercase tracking-[0.16em] text-white/40`}>{h}</p>
+            <ul className="mt-4 space-y-2.5">
+              {links.map((l) => (
                 <li key={l}>
-                  <a href="#" style={{ fontSize: 14.5, color: "oklch(0.84 0.012 78)", transition: "color .15s ease" }}
-                    onMouseEnter={e => (e.currentTarget.style.color = "#fff")}
-                    onMouseLeave={e => (e.currentTarget.style.color = "oklch(0.84 0.012 78)")}>{l}</a>
+                  <a href="#" className="text-[14px] text-white/70 hover:text-white transition-colors">{l}</a>
                 </li>
               ))}
             </ul>
           </div>
         ))}
       </div>
-      <div className="wrap" style={{ padding: "22px 32px", borderTop: "1px solid oklch(0.32 0.014 62)",
-        display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-        <span className="mono" style={{ fontSize: 12, color: "oklch(0.62 0.012 78)" }}>© 2026 Tailr Labs</span>
-        <span className="mono" style={{ fontSize: 12, color: "oklch(0.62 0.012 78)" }}>Cut to fit ✦ London</span>
+      <div className="max-w-6xl mx-auto px-5 py-6 border-t border-white/10 flex items-center justify-between flex-wrap gap-3">
+        <span className={`${jetbrains.className} text-[11px] text-white/40`}>© 2026 Tailr Labs</span>
+        <span className={`${jetbrains.className} text-[11px] text-white/40`}>Cut to fit ✦ London</span>
       </div>
     </footer>
   )
 }
 
-// ── page ─────────────────────────────────────────────────────────────
+// ── Page ─────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
-  const fontClasses = `${newsreader.variable} ${hanken.variable} ${jetbrains.variable}`
-
-  const onCta = useCallback(() => {
-    window.location.href = "/tailor"
-  }, [])
-
   return (
-    <div id="top" className={`cl ${fontClasses}`}>
-      <Nav onCta={onCta} />
+    <div id="top" className={`${hanken.className} ${hanken.variable} ${jetbrains.variable} bg-white antialiased`} style={{ color: INK }}>
+      <Nav />
       <main>
-        <HeroA onCta={onCta} />
+        <Hero />
+        <Stats />
+        <HowItWorks />
+        <Modules />
+        <Benefits />
+        <Beta />
       </main>
-      <HowItWorks />
-      <Stats />
-      <Features />
-      <Beta onCta={onCta} />
-      <Footer onCta={onCta} />
+      <Footer />
     </div>
   )
 }
