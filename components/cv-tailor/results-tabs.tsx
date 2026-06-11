@@ -7,7 +7,7 @@ import type { TailorResult } from "@/lib/anthropic"
 
 /** Renders plain-text CV with visual hierarchy: bold section headers, indented bullets */
 function FormattedCV({ text }: { text: string }) {
-  const lines = text.split("\n")
+  const lines = (text ?? "").split("\n")
   return (
     <div className="font-mono text-sm text-[#1e1813] leading-relaxed space-y-0.5">
       {lines.map((line, i) => {
@@ -191,7 +191,7 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
 
         {activeTab === "Key Changes" && (
           <div className="space-y-3">
-            {results.keyChanges.map((change, i) => (
+            {(results.keyChanges ?? []).map((change, i) => (
               <div
                 key={i}
                 className="p-4 bg-white rounded-lg shadow-sm border border-gray-100 flex items-start gap-3"
@@ -215,7 +215,7 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
 
         {activeTab === "Gaps" && (
           <div className="space-y-3">
-            {results.gaps.map((gap, i) => (
+            {(results.gaps ?? []).map((gap, i) => (
               <div
                 key={i}
                 className="p-4 bg-gray-50 rounded-lg flex items-start gap-3"
@@ -229,7 +229,7 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
 
         {activeTab === "Follow-ups" && (
           <div className="space-y-3">
-            {results.followUps.map((question, i) => (
+            {(results.followUps ?? []).map((question, i) => (
               <div
                 key={i}
                 className="p-4 bg-white rounded-lg shadow-sm border border-gray-100"
@@ -243,7 +243,7 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
         {activeTab === "ATS Notes" && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
             <div className="flex items-center gap-2 mb-4">
-              {results.atsNotes.status === "pass" ? (
+              {(results.atsNotes?.status ?? "pass") === "pass" ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 text-green-600 text-sm font-medium rounded-lg">
                   <CheckCircle className="w-4 h-4" />
                   ATS Ready
@@ -256,7 +256,7 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
               )}
             </div>
             <ul className="space-y-2">
-              {results.atsNotes.items.map((item, i) => (
+              {(results.atsNotes?.items ?? []).map((item, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
                   <span className="text-gray-300 mt-1">•</span>
                   {item}

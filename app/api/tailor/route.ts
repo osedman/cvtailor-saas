@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const message = await anthropic.messages.create(
       {
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
+        max_tokens: 8000,
         system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
         tools: [TAILOR_TOOL],
         tool_choice: { type: 'tool', name: 'submit_tailored_result' },
@@ -44,29 +44,76 @@ export async function POST(req: NextRequest) {
       throw new Error(`Claude did not use the tool. Stop reason: ${message.stop_reason}. Content: ${JSON.stringify(message.content).slice(0, 200)}`)
     }
 
-    const result = toolUse.input
+    // Guard against truncated tool input (hit the token ceiling mid-JSON) — the
+    // SDK returns a partial object with arrays missing, which crashes the UI.
+    if (message.stop_reason === 'max_tokens') {
+      return NextResponse.json(
+        { error: 'Your CV is a bit long for one pass — try trimming it slightly and tailoring again.' },
+        { status: 422 }
+      )
+    }
 
-    // 5. Track usage + save to history (non-blocking)
-    const r = result as { jobTitle?: string; companyName?: string; matchScore?: number }
+    // Normalise so required arrays always exist, even if the model omitted one.
+    const raw = toolUse.input as Record<string, unknown>
+    const result = {
+      jobTitle:    typeof raw.jobTitle === 'string' ? raw.jobTitle : '',
+      companyName: typeof raw.companyName === 'string' ? raw.companyName : '',
+      matchScore:  typeof raw.matchScore === 'number' ? raw.matchScore : 0,
+      tailoredCV:  typeof raw.tailoredCV === 'string' ? raw.tailoredCV : '',
+      keyChanges:  Array.isArray(raw.keyChanges) ? raw.keyChanges : [],
+      gaps:        Array.isArray(raw.gaps) ? raw.gaps : [],
+      followUps:   Array.isArray(raw.followUps) ? raw.followUps : [],
+      atsNotes: (raw.atsNotes && typeof raw.atsNotes === 'object')
+        ? {
+            status: (raw.atsNotes as Record<string, unknown>).status === 'warning' ? 'warning' : 'pass',
+            items: Array.isArray((raw.atsNotes as Record<string, unknown>).items)
+              ? (raw.atsNotes as Record<string, unknown>).items
+              : [],
+          }
+        : { status: 'pass', items: [] },
+    }
+
+    // If the core CV text never came back, treat as a hard failure rather than
+    // rendering an empty shell.
+    if (!result.tailoredCV) {
+      throw new Error('The tailored CV came back empty. Please try again.')
+    }
+
+    // 5. Track usage + save to history (non-blocking, best-effort)
     const jobSnippet = jobDescription.trim().slice(0, 200)
 
     Promise.all([
       supabase.rpc('increment_tailors_used', { user_id: user.id }),
       supabase.from('tailor_history').insert({
         user_id:      user.id,
-        job_title:    r.jobTitle    ?? '',
-        company_name: r.companyName ?? '',
+        job_title:    result.jobTitle,
+        company_name: result.companyName,
         job_url:      typeof jobUrl === 'string' ? jobUrl.slice(0, 500) : '',
         job_snippet:  jobSnippet,
-        match_score:  r.matchScore  ?? 0,
+        match_score:  result.matchScore,
         result,
       }),
-    ]).then(() => {})
+    ]).catch((e) => console.error('[tailor] history save failed:', e))
 
     return NextResponse.json({ result })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    console.error('[tailor] error:', msg)
-    return NextResponse.json({ error: msg }, { status: 500 })
+    const status = (err as { status?: number })?.status
+    console.error('[tailor] error:', status ?? '', msg)
+
+    // Surface common upstream failures with actionable, user-readable messages
+    if (status === 401 || /api[_-]?key|authentication/i.test(msg)) {
+      return NextResponse.json({ error: 'AI service is misconfigured (API key). Please contact support.' }, { status: 502 })
+    }
+    if (status === 400 && /credit|billing|balance/i.test(msg)) {
+      return NextResponse.json({ error: 'The AI service is temporarily unavailable (billing). Please try again later.' }, { status: 502 })
+    }
+    if (status === 429) {
+      return NextResponse.json({ error: 'Too many requests right now — please wait a moment and try again.' }, { status: 429 })
+    }
+    if (status === 529 || /overloaded/i.test(msg)) {
+      return NextResponse.json({ error: 'The AI service is busy right now — please try again in a few seconds.' }, { status: 503 })
+    }
+    return NextResponse.json({ error: msg || 'Failed to tailor CV. Please try again.' }, { status: 500 })
   }
 }
