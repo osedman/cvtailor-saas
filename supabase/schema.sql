@@ -60,6 +60,8 @@ create table if not exists public.tailor_history (
   job_url      text not null default '',   -- original URL if scraped, else ''
   job_snippet  text not null default '',   -- first 200 chars of JD
   match_score  integer not null default 0,
+  original_cv  text not null default '',   -- CV text as submitted (for side-by-side)
+  feedback     jsonb,                      -- {rating: up|down, comment, created_at}
   result       jsonb not null              -- full TailorResult object
 );
 
@@ -77,6 +79,10 @@ create policy "Users can read own history"
 create policy "Users can insert own history"
   on public.tailor_history for insert
   with check (auth.uid() = user_id);
+
+create policy "Users can update own history"
+  on public.tailor_history for update
+  using (auth.uid() = user_id);
 
 create policy "Users can delete own history"
   on public.tailor_history for delete

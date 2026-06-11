@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles } from "lucide-react"
+import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles, ThumbsUp, ThumbsDown, Building2 } from "lucide-react"
+import { toast } from "sonner"
 
 import type { TailorResult, InterviewPrepResult, PitchesResult } from "@/lib/anthropic"
 import { InterviewPrep } from "./interview-prep"
@@ -47,6 +48,76 @@ function FormattedCV({ text }: { text: string }) {
   )
 }
 
+/** Thumbs up/down on a tailoring run, persisted to tailor_history.feedback */
+function FeedbackBar({ historyId }: { historyId: string }) {
+  const [rating, setRating] = useState<"up" | "down" | null>(null)
+  const [comment, setComment] = useState("")
+  const [showComment, setShowComment] = useState(false)
+  const [sent, setSent] = useState(false)
+
+  const send = async (r: "up" | "down", c: string) => {
+    try {
+      const res = await fetch(`/api/history/${historyId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feedback: { rating: r, comment: c } }),
+      })
+      if (!res.ok) throw new Error()
+      setSent(true)
+      toast.success("Thanks — this helps improve the tailoring")
+    } catch {
+      toast.error("Could not save feedback")
+    }
+  }
+
+  if (sent) {
+    return (
+      <p className="text-xs text-gray-400 flex items-center gap-1.5">
+        <Check className="w-3.5 h-3.5 text-green-500" />Feedback saved
+      </p>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-gray-400">Was this tailoring good?</span>
+        <button
+          onClick={() => { setRating("up"); send("up", "") }}
+          className={`p-1.5 rounded-lg transition-colors ${rating === "up" ? "bg-green-50 text-green-600" : "text-gray-300 hover:text-green-500 hover:bg-green-50"}`}
+          title="Good result"
+        >
+          <ThumbsUp className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => { setRating("down"); setShowComment(true) }}
+          className={`p-1.5 rounded-lg transition-colors ${rating === "down" ? "bg-red-50 text-red-500" : "text-gray-300 hover:text-red-400 hover:bg-red-50"}`}
+          title="Needs work"
+        >
+          <ThumbsDown className="w-4 h-4" />
+        </button>
+      </div>
+      {showComment && (
+        <div className="flex gap-2">
+          <input
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && send("down", comment)}
+            placeholder="What was wrong? (optional)"
+            className="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#dc4f33]"
+          />
+          <button
+            onClick={() => send("down", comment)}
+            className="text-xs font-medium text-white bg-[#dc4f33] rounded-lg px-3 py-1.5 hover:bg-[#b3341b] transition-colors"
+          >
+            Send
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface ResultsTabsProps {
   results: TailorResult
   coverLetter: string | null
@@ -58,12 +129,22 @@ interface ResultsTabsProps {
   pitches?: PitchesResult["interviewPitches"] | null
   loadingPitches?: boolean
   onGeneratePitches?: () => void
+  /** Original CV text — enables the side-by-side Compare tab */
+  originalCV?: string | null
+  /** Company analysis — enables the Company tab */
+  companyAnalysis?: string | null
+  loadingCompany?: boolean
+  onGenerateCompany?: () => void
+  /** tailor_history row id — enables the feedback bar */
+  historyId?: string | null
 }
 
 const tabs = [
   "Tailored CV",
+  "Compare",
   "Cover Letter",
   "Interview Prep",
+  "Company",
   "Key Changes",
   "Gaps",
   "Follow-ups",
@@ -83,13 +164,22 @@ export function ResultsTabs({
   pitches = null,
   loadingPitches = false,
   onGeneratePitches,
+  originalCV = null,
+  companyAnalysis = null,
+  loadingCompany = false,
+  onGenerateCompany,
+  historyId = null,
 }: ResultsTabsProps) {
   // Interview Prep only appears where a generator is wired up (the tailor page).
   // There, Follow-ups live inside the prep tab; in the read-only history view
   // there's no prep tab, so Follow-ups stay as their own tab.
-  const visibleTabs = onGeneratePrep
-    ? tabs.filter((t) => t !== "Follow-ups")
-    : tabs.filter((t) => t !== "Interview Prep")
+  const visibleTabs = tabs.filter((t) => {
+    if (t === "Follow-ups") return !onGeneratePrep
+    if (t === "Interview Prep") return !!onGeneratePrep
+    if (t === "Compare") return !!originalCV
+    if (t === "Company") return !!onGenerateCompany
+    return true
+  })
   const [activeTab, setActiveTab] = useState<TabName>("Tailored CV")
   const [copied, setCopied] = useState(false)
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 })
@@ -282,6 +372,77 @@ export function ResultsTabs({
                 Download as .txt
               </button>
             </div>
+
+            {historyId && (
+              <div className="mt-6 pt-4 border-t border-gray-100">
+                <FeedbackBar historyId={historyId} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "Compare" && originalCV && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-gray-50/60 rounded-lg border border-gray-100 overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+                <h3 className="text-xs font-semibold text-gray-500">Original</h3>
+              </div>
+              <div className="p-5 max-h-[70vh] overflow-y-auto">
+                <FormattedCV text={originalCV} />
+              </div>
+            </div>
+            <div className="bg-white rounded-lg border border-[#ffd8cd] shadow-sm overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-[#ffd8cd] bg-[#ffeae4]">
+                <h3 className="text-xs font-semibold text-[#dc4f33]">Tailored</h3>
+              </div>
+              <div className="p-5 max-h-[70vh] overflow-y-auto">
+                <FormattedCV text={results.tailoredCV} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "Company" && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+            {companyAnalysis ? (
+              <div className="space-y-1">
+                {companyAnalysis.split("\n").map((line, i) => {
+                  const t = line.trim()
+                  if (!t) return <div key={i} className="h-2" />
+                  if (/^[A-Z][A-Z\s&'?]+$/.test(t)) {
+                    return <p key={i} className="text-xs font-bold uppercase tracking-widest text-[#dc4f33] pt-4 pb-1">{t}</p>
+                  }
+                  if (/^[-•]/.test(t)) {
+                    return (
+                      <p key={i} className="text-sm text-gray-600 leading-relaxed pl-4">
+                        <span className="text-[#dc4f33] mr-2">•</span>
+                        {t.replace(/^[-•]\s*/, "")}
+                      </p>
+                    )
+                  }
+                  return <p key={i} className="text-sm text-gray-500 leading-relaxed">{t}</p>
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 gap-4">
+                <div className="p-2 bg-[#ffeae4] rounded-xl">
+                  <Building2 className="w-5 h-5 text-[#dc4f33]" />
+                </div>
+                <p className="text-sm text-gray-500 text-center max-w-sm">
+                  Research {results.companyName || "the company"} — what they do, recent
+                  developments, culture, and smart questions to ask in the interview.
+                </p>
+                <button
+                  onClick={onGenerateCompany}
+                  disabled={loadingCompany}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] disabled:opacity-60 transition-colors"
+                >
+                  {loadingCompany
+                    ? <><Loader2 className="w-4 h-4 animate-spin" />Researching…</>
+                    : <><Sparkles className="w-4 h-4" />Analyse Company</>}
+                </button>
+              </div>
+            )}
           </div>
         )}
 

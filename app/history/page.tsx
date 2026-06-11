@@ -22,6 +22,7 @@ interface HistoryItem {
   job_snippet: string
   match_score: number
   result: TailorResult
+  original_cv?: string
 }
 
 // ── helpers ────────────────────────────────────────────────────────────
@@ -449,6 +450,7 @@ export default function HistoryPage() {
                     coverLetter={null}
                     loadingCoverLetter={false}
                     onGenerateCoverLetter={() => {}}
+                    originalCV={selectedItem.original_cv || null}
                   />
                 </div>
               </div>

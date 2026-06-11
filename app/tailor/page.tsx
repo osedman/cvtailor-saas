@@ -77,6 +77,10 @@ export default function CVTailorPage() {
   const [scrapedJobUrl, setScrapedJobUrl] = useState("")
   const [prepQuestions, setPrepQuestions] = useState<InterviewPrepResult["interviewQuestions"] | null>(null)
   const [loadingPrep, setLoadingPrep] = useState(false)
+  const [companyAnalysis, setCompanyAnalysis] = useState<string | null>(null)
+  const [loadingCompany, setLoadingCompany] = useState(false)
+  const [historyId, setHistoryId] = useState<string | null>(null)
+  const [tailoredFromCv, setTailoredFromCv] = useState<string | null>(null)
 
   const handleTailor = useCallback(async () => {
     if (!canTailor) return
@@ -87,6 +91,8 @@ export default function CVTailorPage() {
     setCoverLetter(null)
     setPitches(null)
     setPrepQuestions(null)
+    setCompanyAnalysis(null)
+    setHistoryId(null)
     setProgressStep(0)
     setLoadingStatus("Analysing job requirements…")
 
@@ -106,7 +112,7 @@ export default function CVTailorPage() {
       const ac = new AbortController()
       const timer = setTimeout(() => ac.abort(), 70_000)
 
-      let data: { result?: TailorResult; error?: string }
+      let data: { result?: TailorResult; historyId?: string | null; error?: string }
       try {
         const res = await fetch("/api/tailor", {
           method: "POST",
@@ -114,7 +120,7 @@ export default function CVTailorPage() {
           body: JSON.stringify({ cv: cvText, jobDescription, jobUrl: scrapedJobUrl }),
           signal: ac.signal,
         })
-        data = await readJson<{ result?: TailorResult; error?: string }>(res)
+        data = await readJson<{ result?: TailorResult; historyId?: string | null; error?: string }>(res)
       } finally {
         clearTimeout(timer)
         clearInterval(stepInterval)
@@ -127,6 +133,8 @@ export default function CVTailorPage() {
       }
 
       setResults(data.result)
+      setHistoryId(data.historyId ?? null)
+      setTailoredFromCv(cvText)
     } catch (err) {
       const aborted = err instanceof DOMException && err.name === "AbortError"
       toast.error(
@@ -192,11 +200,36 @@ export default function CVTailorPage() {
     }
   }, [cvText, jobDescription])
 
+  const handleGenerateCompany = useCallback(async () => {
+    if (!results) return
+    setLoadingCompany(true)
+    try {
+      const res = await fetch("/api/company-analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyName: results.companyName,
+          jobTitle: results.jobTitle,
+          jobDescription,
+        }),
+      })
+      const data = await readJson<{ companyAnalysis: string }>(res)
+      setCompanyAnalysis(data.companyAnalysis)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to analyse company.")
+    } finally {
+      setLoadingCompany(false)
+    }
+  }, [results, jobDescription])
+
   const handleRestoreHistory = useCallback((item: HistoryItem) => {
     setResults(item.result)
     setCoverLetter(null)
     setPitches(null)
     setPrepQuestions(null)
+    setCompanyAnalysis(null)
+    setHistoryId(item.id)
+    setTailoredFromCv(null)
   }, [])
 
   return (
@@ -257,6 +290,11 @@ export default function CVTailorPage() {
                   pitches={pitches}
                   loadingPitches={loadingPitches}
                   onGeneratePitches={handleGeneratePitches}
+                  originalCV={tailoredFromCv}
+                  companyAnalysis={companyAnalysis}
+                  loadingCompany={loadingCompany}
+                  onGenerateCompany={handleGenerateCompany}
+                  historyId={historyId}
                 />
               </div>
             </>

@@ -18,11 +18,39 @@ export interface RequirementMapping {
   evidence: string             // short quote/paraphrase of the CV evidence ('' if none)
 }
 
+export type RoleFamily =
+  | "engineering" | "data" | "product" | "design" | "marketing" | "sales"
+  | "finance" | "operations" | "hr" | "healthcare" | "education" | "legal"
+  | "customer-service" | "trades" | "other"
+
 export interface ExtractResult {
   jobTitle: string
   companyName: string
+  roleFamily: RoleFamily
+  seniority: "entry" | "mid" | "senior" | "lead" | "executive"
   requirements: RequirementMapping[]
 }
+
+/** Per-family rewrite guidance injected into the rewrite prompt */
+export const ROLE_GUIDANCE: Record<RoleFamily, string> = {
+  engineering: "Lead bullets with the technical outcome (latency, uptime, scale, cost) and name the stack precisely. Recruiters scan for specific languages/frameworks — keep a tight, honest tech list.",
+  data: "Quantify data scale and business impact of analyses/models. Name tools exactly (SQL flavours, dbt, Python libs, BI tools). Distinguish building pipelines from consuming them.",
+  product: "Frame bullets as outcome → metric (activation, retention, revenue). Show evidence of prioritisation, stakeholder alignment and shipped launches, not feature lists.",
+  design: "Emphasise the problem solved and measured impact of design decisions; name methods (research, prototyping, design systems) and tools concisely.",
+  marketing: "Lead with growth/pipeline/ROI numbers and channel specifics. Name platforms and campaign types; avoid vague 'brand awareness' claims without measures.",
+  sales: "Numbers first: quota attainment, deal sizes, cycle length, territory growth. Name methodologies (MEDDIC, SPIN) and segments honestly.",
+  finance: "Precision and compliance tone. Quantify budgets, savings, audit outcomes; name standards/regulations (IFRS, SOX) and systems (SAP, Oracle) exactly.",
+  operations: "Emphasise process improvements with throughput/cost/time metrics; name methodologies (Lean, Six Sigma) only if evidenced.",
+  hr: "Quantify headcount supported, time-to-hire, retention improvements; name HRIS systems and frameworks specifically.",
+  healthcare: "Lead with patient outcomes, caseloads, compliance and accreditations. Keep clinical terminology exact; registrations/licences prominent.",
+  education: "Emphasise learner outcomes, cohort sizes, curriculum development; name qualifications and frameworks precisely.",
+  legal: "Precision tone. Name practice areas, matter types and values; emphasise risk mitigated and deals/cases closed.",
+  "customer-service": "Quantify volumes, CSAT/NPS, resolution times; name platforms (Zendesk, Salesforce) and escalation experience.",
+  trades: "Lead with certifications, tickets and safety record; quantify project sizes and timelines; name equipment/standards exactly.",
+  other: "Lead every bullet with the most quantifiable, role-relevant outcome available in the CV.",
+}
+
+export interface CompanyAnalysisResult { companyAnalysis: string }
 
 // Core result — assembled by the server from both passes
 export interface TailorResult {
@@ -37,6 +65,8 @@ export interface TailorResult {
   // New in the two-pass pipeline (older history rows won't have these)
   requirementsCoverage?: RequirementMapping[]
   keywordCoverage?: { present: string[]; missing: string[] }
+  roleFamily?: string
+  seniority?: string
 }
 
 // Extended results generated on-demand
@@ -124,6 +154,16 @@ export const EXTRACT_TOOL: Anthropic.Tool = {
         type: "string",
         description: "The hiring company name from the job description. Empty string if not found.",
       },
+      roleFamily: {
+        type: "string",
+        enum: ["engineering", "data", "product", "design", "marketing", "sales", "finance", "operations", "hr", "healthcare", "education", "legal", "customer-service", "trades", "other"],
+        description: "The role's professional family",
+      },
+      seniority: {
+        type: "string",
+        enum: ["entry", "mid", "senior", "lead", "executive"],
+        description: "Seniority level implied by the JD",
+      },
       requirements: {
         type: "array",
         items: {
@@ -151,7 +191,7 @@ export const EXTRACT_TOOL: Anthropic.Tool = {
         description: "6-12 distinct requirements covering every must-have in the JD. Judge strength strictly — do not be generous.",
       },
     },
-    required: ["jobTitle", "companyName", "requirements"],
+    required: ["jobTitle", "companyName", "roleFamily", "seniority", "requirements"],
   },
 }
 

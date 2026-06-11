@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  anthropic, SYSTEM_PROMPT, EXTRACT_TOOL, REWRITE_TOOL,
-  type ExtractResult, type RequirementMapping,
+  anthropic, SYSTEM_PROMPT, EXTRACT_TOOL, REWRITE_TOOL, ROLE_GUIDANCE,
+  type ExtractResult, type RequirementMapping, type RoleFamily,
 } from '@/lib/anthropic'
 import { createClient } from '@/lib/supabase/server'
 
@@ -28,6 +28,8 @@ async function extractRequirements(cv: string, jobDescription: string): Promise<
   return {
     jobTitle: typeof raw.jobTitle === 'string' ? raw.jobTitle : '',
     companyName: typeof raw.companyName === 'string' ? raw.companyName : '',
+    roleFamily: (raw.roleFamily ?? 'other') as RoleFamily,
+    seniority: raw.seniority ?? 'mid',
     requirements: Array.isArray(raw.requirements) ? raw.requirements : [],
   }
 }
@@ -86,7 +88,9 @@ async function rewriteCV(cv: string, jobDescription: string, extract: ExtractRes
       tool_choice: { type: 'tool', name: 'submit_tailored_result' },
       messages: [{
         role: 'user',
-        content: `Tailor this CV for the role of ${extract.jobTitle || 'the target job'}${extract.companyName ? ` at ${extract.companyName}` : ''}.
+        content: `Tailor this CV for the role of ${extract.jobTitle || 'the target job'}${extract.companyName ? ` at ${extract.companyName}` : ''} (${extract.seniority} ${extract.roleFamily} role).
+
+Role-family guidance: ${ROLE_GUIDANCE[extract.roleFamily] ?? ROLE_GUIDANCE.other}
 
 A requirements analysis has already been done — use it as your ground truth:
 ${mapLines}
@@ -186,25 +190,38 @@ export async function POST(req: NextRequest) {
       },
       requirementsCoverage: extract.requirements,
       keywordCoverage,
+      roleFamily: extract.roleFamily,
+      seniority: extract.seniority,
     }
 
-    // 6. Track usage + save to history (non-blocking, best-effort)
+    // 6. Track usage (fire-and-forget) + save to history (blocking — we need
+    // the row id back so the client can attach feedback to this run)
     const jobSnippet = jobDescription.trim().slice(0, 200)
 
-    Promise.all([
-      supabase.rpc('increment_tailors_used', { user_id: user.id }),
-      supabase.from('tailor_history').insert({
-        user_id:      user.id,
-        job_title:    result.jobTitle,
-        company_name: result.companyName,
-        job_url:      typeof jobUrl === 'string' ? jobUrl.slice(0, 500) : '',
-        job_snippet:  jobSnippet,
-        match_score:  result.matchScore,
-        result,
-      }),
-    ]).catch((e) => console.error('[tailor] history save failed:', e))
+    supabase.rpc('increment_tailors_used', { user_id: user.id }).then(() => {})
 
-    return NextResponse.json({ result })
+    let historyId: string | null = null
+    try {
+      const { data: row } = await supabase
+        .from('tailor_history')
+        .insert({
+          user_id:      user.id,
+          job_title:    result.jobTitle,
+          company_name: result.companyName,
+          job_url:      typeof jobUrl === 'string' ? jobUrl.slice(0, 500) : '',
+          job_snippet:  jobSnippet,
+          match_score:  result.matchScore,
+          original_cv:  cv,
+          result,
+        })
+        .select('id')
+        .single()
+      historyId = row?.id ?? null
+    } catch (e) {
+      console.error('[tailor] history save failed:', e)
+    }
+
+    return NextResponse.json({ result, historyId })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     const status = (err as { status?: number })?.status
