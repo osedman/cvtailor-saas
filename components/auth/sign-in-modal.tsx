@@ -8,12 +8,32 @@ interface SignInModalProps {
   onClose: () => void
 }
 
+function LinkedInIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.42v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.07 2.07 0 1 1 0-4.13 2.07 2.07 0 0 1 0 4.13zm1.78 13.02H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z" />
+    </svg>
+  )
+}
+
 export function SignInModal({ onClose }: SignInModalProps) {
-  const { signInWithEmail } = useAuth()
+  const { signInWithEmail, signInWithLinkedIn } = useAuth()
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
+  const [linkedInLoading, setLinkedInLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  async function handleLinkedIn() {
+    setLinkedInLoading(true)
+    setError(null)
+    const { error } = await signInWithLinkedIn()
+    if (error) {
+      setError(error)
+      setLinkedInLoading(false)
+    }
+    // On success the browser redirects to LinkedIn — no need to reset loading
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -57,7 +77,26 @@ export function SignInModal({ onClose }: SignInModalProps) {
                 <Mail className="w-5 h-5 text-[#2563eb]" />
               </div>
               <h2 className="text-base font-semibold text-[#0f0f0f] mb-1">Sign in to CV Tailor</h2>
-              <p className="text-sm text-gray-500">Enter your email and we&apos;ll send you a magic link.</p>
+              <p className="text-sm text-gray-500">Use LinkedIn or get a magic link by email.</p>
+            </div>
+
+            {/* LinkedIn OAuth */}
+            <button
+              onClick={handleLinkedIn}
+              disabled={linkedInLoading}
+              className="w-full py-2.5 text-sm font-medium text-white bg-[#0A66C2] rounded-lg hover:bg-[#084d92] transition-colors disabled:opacity-60 flex items-center justify-center gap-2 mb-4"
+            >
+              {linkedInLoading
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <LinkedInIcon className="w-4 h-4" />}
+              {linkedInLoading ? "Redirecting…" : "Continue with LinkedIn"}
+            </button>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-1 h-px bg-gray-100" />
+              <span className="text-[10px] text-gray-300 uppercase tracking-wide">or</span>
+              <div className="flex-1 h-px bg-gray-100" />
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">
