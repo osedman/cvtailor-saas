@@ -1,8 +1,123 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { anthropic, SYSTEM_PROMPT, TAILOR_TOOL } from '@/lib/anthropic'
+import {
+  anthropic, SYSTEM_PROMPT, EXTRACT_TOOL, REWRITE_TOOL,
+  type ExtractResult, type RequirementMapping,
+} from '@/lib/anthropic'
 import { createClient } from '@/lib/supabase/server'
 
 export const maxDuration = 60
+
+// ── Pass 1: extract requirements + evidence map (Haiku — fast) ──────────
+
+async function extractRequirements(cv: string, jobDescription: string): Promise<ExtractResult> {
+  const message = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 2000,
+    tools: [EXTRACT_TOOL],
+    tool_choice: { type: 'tool', name: 'submit_requirements_map' },
+    messages: [{
+      role: 'user',
+      content: `Extract the requirements from this job description and map each one against the candidate's CV evidence. Judge evidence strength STRICTLY — "strong" needs direct, explicit CV support.\n\nCV:\n\n${cv}\n\n---\n\nJob Description:\n\n${jobDescription}`,
+    }],
+  })
+
+  const toolUse = message.content.find((b) => b.type === 'tool_use')
+  if (!toolUse || toolUse.type !== 'tool_use') throw new Error('Extraction pass returned no result')
+
+  const raw = toolUse.input as Partial<ExtractResult>
+  return {
+    jobTitle: typeof raw.jobTitle === 'string' ? raw.jobTitle : '',
+    companyName: typeof raw.companyName === 'string' ? raw.companyName : '',
+    requirements: Array.isArray(raw.requirements) ? raw.requirements : [],
+  }
+}
+
+// ── Computed match score — arithmetic, not model vibes ──────────────────
+
+const STRENGTH_VALUE: Record<string, number> = { strong: 1, transferable: 0.6, partial: 0.25, none: 0 }
+
+function computeMatchScore(requirements: RequirementMapping[]): number {
+  if (requirements.length === 0) return 0
+  let earned = 0
+  let possible = 0
+  for (const r of requirements) {
+    const weight = r.type === 'must' ? 2 : 1
+    earned += (STRENGTH_VALUE[r.strength] ?? 0) * weight
+    possible += weight
+  }
+  return Math.round((earned / possible) * 100)
+}
+
+// ── Deterministic keyword check against the final CV text ───────────────
+
+function checkKeywords(requirements: RequirementMapping[], cvText: string) {
+  const cv = cvText.toLowerCase()
+  const seen = new Set<string>()
+  const present: string[] = []
+  const missing: string[] = []
+  for (const r of requirements) {
+    for (const kw of r.keywords ?? []) {
+      const k = kw.trim()
+      const key = k.toLowerCase()
+      if (!k || seen.has(key)) continue
+      seen.add(key)
+      // Only flag keywords the CV can truthfully carry — a "none" requirement's
+      // keyword being absent is a gap, not an ATS mistake.
+      if (cv.includes(key)) present.push(k)
+      else if (r.strength !== 'none') missing.push(k)
+    }
+  }
+  return { present, missing }
+}
+
+// ── Pass 2: rewrite grounded in the map (Sonnet) ─────────────────────────
+
+async function rewriteCV(cv: string, jobDescription: string, extract: ExtractResult) {
+  const mapLines = extract.requirements
+    .map((r) => `- [${r.type.toUpperCase()} | ${r.strength}] ${r.requirement} — keywords: ${r.keywords.join(', ')}${r.evidence ? ` — evidence: ${r.evidence}` : ''}`)
+    .join('\n')
+
+  const message = await anthropic.messages.create(
+    {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 5000,
+      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+      tools: [REWRITE_TOOL],
+      tool_choice: { type: 'tool', name: 'submit_tailored_result' },
+      messages: [{
+        role: 'user',
+        content: `Tailor this CV for the role of ${extract.jobTitle || 'the target job'}${extract.companyName ? ` at ${extract.companyName}` : ''}.
+
+A requirements analysis has already been done — use it as your ground truth:
+${mapLines}
+
+Instructions:
+- Lead with the strongest evidence for MUST requirements.
+- Work each requirement's exact keywords into the CV wherever the evidence honestly supports it (strength strong/transferable/partial). NEVER add keywords for "none" requirements.
+- gaps must reflect the partial/none requirements above, phrased as constructive advice.
+
+CV:
+
+${cv}
+
+---
+
+Job Description:
+
+${jobDescription}`,
+      }],
+    },
+    { headers: { 'anthropic-beta': 'prompt-caching-2024-07-31' } }
+  )
+
+  const toolUse = message.content.find((b) => b.type === 'tool_use')
+  if (!toolUse || toolUse.type !== 'tool_use') throw new Error('Rewrite pass returned no result')
+  if (message.stop_reason === 'max_tokens') return { truncated: true as const, raw: null }
+
+  return { truncated: false as const, raw: toolUse.input as Record<string, unknown> }
+}
+
+// ── Route ────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,64 +137,58 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Input too long. CV max 20,000 chars, job description max 10,000.' }, { status: 400 })
     }
 
-    // 3. Call Claude — core tailoring only (fast: ~15-25s)
-    const message = await anthropic.messages.create(
-      {
-        model: 'claude-sonnet-4-6',
-        max_tokens: 5000,
-        system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
-        tools: [TAILOR_TOOL],
-        tool_choice: { type: 'tool', name: 'submit_tailored_result' },
-        messages: [{
-          role: 'user',
-          content: `CV:\n\n${cv}\n\n---\n\nJob Description:\n\n${jobDescription}`,
-        }],
-      },
-      { headers: { 'anthropic-beta': 'prompt-caching-2024-07-31' } }
-    )
+    // 3. Pass 1 — extract + map (fast)
+    const extract = await extractRequirements(cv, jobDescription)
+    const matchScore = computeMatchScore(extract.requirements)
 
-    // 4. Extract tool result
-    const toolUse = message.content.find((b) => b.type === 'tool_use')
-    if (!toolUse || toolUse.type !== 'tool_use') {
-      throw new Error(`Claude did not use the tool. Stop reason: ${message.stop_reason}. Content: ${JSON.stringify(message.content).slice(0, 200)}`)
-    }
-
-    // Guard against truncated tool input (hit the token ceiling mid-JSON) — the
-    // SDK returns a partial object with arrays missing, which crashes the UI.
-    if (message.stop_reason === 'max_tokens') {
+    // 4. Pass 2 — rewrite grounded in the map
+    const rewrite = await rewriteCV(cv, jobDescription, extract)
+    if (rewrite.truncated) {
       return NextResponse.json(
         { error: 'Your CV is a bit long for one pass — try trimming it slightly and tailoring again.' },
         { status: 422 }
       )
     }
+    const raw = rewrite.raw!
 
-    // Normalise so required arrays always exist, even if the model omitted one.
-    const raw = toolUse.input as Record<string, unknown>
-    const result = {
-      jobTitle:    typeof raw.jobTitle === 'string' ? raw.jobTitle : '',
-      companyName: typeof raw.companyName === 'string' ? raw.companyName : '',
-      matchScore:  typeof raw.matchScore === 'number' ? raw.matchScore : 0,
-      tailoredCV:  typeof raw.tailoredCV === 'string' ? raw.tailoredCV : '',
-      keyChanges:  Array.isArray(raw.keyChanges) ? raw.keyChanges : [],
-      gaps:        Array.isArray(raw.gaps) ? raw.gaps : [],
-      followUps:   Array.isArray(raw.followUps) ? raw.followUps : [],
-      atsNotes: (raw.atsNotes && typeof raw.atsNotes === 'object')
-        ? {
-            status: (raw.atsNotes as Record<string, unknown>).status === 'warning' ? 'warning' : 'pass',
-            items: Array.isArray((raw.atsNotes as Record<string, unknown>).items)
-              ? (raw.atsNotes as Record<string, unknown>).items
-              : [],
-          }
-        : { status: 'pass', items: [] },
-    }
-
-    // If the core CV text never came back, treat as a hard failure rather than
-    // rendering an empty shell.
-    if (!result.tailoredCV) {
+    // 5. Normalise + assemble the final result
+    const atsNotesRaw = (raw.atsNotes && typeof raw.atsNotes === 'object')
+      ? raw.atsNotes as Record<string, unknown>
+      : {}
+    const tailoredCV = typeof raw.tailoredCV === 'string' ? raw.tailoredCV : ''
+    if (!tailoredCV) {
       throw new Error('The tailored CV came back empty. Please try again.')
     }
 
-    // 5. Track usage + save to history (non-blocking, best-effort)
+    // Deterministic keyword coverage on the actual output text
+    const keywordCoverage = checkKeywords(extract.requirements, tailoredCV)
+    const atsItems = Array.isArray(atsNotesRaw.items) ? [...(atsNotesRaw.items as string[])] : []
+    const totalKw = keywordCoverage.present.length + keywordCoverage.missing.length
+    if (totalKw > 0) {
+      atsItems.unshift(
+        keywordCoverage.missing.length === 0
+          ? `All ${totalKw} JD keywords present in the CV.`
+          : `${keywordCoverage.present.length} of ${totalKw} JD keywords present — missing: ${keywordCoverage.missing.join(', ')}.`
+      )
+    }
+
+    const result = {
+      jobTitle: extract.jobTitle,
+      companyName: extract.companyName,
+      matchScore,
+      tailoredCV,
+      keyChanges: Array.isArray(raw.keyChanges) ? raw.keyChanges : [],
+      gaps: Array.isArray(raw.gaps) ? raw.gaps : [],
+      followUps: Array.isArray(raw.followUps) ? raw.followUps : [],
+      atsNotes: {
+        status: (atsNotesRaw.status === 'warning' || keywordCoverage.missing.length > 2) ? 'warning' : 'pass',
+        items: atsItems,
+      },
+      requirementsCoverage: extract.requirements,
+      keywordCoverage,
+    }
+
+    // 6. Track usage + save to history (non-blocking, best-effort)
     const jobSnippet = jobDescription.trim().slice(0, 200)
 
     Promise.all([

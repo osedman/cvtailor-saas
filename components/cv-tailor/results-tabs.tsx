@@ -310,16 +310,57 @@ export function ResultsTabs({
         )}
 
         {activeTab === "Gaps" && (
-          <div className="space-y-3">
-            {(results.gaps ?? []).map((gap, i) => (
-              <div
-                key={i}
-                className="p-4 bg-gray-50 rounded-lg flex items-start gap-3"
-              >
-                <AlertCircle className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                <span className="text-sm text-gray-600">{gap}</span>
+          <div className="space-y-6">
+            {/* Requirements coverage — how the match score was computed */}
+            {(results.requirementsCoverage ?? []).length > 0 && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <h3 className="text-xs font-semibold text-[#1e1813]">Requirements coverage</h3>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Your match score is computed from this mapping</p>
+                </div>
+                <ul className="divide-y divide-gray-50">
+                  {(results.requirementsCoverage ?? []).map((r, i) => {
+                    const cfg = {
+                      strong:       { label: "Strong",       cls: "bg-green-50 text-green-600" },
+                      transferable: { label: "Transferable", cls: "bg-[#ffeae4] text-[#dc4f33]" },
+                      partial:      { label: "Partial",      cls: "bg-amber-50 text-amber-600" },
+                      none:         { label: "Missing",      cls: "bg-red-50 text-red-500" },
+                    }[r.strength] ?? { label: r.strength, cls: "bg-gray-100 text-gray-500" }
+                    return (
+                      <li key={i} className="px-4 py-2.5 flex items-start gap-3">
+                        <span className={`flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 ${cfg.cls}`}>
+                          {cfg.label}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm text-[#1e1813] leading-snug">
+                            {r.requirement}
+                            {r.type === "must" && (
+                              <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide text-gray-400">must-have</span>
+                            )}
+                          </p>
+                          {r.evidence && (
+                            <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">↳ {r.evidence}</p>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
               </div>
-            ))}
+            )}
+
+            {/* Gap advice */}
+            <div className="space-y-3">
+              {(results.gaps ?? []).map((gap, i) => (
+                <div
+                  key={i}
+                  className="p-4 bg-gray-50 rounded-lg flex items-start gap-3"
+                >
+                  <AlertCircle className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <span className="text-sm text-gray-600">{gap}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -359,6 +400,28 @@ export function ResultsTabs({
                 </li>
               ))}
             </ul>
+
+            {/* Deterministic keyword coverage */}
+            {results.keywordCoverage && (results.keywordCoverage.present.length + results.keywordCoverage.missing.length) > 0 && (
+              <div className="mt-5 pt-4 border-t border-gray-100">
+                <h3 className="text-xs font-semibold text-[#1e1813] mb-2">JD keyword coverage</h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {results.keywordCoverage.present.map((k, i) => (
+                    <span key={`p${i}`} className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-600">
+                      <CheckCircle className="w-3 h-3" />{k}
+                    </span>
+                  ))}
+                  {results.keywordCoverage.missing.map((k, i) => (
+                    <span key={`m${i}`} className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-500">
+                      <AlertCircle className="w-3 h-3" />{k}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-400 mt-2">
+                  Checked directly against the tailored CV text — green is present, red is worth weaving in if you can support it.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

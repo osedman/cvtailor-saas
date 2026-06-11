@@ -4,7 +4,27 @@ export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 })
 
-// Core result — fast to generate (~15-25s)
+// ── Two-pass pipeline types ─────────────────────────────────────────────
+// Pass 1 (Haiku, fast): extract JD requirements and map each to CV evidence.
+// The match score is then COMPUTED from this mapping, not asked of the model.
+
+export type EvidenceStrength = "strong" | "transferable" | "partial" | "none"
+
+export interface RequirementMapping {
+  requirement: string          // the JD requirement, paraphrased concisely
+  type: "must" | "nice"        // must-have vs nice-to-have
+  keywords: string[]           // exact keyword phrases from the JD for this requirement
+  strength: EvidenceStrength   // how well the CV supports it
+  evidence: string             // short quote/paraphrase of the CV evidence ('' if none)
+}
+
+export interface ExtractResult {
+  jobTitle: string
+  companyName: string
+  requirements: RequirementMapping[]
+}
+
+// Core result — assembled by the server from both passes
 export interface TailorResult {
   jobTitle: string
   companyName: string
@@ -14,6 +34,9 @@ export interface TailorResult {
   gaps: string[]
   followUps: string[]
   atsNotes: { status: "pass" | "warning"; items: string[] }
+  // New in the two-pass pipeline (older history rows won't have these)
+  requirementsCoverage?: RequirementMapping[]
+  keywordCoverage?: { present: string[]; missing: string[] }
 }
 
 // Extended results generated on-demand
@@ -86,9 +109,10 @@ Length: Keep the tailored CV tight and senior-appropriate — aim for ~450–650
 
 Rules: Truth over optimisation. Every claim must trace to the original CV.`
 
-export const TAILOR_TOOL: Anthropic.Tool = {
-  name: "submit_tailored_result",
-  description: "Submit the tailored CV and analysis.",
+// Pass 1 — JD requirement extraction + CV evidence mapping (run on Haiku)
+export const EXTRACT_TOOL: Anthropic.Tool = {
+  name: "submit_requirements_map",
+  description: "Submit the job requirements mapped against the candidate's CV evidence.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -100,10 +124,45 @@ export const TAILOR_TOOL: Anthropic.Tool = {
         type: "string",
         description: "The hiring company name from the job description. Empty string if not found.",
       },
-      matchScore: {
-        type: "number",
-        description: "0–100 score of how well the CV genuinely matches the JD",
+      requirements: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            requirement: { type: "string", description: "One JD requirement, concisely paraphrased" },
+            type: { type: "string", enum: ["must", "nice"], description: "must-have vs nice-to-have" },
+            keywords: {
+              type: "array",
+              items: { type: "string" },
+              description: "1-3 exact keyword phrases from the JD a recruiter/ATS would search for (e.g. 'stakeholder management', 'SQL')",
+            },
+            strength: {
+              type: "string",
+              enum: ["strong", "transferable", "partial", "none"],
+              description: "strong = direct CV evidence; transferable = adjacent experience; partial = weak hints; none = nothing in the CV",
+            },
+            evidence: {
+              type: "string",
+              description: "Short quote or close paraphrase of the CV evidence. Empty string when strength is none.",
+            },
+          },
+          required: ["requirement", "type", "keywords", "strength", "evidence"],
+        },
+        description: "6-12 distinct requirements covering every must-have in the JD. Judge strength strictly — do not be generous.",
       },
+    },
+    required: ["jobTitle", "companyName", "requirements"],
+  },
+}
+
+// Pass 2 — CV rewrite grounded in the requirements map (run on Sonnet).
+// Title/company/score are owned by the server, so they're not in this schema.
+export const REWRITE_TOOL: Anthropic.Tool = {
+  name: "submit_tailored_result",
+  description: "Submit the tailored CV and analysis.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
       tailoredCV: {
         type: "string",
         description: "The tailored CV in plain text, ATS-safe formatting. Concise — typically 450–650 words, no padding.",
@@ -123,7 +182,7 @@ export const TAILOR_TOOL: Anthropic.Tool = {
       gaps: {
         type: "array",
         items: { type: "string" },
-        description: "JD requirements the CV cannot support, max 4 items",
+        description: "Requirements marked partial/none in the map, phrased as advice, max 4 items",
       },
       followUps: {
         type: "array",
@@ -140,7 +199,7 @@ export const TAILOR_TOOL: Anthropic.Tool = {
         description: "ATS readiness notes, max 4 items",
       },
     },
-    required: ["jobTitle", "companyName", "matchScore", "tailoredCV", "keyChanges", "gaps", "followUps", "atsNotes"],
+    required: ["tailoredCV", "keyChanges", "gaps", "followUps", "atsNotes"],
   },
 }
 
