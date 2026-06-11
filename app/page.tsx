@@ -220,7 +220,7 @@ function Nav({ onCta }: { onCta: () => void }) {
       <div className="wrap" style={{ display: "flex", alignItems: "center", gap: 24, height: 68 }}>
         <Wordmark />
         <nav style={{ display: "flex", gap: 26, marginLeft: 14 }} className="nav-links">
-          {(["How it works","Features","Pricing"] as const).map(l => (
+          {(["How it works","Features","Beta"] as const).map(l => (
             <a key={l} href={"#" + l.toLowerCase().replace(/ /g, "-")}
               style={{ fontSize: 14.5, color: "var(--ink-soft)", fontWeight: 500,
                 transition: "color .15s ease" }}
@@ -415,68 +415,54 @@ function FeatList({ items, dark }: { items: string[]; dark?: boolean }) {
   )
 }
 
-function Pricing({ onCta }: { onCta: () => void }) {
-  const [annual, setAnnual] = useState(true)
-  const price = annual ? 9 : 12
-
-  const freeFeats = ["3 tailored CVs / month", "Match score & ATS check", "Key changes & gaps", "Download as .txt", "Saves your last CV"]
-  const premFeats = ["Unlimited tailoring", "Cover letters & STAR pitches", "Job-link auto-scrape", "Version history", "Priority AI & faster runs", "Everything in Off the Rack"]
+function Beta({ onCta }: { onCta: () => void }) {
+  const betaFeats = [
+    "Unlimited tailoring while in beta",
+    "Match score, ATS check & key changes",
+    "Cover letters & STAR interview pitches",
+    "Interview prep with answer frameworks",
+    "Job-link auto-scrape & history",
+    "Kanban job tracker",
+  ]
 
   return (
-    <section id="pricing" className="section" style={{ background: "var(--paper-2)", borderTop: "1px solid var(--line)" }}>
+    <section id="beta" className="section" style={{ background: "var(--paper-2)", borderTop: "1px solid var(--line)" }}>
       <div className="wrap">
-        <div className="section-head" style={{ marginInline: "auto", textAlign: "center", maxWidth: 640 }}>
-          <span className="eyebrow" style={{ justifyContent: "center" }}>Pricing</span>
-          <h2 className="display">Start <em>off the rack</em>.<br/>Upgrade when it fits.</h2>
+        <div className="section-head" style={{ marginInline: "auto", textAlign: "center", maxWidth: 680 }}>
+          <span className="eyebrow" style={{ justifyContent: "center" }}>Pre-release</span>
+          <h2 className="display">Tailr is in <em>beta</em>.<br/>Everything&apos;s free for now.</h2>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 40 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: 5, background: "var(--paper)",
-            border: "1px solid var(--line)", borderRadius: 999, boxShadow: "var(--shadow-sm)" }}>
-            {([["Monthly", false], ["Annual", true]] as const).map(([label, val]) => (
-              <button key={label} onClick={() => setAnnual(val)}
-                style={{ border: 0, borderRadius: 999, padding: "9px 18px", fontSize: 14, fontWeight: 600,
-                  fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8,
-                  background: annual === val ? "var(--ink)" : "transparent",
-                  color: annual === val ? "var(--paper)" : "var(--ink-soft)", transition: "all .18s ease" }}>
-                {label}
-                {val && <span className="mono" style={{ fontSize: 10, padding: "2px 7px", borderRadius: 99,
-                  background: annual === val ? "var(--thread)" : "var(--thread-wash)",
-                  color: annual === val ? "#fff" : "var(--thread-deep)" }}>−25%</span>}
-              </button>
-            ))}
-          </div>
-        </div>
+        <div style={{ maxWidth: 620, marginInline: "auto" }}>
+          <div style={{ position: "relative", background: "var(--paper)", border: "1px solid var(--line)",
+            borderRadius: 18, padding: 36, boxShadow: "var(--shadow-md)", textAlign: "center" }}>
+            <span className="chip" style={{ display: "inline-flex", alignItems: "center", gap: 7,
+              background: "var(--thread-wash)", color: "var(--thread-deep)", border: "1px solid var(--thread-tint)" }}>
+              <span className="dot green" />Beta · no card needed
+            </span>
 
-        <div className="price-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, maxWidth: 880, marginInline: "auto" }}>
-          <div style={{ background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 18, padding: 32 }}>
-            <div className="mono" style={{ fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--ink-soft)" }}>Off the Rack</div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 18 }}>
-              <span className="serif" style={{ fontSize: 56, fontWeight: 600, letterSpacing: "-0.02em" }}>£0</span>
-              <span className="muted">forever</span>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 8, marginTop: 22 }}>
+              <span className="serif" style={{ fontSize: 60, fontWeight: 600, letterSpacing: "-0.02em" }}>£0</span>
+              <span className="muted">during beta</span>
             </div>
-            <p className="muted" style={{ marginTop: 6, fontSize: 15 }}>For the occasional application.</p>
-            <button className="btn btn-ghost" onClick={onCta} style={{ width: "100%", marginTop: 22 }}>Start free</button>
-            <FeatList items={freeFeats} />
-          </div>
 
-          <div style={{ position: "relative", background: "var(--ink)", color: "var(--paper)", borderRadius: 18, padding: 32,
-            boxShadow: "var(--shadow-lg)" }}>
-            <span style={{ position: "absolute", top: 20, right: 20 }} className="chip">Most popular</span>
-            <div className="mono" style={{ fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--thread-tint)" }}>Made to Measure</div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 18 }}>
-              <span className="serif tnum" style={{ fontSize: 56, fontWeight: 600, letterSpacing: "-0.02em" }}>£{price}</span>
-              <span style={{ color: "oklch(0.78 0.012 78)" }}>/ month</span>
-            </div>
-            <p style={{ marginTop: 6, fontSize: 15, color: "oklch(0.8 0.012 78)", minHeight: 22 }}>
-              {annual ? "Billed £108 yearly — two months free." : "Billed monthly. Cancel anytime."}
+            <p className="muted" style={{ marginTop: 10, fontSize: 16, lineHeight: 1.55, maxWidth: 440, marginInline: "auto" }}>
+              We&apos;re still building Tailr in the open. Use every feature free while we&apos;re
+              in pre-release — paid plans will arrive later, and early users get plenty of notice.
             </p>
-            <button className="btn btn-primary" onClick={onCta} style={{ width: "100%", marginTop: 22 }}>✦ Go Made to Measure</button>
-            <FeatList items={premFeats} dark />
+
+            <button className="btn btn-primary btn-lg" onClick={onCta} style={{ marginTop: 26 }}>
+              ✦ Try the beta — free
+            </button>
+
+            <div style={{ marginTop: 8 }}>
+              <FeatList items={betaFeats} />
+            </div>
           </div>
         </div>
+
         <p className="mono" style={{ fontSize: 11.5, color: "var(--ink-faint)", textAlign: "center", marginTop: 22 }}>
-          Magic-link sign-in · no passwords · cancel in two clicks
+          Magic-link sign-in · no passwords · your feedback shapes what ships next
         </p>
       </div>
     </section>
@@ -485,7 +471,7 @@ function Pricing({ onCta }: { onCta: () => void }) {
 
 function Footer({ onCta }: { onCta: () => void }) {
   const cols: [string, string[]][] = [
-    ["Product", ["How it works", "Features", "Pricing", "Changelog"]],
+    ["Product", ["How it works", "Features", "Beta", "Changelog"]],
     ["Company", ["About", "Blog", "Careers", "Contact"]],
     ["Legal", ["Privacy", "Terms", "Data & security"]],
   ]
@@ -497,8 +483,8 @@ function Footer({ onCta }: { onCta: () => void }) {
         </h2>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 28, flexWrap: "wrap" }}>
           <button className="btn btn-primary btn-lg" onClick={onCta}>✦ Tailor my CV — free</button>
-          <a className="btn btn-lg" href="#pricing"
-            style={{ color: "var(--paper)", border: "1px solid oklch(0.4 0.014 62)" }}>Compare plans</a>
+          <a className="btn btn-lg" href="#beta"
+            style={{ color: "var(--paper)", border: "1px solid oklch(0.4 0.014 62)" }}>About the beta</a>
         </div>
       </div>
       <div className="wrap foot-grid" style={{ padding: "52px 32px", display: "grid",
@@ -554,7 +540,7 @@ export default function LandingPage() {
       <HowItWorks />
       <Stats />
       <Features />
-      <Pricing onCta={onCta} />
+      <Beta onCta={onCta} />
       <Footer onCta={onCta} />
     </div>
   )
