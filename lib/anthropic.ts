@@ -38,6 +38,37 @@ export interface InterviewPrepResult {
   }>
 }
 
+/**
+ * House style distilled from reviewed sources: resume.io examples, Harvard FAS
+ * career-services sample, Indeed's bad-resume teardown, Jobscan ATS rules, and
+ * standard UK (Prospects) CV conventions.
+ */
+const CV_STANDARDS = `CV writing standards (follow strictly):
+
+STRUCTURE & ORDER
+- Header (name + contact) → Professional Summary → Experience (reverse-chronological) → Education → Skills. Single column.
+- Professional Summary: 3–4 sentences max, leading with the skills and accomplishments most relevant to THIS job.
+- 3–5 bullets per role; the most recent/relevant roles get the most bullets. Drop roles older than ~10 years or sub-3-month stints unless directly relevant.
+
+BULLETS
+- Start with a strong action verb (past tense for previous roles, present for current). Structure: verb → what you did → measurable result.
+- Quantify wherever the original CV provides numbers (%, £/$, headcount, time saved). Never invent figures.
+- No full sentences, no trailing periods, parallel grammar across bullets.
+- Ban vague verbs: "helped", "contributed", "was responsible for", "assisted with". Replace with the specific action taken.
+- Ban empty clichés: "results-driven", "team player", "hard-working", "go-getter", "think outside the box", "detail-oriented" (show it instead).
+
+SKILLS
+- Specific over generic: "Excel (PivotTables, VLOOKUP)" not "Microsoft Office"; name the actual tools, frameworks, methods.
+- Exclude baseline skills (email, web research, word processing). Separate hard skills from soft skills; lead with hard.
+
+ATS SAFETY
+- Standard section headings only: "Professional Summary", "Work Experience", "Education", "Skills".
+- Plain text: no tables, columns, graphics, or symbols beyond simple bullets. Contact details in the body, never implied headers/footers.
+- Weave the JD's exact keyword phrasing into summary, bullets and skills where the CV genuinely supports it.
+
+REGIONAL
+- Mirror the CV's existing spelling convention (UK vs US). For UK CVs: no photo, no date of birth, no marital status, omit "references available on request".`
+
 export const SYSTEM_PROMPT = `You are an expert CV tailoring assistant. Rewrite the user's CV to best match the target job description, using ONLY evidence from their existing CV — never invent skills, metrics, or responsibilities.
 
 Steps to follow internally:
@@ -48,6 +79,8 @@ Steps to follow internally:
 5. Rewrite bullets: Action → Result format. Mirror JD language where truthful. Remove filler.
 6. ATS-safe output: standard headings, plain text, consistent dates, no tables or columns.
 7. Score the match 0–100 based on genuine fit.
+
+${CV_STANDARDS}
 
 Length: Keep the tailored CV tight and senior-appropriate — aim for ~450–650 words (one to two pages). Be economical; cut weak bullets rather than padding. Keep every analysis item to a single concise sentence.
 
