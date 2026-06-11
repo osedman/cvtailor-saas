@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { LogOut, ChevronDown, Clock, Kanban } from "lucide-react"
+import { LogOut, ChevronDown, Clock, Kanban, ShieldCheck } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { SignInModal } from "@/components/auth/sign-in-modal"
+import { isAdminEmail } from "@/lib/admin"
 
 interface HeaderProps {
   onSignInClick?: () => void
@@ -60,6 +61,16 @@ export function Header({ onSignInClick, onHistoryClick }: HeaderProps) {
                   <Kanban className="w-4 h-4" />
                   <span className="hidden sm:block">Tracker</span>
                 </Link>
+                {isAdminEmail(user.email) && (
+                  <Link
+                    href="/admin"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-[#2563eb] hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Admin dashboard"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span className="hidden sm:block">Admin</span>
+                  </Link>
+                )}
               </>
             )}
             {!loading && (
