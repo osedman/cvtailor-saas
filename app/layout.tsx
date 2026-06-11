@@ -9,7 +9,7 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'CV Tailor - Tailor Your CV to Any Job',
+  title: 'Tailr — Tailor Your CV to Any Job',
   description: 'AI-powered CV tailoring that helps you land more interviews',
   icons: {
     icon: [

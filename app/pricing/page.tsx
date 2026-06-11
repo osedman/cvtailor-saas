@@ -9,7 +9,7 @@ export default async function PricingPage() {
   return (
     <div className="min-h-screen bg-white">
       <nav className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-        <Link href="/" className="font-bold text-xl text-brand-600">CV Tailor</Link>
+        <Link href="/" className="font-bold text-xl text-brand-600">Tailr</Link>
         <div className="flex items-center gap-4">
           {user ? (
             <Link href="/dashboard" className="text-sm text-brand-600 font-medium">

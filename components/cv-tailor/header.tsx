@@ -37,7 +37,7 @@ export function Header({ onSignInClick, onHistoryClick }: HeaderProps) {
         }`}
       >
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <span className="text-lg font-medium text-[#0f0f0f] tracking-tight">CV Tailor</span>
+          <span className="text-lg font-medium text-[#0f0f0f] tracking-tight">Tailr</span>
 
           <div className="flex items-center gap-4">
             {/* Nav links — only for signed-in users */}

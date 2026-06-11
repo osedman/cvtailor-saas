@@ -43,7 +43,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="font-bold text-2xl text-brand-600">CV Tailor</Link>
+          <Link href="/" className="font-bold text-2xl text-brand-600">Tailr</Link>
           <p className="text-gray-500 mt-2 text-sm">Sign in to your account</p>
         </div>
 

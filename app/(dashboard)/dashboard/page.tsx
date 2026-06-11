@@ -31,7 +31,7 @@ export default async function DashboardPage({
     <div className="min-h-screen bg-gray-50">
       {/* Navbar */}
       <nav className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="font-bold text-lg text-brand-600">CV Tailor</Link>
+        <Link href="/" className="font-bold text-lg text-brand-600">Tailr</Link>
         <div className="flex items-center gap-4">
           {isPro ? (
             <span className="text-xs bg-brand-50 text-brand-700 font-medium px-2 py-1 rounded-full">

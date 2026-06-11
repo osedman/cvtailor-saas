@@ -221,7 +221,7 @@ export default function AdminPage() {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-3">
         <UserX className="w-8 h-8 text-gray-300" />
         <p className="text-sm text-gray-500">You don&apos;t have access to this page.</p>
-        <Link href="/tailor" className="text-sm text-[#2563eb] hover:underline">Back to CV Tailor</Link>
+        <Link href="/tailor" className="text-sm text-[#2563eb] hover:underline">Back to Tailr</Link>
       </div>
     )
   }
