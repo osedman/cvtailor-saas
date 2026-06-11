@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from "react"
 import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles } from "lucide-react"
 
-import type { TailorResult } from "@/lib/anthropic"
+import type { TailorResult, InterviewPrepResult } from "@/lib/anthropic"
+import { InterviewPrep } from "./interview-prep"
 
 /** Renders plain-text CV with visual hierarchy: bold section headers, indented bullets */
 function FormattedCV({ text }: { text: string }) {
@@ -50,11 +51,15 @@ interface ResultsTabsProps {
   coverLetter: string | null
   loadingCoverLetter: boolean
   onGenerateCoverLetter: () => void
+  prepQuestions?: InterviewPrepResult["interviewQuestions"] | null
+  loadingPrep?: boolean
+  onGeneratePrep?: () => void
 }
 
 const tabs = [
   "Tailored CV",
   "Cover Letter",
+  "Interview Prep",
   "Key Changes",
   "Gaps",
   "Follow-ups",
@@ -63,7 +68,18 @@ const tabs = [
 
 type TabName = (typeof tabs)[number]
 
-export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenerateCoverLetter }: ResultsTabsProps) {
+export function ResultsTabs({
+  results,
+  coverLetter,
+  loadingCoverLetter,
+  onGenerateCoverLetter,
+  prepQuestions = null,
+  loadingPrep = false,
+  onGeneratePrep,
+}: ResultsTabsProps) {
+  // Interview Prep only appears where a generator is wired up (the tailor page,
+  // not the read-only history view).
+  const visibleTabs = onGeneratePrep ? tabs : tabs.filter((t) => t !== "Interview Prep")
   const [activeTab, setActiveTab] = useState<TabName>("Tailored CV")
   const [copied, setCopied] = useState(false)
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 })
@@ -99,8 +115,8 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
     <div className="animate-slide-up relative z-10 bg-white">
       {/* Tab bar */}
       <div className="relative border-b border-gray-100">
-        <div className="flex gap-1">
-          {tabs.map((tab) => (
+        <div className="flex gap-1 flex-wrap">
+          {visibleTabs.map((tab) => (
             <button
               key={tab}
               ref={(el) => {
@@ -164,6 +180,15 @@ export function ResultsTabs({ results, coverLetter, loadingCoverLetter, onGenera
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === "Interview Prep" && (
+          <InterviewPrep
+            questions={prepQuestions}
+            loading={loadingPrep}
+            onGenerate={onGeneratePrep ?? (() => {})}
+            embedded
+          />
         )}
 
         {activeTab === "Tailored CV" && (

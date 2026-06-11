@@ -9,7 +9,6 @@ import { TailorButton } from "@/components/cv-tailor/tailor-button"
 import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
 import { EmptyState } from "@/components/cv-tailor/empty-state"
 import { InterviewPitches } from "@/components/cv-tailor/interview-pitches"
-import { InterviewPrep } from "@/components/cv-tailor/interview-prep"
 import { SignInModal } from "@/components/auth/sign-in-modal"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
@@ -253,6 +252,9 @@ export default function CVTailorPage() {
                   coverLetter={coverLetter}
                   loadingCoverLetter={loadingCoverLetter}
                   onGenerateCoverLetter={handleGenerateCoverLetter}
+                  prepQuestions={prepQuestions}
+                  loadingPrep={loadingPrep}
+                  onGeneratePrep={handleGeneratePrep}
                 />
               </div>
               <div className="mt-2 border-t border-gray-100" />
@@ -260,11 +262,6 @@ export default function CVTailorPage() {
                 pitches={pitches}
                 loading={loadingPitches}
                 onGenerate={handleGeneratePitches}
-              />
-              <InterviewPrep
-                questions={prepQuestions}
-                loading={loadingPrep}
-                onGenerate={handleGeneratePrep}
               />
             </>
           ) : !hasContent ? (

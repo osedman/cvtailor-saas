@@ -30,9 +30,11 @@ interface InterviewPrepProps {
   questions: Question[] | null
   loading: boolean
   onGenerate: () => void
+  /** When rendered inside a results tab, drop the standalone header + top margin */
+  embedded?: boolean
 }
 
-export function InterviewPrep({ questions, loading, onGenerate }: InterviewPrepProps) {
+export function InterviewPrep({ questions, loading, onGenerate, embedded = false }: InterviewPrepProps) {
   const [expanded, setExpanded] = useState<number | null>(null)
   const [filter, setFilter] = useState<QuestionCategory | "all">("all")
 
@@ -48,14 +50,16 @@ export function InterviewPrep({ questions, loading, onGenerate }: InterviewPrepP
   }, [questions])
 
   return (
-    <div className="mt-8 animate-fade-in-up">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="p-1.5 bg-[#ffeae4] rounded-lg">
-          <MessageCircleQuestion className="w-4 h-4 text-[#dc4f33]" />
+    <div className={embedded ? "animate-fade-in-up" : "mt-8 animate-fade-in-up"}>
+      {!embedded && (
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-1.5 bg-[#ffeae4] rounded-lg">
+            <MessageCircleQuestion className="w-4 h-4 text-[#dc4f33]" />
+          </div>
+          <h2 className="text-base font-semibold text-[#1e1813]">Interview Prep</h2>
+          <span className="text-xs text-gray-400 ml-1">likely questions with answer frameworks</span>
         </div>
-        <h2 className="text-base font-semibold text-[#1e1813]">Interview Prep</h2>
-        <span className="text-xs text-gray-400 ml-1">likely questions with answer frameworks</span>
-      </div>
+      )}
 
       {!questions ? (
         <div className="bg-gray-50 rounded-xl border border-gray-100 p-6 flex flex-col items-center gap-3">
