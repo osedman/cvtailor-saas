@@ -9,11 +9,12 @@ import { TailorButton } from "@/components/cv-tailor/tailor-button"
 import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
 import { EmptyState } from "@/components/cv-tailor/empty-state"
 import { InterviewPitches } from "@/components/cv-tailor/interview-pitches"
+import { InterviewPrep } from "@/components/cv-tailor/interview-prep"
 import { SignInModal } from "@/components/auth/sign-in-modal"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
 import { HistoryDrawer, type HistoryItem } from "@/components/cv-tailor/history-drawer"
-import type { TailorResult, CoverLetterResult, PitchesResult } from "@/lib/anthropic"
+import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult } from "@/lib/anthropic"
 
 function AuthErrorHandler() {
   const searchParams = useSearchParams()
@@ -51,6 +52,8 @@ export default function CVTailorPage() {
   const [loadingPitches, setLoadingPitches] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [scrapedJobUrl, setScrapedJobUrl] = useState("")
+  const [prepQuestions, setPrepQuestions] = useState<InterviewPrepResult["interviewQuestions"] | null>(null)
+  const [loadingPrep, setLoadingPrep] = useState(false)
 
   const handleTailor = useCallback(async () => {
     if (!canTailor) return
@@ -60,6 +63,7 @@ export default function CVTailorPage() {
     setResults(null)
     setCoverLetter(null)
     setPitches(null)
+    setPrepQuestions(null)
     setProgressStep(0)
     setLoadingStatus("Analysing job requirements…")
 
@@ -139,10 +143,29 @@ export default function CVTailorPage() {
     }
   }, [cvText, jobDescription])
 
+  const handleGeneratePrep = useCallback(async () => {
+    setLoadingPrep(true)
+    try {
+      const res = await fetch("/api/interview-prep", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cv: cvText, jobDescription }),
+      })
+      const data: InterviewPrepResult = await res.json()
+      if (!res.ok) throw new Error((data as { error?: string }).error || "Failed")
+      setPrepQuestions(data.interviewQuestions)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate interview prep.")
+    } finally {
+      setLoadingPrep(false)
+    }
+  }, [cvText, jobDescription])
+
   const handleRestoreHistory = useCallback((item: HistoryItem) => {
     setResults(item.result)
     setCoverLetter(null)
     setPitches(null)
+    setPrepQuestions(null)
   }, [])
 
   return (
@@ -204,6 +227,11 @@ export default function CVTailorPage() {
                 pitches={pitches}
                 loading={loadingPitches}
                 onGenerate={handleGeneratePitches}
+              />
+              <InterviewPrep
+                questions={prepQuestions}
+                loading={loadingPrep}
+                onGenerate={handleGeneratePrep}
               />
             </>
           ) : !hasContent ? (

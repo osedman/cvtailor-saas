@@ -25,6 +25,19 @@ export interface PitchesResult {
   }>
 }
 
+export type QuestionCategory = "behavioural" | "technical" | "role-specific" | "motivation" | "gap-probing"
+
+export interface InterviewPrepResult {
+  interviewQuestions: Array<{
+    question: string
+    category: QuestionCategory
+    whyAsked: string        // what the interviewer is really probing
+    framework: string       // how to structure the answer (e.g. STAR, situational)
+    pointsToHit: string[]   // specific CV evidence to weave in
+    watchOut: string        // common pitfall to avoid
+  }>
+}
+
 export const SYSTEM_PROMPT = `You are an expert CV tailoring assistant. Rewrite the user's CV to best match the target job description, using ONLY evidence from their existing CV — never invent skills, metrics, or responsibilities.
 
 Steps to follow internally:
@@ -135,5 +148,52 @@ export const PITCHES_TOOL: Anthropic.Tool = {
       },
     },
     required: ["interviewPitches"],
+  },
+}
+
+export const INTERVIEW_PREP_TOOL: Anthropic.Tool = {
+  name: "submit_interview_prep",
+  description: "Submit likely interview questions with answer frameworks.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      interviewQuestions: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            question: {
+              type: "string",
+              description: "The interview question, phrased as the interviewer would ask it",
+            },
+            category: {
+              type: "string",
+              enum: ["behavioural", "technical", "role-specific", "motivation", "gap-probing"],
+              description: "gap-probing = questions targeting weaknesses/gaps between the CV and the JD",
+            },
+            whyAsked: {
+              type: "string",
+              description: "One sentence: what the interviewer is really probing for",
+            },
+            framework: {
+              type: "string",
+              description: "How to structure the answer, e.g. 'STAR — lead with the metric' or 'Present-Past-Future'. 1-2 sentences.",
+            },
+            pointsToHit: {
+              type: "array",
+              items: { type: "string" },
+              description: "2-4 specific pieces of evidence from THIS candidate's CV to weave into the answer",
+            },
+            watchOut: {
+              type: "string",
+              description: "One common pitfall to avoid when answering, specific to this candidate",
+            },
+          },
+          required: ["question", "category", "whyAsked", "framework", "pointsToHit", "watchOut"],
+        },
+        description: "8-10 questions this candidate is likely to face, mixing categories. Include at least 2 gap-probing questions targeting weak spots between their CV and the JD.",
+      },
+    },
+    required: ["interviewQuestions"],
   },
 }
