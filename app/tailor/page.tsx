@@ -228,19 +228,15 @@ export default function CVTailorPage() {
                 loading={loadingPitches}
                 onGenerate={handleGeneratePitches}
               />
+              <InterviewPrep
+                questions={prepQuestions}
+                loading={loadingPrep}
+                onGenerate={handleGeneratePrep}
+              />
             </>
           ) : !hasContent ? (
             <EmptyState />
           ) : null}
-
-          {/* Interview Prep — available as soon as CV + JD are in, no tailor run needed */}
-          {canTailor && (
-            <InterviewPrep
-              questions={prepQuestions}
-              loading={loadingPrep}
-              onGenerate={user ? handleGeneratePrep : () => setShowSignIn(true)}
-            />
-          )}
         </div>
       </main>
 
