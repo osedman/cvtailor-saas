@@ -115,3 +115,23 @@ create policy "Users can update own jobs"
   on public.job_tracker for update using (auth.uid() = user_id);
 create policy "Users can delete own jobs"
   on public.job_tracker for delete using (auth.uid() = user_id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Login events — written by the auth callback (service role), read by /admin.
+-- RLS enabled with NO policies: clients have zero access; service role bypasses.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.login_events (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users on delete cascade,
+  email      text not null default '',
+  created_at timestamptz not null default now(),
+  ip         text not null default '',
+  user_agent text not null default ''
+);
+
+create index if not exists login_events_created
+  on public.login_events (created_at desc);
+create index if not exists login_events_user
+  on public.login_events (user_id, created_at desc);
+
+alter table public.login_events enable row level security;
