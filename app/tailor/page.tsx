@@ -8,7 +8,6 @@ import { ResizablePanels } from "@/components/cv-tailor/resizable-panels"
 import { TailorButton } from "@/components/cv-tailor/tailor-button"
 import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
 import { EmptyState } from "@/components/cv-tailor/empty-state"
-import { InterviewPitches } from "@/components/cv-tailor/interview-pitches"
 import { SignInModal } from "@/components/auth/sign-in-modal"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
@@ -255,14 +254,11 @@ export default function CVTailorPage() {
                   prepQuestions={prepQuestions}
                   loadingPrep={loadingPrep}
                   onGeneratePrep={handleGeneratePrep}
+                  pitches={pitches}
+                  loadingPitches={loadingPitches}
+                  onGeneratePitches={handleGeneratePitches}
                 />
               </div>
-              <div className="mt-2 border-t border-gray-100" />
-              <InterviewPitches
-                pitches={pitches}
-                loading={loadingPitches}
-                onGenerate={handleGeneratePitches}
-              />
             </>
           ) : !hasContent ? (
             <EmptyState />

@@ -3,8 +3,9 @@
 import { useState, useRef, useEffect } from "react"
 import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles } from "lucide-react"
 
-import type { TailorResult, InterviewPrepResult } from "@/lib/anthropic"
+import type { TailorResult, InterviewPrepResult, PitchesResult } from "@/lib/anthropic"
 import { InterviewPrep } from "./interview-prep"
+import { InterviewPitches } from "./interview-pitches"
 
 /** Renders plain-text CV with visual hierarchy: bold section headers, indented bullets */
 function FormattedCV({ text }: { text: string }) {
@@ -54,6 +55,9 @@ interface ResultsTabsProps {
   prepQuestions?: InterviewPrepResult["interviewQuestions"] | null
   loadingPrep?: boolean
   onGeneratePrep?: () => void
+  pitches?: PitchesResult["interviewPitches"] | null
+  loadingPitches?: boolean
+  onGeneratePitches?: () => void
 }
 
 const tabs = [
@@ -76,10 +80,16 @@ export function ResultsTabs({
   prepQuestions = null,
   loadingPrep = false,
   onGeneratePrep,
+  pitches = null,
+  loadingPitches = false,
+  onGeneratePitches,
 }: ResultsTabsProps) {
-  // Interview Prep only appears where a generator is wired up (the tailor page,
-  // not the read-only history view).
-  const visibleTabs = onGeneratePrep ? tabs : tabs.filter((t) => t !== "Interview Prep")
+  // Interview Prep only appears where a generator is wired up (the tailor page).
+  // There, Follow-ups live inside the prep tab; in the read-only history view
+  // there's no prep tab, so Follow-ups stay as their own tab.
+  const visibleTabs = onGeneratePrep
+    ? tabs.filter((t) => t !== "Follow-ups")
+    : tabs.filter((t) => t !== "Interview Prep")
   const [activeTab, setActiveTab] = useState<TabName>("Tailored CV")
   const [copied, setCopied] = useState(false)
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 })
@@ -107,6 +117,33 @@ export function ResultsTabs({
     const a = document.createElement("a")
     a.href = url
     a.download = "tailored-cv.txt"
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleDownloadWord = () => {
+    // Word opens HTML wrapped in a .doc container natively — no library needed.
+    const esc = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    const lines = (results.tailoredCV ?? "").split("\n")
+    const body = lines
+      .map((line) => {
+        const t = line.trim()
+        if (!t) return "<p>&nbsp;</p>"
+        const isHeading = /^[A-Z][A-Z\s&/,]+$/.test(t)
+        if (isHeading) return `<p style="font-weight:bold;font-size:13pt;margin:14pt 0 4pt">${esc(t)}</p>`
+        if (/^[•\-\*·]/.test(t)) return `<p style="margin:0 0 0 18pt">• ${esc(t.replace(/^[•\-\*·]\s*/, ""))}</p>`
+        return `<p style="margin:2pt 0">${esc(t)}</p>`
+      })
+      .join("\n")
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
+<head><meta charset="utf-8"><title>Tailored CV</title></head>
+<body style="font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.4">${body}</body></html>`
+    const blob = new Blob(["﻿" + html], { type: "application/msword" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "tailored-cv.doc"
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -183,12 +220,37 @@ export function ResultsTabs({
         )}
 
         {activeTab === "Interview Prep" && (
-          <InterviewPrep
-            questions={prepQuestions}
-            loading={loadingPrep}
-            onGenerate={onGeneratePrep ?? (() => {})}
-            embedded
-          />
+          <div>
+            <InterviewPrep
+              questions={prepQuestions}
+              loading={loadingPrep}
+              onGenerate={onGeneratePrep ?? (() => {})}
+              embedded
+            />
+
+            {/* Follow-up questions from the core tailoring analysis */}
+            {(results.followUps ?? []).length > 0 && (
+              <div className="mt-8">
+                <h3 className="text-sm font-semibold text-[#1e1813] mb-3">Quick follow-ups to prepare for</h3>
+                <div className="space-y-3">
+                  {(results.followUps ?? []).map((question, i) => (
+                    <div key={i} className="p-4 bg-white rounded-lg shadow-sm border border-gray-100">
+                      <span className="text-sm text-[#1e1813]">{question}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* STAR pitches live here too — the one place for interview prep */}
+            {onGeneratePitches && (
+              <InterviewPitches
+                pitches={pitches}
+                loading={loadingPitches}
+                onGenerate={onGeneratePitches}
+              />
+            )}
+          </div>
         )}
 
         {activeTab === "Tailored CV" && (
@@ -204,13 +266,22 @@ export function ResultsTabs({
               </button>
             </div>
             <FormattedCV text={results.tailoredCV} />
-            <button
-              onClick={handleDownload}
-              className="mt-6 inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors duration-150"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Download as .txt
-            </button>
+            <div className="mt-6 flex items-center gap-5">
+              <button
+                onClick={handleDownloadWord}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-[#dc4f33] hover:text-[#b3341b] transition-colors duration-150"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Download as Word
+              </button>
+              <button
+                onClick={handleDownload}
+                className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors duration-150"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Download as .txt
+              </button>
+            </div>
           </div>
         )}
 

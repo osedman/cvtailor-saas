@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
   ArrowLeft, Building2, ExternalLink, Trash2, Loader2,
-  AlertCircle, CheckCircle, Clock, RefreshCw,
+  AlertCircle, CheckCircle, Clock, RefreshCw, Kanban, Plus,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
+import { JobTrackerBoard } from "@/components/tracker/job-tracker-board"
 import type { TailorResult } from "@/lib/anthropic"
 
 interface HistoryItem {
@@ -220,6 +221,8 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [view, setView] = useState<"cvs" | "tracker">("cvs")
+  const [addingToTrackerId, setAddingToTrackerId] = useState<string | null>(null)
 
   const selectedItem = history.find(h => h.id === selectedId) ?? null
 
@@ -268,6 +271,35 @@ export default function HistoryPage() {
     }
   }, [selectedId])
 
+  const handleAddToTracker = useCallback(async (item: HistoryItem) => {
+    setAddingToTrackerId(item.id)
+    try {
+      const res = await fetch("/api/tracker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "saved",
+          job_title: item.job_title || item.result?.jobTitle || "Untitled role",
+          company_name: item.company_name || item.result?.companyName || "",
+          job_url: item.job_url || "",
+          job_description: item.job_snippet || "",
+          tailored_cv: item.result?.tailoredCV || "",
+          match_score: item.match_score ?? null,
+          history_id: item.id,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success("Added to tracker (Saved)", {
+        action: { label: "View board", onClick: () => setView("tracker") },
+      })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add to tracker")
+    } finally {
+      setAddingToTrackerId(null)
+    }
+  }, [])
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -295,18 +327,47 @@ export default function HistoryPage() {
               {history.length}
             </span>
           )}
+
+          {/* View switcher */}
+          <div className="flex items-center gap-1 ml-4 bg-gray-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setView("cvs")}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                view === "cvs" ? "bg-white text-[#1e1813] shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              Tailored CVs
+            </button>
+            <button
+              onClick={() => setView("tracker")}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                view === "tracker" ? "bg-white text-[#1e1813] shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Kanban className="w-3.5 h-3.5" />
+              Job tracker
+            </button>
+          </div>
+
           <div className="flex-1" />
-          <button
-            onClick={fetchHistory}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#dc4f33] transition-colors"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Refresh
-          </button>
+          {view === "cvs" && (
+            <button
+              onClick={fetchHistory}
+              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#dc4f33] transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Refresh
+            </button>
+          )}
         </div>
       </header>
 
-      {history.length === 0 ? (
+      {view === "tracker" ? (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+          <JobTrackerBoard />
+        </div>
+      ) : history.length === 0 ? (
         <EmptyHistory />
       ) : (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex flex-col lg:flex-row gap-6 items-start">
@@ -366,6 +427,19 @@ export default function HistoryPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Add to tracker */}
+                  <button
+                    onClick={() => handleAddToTracker(selectedItem)}
+                    disabled={addingToTrackerId === selectedItem.id}
+                    className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] disabled:opacity-60 transition-colors"
+                    title="Add this job to the tracker's Saved column"
+                  >
+                    {addingToTrackerId === selectedItem.id
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <Plus className="w-3.5 h-3.5" />}
+                    Add to tracker
+                  </button>
                 </div>
 
                 {/* Tabs */}
