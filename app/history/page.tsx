@@ -11,7 +11,7 @@ import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
 import { JobTrackerBoard } from "@/components/tracker/job-tracker-board"
-import type { TailorResult } from "@/lib/anthropic"
+import type { TailorResult, InterviewPrepResult } from "@/lib/anthropic"
 
 interface HistoryItem {
   id: string
@@ -20,6 +20,7 @@ interface HistoryItem {
   company_name: string
   job_url: string
   job_snippet: string
+  job_description?: string
   match_score: number
   result: TailorResult
   original_cv?: string
@@ -225,7 +226,63 @@ export default function HistoryPage() {
   const [view, setView] = useState<"cvs" | "tracker">("cvs")
   const [addingToTrackerId, setAddingToTrackerId] = useState<string | null>(null)
 
+  // On-demand generations for the selected history item
+  const [coverLetter, setCoverLetter] = useState<string | null>(null)
+  const [loadingCoverLetter, setLoadingCoverLetter] = useState(false)
+  const [prepQuestions, setPrepQuestions] = useState<InterviewPrepResult["interviewQuestions"] | null>(null)
+  const [loadingPrep, setLoadingPrep] = useState(false)
+
   const selectedItem = history.find(h => h.id === selectedId) ?? null
+
+  // Reset generated artefacts when switching items
+  useEffect(() => {
+    setCoverLetter(null)
+    setPrepQuestions(null)
+  }, [selectedId])
+
+  // Inputs for re-generation: the stored original CV and the full JD
+  // (older rows only kept a 200-char snippet, which still gives usable context)
+  const genCv = selectedItem?.original_cv || selectedItem?.result?.tailoredCV || ""
+  const genJd = selectedItem?.job_description || selectedItem?.job_snippet || ""
+  const canGenerate = genCv.length > 0 && genJd.length > 0
+
+  const handleGenerateCoverLetter = useCallback(async () => {
+    if (!canGenerate) { toast.error("This run predates stored job details, so regeneration isn't available."); return }
+    setLoadingCoverLetter(true)
+    try {
+      const res = await fetch("/api/cover-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cv: genCv, jobDescription: genJd }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed")
+      setCoverLetter(data.coverLetter)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate cover letter.")
+    } finally {
+      setLoadingCoverLetter(false)
+    }
+  }, [canGenerate, genCv, genJd])
+
+  const handleGeneratePrep = useCallback(async () => {
+    if (!canGenerate) { toast.error("This run predates stored job details, so regeneration isn't available."); return }
+    setLoadingPrep(true)
+    try {
+      const res = await fetch("/api/interview-prep", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cv: genCv, jobDescription: genJd }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed")
+      setPrepQuestions(data.interviewQuestions)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate interview prep.")
+    } finally {
+      setLoadingPrep(false)
+    }
+  }, [canGenerate, genCv, genJd])
 
   // Redirect if not logged in
   useEffect(() => {
@@ -373,8 +430,8 @@ export default function HistoryPage() {
       ) : (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex flex-col lg:flex-row gap-6 items-start">
 
-          {/* ── Left: card grid ── */}
-          <div className="w-full lg:w-[380px] flex-shrink-0">
+          {/* ── Left: card grid (independently scrollable on desktop) ── */}
+          <div className="w-full lg:w-[380px] flex-shrink-0 lg:sticky lg:top-20 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-1">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
               {history.map(item => (
                 <HistoryCard
@@ -447,9 +504,12 @@ export default function HistoryPage() {
                 <div className="px-6 py-4">
                   <ResultsTabs
                     results={selectedItem.result}
-                    coverLetter={null}
-                    loadingCoverLetter={false}
-                    onGenerateCoverLetter={() => {}}
+                    coverLetter={coverLetter}
+                    loadingCoverLetter={loadingCoverLetter}
+                    onGenerateCoverLetter={handleGenerateCoverLetter}
+                    prepQuestions={prepQuestions}
+                    loadingPrep={loadingPrep}
+                    onGeneratePrep={handleGeneratePrep}
                     originalCV={selectedItem.original_cv || null}
                   />
                 </div>

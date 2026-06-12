@@ -17,12 +17,12 @@ export async function POST(req: NextRequest) {
     const message = await anthropic.messages.create(
       {
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
+        max_tokens: 3000,
         tools: [INTERVIEW_PREP_TOOL],
         tool_choice: { type: 'tool', name: 'submit_interview_prep' },
         messages: [{
           role: 'user',
-          content: `You are an experienced interview coach. Generate 8-10 interview questions this candidate is LIKELY to face for this specific role, with answer frameworks.
+          content: `You are an experienced interview coach. Generate 6-8 interview questions this candidate is LIKELY to face for this specific role, with answer frameworks. Be concise in every field: one short sentence each for whyAsked, framework and watchOut; 2-3 short pointsToHit.
 
 Rules:
 - Questions must be specific to this JD and this CV — not generic "tell me about yourself" filler (one opener is fine, no more).

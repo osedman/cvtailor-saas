@@ -211,6 +211,7 @@ export async function POST(req: NextRequest) {
           company_name: result.companyName,
           job_url:      typeof jobUrl === 'string' ? jobUrl.slice(0, 500) : '',
           job_snippet:  jobSnippet,
+          job_description: jobDescription,
           match_score:  result.matchScore,
           original_cv:  cv,
           result,
