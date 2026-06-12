@@ -4,6 +4,7 @@ import {
   type ExtractResult, type RequirementMapping, type RoleFamily,
 } from '@/lib/anthropic'
 import { createClient } from '@/lib/supabase/server'
+import { sanitizeDeep } from '@/lib/sanitize'
 
 export const maxDuration = 60
 
@@ -176,7 +177,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const result = {
+    const result = sanitizeDeep({
       jobTitle: extract.jobTitle,
       companyName: extract.companyName,
       matchScore,
@@ -192,7 +193,7 @@ export async function POST(req: NextRequest) {
       keywordCoverage,
       roleFamily: extract.roleFamily,
       seniority: extract.seniority,
-    }
+    })
 
     // 6. Track usage (fire-and-forget) + save to history (blocking — we need
     // the row id back so the client can attach feedback to this run)

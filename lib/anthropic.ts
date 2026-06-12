@@ -137,6 +137,8 @@ ${CV_STANDARDS}
 
 Length: Keep the tailored CV tight and senior-appropriate — aim for ~450–650 words (one to two pages). Be economical; cut weak bullets rather than padding. Keep every analysis item to a single concise sentence.
 
+Punctuation: never use em dashes (—), en dashes (–) or hyphens as sentence punctuation, in any output field. Restructure with commas, colons or separate sentences instead. Hyphenated compound words (e.g. ATS-safe) are fine.
+
 Rules: Truth over optimisation. Every claim must trace to the original CV.`
 
 // Pass 1 — JD requirement extraction + CV evidence mapping (run on Haiku)

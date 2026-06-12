@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { createClient } from '@/lib/supabase/server'
+import { stripDashPunctuation } from '@/lib/sanitize'
 
 export const maxDuration = 60
 
@@ -71,7 +72,7 @@ ${PROMPT_SUFFIX}`
 
     if (!text) throw new Error('No analysis generated. Please try again.')
 
-    return NextResponse.json({ companyAnalysis: text })
+    return NextResponse.json({ companyAnalysis: stripDashPunctuation(text) })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[company-analysis] error:', msg)

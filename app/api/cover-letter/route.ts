@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic, COVER_LETTER_TOOL } from '@/lib/anthropic'
 import { createClient } from '@/lib/supabase/server'
+import { sanitizeDeep } from '@/lib/sanitize'
 
 export const maxDuration = 60
 
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     const toolUse = message.content.find((b) => b.type === 'tool_use')
     if (!toolUse || toolUse.type !== 'tool_use') throw new Error('No tool result returned')
 
-    return NextResponse.json(toolUse.input)
+    return NextResponse.json(sanitizeDeep(toolUse.input))
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[cover-letter] error:', msg)
