@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
   ArrowLeft, Building2, ExternalLink, Trash2, Loader2,
-  AlertCircle, CheckCircle, Clock, RefreshCw, Kanban, Plus,
+  AlertCircle, CheckCircle, Clock, RefreshCw, Kanban, Plus, Download,
 } from "lucide-react"
+import { downloadWordDoc } from "@/lib/word"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
@@ -56,6 +57,17 @@ function ScoreRing({ score, size = 52 }: { score: number; size?: number }) {
       </div>
     </div>
   )
+}
+
+function wordFilename(item: { job_title: string; company_name: string }) {
+  const slug = [item.job_title, item.company_name]
+    .filter(Boolean)
+    .join("-")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+  return `cv-${slug || "tailored"}.doc`
 }
 
 function MatchLabel({ score }: { score: number }) {
@@ -161,6 +173,13 @@ function HistoryCard({
           {formatDate(item.created_at)}
         </span>
         <div className="flex items-center gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); downloadWordDoc(item.result?.tailoredCV ?? "", wordFilename(item)) }}
+            className="p-1.5 rounded-lg text-gray-300 hover:text-[#dc4f33] hover:bg-[#ffeae4] transition-colors"
+            title="Download tailored CV as Word"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </button>
           {item.job_url && (
             <a
               href={item.job_url}
@@ -486,18 +505,28 @@ export default function HistoryPage() {
                     </div>
                   </div>
 
-                  {/* Add to tracker */}
-                  <button
-                    onClick={() => handleAddToTracker(selectedItem)}
-                    disabled={addingToTrackerId === selectedItem.id}
-                    className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] disabled:opacity-60 transition-colors"
-                    title="Add this job to the tracker's Saved column"
-                  >
-                    {addingToTrackerId === selectedItem.id
-                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      : <Plus className="w-3.5 h-3.5" />}
-                    Add to tracker
-                  </button>
+                  {/* Actions */}
+                  <div className="flex-shrink-0 flex items-center gap-2">
+                    <button
+                      onClick={() => downloadWordDoc(selectedItem.result?.tailoredCV ?? "", wordFilename(selectedItem))}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1e1813] bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                      title="Download tailored CV as Word"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Word
+                    </button>
+                    <button
+                      onClick={() => handleAddToTracker(selectedItem)}
+                      disabled={addingToTrackerId === selectedItem.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] disabled:opacity-60 transition-colors"
+                      title="Add this job to the tracker's Saved column"
+                    >
+                      {addingToTrackerId === selectedItem.id
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <Plus className="w-3.5 h-3.5" />}
+                      Add to tracker
+                    </button>
+                  </div>
                 </div>
 
                 {/* Tabs */}
