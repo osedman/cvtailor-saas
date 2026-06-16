@@ -1,329 +1,354 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import Link from "next/link"
 import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google"
-import {
-  ArrowRight, Check, Sparkles, Target, Kanban, FileText,
-  MessageCircleQuestion, Building2, ShieldCheck, Zap, Clock,
-  Link2, Download, History,
-} from "lucide-react"
+import "./landing.css"
 
 const hanken = Hanken_Grotesk({
   subsets: ["latin"],
   variable: "--font-hanken",
   display: "swap",
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700"],
 })
 const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-jetbrains",
   display: "swap",
-  weight: ["400", "500"],
+  weight: ["400", "500", "600"],
 })
 
-const ACCENT = "#dc4f33"
-const INK = "#1e1813"
+// ── hooks ────────────────────────────────────────────────────────────
 
-// ── Reveal on scroll ─────────────────────────────────────────────────────
-
-function Reveal({ children, delay = 0, className = "" }: {
-  children: React.ReactNode; delay?: number; className?: string
-}) {
+function useInView(opts = { threshold: 0.18 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [seen, setSeen] = useState(false)
   useEffect(() => {
     const el = ref.current
     if (!el) return
+    const fallback = setTimeout(() => setSeen(true), 1400)
     const io = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) { setSeen(true); io.disconnect() }
-    }, { threshold: 0.15 })
+      if (e.isIntersecting) { setSeen(true); clearTimeout(fallback); io.disconnect() }
+    }, opts)
     io.observe(el)
-    if (el.getBoundingClientRect().top < (window.innerHeight || 800)) setSeen(true)
-    return () => io.disconnect()
+    const r = el.getBoundingClientRect()
+    if (r.top < (window.innerHeight || 800)) setSeen(true)
+    return () => { io.disconnect(); clearTimeout(fallback) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  return [ref, seen] as const
+}
+
+function useCountUp(target: number, run: boolean, dur = 1600) {
+  const [v, setV] = useState(0)
+  const started = useRef(false)
+  useEffect(() => {
+    if (!run || started.current) return
+    started.current = true
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    if (reduce) { setV(target); return }
+    let raf: number, t0: number
+    const tick = (t: number) => {
+      if (!t0) t0 = t
+      const p = Math.min(1, (t - t0) / dur)
+      const e = 1 - Math.pow(1 - p, 3)
+      setV(target * e)
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [run, target, dur])
+  return v
+}
+
+// ── logo mark (inline SVG) ───────────────────────────────────────────
+
+function LogoMark({ size = 28 }: { size?: number }) {
+  const s = size / 200
   return (
-    <div
-      ref={ref}
-      className={className}
-      style={{
-        opacity: seen ? 1 : 0,
-        transform: seen ? "none" : "translateY(16px)",
-        transition: `opacity .6s cubic-bezier(.2,.7,.2,1) ${delay}ms, transform .6s cubic-bezier(.2,.7,.2,1) ${delay}ms`,
-      }}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width={size} height={size}>
+      <defs>
+        <linearGradient id="lf-g" x1="44" y1="50" x2="156" y2="150" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#3d6bf5" />
+          <stop offset="1" stopColor="#16a8e0" />
+        </linearGradient>
+      </defs>
+      <rect x="44" y="50" width="112" height="100" rx="16" fill="none" stroke="url(#lf-g)" strokeWidth="6" />
+      <line x1="44" y1="82" x2="156" y2="82" stroke="url(#lf-g)" strokeWidth="5" />
+      <circle cx="60" cy="66" r="4" fill="#3d6bf5" />
+      <circle cx="76" cy="66" r="4" fill="#3d6bf5" />
+      <text x="100" y="129" textAnchor="middle" fontWeight="600" fontSize="44" letterSpacing="-3" fill="#0c1018">lf</text>
+    </svg>
+  )
+}
+
+function LogoMarkDark({ size = 28 }: { size?: number }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width={size} height={size}>
+      <defs>
+        <linearGradient id="lf-gd" x1="44" y1="50" x2="156" y2="150" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#6e9bff" />
+          <stop offset="1" stopColor="#34d6ff" />
+        </linearGradient>
+      </defs>
+      <rect x="44" y="50" width="112" height="100" rx="16" fill="none" stroke="url(#lf-gd)" strokeWidth="6" />
+      <line x1="44" y1="82" x2="156" y2="82" stroke="url(#lf-gd)" strokeWidth="5" />
+      <circle cx="60" cy="66" r="4" fill="#6e9bff" />
+      <circle cx="76" cy="66" r="4" fill="#6e9bff" />
+      <text x="100" y="129" textAnchor="middle" fontWeight="600" fontSize="44" letterSpacing="-3" fill="#eef2fa">lf</text>
+    </svg>
+  )
+}
+
+function Wordmark({ dark = false }: { dark?: boolean }) {
+  return (
+    <a href="#top" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+      {dark ? <LogoMarkDark size={30} /> : <LogoMark size={30} />}
+      <span style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.04em", lineHeight: 1 }}>
+        <span style={{ color: dark ? "#eef2fa" : "#0c1018" }}>lean</span>
+        <span style={{ color: dark ? "#6e9bff" : "#3d6bf5" }}>frame</span>
+      </span>
+    </a>
+  )
+}
+
+// ── shared components ────────────────────────────────────────────────
+
+function Reveal({ children, delay = 0, style = {}, className = "" }: {
+  children: React.ReactNode; delay?: number; style?: React.CSSProperties; className?: string
+}) {
+  const [ref, seen] = useInView()
+  const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+  const hidden = !seen && !reduce
+  return (
+    <div ref={ref} className={className} style={{
+      opacity: hidden ? 0 : 1,
+      transform: hidden ? "translateY(18px)" : "none",
+      transition: "opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1)",
+      transitionDelay: (seen ? delay : 0) + "ms",
+      ...style
+    }}>
       {children}
     </div>
   )
 }
 
-// ── Wordmark ─────────────────────────────────────────────────────────────
-
-function Wordmark({ light = false }: { light?: boolean }) {
+function TrustRow() {
   return (
-    <span className="inline-flex items-baseline gap-0.5 text-[22px] font-extrabold tracking-tight" style={{ color: light ? "#fff" : INK }}>
-      tailr
-      <span className="w-1.5 h-1.5 rounded-full inline-block -translate-y-px" style={{ background: ACCENT }} />
-    </span>
+    <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex" }}>
+        {(["#6e9bff","#34d6ff","#3d6bf5","#16a8e0"] as const).map((c, i) => (
+          <span key={i} style={{ width: 30, height: 30, borderRadius: 99, background: c,
+            border: "2px solid var(--paper)", marginLeft: i ? -9 : 0, display: "grid",
+            placeItems: "center", color: "#fff", fontSize: 12, fontWeight: 700 }}>
+            {["A","J","M","K"][i]}
+          </span>
+        ))}
+      </div>
+      <div className="mono" style={{ fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.4 }}>
+        <strong style={{ color: "var(--ink)" }}>40,000+</strong> CVs tailored ·{" "}
+        <span style={{ color: "#3d6bf5" }}>★★★★★</span> 4.9
+      </div>
+    </div>
   )
 }
 
-// ── Nav ──────────────────────────────────────────────────────────────────
-
-function Nav() {
-  const [scrolled, setScrolled] = useState(false)
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8)
-    window.addEventListener("scroll", onScroll)
-    return () => window.removeEventListener("scroll", onScroll)
-  }, [])
+function MatchRing({ score = 92, run = true, size = 96, stroke = 8 }: {
+  score?: number; run?: boolean; size?: number; stroke?: number
+}) {
+  const v = useCountUp(score, run)
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const off = c * (1 - v / 100)
   return (
-    <header className={`sticky top-0 z-50 transition-all duration-200 ${scrolled ? "bg-white/85 backdrop-blur-md border-b border-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.03)]" : "bg-white"}`}>
-      <div className="max-w-6xl mx-auto px-5 h-16 flex items-center gap-8">
-        <a href="#top"><Wordmark /></a>
-        <nav className="hidden md:flex items-center gap-7">
-          {[["How it works", "#how-it-works"], ["Features", "#features"], ["Beta", "#beta"]].map(([l, h]) => (
-            <a key={l} href={h} className="text-[14.5px] font-medium text-gray-500 hover:text-[#1e1813] transition-colors">{l}</a>
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <defs>
+          <linearGradient id="ring-g" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#3d6bf5" />
+            <stop offset="100%" stopColor="#16a8e0" />
+          </linearGradient>
+        </defs>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--line)" strokeWidth={stroke} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="url(#ring-g)" strokeWidth={stroke}
+          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off}
+          style={{ transition: "stroke-dashoffset .1s linear" }} />
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
+        <span className="tnum" style={{ fontSize: size * 0.32, fontWeight: 700, letterSpacing: "-0.02em" }}>{Math.round(v)}</span>
+      </div>
+    </div>
+  )
+}
+
+function CvDoc({ tailored = false }: { tailored?: boolean }) {
+  const tinted = [1, 3, 6, 8, 9]
+
+  const Line = ({ w, i, h = 7 }: { w: string; i: number; h?: number }) => (
+    <div className={"doc-line" + (tailored && tinted.includes(i) ? " tinted" : "")}
+      style={{ width: w, height: h }} />
+  )
+
+  return (
+    <div className="doc thin-scroll" style={{ padding: 24, width: "100%" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+        <div>
+          <div className="doc-name">Alex Rivera</div>
+          <div className="doc-meta" style={{ marginTop: 4 }}>Product Marketing Manager</div>
+        </div>
+        <div className="doc-meta" style={{ textAlign: "right", lineHeight: 1.5 }}>
+          alex@rivera.co<br/>London, UK
+        </div>
+      </div>
+      <div className="doc-rule" style={{ margin: "14px 0" }} />
+      <div className="doc-h">Summary</div>
+      <div style={{ display: "grid", gap: 7, margin: "8px 0 16px" }}>
+        <Line w="100%" i={0} /><Line w="92%" i={1} /><Line w="74%" i={2} />
+      </div>
+      <div className="doc-h">Experience</div>
+      <div style={{ display: "grid", gap: 7, margin: "8px 0 16px" }}>
+        <Line w="60%" i={3} h={8} />
+        <Line w="100%" i={4} /><Line w="96%" i={5} /><Line w="88%" i={6} />
+        <Line w="52%" i={7} h={8} />
+        <Line w="100%" i={8} /><Line w="80%" i={9} />
+      </div>
+      <div className="doc-h">Skills</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+        {["Positioning","GTM","Lifecycle","SQL","Figma","A/B testing"].map((s, i) => (
+          <span key={s} style={{
+            fontFamily: "var(--font-jetbrains), ui-monospace, monospace", fontSize: 9, padding: "3px 8px",
+            borderRadius: 6, border: "1px solid var(--line)",
+            background: tailored && i < 3 ? "var(--thread-tint)" : "transparent",
+            color: tailored && i < 3 ? "var(--thread)" : "var(--ink-faint)",
+            transition: "all .4s ease"
+          }}>{s}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CvDocAuto() {
+  const [on, setOn] = useState(false)
+  useEffect(() => {
+    const id = setInterval(() => setOn(o => !o), 2600)
+    return () => clearInterval(id)
+  }, [])
+  return <CvDoc tailored={on} />
+}
+
+// ── sections ─────────────────────────────────────────────────────────
+
+function Nav({ onCta }: { onCta: () => void }) {
+  return (
+    <header style={{ position: "sticky", top: 0, zIndex: 40,
+      background: "rgba(248,250,252,0.88)",
+      backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+      borderBottom: "1px solid var(--line)" }}>
+      <div className="wrap" style={{ display: "flex", alignItems: "center", gap: 24, height: 64 }}>
+        <Wordmark />
+        <nav style={{ display: "flex", gap: 26, marginLeft: 14 }} className="nav-links">
+          {(["How it works","Features","Pricing"] as const).map(l => (
+            <a key={l} href={"#" + l.toLowerCase().replace(/ /g, "-")}
+              style={{ fontSize: 14, color: "var(--ink-soft)", fontWeight: 500,
+                transition: "color .15s ease" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "var(--ink)")}
+              onMouseLeave={e => (e.currentTarget.style.color = "var(--ink-soft)")}>{l}</a>
           ))}
         </nav>
-        <div className="flex-1" />
-        <Link href="/tailor" className="text-[14.5px] font-semibold text-gray-600 hover:text-[#1e1813] transition-colors">Sign in</Link>
-        <Link
-          href="/tailor"
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-[14px] font-semibold text-white rounded-lg transition-colors"
-          style={{ background: INK }}
-        >
-          Tailor my CV
-          <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
+        <div style={{ flex: 1 }} />
+        <Link href="/tailor" style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-soft)" }} className="nav-signin">Sign in</Link>
+        <button className="btn btn-primary" onClick={onCta} style={{ padding: "9px 18px", fontSize: 14 }}>
+          Start free
+        </button>
       </div>
     </header>
   )
 }
 
-// ── Product mockup (hero) ────────────────────────────────────────────────
-
-function ScoreRing({ score, size = 64 }: { score: number; size?: number }) {
-  const r = (size - 8) / 2
-  const c = 2 * Math.PI * r
+function Hero({ onCta }: { onCta: () => void }) {
   return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#f3f4f6" strokeWidth={6} />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#16a34a" strokeWidth={6}
-          strokeDasharray={`${(score / 100) * c} ${c}`} strokeLinecap="round" />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center leading-none">
-        <span className="text-base font-bold text-[#1e1813]">{score}</span>
-        <span className="text-[7px] uppercase tracking-widest text-gray-400">match</span>
-      </div>
-    </div>
-  )
-}
-
-function Line({ w, tinted = false }: { w: string; tinted?: boolean }) {
-  return <div className="h-[7px] rounded-full" style={{ width: w, background: tinted ? "#ffd8cd" : "#eceae6" }} />
-}
-
-function HeroMockup() {
-  return (
-    <div className="relative mx-auto max-w-4xl">
-      {/* Browser chrome */}
-      <div className="rounded-2xl border border-gray-200 bg-white shadow-[0_30px_80px_rgba(30,24,19,0.12),0_8px_24px_rgba(30,24,19,0.06)] overflow-hidden">
-        <div className="flex items-center gap-1.5 px-4 py-3 border-b border-gray-100 bg-gray-50/60">
-          <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
-          <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
-          <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
-          <div className="mx-auto px-12 py-1 rounded-md bg-white border border-gray-100 text-[10px] text-gray-400 font-medium">
-            gettailr.vercel.app
+    <section className="section" style={{ paddingTop: 72, paddingBottom: 88,
+      background: "linear-gradient(180deg, #f4f7ff 0%, var(--paper) 100%)" }}>
+      <div className="wrap hero-grid" style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 64, alignItems: "center" }}>
+        <div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px",
+            background: "var(--thread-tint)", borderRadius: 999, marginBottom: 24,
+            border: "1px solid rgba(61,107,245,.15)" }}>
+            <span style={{ width: 6, height: 6, borderRadius: 99,
+              background: "linear-gradient(135deg,#3d6bf5,#16a8e0)", display: "inline-block" }} />
+            <span className="mono" style={{ fontSize: 11, color: "var(--thread)", letterSpacing: "0.1em",
+              textTransform: "uppercase", fontWeight: 500 }}>AI-powered CV tailoring</span>
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5 bg-white">
-          {/* Left: CV panel */}
-          <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: ACCENT }}>Your CV</span>
-              <span className="text-[9px] text-gray-400 bg-white border border-gray-100 rounded px-1.5 py-0.5">cv-alex-morgan.pdf</span>
-            </div>
-            <div className="space-y-2">
-              <Line w="55%" /><Line w="92%" /><Line w="85%" tinted /><Line w="78%" />
-              <div className="h-2" />
-              <Line w="45%" /><Line w="88%" tinted /><Line w="94%" /><Line w="70%" tinted />
-            </div>
-          </div>
-          {/* Right: results */}
-          <div className="rounded-xl border border-gray-100 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Tailored result</span>
-              <ScoreRing score={87} size={48} />
-            </div>
-            <div className="space-y-2">
-              {[
-                ["Strong", "#dcfce7", "#16a34a", "Stakeholder management"],
-                ["Strong", "#dcfce7", "#16a34a", "SQL & data analysis"],
-                ["Transferable", "#ffeae4", ACCENT, "Media platform delivery"],
-                ["Partial", "#fef3c7", "#d97706", "Team leadership"],
-              ].map(([label, bg, color, req], i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: bg as string, color: color as string }}>{label}</span>
-                  <span className="text-[10px] text-gray-500 truncate">{req}</span>
-                </div>
-              ))}
-              <div className="pt-2 flex items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 text-[9px] font-medium px-2 py-1 rounded-md text-white" style={{ background: ACCENT }}>
-                  <Sparkles className="w-2.5 h-2.5" />Tailored in 28s
-                </span>
-                <span className="inline-flex items-center gap-1 text-[9px] font-medium px-2 py-1 rounded-md bg-green-50 text-green-600">
-                  <Check className="w-2.5 h-2.5" />ATS pass
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Floating chips */}
-      <div className="absolute -left-4 sm:-left-10 top-1/3 hidden md:block">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-lg px-3.5 py-2.5 flex items-center gap-2">
-          <MessageCircleQuestion className="w-4 h-4" style={{ color: ACCENT }} />
-          <div>
-            <p className="text-[11px] font-semibold text-[#1e1813]">Interview prep ready</p>
-            <p className="text-[9px] text-gray-400">9 likely questions predicted</p>
-          </div>
-        </div>
-      </div>
-      <div className="absolute -right-4 sm:-right-8 bottom-8 hidden md:block">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-lg px-3.5 py-2.5 flex items-center gap-2">
-          <Kanban className="w-4 h-4 text-violet-500" />
-          <div>
-            <p className="text-[11px] font-semibold text-[#1e1813]">Moved to Interview</p>
-            <p className="text-[9px] text-gray-400">Senior BA · StreamCo</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Hero ─────────────────────────────────────────────────────────────────
-
-function Hero() {
-  return (
-    <section className="pt-20 pb-24 px-5">
-      <div className="max-w-3xl mx-auto text-center">
-        <Reveal>
-          <span className="inline-flex items-center gap-2 text-[12px] font-semibold px-3.5 py-1.5 rounded-full border" style={{ color: ACCENT, borderColor: "#ffd8cd", background: "#fff7f4" }}>
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: ACCENT }} />
-            Free while in beta
-          </span>
-        </Reveal>
-        <Reveal delay={80}>
-          <h1 className="mt-6 text-[clamp(40px,6.5vw,68px)] font-extrabold tracking-[-0.03em] leading-[1.04] text-[#1e1813]">
-            The CV platform built<br className="hidden sm:block" /> for every application
+          <h1 className="display" style={{ fontSize: "clamp(42px, 5.8vw, 72px)" }}>
+            Your CV, <em>fitted</em><br/>to every role.
           </h1>
-        </Reveal>
-        <Reveal delay={160}>
-          <p className="mt-6 text-lg sm:text-xl text-gray-500 leading-relaxed max-w-2xl mx-auto">
-            Tailr rewrites your CV for each job, scores the match against real evidence,
-            preps you for the interview, and tracks every application — in about 30 seconds.
+          <p className="lede" style={{ marginTop: 22, fontSize: 19 }}>
+            Drop in your CV, paste the job description, and Leanframe rewrites every
+            line to match — ATS-safe, in about ten seconds.
           </p>
-        </Reveal>
-        <Reveal delay={240}>
-          <div className="mt-9 flex items-center justify-center gap-3 flex-wrap">
-            <Link
-              href="/tailor"
-              className="inline-flex items-center gap-2 px-7 py-3.5 text-[15px] font-semibold text-white rounded-xl shadow-[0_8px_24px_rgba(220,79,51,0.3)] hover:shadow-[0_10px_28px_rgba(220,79,51,0.4)] transition-all hover:-translate-y-0.5"
-              style={{ background: ACCENT }}
-            >
-              Tailor my CV — free
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <a
-              href="#how-it-works"
-              className="inline-flex items-center gap-2 px-7 py-3.5 text-[15px] font-semibold text-[#1e1813] rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all"
-            >
-              See how it works
-            </a>
+          <div style={{ display: "flex", gap: 12, marginTop: 32, flexWrap: "wrap" }}>
+            <button className="btn btn-primary btn-lg" onClick={onCta}>Tailor my CV — free</button>
+            <a className="btn btn-ghost btn-lg" href="#how-it-works">See how it works</a>
           </div>
-        </Reveal>
-        <Reveal delay={300}>
-          <p className="mt-5 text-[13px] text-gray-400">No card required · Magic-link sign-in · ATS-safe output</p>
-        </Reveal>
-      </div>
+          <div style={{ marginTop: 32 }}><TrustRow /></div>
+        </div>
 
-      <Reveal delay={350} className="mt-16">
-        <HeroMockup />
-      </Reveal>
-    </section>
-  )
-}
+        <div style={{ position: "relative" }}>
+          {/* floating match badge */}
+          <div style={{ position: "absolute", top: -24, right: -8, zIndex: 2,
+            background: "#fff", border: "1px solid var(--line)", borderRadius: 14,
+            boxShadow: "var(--shadow-md)", padding: "12px 16px",
+            display: "flex", alignItems: "center", gap: 12 }}>
+            <MatchRing score={92} run size={58} stroke={6} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: "-0.01em" }}>Strong match</div>
+              <div className="mono" style={{ fontSize: 10, color: "var(--ink-soft)", marginTop: 2 }}>9 lines rewritten</div>
+            </div>
+          </div>
 
-// ── Stats strip ──────────────────────────────────────────────────────────
+          <CvDocAuto />
 
-function Stats() {
-  const stats = [
-    ["~30s", "median tailor time"],
-    ["2-pass", "evidence-checked engine"],
-    ["100%", "claims traced to your CV"],
-    ["£0", "while in beta"],
-  ]
-  return (
-    <section className="border-y border-gray-100 bg-gray-50/50">
-      <div className="max-w-6xl mx-auto px-5 py-12 grid grid-cols-2 lg:grid-cols-4 gap-8">
-        {stats.map(([v, l], i) => (
-          <Reveal key={l} delay={i * 70} className="text-center">
-            <p className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#1e1813]">{v}</p>
-            <p className={`${jetbrains.className} mt-2 text-[11px] uppercase tracking-[0.14em] text-gray-400`}>{l}</p>
-          </Reveal>
-        ))}
+          {/* floating ATS badge */}
+          <div style={{ position: "absolute", bottom: -16, left: -16, zIndex: 2 }}>
+            <span className="chip" style={{ boxShadow: "var(--shadow-md)", background: "#fff" }}>
+              <span className="dot green" />ATS clear
+            </span>
+          </div>
+        </div>
       </div>
     </section>
   )
 }
-
-// ── How it works ─────────────────────────────────────────────────────────
 
 function HowItWorks() {
   const steps = [
-    {
-      n: "01", t: "Drop in your CV",
-      d: "Upload a PDF, DOCX or TXT — or paste it straight in. We remember it for next time.",
-      icon: <FileText className="w-5 h-5" />,
-    },
-    {
-      n: "02", t: "Paste the job",
-      d: "Drop any LinkedIn, Indeed or Reed link and we fetch the description automatically.",
-      icon: <Link2 className="w-5 h-5" />,
-    },
-    {
-      n: "03", t: "Tailor & apply",
-      d: "A re-cut CV, evidence-based match score, interview prep and a tracked application — ready to send.",
-      icon: <Sparkles className="w-5 h-5" />,
-    },
+    { n: "01", t: "Drop in your CV", d: "Upload a PDF, DOCX or TXT — or paste it straight in. We remember it for next time.", tag: "30 sec" },
+    { n: "02", t: "Paste the job", d: "Drop any LinkedIn, Indeed or Reed link and we fetch the description automatically.", tag: "1 click" },
+    { n: "03", t: "Tailor & apply", d: "Get a re-cut CV, a match score, a cover letter and your interview pitches — ready to send.", tag: "~10 sec" },
   ]
   return (
-    <section id="how-it-works" className="py-24 px-5">
-      <div className="max-w-6xl mx-auto">
-        <Reveal className="text-center max-w-2xl mx-auto">
-          <p className={`${jetbrains.className} text-[12px] font-medium uppercase tracking-[0.16em]`} style={{ color: ACCENT }}>How it works</p>
-          <h2 className="mt-4 text-[clamp(30px,4.5vw,44px)] font-extrabold tracking-[-0.025em] leading-tight text-[#1e1813]">
-            Three steps from generic to get-the-call
-          </h2>
-        </Reveal>
-        <div className="mt-14 grid grid-cols-1 md:grid-cols-3 gap-6">
+    <section id="how-it-works" className="section" style={{ background: "#fff",
+      borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>
+      <div className="wrap">
+        <div className="section-head">
+          <span className="eyebrow">How it works</span>
+          <h2 className="display">Three steps from <em>generic</em> to <em>get the call</em>.</h2>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 }} className="steps-grid">
           {steps.map((s, i) => (
-            <Reveal key={s.n} delay={i * 100}>
-              <div className="h-full rounded-2xl border border-gray-100 bg-white p-7 hover:shadow-[0_12px_32px_rgba(30,24,19,0.06)] hover:border-gray-200 transition-all duration-200">
-                <div className="flex items-center justify-between">
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "#fff7f4", color: ACCENT }}>
-                    {s.icon}
-                  </div>
-                  <span className="text-4xl font-extrabold text-gray-100">{s.n}</span>
-                </div>
-                <h3 className="mt-5 text-lg font-bold text-[#1e1813]">{s.t}</h3>
-                <p className="mt-2 text-[15px] text-gray-500 leading-relaxed">{s.d}</p>
+            <Reveal key={s.n} delay={i * 120} style={{ padding: "0 32px",
+              borderLeft: i ? "1px solid var(--line)" : "none" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 42, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1,
+                  background: "linear-gradient(135deg,#3d6bf5,#16a8e0)",
+                  WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+                  backgroundClip: "text" }}>{s.n}</span>
+                <span className="chip">{s.tag}</span>
               </div>
+              <h3 style={{ fontSize: 22, marginTop: 16, fontWeight: 700, letterSpacing: "-0.02em" }}>{s.t}</h3>
+              <p className="muted" style={{ marginTop: 10, fontSize: 16, lineHeight: 1.6 }}>{s.d}</p>
             </Reveal>
           ))}
         </div>
@@ -332,338 +357,282 @@ function HowItWorks() {
   )
 }
 
-// ── Feature modules (alternating) ────────────────────────────────────────
-
-function ModuleMockCoverage() {
+function StatItem({ to, suffix = "", prefix = "", label, decimals = 0 }: {
+  to: number; suffix?: string; prefix?: string; label: string; decimals?: number
+}) {
+  const [ref, seen] = useInView({ threshold: 0.5 })
+  const v = useCountUp(to, seen, 1600)
+  const shown = decimals ? v.toFixed(decimals) : Math.round(v).toLocaleString()
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white shadow-[0_16px_48px_rgba(30,24,19,0.08)] p-5">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Requirements coverage</p>
-      {[
-        ["Strong", "#dcfce7", "#16a34a", "SQL & data analysis", "must-have"],
-        ["Strong", "#dcfce7", "#16a34a", "Requirements gathering", "must-have"],
-        ["Transferable", "#ffeae4", ACCENT, "Media platform experience", "must-have"],
-        ["Partial", "#fef3c7", "#d97706", "Team leadership", ""],
-        ["Missing", "#fee2e2", "#dc2626", "Python", ""],
-      ].map(([label, bg, color, req, must], i) => (
-        <div key={i} className="flex items-center gap-2.5 py-2 border-b border-gray-50 last:border-0">
-          <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: bg as string, color: color as string }}>{label}</span>
-          <span className="text-[12px] text-[#1e1813] truncate">{req}</span>
-          {must && <span className="ml-auto text-[8px] font-bold uppercase tracking-wide text-gray-300">{must}</span>}
-        </div>
-      ))}
-      <div className="mt-3 flex items-center justify-between rounded-xl bg-gray-50 px-3.5 py-2.5">
-        <span className="text-[11px] font-medium text-gray-500">Computed match score</span>
-        <span className="text-sm font-extrabold text-[#1e1813]">82 / 100</span>
+    <div ref={ref} style={{ textAlign: "center", padding: "0 18px" }}>
+      <div className="tnum" style={{ fontSize: "clamp(40px,5vw,60px)", fontWeight: 800, lineHeight: 1,
+        letterSpacing: "-0.04em", background: "linear-gradient(135deg,#3d6bf5,#16a8e0)",
+        WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+        {prefix}{shown}{suffix}
       </div>
+      <div className="mono" style={{ fontSize: 11.5, letterSpacing: "0.08em", textTransform: "uppercase",
+        color: "var(--ink-soft)", marginTop: 12 }}>{label}</div>
     </div>
   )
 }
 
-function ModuleMockPrep() {
+function Stats() {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white shadow-[0_16px_48px_rgba(30,24,19,0.08)] p-5 space-y-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Interview prep</p>
-      {[
-        ["Gap probing", "#fee2e2", "#dc2626", "“Your CV doesn’t mention Python — how would you close that gap?”"],
-        ["Behavioural", "#ffeae4", ACCENT, "“Tell me about a migration you led under pressure.”"],
-        ["Technical", "#ede9fe", "#7c3aed", "“How do you size delivery options with SQL?”"],
-      ].map(([cat, bg, color, q], i) => (
-        <div key={i} className="rounded-xl border border-gray-100 p-3">
-          <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded" style={{ background: bg as string, color: color as string }}>{cat}</span>
-          <p className="mt-1.5 text-[12px] font-medium text-[#1e1813] leading-snug">{q}</p>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function ModuleMockCompany() {
-  return (
-    <div className="rounded-2xl border border-gray-100 bg-white shadow-[0_16px_48px_rgba(30,24,19,0.08)] p-5">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#fff7f4" }}>
-          <Building2 className="w-4 h-4" style={{ color: ACCENT }} />
-        </div>
-        <div>
-          <p className="text-[12px] font-bold text-[#1e1813]">StreamCo</p>
-          <p className="text-[9px] text-gray-400">Researched live · 3 sources</p>
-        </div>
+    <section className="section" style={{ paddingTop: 72, paddingBottom: 72, background: "var(--paper)" }}>
+      <div className="wrap stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 24 }}>
+        <StatItem to={40000} suffix="+" label="CVs tailored" />
+        <StatItem to={3.1} suffix="×" decimals={1} label="More interviews*" />
+        <StatItem to={92} suffix="%" label="Avg ATS pass rate" />
+        <StatItem to={11} suffix="s" label="Median tailor time" />
       </div>
-      {[
-        ["WHAT THEY DO", "Streaming infrastructure for broadcasters in 14 markets"],
-        ["RECENT", "Acquired MediaFlow in March · expanding analytics team"],
-        ["ASK THEM", "How does the BA team shape the analytics roadmap post-acquisition?"],
-      ].map(([h, t], i) => (
-        <div key={i} className="py-2 border-b border-gray-50 last:border-0">
-          <p className={`${jetbrains.className} text-[8px] tracking-[0.14em] mb-1`} style={{ color: ACCENT }}>{h}</p>
-          <p className="text-[11.5px] text-gray-600 leading-snug">{t}</p>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function ModuleMockTracker() {
-  const cols: Array<[string, string, Array<[string, string]>]> = [
-    ["Saved", "#6b7280", [["Product Analyst", "DataCo"]]],
-    ["Applied", ACCENT, [["Senior BA", "StreamCo"], ["Lead BA", "FinServ"]]],
-    ["Interview", "#7c3aed", [["BA Manager", "MediaCo"]]],
-  ]
-  return (
-    <div className="rounded-2xl border border-gray-100 bg-white shadow-[0_16px_48px_rgba(30,24,19,0.08)] p-5">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Job tracker</p>
-      <div className="grid grid-cols-3 gap-2.5">
-        {cols.map(([col, color, jobs]) => (
-          <div key={col as string}>
-            <p className="text-[9px] font-bold mb-2" style={{ color: color as string }}>{col} · {(jobs as Array<[string, string]>).length}</p>
-            <div className="space-y-2">
-              {(jobs as Array<[string, string]>).map(([title, co], i) => (
-                <div key={i} className="rounded-lg border border-gray-100 bg-gray-50/50 p-2">
-                  <p className="text-[10px] font-semibold text-[#1e1813] truncate">{title}</p>
-                  <p className="text-[8px] text-gray-400 truncate">{co}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function Modules() {
-  const modules = [
-    {
-      eyebrow: "Tailoring engine",
-      title: "Evidence-checked tailoring, not keyword stuffing",
-      body: "A two-pass engine extracts every requirement from the job description, maps it to real evidence in your CV, then rewrites with that map as ground truth. The match score is computed from coverage — never invented.",
-      points: ["Match score backed by a visible requirements table", "Keywords woven in only where your CV supports them", "Deterministic ATS keyword check on the final text"],
-      mock: <ModuleMockCoverage />,
-    },
-    {
-      eyebrow: "Interview prep",
-      title: "Walk in knowing what they'll ask",
-      body: "Tailr predicts the questions you're likely to face — including the uncomfortable ones probing your gaps — with an answer framework and talking points drawn from your own experience.",
-      points: ["8–10 predicted questions per role", "Gap-probing questions targeting your weak spots", "STAR pitches built from your real experience"],
-      mock: <ModuleMockPrep />,
-    },
-    {
-      eyebrow: "Company analysis",
-      title: "Research the company in one click",
-      body: "Live web research summarised for your specific role: what they do, recent developments, culture signals, and smart questions to ask at the end of the interview.",
-      points: ["Live web search, not stale training data", "Framed around the role you're applying for", "Smart questions that show you did the work"],
-      mock: <ModuleMockCompany />,
-    },
-    {
-      eyebrow: "Job tracker",
-      title: "Every application, one board",
-      body: "A Kanban board for your search: Saved → Applied → Interview → Offer. Each card keeps the job description, your tailored CV version, and a notes log — added straight from your tailoring history.",
-      points: ["Drag between stages, saved instantly", "Tailored CV and JD stored on every card", "Notes with timestamps for every conversation"],
-      mock: <ModuleMockTracker />,
-    },
-  ]
-  return (
-    <section id="features" className="py-24 px-5 bg-gray-50/50 border-y border-gray-100">
-      <div className="max-w-6xl mx-auto">
-        <Reveal className="text-center max-w-2xl mx-auto mb-20">
-          <p className={`${jetbrains.className} text-[12px] font-medium uppercase tracking-[0.16em]`} style={{ color: ACCENT }}>Features</p>
-          <h2 className="mt-4 text-[clamp(30px,4.5vw,44px)] font-extrabold tracking-[-0.025em] leading-tight text-[#1e1813]">
-            Not a rewrite button.<br />A complete application platform.
-          </h2>
-        </Reveal>
-
-        <div className="space-y-24">
-          {modules.map((m, i) => (
-            <div key={m.eyebrow} className={`grid grid-cols-1 lg:grid-cols-2 gap-12 items-center ${i % 2 === 1 ? "lg:[&>*:first-child]:order-2" : ""}`}>
-              <Reveal delay={60}>
-                <p className={`${jetbrains.className} text-[11px] font-medium uppercase tracking-[0.16em]`} style={{ color: ACCENT }}>{m.eyebrow}</p>
-                <h3 className="mt-3 text-[clamp(24px,3vw,32px)] font-extrabold tracking-[-0.02em] leading-tight text-[#1e1813]">{m.title}</h3>
-                <p className="mt-4 text-[16px] text-gray-500 leading-relaxed">{m.body}</p>
-                <ul className="mt-6 space-y-3">
-                  {m.points.map((p) => (
-                    <li key={p} className="flex items-start gap-2.5 text-[14.5px] text-gray-600">
-                      <span className="mt-0.5 w-4.5 h-4.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center" style={{ background: "#ffeae4" }}>
-                        <Check className="w-2.5 h-2.5" style={{ color: ACCENT }} />
-                      </span>
-                      {p}
-                    </li>
-                  ))}
-                </ul>
-              </Reveal>
-              <Reveal delay={140}>{m.mock}</Reveal>
-            </div>
-          ))}
-        </div>
+      <div className="wrap" style={{ marginTop: 22 }}>
+        <p className="mono" style={{ fontSize: 11, color: "var(--ink-faint)", textAlign: "center" }}>
+          *Self-reported by users over 90 days. Your mileage will vary — but probably upward.
+        </p>
       </div>
     </section>
   )
 }
 
-// ── Benefits grid ────────────────────────────────────────────────────────
-
-function Benefits() {
-  const items = [
-    { icon: <ShieldCheck className="w-5 h-5" />, t: "Truth-guaranteed", d: "Every claim traces to your original CV. Nothing invented, ever." },
-    { icon: <Zap className="w-5 h-5" />, t: "~30 second runs", d: "Two fast passes instead of one slow one. Built for momentum." },
-    { icon: <Target className="w-5 h-5" />, t: "Computed match score", d: "Weighted requirement coverage you can audit — not model vibes." },
-    { icon: <Download className="w-5 h-5" />, t: "Word & text export", d: "Download as .doc or .txt, formatted and ATS-safe." },
-    { icon: <History className="w-5 h-5" />, t: "Full history", d: "Every tailored version saved with side-by-side comparison." },
-    { icon: <Clock className="w-5 h-5" />, t: "Role-aware writing", d: "Engineering, sales, healthcare — bullets follow your field's rules." },
-  ]
-  return (
-    <section className="py-24 px-5">
-      <div className="max-w-6xl mx-auto">
-        <Reveal className="text-center max-w-2xl mx-auto mb-14">
-          <h2 className="text-[clamp(30px,4.5vw,44px)] font-extrabold tracking-[-0.025em] leading-tight text-[#1e1813]">
-            Built to be trusted
-          </h2>
-          <p className="mt-4 text-lg text-gray-500">The details that make the difference between a tool and a platform.</p>
-        </Reveal>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {items.map((it, i) => (
-            <Reveal key={it.t} delay={(i % 3) * 80}>
-              <div className="h-full rounded-2xl border border-gray-100 p-6 hover:shadow-[0_12px_32px_rgba(30,24,19,0.06)] hover:border-gray-200 transition-all duration-200">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#fff7f4", color: ACCENT }}>
-                  {it.icon}
-                </div>
-                <h3 className="mt-4 text-[16px] font-bold text-[#1e1813]">{it.t}</h3>
-                <p className="mt-1.5 text-[14px] text-gray-500 leading-relaxed">{it.d}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
+function FeatGlyph({ k }: { k: string }) {
+  const box: React.CSSProperties = { width: 44, height: 44, borderRadius: 12,
+    background: "var(--thread-tint)", border: "1px solid rgba(61,107,245,.15)",
+    display: "grid", placeItems: "center" }
+  const s = { stroke: "#3d6bf5", strokeWidth: 1.6, fill: "none", strokeLinecap: "round" as const, strokeLinejoin: "round" as const }
+  const glyphs: Record<string, React.ReactNode> = {
+    tailor: <><path d="M5 6 L19 18 M19 6 L5 18" {...s} /><circle cx="5" cy="6" r="2" {...s} /><circle cx="5" cy="18" r="2" {...s} /></>,
+    score:  <><circle cx="12" cy="12" r="7.5" {...s} /><path d="M12 4.5 A7.5 7.5 0 0 1 18.5 9" {...s} stroke="#3d6bf5" strokeWidth="2.4" /></>,
+    diff:   <><path d="M5 8 H14 M5 12 H17 M5 16 H11" {...s} /><circle cx="19" cy="8" r="1.5" fill="#3d6bf5" stroke="none" /></>,
+    gaps:   <><path d="M12 4 V13 M12 17 V18.5" {...s} stroke="#3d6bf5" strokeWidth="2.2" /><path d="M4 20 H20" {...s} /></>,
+    scrape: <><path d="M9 13 a3 3 0 0 1 0-4 l2-2 a3 3 0 0 1 4 4 l-1 1" {...s} /><path d="M15 11 a3 3 0 0 1 0 4 l-2 2 a3 3 0 0 1-4-4 l1-1" {...s} /></>,
+    extras: <><rect x="5" y="4" width="14" height="16" rx="2" {...s} /><path d="M8 9 H16 M8 12 H16 M8 15 H13" {...s} /></>,
+  }
+  return <div style={box}><svg width="24" height="24" viewBox="0 0 24 24">{glyphs[k]}</svg></div>
 }
 
-// ── Beta section ─────────────────────────────────────────────────────────
-
-function Beta() {
+function Features() {
   const feats = [
-    "Unlimited tailoring while in beta",
-    "Evidence-checked match scores",
-    "Interview prep & STAR pitches",
-    "Live company analysis",
-    "Kanban job tracker",
-    "Word & text downloads",
+    { t: "Line-by-line tailoring", d: "Every bullet rewritten to mirror the job's language — reordered, sharpened, and ATS-safe.", k: "tailor" },
+    { t: "Match score, 0–100", d: "A ring badge that tells you how well you fit before you hit apply.", k: "score" },
+    { t: "Key changes, colour-coded", d: "See exactly what was improved, reordered, removed or added — no black box.", k: "diff" },
+    { t: "Gaps & follow-ups", d: "The requirements your CV can't yet support, plus interview questions to prep.", k: "gaps" },
+    { t: "Job-link auto-scrape", d: "Paste a LinkedIn, Indeed, Reed or Glassdoor URL — we fetch the description for you.", k: "scrape" },
+    { t: "Cover letters & pitches", d: "Generate a matched cover letter and 2–3 STAR interview stories on demand.", k: "extras" },
   ]
   return (
-    <section id="beta" className="py-24 px-5 bg-gray-50/50 border-y border-gray-100">
-      <div className="max-w-3xl mx-auto text-center">
-        <Reveal>
-          <p className={`${jetbrains.className} text-[12px] font-medium uppercase tracking-[0.16em]`} style={{ color: ACCENT }}>Pre-release</p>
-          <h2 className="mt-4 text-[clamp(30px,4.5vw,44px)] font-extrabold tracking-[-0.025em] leading-tight text-[#1e1813]">
-            Tailr is in beta. Everything&apos;s free for now.
-          </h2>
-          <p className="mt-4 text-lg text-gray-500 max-w-xl mx-auto">
-            We&apos;re building Tailr in the open. Use every feature free while we&apos;re in
-            pre-release — paid plans arrive later, and early users get plenty of notice.
-          </p>
-        </Reveal>
-        <Reveal delay={120}>
-          <div className="mt-10 rounded-2xl border border-gray-200 bg-white shadow-[0_16px_48px_rgba(30,24,19,0.07)] p-8 sm:p-10">
-            <div className="flex items-baseline justify-center gap-2">
-              <span className="text-6xl font-extrabold tracking-tight text-[#1e1813]">£0</span>
-              <span className="text-gray-400 font-medium">during beta</span>
-            </div>
-            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-left max-w-xl mx-auto">
-              {feats.map((f) => (
-                <div key={f} className="flex items-start gap-2.5 text-[14.5px] text-gray-600">
-                  <span className="mt-0.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center" style={{ background: "#ffeae4" }}>
-                    <Check className="w-2.5 h-2.5" style={{ color: ACCENT }} />
-                  </span>
-                  {f}
-                </div>
-              ))}
-            </div>
-            <Link
-              href="/tailor"
-              className="mt-9 inline-flex items-center gap-2 px-7 py-3.5 text-[15px] font-semibold text-white rounded-xl shadow-[0_8px_24px_rgba(220,79,51,0.3)] hover:-translate-y-0.5 transition-all"
-              style={{ background: ACCENT }}
-            >
-              Try the beta — free
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <p className="mt-4 text-[12px] text-gray-400">No card needed · magic-link sign-in · your feedback shapes what ships next</p>
-          </div>
-        </Reveal>
+    <section id="features" className="section" style={{ background: "#fff" }}>
+      <div className="wrap">
+        <div className="section-head">
+          <span className="eyebrow">What&apos;s in the kit</span>
+          <h2 className="display">Not a rewrite button. A whole <em>tailoring suite</em>.</h2>
+          <p className="lede">Everything you need to go from &ldquo;I&apos;ll just send the same CV&rdquo; to one that reads like it was written for the role.</p>
+        </div>
+        <div className="feat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 18 }}>
+          {feats.map((f, i) => (
+            <Reveal key={f.t} delay={(i % 3) * 90}>
+              <article className="feat-card" style={{ background: "var(--paper)", border: "1px solid var(--line)",
+                borderRadius: 14, padding: 24, height: "100%",
+                transition: "border-color .2s, transform .2s, box-shadow .2s" }}>
+                <FeatGlyph k={f.k} />
+                <h3 style={{ fontSize: 18, marginTop: 16, fontWeight: 700, letterSpacing: "-0.02em" }}>{f.t}</h3>
+                <p className="muted" style={{ marginTop: 9, fontSize: 15, lineHeight: 1.6 }}>{f.d}</p>
+              </article>
+            </Reveal>
+          ))}
+        </div>
       </div>
     </section>
   )
 }
 
-// ── Final CTA + footer ───────────────────────────────────────────────────
+function FeatList({ items, dark }: { items: string[]; dark?: boolean }) {
+  return (
+    <ul style={{ listStyle: "none", padding: 0, margin: "24px 0 0", display: "grid", gap: 12 }}>
+      {items.map((it) => (
+        <li key={it} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 15, lineHeight: 1.4 }}>
+          <span style={{ flexShrink: 0, marginTop: 1, width: 18, height: 18, borderRadius: 99,
+            background: dark ? "rgba(61,107,245,.3)" : "var(--thread-tint)",
+            border: dark ? "1px solid rgba(61,107,245,.4)" : "1px solid rgba(61,107,245,.2)",
+            display: "grid", placeItems: "center" }}>
+            <svg width="10" height="10" viewBox="0 0 12 12">
+              <path d="M2.5 6.2 L5 8.6 L9.5 3.5" fill="none"
+                stroke={dark ? "#6e9bff" : "#3d6bf5"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <span style={{ flex: 1, color: dark ? "rgba(238,242,250,.85)" : "var(--ink)" }}>{it}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
-function Footer() {
+function Pricing({ onCta }: { onCta: () => void }) {
+  const [annual, setAnnual] = useState(true)
+  const price = annual ? 9 : 12
+
+  const freeFeats = ["3 tailored CVs / month", "Match score & ATS check", "Key changes & gaps", "Download as .txt", "Saves your last CV"]
+  const premFeats = ["Unlimited tailoring", "Cover letters & STAR pitches", "Job-link auto-scrape", "Version history", "Priority AI & faster runs", "Everything in Starter"]
+
+  return (
+    <section id="pricing" className="section" style={{ background: "var(--paper)",
+      borderTop: "1px solid var(--line)" }}>
+      <div className="wrap">
+        <div className="section-head" style={{ marginInline: "auto", textAlign: "center", maxWidth: 640 }}>
+          <span className="eyebrow" style={{ justifyContent: "center" }}>Pricing</span>
+          <h2 className="display">Start free. <em>Scale up</em> when you need to.</h2>
+        </div>
+
+        {/* billing toggle */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 40 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: 4, background: "#fff",
+            border: "1px solid var(--line)", borderRadius: 10, boxShadow: "var(--shadow-sm)" }}>
+            {([["Monthly", false], ["Annual", true]] as const).map(([label, val]) => (
+              <button key={label} onClick={() => setAnnual(val)}
+                style={{ border: 0, borderRadius: 8, padding: "9px 18px", fontSize: 14, fontWeight: 600,
+                  fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8,
+                  background: annual === val ? "linear-gradient(135deg,#3d6bf5,#16a8e0)" : "transparent",
+                  color: annual === val ? "#fff" : "var(--ink-soft)", transition: "all .18s ease",
+                  cursor: "pointer" }}>
+                {label}
+                {val && <span className="mono" style={{ fontSize: 10, padding: "2px 7px", borderRadius: 99,
+                  background: annual === val ? "rgba(255,255,255,.2)" : "var(--thread-tint)",
+                  color: annual === val ? "#fff" : "var(--thread)" }}>−25%</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="price-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20,
+          maxWidth: 880, marginInline: "auto" }}>
+          {/* FREE */}
+          <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 16, padding: 32 }}>
+            <div className="mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase",
+              color: "var(--ink-soft)" }}>Starter</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 16 }}>
+              <span style={{ fontSize: 54, fontWeight: 800, letterSpacing: "-0.04em" }}>£0</span>
+              <span className="muted">forever</span>
+            </div>
+            <p className="muted" style={{ marginTop: 6, fontSize: 15 }}>For the occasional application.</p>
+            <button className="btn btn-ghost" onClick={onCta} style={{ width: "100%", marginTop: 20 }}>Get started free</button>
+            <FeatList items={freeFeats} />
+          </div>
+
+          {/* PRO */}
+          <div style={{ position: "relative", background: "#0c1018", color: "#eef2fa",
+            borderRadius: 16, padding: 32, boxShadow: "var(--shadow-lg)",
+            border: "1px solid rgba(61,107,245,.3)" }}>
+            <div style={{ position: "absolute", top: -1, left: 32, right: 32, height: 3, borderRadius: "0 0 4px 4px",
+              background: "linear-gradient(90deg,#3d6bf5,#16a8e0)" }} />
+            <span className="chip" style={{ position: "absolute", top: 20, right: 20,
+              background: "rgba(61,107,245,.15)", borderColor: "rgba(61,107,245,.3)",
+              color: "#6e9bff" }}>Most popular</span>
+            <div className="mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase",
+              color: "#6e9bff" }}>Pro</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 16 }}>
+              <span className="tnum" style={{ fontSize: 54, fontWeight: 800, letterSpacing: "-0.04em",
+                background: "linear-gradient(135deg,#6e9bff,#34d6ff)",
+                WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>£{price}</span>
+              <span style={{ color: "rgba(238,242,250,.6)" }}>/ month</span>
+            </div>
+            <p style={{ marginTop: 6, fontSize: 15, color: "rgba(238,242,250,.6)", minHeight: 22 }}>
+              {annual ? "Billed £108 yearly — two months free." : "Billed monthly. Cancel anytime."}
+            </p>
+            <button className="btn btn-primary" onClick={onCta} style={{ width: "100%", marginTop: 20 }}>
+              Go Pro
+            </button>
+            <FeatList items={premFeats} dark />
+          </div>
+        </div>
+        <p className="mono" style={{ fontSize: 11, color: "var(--ink-faint)", textAlign: "center", marginTop: 22 }}>
+          Magic-link sign-in · no passwords · cancel in two clicks
+        </p>
+      </div>
+    </section>
+  )
+}
+
+function Footer({ onCta }: { onCta: () => void }) {
   const cols: [string, string[]][] = [
-    ["Product", ["How it works", "Features", "Beta"]],
-    ["Company", ["About", "Blog", "Contact"]],
+    ["Product", ["How it works", "Features", "Pricing", "Changelog"]],
+    ["Company", ["About", "Blog", "Careers", "Contact"]],
     ["Legal", ["Privacy", "Terms", "Data & security"]],
   ]
   return (
-    <footer style={{ background: INK }}>
-      <div className="max-w-6xl mx-auto px-5 pt-20 pb-16 text-center border-b border-white/10">
-        <h2 className="text-[clamp(30px,5vw,52px)] font-extrabold tracking-[-0.025em] leading-tight text-white">
-          The next job won&apos;t <span style={{ color: ACCENT }}>tailor itself</span>.
+    <footer style={{ background: "#0c1018", color: "#eef2fa" }}>
+      {/* CTA band */}
+      <div className="wrap" style={{ padding: "80px 32px 64px", textAlign: "center",
+        borderBottom: "1px solid rgba(255,255,255,.08)" }}>
+        <h2 className="display" style={{ fontSize: "clamp(34px,5vw,58px)" }}>
+          The next job won&apos;t <em>tailor itself</em>.
         </h2>
-        <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
-          <Link
-            href="/tailor"
-            className="inline-flex items-center gap-2 px-7 py-3.5 text-[15px] font-semibold text-white rounded-xl hover:-translate-y-0.5 transition-all"
-            style={{ background: ACCENT }}
-          >
-            Tailor my CV — free
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-          <a href="#beta" className="inline-flex items-center px-7 py-3.5 text-[15px] font-semibold text-white rounded-xl border border-white/20 hover:border-white/40 transition-all">
-            About the beta
-          </a>
+        <p style={{ marginTop: 16, fontSize: 17, color: "rgba(238,242,250,.6)", maxWidth: "42ch", marginInline: "auto" }}>
+          Upload once. Paste any job. Get a CV that&apos;s rewritten to fit — in seconds.
+        </p>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 28, flexWrap: "wrap" }}>
+          <button className="btn btn-primary btn-lg" onClick={onCta}>Tailor my CV — free</button>
+          <a className="btn btn-lg" href="#pricing"
+            style={{ color: "#eef2fa", border: "1px solid rgba(255,255,255,.15)",
+              background: "transparent" }}>Compare plans</a>
         </div>
       </div>
-      <div className="max-w-6xl mx-auto px-5 py-14 grid grid-cols-2 md:grid-cols-[1.4fr_1fr_1fr_1fr] gap-10">
-        <div className="col-span-2 md:col-span-1">
-          <Wordmark light />
-          <p className="mt-4 text-[14px] text-white/50 leading-relaxed max-w-[32ch]">
-            Tailored CVs for every job worth applying to. Tailor, score, prep, track.
+      {/* links */}
+      <div className="wrap foot-grid" style={{ padding: "52px 32px", display: "grid",
+        gridTemplateColumns: "1.4fr repeat(3, 1fr)", gap: 32 }}>
+        <div>
+          <Wordmark dark />
+          <p style={{ marginTop: 16, fontSize: 14, color: "rgba(238,242,250,.5)", maxWidth: "34ch", lineHeight: 1.7 }}>
+            AI-powered CV tailoring for every job worth applying to. Tailor, score, apply.
           </p>
         </div>
         {cols.map(([h, links]) => (
           <div key={h}>
-            <p className={`${jetbrains.className} text-[10px] uppercase tracking-[0.16em] text-white/40`}>{h}</p>
-            <ul className="mt-4 space-y-2.5">
-              {links.map((l) => (
+            <div className="mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase",
+              color: "rgba(238,242,250,.35)" }}>{h}</div>
+            <ul style={{ listStyle: "none", padding: 0, margin: "14px 0 0", display: "grid", gap: 10 }}>
+              {links.map(l => (
                 <li key={l}>
-                  <a href="#" className="text-[14px] text-white/70 hover:text-white transition-colors">{l}</a>
+                  <a href="#" style={{ fontSize: 14, color: "rgba(238,242,250,.6)", transition: "color .15s ease" }}
+                    onMouseEnter={e => (e.currentTarget.style.color = "#fff")}
+                    onMouseLeave={e => (e.currentTarget.style.color = "rgba(238,242,250,.6)")}>{l}</a>
                 </li>
               ))}
             </ul>
           </div>
         ))}
       </div>
-      <div className="max-w-6xl mx-auto px-5 py-6 border-t border-white/10 flex items-center justify-between flex-wrap gap-3">
-        <span className={`${jetbrains.className} text-[11px] text-white/40`}>© 2026 Tailr Labs</span>
-        <span className={`${jetbrains.className} text-[11px] text-white/40`}>Cut to fit ✦ London</span>
+      <div className="wrap" style={{ padding: "20px 32px", borderTop: "1px solid rgba(255,255,255,.08)",
+        display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <span className="mono" style={{ fontSize: 12, color: "rgba(238,242,250,.3)" }}>© 2026 Leanframe</span>
+        <span className="mono" style={{ fontSize: 12, color: "rgba(238,242,250,.3)" }}>Built with precision ✦ London</span>
       </div>
     </footer>
   )
 }
 
-// ── Page ─────────────────────────────────────────────────────────────────
+// ── page ─────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
+  const onCta = useCallback(() => {
+    window.location.href = "/tailor"
+  }, [])
+
+  const scrollToPricing = useCallback(() => {
+    const el = document.getElementById("pricing")
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+    else window.location.href = "/tailor"
+  }, [])
+
   return (
-    <div id="top" className={`${hanken.className} ${hanken.variable} ${jetbrains.variable} bg-white antialiased`} style={{ color: INK }}>
-      <Nav />
+    <div id="top" className={`cl ${hanken.variable} ${jetbrains.variable}`}>
+      <Nav onCta={scrollToPricing} />
       <main>
-        <Hero />
-        <Stats />
-        <HowItWorks />
-        <Modules />
-        <Benefits />
-        <Beta />
+        <Hero onCta={scrollToPricing} />
       </main>
-      <Footer />
+      <HowItWorks />
+      <Stats />
+      <Features />
+      <Pricing onCta={onCta} />
+      <Footer onCta={onCta} />
     </div>
   )
 }
