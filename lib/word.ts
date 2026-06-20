@@ -95,7 +95,9 @@ export function buildCvHtml(text: string): string {
   body { font-family: Calibri, 'Segoe UI', Arial, sans-serif; color: ${BODY}; }
 </style>
 </head>
-<body>${out.join("\n")}</body></html>`
+<body>${out.join("\n")}
+<p style="margin:22pt 0 0 0;border-top:0.75pt solid #d8d4cd;padding-top:6pt;text-align:center;font-size:8pt;color:#a8a29e;letter-spacing:0.4pt;">Made with Tailr &middot; gettailr.vercel.app</p>
+</body></html>`
 }
 
 export function downloadWordDoc(text: string, filename = "tailored-cv.doc") {
