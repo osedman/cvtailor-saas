@@ -16,6 +16,7 @@ create table if not exists public.mailing_list (
   email       text not null unique,
   subscribed  boolean not null default true,   -- flip to false on unsubscribe
   source      text not null default 'signup',  -- signup | backfill | manual
+  welcomed_at timestamptz,                     -- set once the welcome email is sent
   created_at  timestamptz not null default now()
 );
 create index if not exists mailing_list_subscribed on public.mailing_list (subscribed);
