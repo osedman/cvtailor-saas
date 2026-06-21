@@ -8,7 +8,20 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
--- Auto-create profile on sign-up
+-- Mailing list — every new signup is auto-added (see handle_new_user below).
+-- RLS enabled with NO policies: service-role only, like login_events.
+create table if not exists public.mailing_list (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid references auth.users on delete set null,
+  email       text not null unique,
+  subscribed  boolean not null default true,   -- flip to false on unsubscribe
+  source      text not null default 'signup',  -- signup | backfill | manual
+  created_at  timestamptz not null default now()
+);
+create index if not exists mailing_list_subscribed on public.mailing_list (subscribed);
+alter table public.mailing_list enable row level security;
+
+-- Auto-create profile AND add to the mailing list on sign-up
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -16,7 +29,14 @@ security definer set search_path = public
 as $$
 begin
   insert into public.profiles (id, email)
-  values (new.id, new.email);
+  values (new.id, new.email)
+  on conflict (id) do nothing;
+
+  -- New rule: every new signup joins the mailing list (subscribed by default)
+  insert into public.mailing_list (user_id, email, source)
+  values (new.id, new.email, 'signup')
+  on conflict (email) do nothing;
+
   return new;
 end;
 $$;
