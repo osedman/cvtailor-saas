@@ -96,7 +96,7 @@ export function buildCvHtml(text: string): string {
 </style>
 </head>
 <body>${out.join("\n")}
-<p style="margin:22pt 0 0 0;border-top:0.75pt solid #d8d4cd;padding-top:6pt;text-align:center;font-size:8pt;color:#a8a29e;letter-spacing:0.4pt;">Made with Tailr &middot; gettailr.vercel.app</p>
+<p style="margin:22pt 0 0 0;border-top:0.75pt solid #d8d4cd;padding-top:6pt;text-align:center;font-size:8pt;color:#a8a29e;letter-spacing:0.4pt;">Made with Tailr &middot; gettailr.com</p>
 </body></html>`
 }
 
