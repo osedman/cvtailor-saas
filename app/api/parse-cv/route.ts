@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 export const maxDuration = 30
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
+  // pdf.js (via unpdf) needs DOMMatrix etc., which Vercel's Node runtime lacks.
+  // Install the polyfills before unpdf loads.
+  await import('@/lib/pdf-node-polyfill')
   // unpdf bundles a serverless-safe pdf.js build, so there is no web-worker to
   // configure (the previous pdfjs-dist worker setup failed on Vercel functions).
   const { extractText, getDocumentProxy } = await import('unpdf')
