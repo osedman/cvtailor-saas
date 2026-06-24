@@ -3,23 +3,12 @@ import { NextRequest, NextResponse } from 'next/server'
 export const maxDuration = 30
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  // Disable worker — not needed in Node.js environment
-  pdfjsLib.GlobalWorkerOptions.workerSrc = ''
-
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) })
-  const pdf = await loadingTask.promise
-
-  const pages: string[] = []
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i)
-    const content = await page.getTextContent()
-    const pageText = content.items
-      .map((item) => ('str' in item ? item.str : ''))
-      .join(' ')
-    pages.push(pageText)
-  }
-  return pages.join('\n\n')
+  // unpdf bundles a serverless-safe pdf.js build, so there is no web-worker to
+  // configure (the previous pdfjs-dist worker setup failed on Vercel functions).
+  const { extractText, getDocumentProxy } = await import('unpdf')
+  const pdf = await getDocumentProxy(new Uint8Array(buffer))
+  const { text } = await extractText(pdf, { mergePages: true })
+  return Array.isArray(text) ? text.join('\n\n') : text
 }
 
 async function extractDocxText(buffer: Buffer): Promise<string> {
