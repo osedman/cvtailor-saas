@@ -135,7 +135,7 @@ function HeroMockup() {
           <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
           <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
           <div className="mx-auto px-12 py-1 rounded-md bg-white border border-gray-100 text-[10px] text-gray-400 font-medium">
-            gettailr.vercel.app
+            gettailr.com
           </div>
         </div>
 
