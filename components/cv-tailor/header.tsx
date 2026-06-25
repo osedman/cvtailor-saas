@@ -37,7 +37,18 @@ export function Header({ onSignInClick, onHistoryClick }: HeaderProps) {
         }`}
       >
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <span className="text-lg font-medium text-[#1e1813] tracking-tight">Tailr</span>
+          <Link href="/" className="flex items-center gap-2" aria-label="Tailr home">
+            <svg width="26" height="26" viewBox="0 0 180 180" aria-hidden="true" className="rounded-[7px]">
+              <rect width="180" height="180" rx="40" fill="#1e1813" />
+              <path d="M92 50 V116 q0 16 16 16 H122" fill="none" stroke="#f9f6f0" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M66 76 H120" fill="none" stroke="#f9f6f0" strokeWidth="15" strokeLinecap="round" />
+              <circle cx="128" cy="50" r="10.5" fill="#dc4f33" />
+            </svg>
+            <span className="inline-flex items-baseline gap-0.5 text-lg font-extrabold tracking-tight text-[#1e1813]">
+              tailr
+              <span className="w-1.5 h-1.5 rounded-full inline-block -translate-y-px bg-[#dc4f33]" />
+            </span>
+          </Link>
 
           <div className="flex items-center gap-4">
             {/* Nav links — only for signed-in users */}
