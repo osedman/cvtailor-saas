@@ -40,7 +40,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        // token_hash verification route (stateless, works cross-device).
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
       },
     })
     return { error: error?.message ?? null }
