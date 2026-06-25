@@ -13,6 +13,7 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
 import { HistoryDrawer, type HistoryItem } from "@/components/cv-tailor/history-drawer"
 import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult } from "@/lib/anthropic"
+import { markOnboardingStep } from "@/lib/onboarding"
 
 /**
  * Safely read a JSON API response. If the body isn't JSON — e.g. Vercel's
@@ -67,6 +68,11 @@ export default function CVTailorPage() {
   const hasContent = cvText.length > 0 || jobDescription.length > 0
   const canTailor = cvText.length > 0 && jobDescription.length > 0
 
+  // Onboarding: tick "paste a job description" once there's content
+  useEffect(() => {
+    if (jobDescription.trim().length > 0) markOnboardingStep("job")
+  }, [jobDescription])
+
   const [loadingStatus, setLoadingStatus] = useState("Tailoring…")
   const [progressStep, setProgressStep] = useState(0)
   const [coverLetter, setCoverLetter] = useState<string | null>(null)
@@ -112,7 +118,7 @@ export default function CVTailorPage() {
       const ac = new AbortController()
       const timer = setTimeout(() => ac.abort(), 70_000)
 
-      let data: { result?: TailorResult; historyId?: string | null; error?: string }
+      let data: { result?: TailorResult; historyId?: string | null; compressed?: boolean; error?: string }
       try {
         const res = await fetch("/api/tailor", {
           method: "POST",
@@ -135,6 +141,11 @@ export default function CVTailorPage() {
       setResults(data.result)
       setHistoryId(data.historyId ?? null)
       setTailoredFromCv(cvText)
+      markOnboardingStep("tailor")
+
+      if (data.compressed) {
+        toast.info("Your CV was quite long, so we removed formatting noise before tailoring. All your experience and content is preserved.", { duration: 8000 })
+      }
     } catch (err) {
       const aborted = err instanceof DOMException && err.name === "AbortError"
       toast.error(
@@ -193,6 +204,7 @@ export default function CVTailorPage() {
       })
       const data = await readJson<InterviewPrepResult>(res)
       setPrepQuestions(data.interviewQuestions)
+      markOnboardingStep("prep")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate interview prep.")
     } finally {
