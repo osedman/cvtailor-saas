@@ -8,6 +8,35 @@ import { sanitizeDeep } from '@/lib/sanitize'
 
 export const maxDuration = 60
 
+const CV_RAW_LIMIT = 30_000
+const CV_COMPRESS_THRESHOLD = 12_000
+
+// ── Pass 0: strip formatting noise from long CVs (Haiku — fast) ─────────
+
+async function compressCV(cv: string): Promise<string> {
+  const message = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 4000,
+    messages: [{
+      role: 'user',
+      content: `You are preparing a CV for AI processing. Strip formatting noise without losing any career content.
+
+REMOVE: page headers/footers repeated across pages, page numbers ("Page 1 of 2", "1 | Name"), "Curriculum Vitae" title decorations, repeated contact lines (keep one at the top), decorative separators (====, ----, • • •, ___), "References available on request", redundant blank lines (max two in a row).
+
+KEEP: every work experience bullet, every role and date, all skills, education, certifications, projects, and achievements. Preserve structure and section headings — only remove noise.
+
+Return ONLY the cleaned CV text. No commentary, no preamble.
+
+CV:
+${cv}`,
+    }],
+  })
+
+  const block = message.content.find((b) => b.type === 'text')
+  const cleaned = block?.type === 'text' ? block.text.trim() : ''
+  return cleaned && cleaned.length < cv.length ? cleaned : cv
+}
+
 // ── Pass 1: extract requirements + evidence map (Haiku — fast) ──────────
 
 async function extractRequirements(cv: string, jobDescription: string): Promise<ExtractResult> {
@@ -18,7 +47,7 @@ async function extractRequirements(cv: string, jobDescription: string): Promise<
     tool_choice: { type: 'tool', name: 'submit_requirements_map' },
     messages: [{
       role: 'user',
-      content: `Extract the requirements from this job description and map each one against the candidate's CV evidence. Judge evidence strength STRICTLY — "strong" needs direct, explicit CV support.\n\nCV:\n\n${cv}\n\n---\n\nJob Description:\n\n${jobDescription}`,
+      content: `Extract the requirements from this job description and map each one against the candidate's CV evidence. Judge evidence strength STRICTLY — "strong" needs direct, explicit CV support. The companyName is the company HIRING for this role and must come ONLY from the Job Description below — never from the candidate's CV or employment history.\n\nCV:\n\n${cv}\n\n---\n\nJob Description:\n\n${jobDescription}`,
     }],
   })
 
@@ -83,7 +112,7 @@ async function rewriteCV(cv: string, jobDescription: string, extract: ExtractRes
   const message = await anthropic.messages.create(
     {
       model: 'claude-sonnet-4-6',
-      max_tokens: 5000,
+      max_tokens: 8000,
       system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       tools: [REWRITE_TOOL],
       tool_choice: { type: 'tool', name: 'submit_tailored_result' },
@@ -138,16 +167,24 @@ export async function POST(req: NextRequest) {
     if (!cv || !jobDescription) {
       return NextResponse.json({ error: 'Both cv and jobDescription are required' }, { status: 400 })
     }
-    if (cv.length > 20_000 || jobDescription.length > 10_000) {
-      return NextResponse.json({ error: 'Input too long. CV max 20,000 chars, job description max 10,000.' }, { status: 400 })
+    if (cv.length > CV_RAW_LIMIT || jobDescription.length > 10_000) {
+      return NextResponse.json({ error: 'Input too long. CV max 30,000 chars, job description max 10,000.' }, { status: 400 })
     }
 
-    // 3. Pass 1 — extract + map (fast)
-    const extract = await extractRequirements(cv, jobDescription)
+    // 3. Pass 0 — compress if long (strips page noise, preserves all content)
+    let processedCv = cv
+    let compressed = false
+    if (cv.length > CV_COMPRESS_THRESHOLD) {
+      processedCv = await compressCV(cv)
+      compressed = true
+    }
+
+    // 4. Pass 1 — extract + map (fast)
+    const extract = await extractRequirements(processedCv, jobDescription)
     const matchScore = computeMatchScore(extract.requirements)
 
-    // 4. Pass 2 — rewrite grounded in the map
-    const rewrite = await rewriteCV(cv, jobDescription, extract)
+    // 5. Pass 2 — rewrite grounded in the map
+    const rewrite = await rewriteCV(processedCv, jobDescription, extract)
     if (rewrite.truncated) {
       return NextResponse.json(
         { error: 'Your CV is a bit long for one pass — try trimming it slightly and tailoring again.' },
@@ -156,7 +193,7 @@ export async function POST(req: NextRequest) {
     }
     const raw = rewrite.raw!
 
-    // 5. Normalise + assemble the final result
+    // 6. Normalise + assemble the final result
     const atsNotesRaw = (raw.atsNotes && typeof raw.atsNotes === 'object')
       ? raw.atsNotes as Record<string, unknown>
       : {}
@@ -195,7 +232,7 @@ export async function POST(req: NextRequest) {
       seniority: extract.seniority,
     })
 
-    // 6. Track usage (fire-and-forget) + save to history (blocking — we need
+    // 7. Track usage (fire-and-forget) + save to history (blocking — we need
     // the row id back so the client can attach feedback to this run)
     const jobSnippet = jobDescription.trim().slice(0, 200)
 
@@ -213,7 +250,7 @@ export async function POST(req: NextRequest) {
           job_snippet:  jobSnippet,
           job_description: jobDescription,
           match_score:  result.matchScore,
-          original_cv:  cv,
+          original_cv:  processedCv,
           result,
         })
         .select('id')
@@ -223,7 +260,7 @@ export async function POST(req: NextRequest) {
       console.error('[tailor] history save failed:', e)
     }
 
-    return NextResponse.json({ result, historyId })
+    return NextResponse.json({ result, historyId, compressed })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     const status = (err as { status?: number })?.status

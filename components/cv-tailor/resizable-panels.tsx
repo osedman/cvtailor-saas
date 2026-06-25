@@ -12,6 +12,9 @@ interface ResizablePanelsProps {
   onJobUrlScraped?: (url: string) => void
 }
 
+const CV_COMPRESS_THRESHOLD = 12_000
+const CV_RAW_LIMIT = 30_000
+
 function wordCount(text: string) {
   return text.trim() ? text.trim().split(/\s+/).length : 0
 }
@@ -30,6 +33,31 @@ function WordCountBadge({ count }: { count: number }) {
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border font-medium ${color}`}>
       {count.toLocaleString()} words · {label}
+    </span>
+  )
+}
+
+function CharLengthBar({ charCount }: { charCount: number }) {
+  if (charCount === 0) return null
+
+  const isOver = charCount > CV_RAW_LIMIT
+  const isVeryLong = charCount >= CV_COMPRESS_THRESHOLD
+  const pct = Math.min((charCount / CV_RAW_LIMIT) * 100, 100)
+
+  if (!isVeryLong) return null
+
+  const barColor = isOver ? "bg-red-400" : "bg-amber-400"
+  const textColor = isOver ? "text-red-500" : "text-amber-500"
+  const message = isOver
+    ? "CV too long — please trim before tailoring"
+    : "Long CV detected — we'll auto-compress before tailoring"
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium ${textColor}`}>
+      <span className="w-14 h-1 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
+        <span className={`block h-full ${barColor} rounded-full`} style={{ width: `${pct}%` }} />
+      </span>
+      {message}
     </span>
   )
 }
@@ -111,6 +139,13 @@ export function ResizablePanels({
       setCvText(data.text)
       setCvFileName(file.name)
       localStorage.setItem("cvtailor:cv-filename", file.name)
+
+      if (ext === 'pdf' && data.text.length > 8_000) {
+        toast("Word docs usually extract more cleanly than PDFs. If you have a .docx version, try uploading that instead for best results.", {
+          duration: 7000,
+          icon: "💡",
+        })
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to parse file")
     } finally {
@@ -268,14 +303,17 @@ export function ResizablePanels({
             />
           )}
 
-          {/* Footer: word count */}
+          {/* Footer: word count + length bar */}
           <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 border-t border-gray-100 bg-gray-50/50">
-            {words > 0 ? (
-              <WordCountBadge count={words} />
-            ) : (
-              <span className="text-[10px] text-gray-300">Ideal: 400–700 words</span>
-            )}
-            <span className="text-[10px] text-gray-400">{cvText.length.toLocaleString()} chars</span>
+            <div className="flex items-center gap-2 min-w-0">
+              {words > 0 ? (
+                <WordCountBadge count={words} />
+              ) : (
+                <span className="text-[10px] text-gray-300">Ideal: 400–700 words</span>
+              )}
+              <CharLengthBar charCount={cvText.length} />
+            </div>
+            <span className="text-[10px] text-gray-400 flex-shrink-0">{cvText.length.toLocaleString()} chars</span>
           </div>
         </div>
       </div>

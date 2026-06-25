@@ -11,6 +11,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  serverExternalPackages: ['pdfjs-dist'],
   turbopack: {
     root: __dirname,
   },
