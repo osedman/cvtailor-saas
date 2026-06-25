@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { Sparkles, X, Check, ChevronDown, ChevronUp, ArrowRight, Rocket } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
+import { isAdminEmail } from "@/lib/admin"
 import {
   ONBOARDING_STEPS, isStepDone, onboardingProgress, isOnboardingComplete,
   isOnboardingDismissed, dismissOnboarding, hasSeenWelcome, markWelcomeSeen,
@@ -173,7 +174,9 @@ export function Onboarding() {
     setShowWelcome(false)
   }, [])
 
-  if (!mounted || loading || !user || !inApp) return null
+  // Gated to the admin account for now so it can be reviewed in production
+  // before rolling out to all users.
+  if (!mounted || loading || !user || !inApp || !isAdminEmail(user.email)) return null
 
   const complete = isOnboardingComplete()
   const dismissed = isOnboardingDismissed()
