@@ -29,7 +29,7 @@ function FormattedCV({ text }: { text: string }) {
           return <p key={i} className="text-base font-bold text-[#1e1813] tracking-tight">{trimmed}</p>
         }
         if (isHeading) {
-          return <p key={i} className="text-xs font-bold uppercase tracking-widest text-gray-500 pt-4 pb-1 border-b border-gray-100">{trimmed}</p>
+          return <p key={i} className="text-sm font-bold uppercase tracking-widest text-[#dc4f33] pt-5 pb-1.5 mb-1 border-b-2 border-[#dc4f33]/30">{trimmed}</p>
         }
         if (isBullet) {
           return (

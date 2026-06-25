@@ -154,7 +154,7 @@ export const EXTRACT_TOOL: Anthropic.Tool = {
       },
       companyName: {
         type: "string",
-        description: "The hiring company name from the job description. Empty string if not found.",
+        description: "The hiring company that POSTED this job — extract ONLY from the job description, never from the candidate's CV or work history (the candidate's current/past employers are NOT the hiring company). If the job description does not explicitly name the hiring company, return an empty string.",
       },
       roleFamily: {
         type: "string",
