@@ -6,6 +6,7 @@ import Link from "next/link"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { JobTrackerBoard } from "@/components/tracker/job-tracker-board"
+import { markOnboardingStep } from "@/lib/onboarding"
 
 export default function TrackerPage() {
   const router = useRouter()
@@ -14,6 +15,11 @@ export default function TrackerPage() {
   useEffect(() => {
     if (!authLoading && !user) router.push("/tailor")
   }, [authLoading, user, router])
+
+  // Onboarding: visiting the tracker counts as exploring it
+  useEffect(() => {
+    if (user) markOnboardingStep("tracker")
+  }, [user])
 
   if (authLoading || !user) {
     return (
