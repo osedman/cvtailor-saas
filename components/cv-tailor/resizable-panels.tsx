@@ -10,6 +10,7 @@ interface ResizablePanelsProps {
   jobDescription: string
   setJobDescription: (text: string) => void
   onJobUrlScraped?: (url: string) => void
+  enhanced?: boolean
 }
 
 function wordCount(text: string) {
@@ -40,7 +41,17 @@ export function ResizablePanels({
   jobDescription,
   setJobDescription,
   onJobUrlScraped,
+  enhanced = false,
 }: ResizablePanelsProps) {
+  // Shared style fragments toggled by the enhanced (gated) workspace UI.
+  const panelShell = enhanced
+    ? "bg-white border border-[#ece6da] rounded-2xl shadow-[0_1px_2px_rgba(30,24,19,0.04),0_8px_24px_rgba(30,24,19,0.05)]"
+    : "bg-gray-50/50 shadow-[inset_0_1px_3px_rgba(0,0,0,0.04)]"
+  const panelHeaderBg = enhanced ? "bg-white border-b border-[#f0ebe1]" : "bg-gray-50/80 border-b border-gray-100"
+  const panelFooterBg = enhanced ? "bg-[#faf8f3] border-t border-[#f0ebe1]" : "bg-gray-50/50 border-t border-gray-100"
+  const labelCls = enhanced
+    ? "text-[11px] font-bold uppercase tracking-[1px] text-[#dc4f33]"
+    : "text-xs font-medium text-[#dc4f33]"
   const [leftWidth, setLeftWidth] = useState(50)
   const [isDragging, setIsDragging] = useState(false)
   const [cvFileName, setCvFileName] = useState<string | null>(null)
@@ -174,19 +185,19 @@ export function ResizablePanels({
       {/* ── Left Panel: CV ── */}
       <div className="flex flex-col p-4" style={{ width: `${leftWidth}%` }}>
         <div
-          className={`relative flex-1 flex flex-col rounded-lg bg-gray-50/50 overflow-hidden transition-all duration-150 ${
+          className={`relative flex-1 flex flex-col rounded-lg overflow-hidden transition-all duration-150 ${
             isDroppingCv
               ? "ring-2 ring-[#dc4f33] shadow-[inset_0_2px_12px_rgba(220,79,51,0.1)]"
-              : "shadow-[inset_0_1px_3px_rgba(0,0,0,0.04)]"
+              : panelShell
           }`}
           onDragOver={(e) => { e.preventDefault(); setIsDroppingCv(true) }}
           onDragLeave={() => setIsDroppingCv(false)}
           onDrop={handleFileDrop}
         >
           {/* Panel header */}
-          <div className="flex-shrink-0 flex items-center justify-between px-3 pt-2.5 pb-1.5 bg-gray-50/80 border-b border-gray-100">
+          <div className={`flex-shrink-0 flex items-center justify-between px-3 pt-2.5 pb-1.5 ${panelHeaderBg}`}>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-[#dc4f33]">Your CV</span>
+              <span className={labelCls}>Your CV</span>
               {cvFileName && (
                 <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
                   <FileText className="w-2.5 h-2.5" />
@@ -269,7 +280,7 @@ export function ResizablePanels({
           )}
 
           {/* Footer: word count */}
-          <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 border-t border-gray-100 bg-gray-50/50">
+          <div className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 ${panelFooterBg}`}>
             {words > 0 ? (
               <WordCountBadge count={words} />
             ) : (
@@ -294,10 +305,10 @@ export function ResizablePanels({
 
       {/* ── Right Panel: Job Description ── */}
       <div className="flex flex-col p-4" style={{ width: `${100 - leftWidth}%` }}>
-        <div className="relative flex-1 flex flex-col rounded-lg bg-gray-50/50 overflow-hidden shadow-[inset_0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className={`relative flex-1 flex flex-col rounded-lg overflow-hidden ${panelShell}`}>
           {/* Panel header */}
-          <div className="flex-shrink-0 px-3 pt-2.5 pb-1.5 bg-gray-50/80 border-b border-gray-100">
-            <span className="text-xs font-medium text-[#dc4f33]">Job Description</span>
+          <div className={`flex-shrink-0 px-3 pt-2.5 pb-1.5 ${panelHeaderBg}`}>
+            <span className={labelCls}>Job Description</span>
           </div>
 
           {/* URL scraper bar */}
@@ -331,7 +342,7 @@ export function ResizablePanels({
           />
 
           {/* Footer */}
-          <div className="flex-shrink-0 flex items-center justify-end px-3 py-1.5 border-t border-gray-100 bg-gray-50/50">
+          <div className={`flex-shrink-0 flex items-center justify-end px-3 py-1.5 ${panelFooterBg}`}>
             <span className="text-[10px] text-gray-400">{jobDescription.length.toLocaleString()} chars</span>
           </div>
         </div>

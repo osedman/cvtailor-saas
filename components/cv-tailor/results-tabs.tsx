@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles, ThumbsUp, ThumbsDown, Building2 } from "lucide-react"
+import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles, ThumbsUp, ThumbsDown, Building2, FileText, GitCompare, Mail, MessagesSquare, ListChecks, Pencil, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import type { TailorResult, InterviewPrepResult, PitchesResult } from "@/lib/anthropic"
@@ -138,6 +138,8 @@ interface ResultsTabsProps {
   onGenerateCompany?: () => void
   /** tailor_history row id — enables the feedback bar */
   historyId?: string | null
+  /** Enhanced (gated) workspace styling */
+  enhanced?: boolean
 }
 
 const tabs = [
@@ -153,6 +155,18 @@ const tabs = [
 ] as const
 
 type TabName = (typeof tabs)[number]
+
+const TAB_ICONS: Record<TabName, LucideIcon> = {
+  "Tailored CV": FileText,
+  "Compare": GitCompare,
+  "Cover Letter": Mail,
+  "Interview Prep": MessagesSquare,
+  "Company": Building2,
+  "Key Changes": Pencil,
+  "Gaps": ListChecks,
+  "Follow-ups": MessagesSquare,
+  "ATS Notes": CheckCircle,
+}
 
 export function ResultsTabs({
   results,
@@ -170,6 +184,7 @@ export function ResultsTabs({
   loadingCompany = false,
   onGenerateCompany,
   historyId = null,
+  enhanced = false,
 }: ResultsTabsProps) {
   // Interview Prep only appears where a generator is wired up (the tailor page).
   // There, Follow-ups live inside the prep tab; in the read-only history view
@@ -219,22 +234,26 @@ export function ResultsTabs({
       {/* Tab bar */}
       <div className="relative border-b border-gray-100">
         <div className="flex gap-1 flex-wrap">
-          {visibleTabs.map((tab) => (
-            <button
-              key={tab}
-              ref={(el) => {
-                if (el) tabRefs.current.set(tab, el)
-              }}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-3 text-sm transition-colors duration-150 ${
-                activeTab === tab
-                  ? "text-[#1e1813] font-medium"
-                  : "text-gray-400 hover:text-gray-600"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+          {visibleTabs.map((tab) => {
+            const Icon = TAB_ICONS[tab]
+            return (
+              <button
+                key={tab}
+                ref={(el) => {
+                  if (el) tabRefs.current.set(tab, el)
+                }}
+                onClick={() => setActiveTab(tab)}
+                className={`inline-flex items-center gap-1.5 px-4 py-3 text-sm transition-colors duration-150 ${
+                  activeTab === tab
+                    ? "text-[#1e1813] font-medium"
+                    : enhanced ? "text-gray-400 hover:text-[#dc4f33]" : "text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                {enhanced && <Icon className="w-4 h-4" />}
+                {tab}
+              </button>
+            )
+          })}
         </div>
         {/* Animated underline */}
         <div
