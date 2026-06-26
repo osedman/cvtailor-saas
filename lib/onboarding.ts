@@ -4,13 +4,15 @@
  * the getting-started checklist re-reads on the "tailr:onboarding" event.
  */
 
-export type OnboardingStep = "cv" | "job" | "tailor" | "prep" | "tracker"
+export type OnboardingStep = "cv" | "job" | "tailor" | "prep" | "cover" | "company" | "tracker"
 
 export const ONBOARDING_STEPS: { id: OnboardingStep; label: string; hint: string }[] = [
   { id: "cv", label: "Add your CV", hint: "Upload a PDF or DOCX, or paste it in" },
   { id: "job", label: "Paste a job description", hint: "Or drop a LinkedIn / Indeed link to auto-fill" },
   { id: "tailor", label: "Run your first tailor", hint: "Get an evidence-checked rewrite and match score" },
   { id: "prep", label: "Explore interview prep", hint: "Predicted questions with answer frameworks" },
+  { id: "cover", label: "Generate a cover letter", hint: "A tailored cover letter in one click" },
+  { id: "company", label: "Research the company", hint: "A quick brief on the company you're applying to" },
   { id: "tracker", label: "Open your job tracker", hint: "Track every application on one board" },
 ]
 
@@ -47,6 +49,19 @@ export function onboardingProgress(): { done: number; total: number } {
 
 export function isOnboardingComplete(): boolean {
   return onboardingProgress().done === ONBOARDING_STEPS.length
+}
+
+/**
+ * The next incomplete step among the core setup flow (cv → job → tailor),
+ * used to drive the numbered coachmarks on the workspace. Returns null once
+ * the user has run their first tailor (or dismissed onboarding).
+ */
+export function activeSetupStep(): "cv" | "job" | "tailor" | null {
+  if (isOnboardingDismissed()) return null
+  if (!isStepDone("cv")) return "cv"
+  if (!isStepDone("job")) return "job"
+  if (!isStepDone("tailor")) return "tailor"
+  return null
 }
 
 export function isOnboardingDismissed(): boolean {
