@@ -11,6 +11,20 @@ interface ResizablePanelsProps {
   setJobDescription: (text: string) => void
   onJobUrlScraped?: (url: string) => void
   enhanced?: boolean
+  /** Drives the onboarding coachmark badges on the panel headers. */
+  guideStep?: "cv" | "job" | "tailor" | null
+}
+
+function CoachBadge({ n, label }: { n: number; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 ml-2 align-middle">
+      <span className="relative flex h-5 w-5 flex-shrink-0">
+        <span className="absolute inline-flex h-full w-full rounded-full bg-[#dc4f33] opacity-40 animate-ping" />
+        <span className="relative inline-flex h-5 w-5 rounded-full bg-[#dc4f33] text-white text-[11px] font-extrabold items-center justify-center">{n}</span>
+      </span>
+      <span className="text-[11px] font-semibold text-[#dc4f33]">{label}</span>
+    </span>
+  )
 }
 
 function wordCount(text: string) {
@@ -42,6 +56,7 @@ export function ResizablePanels({
   setJobDescription,
   onJobUrlScraped,
   enhanced = false,
+  guideStep = null,
 }: ResizablePanelsProps) {
   // Shared style fragments toggled by the enhanced (gated) workspace UI.
   const panelShell = enhanced
@@ -198,6 +213,7 @@ export function ResizablePanels({
           <div className={`flex-shrink-0 flex items-center justify-between px-3 pt-2.5 pb-1.5 ${panelHeaderBg}`}>
             <div className="flex items-center gap-2">
               <span className={labelCls}>Your CV</span>
+              {guideStep === "cv" && <CoachBadge n={1} label="Start here" />}
               {cvFileName && (
                 <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
                   <FileText className="w-2.5 h-2.5" />
@@ -309,6 +325,7 @@ export function ResizablePanels({
           {/* Panel header */}
           <div className={`flex-shrink-0 px-3 pt-2.5 pb-1.5 ${panelHeaderBg}`}>
             <span className={labelCls}>Job Description</span>
+            {guideStep === "job" && <CoachBadge n={2} label="Next" />}
           </div>
 
           {/* URL scraper bar */}

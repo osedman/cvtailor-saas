@@ -13,7 +13,9 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
 import { HistoryDrawer, type HistoryItem } from "@/components/cv-tailor/history-drawer"
 import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult } from "@/lib/anthropic"
-import { markOnboardingStep } from "@/lib/onboarding"
+import { markOnboardingStep, isOnboardingDismissed } from "@/lib/onboarding"
+import { isAdminEmail } from "@/lib/admin"
+import { Lightbulb, X } from "lucide-react"
 
 /**
  * Safely read a JSON API response. If the body isn't JSON — e.g. Vercel's
@@ -89,6 +91,17 @@ export default function CVTailorPage() {
   const [loadingCompany, setLoadingCompany] = useState(false)
   const [historyId, setHistoryId] = useState<string | null>(null)
   const [tailoredFromCv, setTailoredFromCv] = useState<string | null>(null)
+  const [nudgeDismissed, setNudgeDismissed] = useState(false)
+
+  // Onboarding guidance (coachmarks, feature strip, post-tailor nudge) —
+  // gated to the admin account for review before a wider rollout.
+  const guideEnabled = isAdminEmail(user?.email) && !isOnboardingDismissed()
+  const guideStep: "cv" | "job" | "tailor" | null = !guideEnabled
+    ? null
+    : cvText.length === 0 ? "cv"
+    : jobDescription.length === 0 ? "job"
+    : !results ? "tailor"
+    : null
 
   const handleTailor = useCallback(async () => {
     if (!canTailor) return
@@ -172,6 +185,7 @@ export default function CVTailorPage() {
       })
       const data = await readJson<CoverLetterResult>(res)
       setCoverLetter(data.coverLetter)
+      markOnboardingStep("cover")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate cover letter.")
     } finally {
@@ -229,6 +243,7 @@ export default function CVTailorPage() {
       })
       const data = await readJson<{ companyAnalysis: string }>(res)
       setCompanyAnalysis(data.companyAnalysis)
+      markOnboardingStep("company")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to analyse company.")
     } finally {
@@ -260,6 +275,7 @@ export default function CVTailorPage() {
         <div className={`flex-1 flex flex-col min-h-[60vh] ${enhanced ? "pt-5" : ""}`}>
           <ResizablePanels
             enhanced={enhanced}
+            guideStep={guideStep}
             cvText={cvText}
             setCvText={setCvText}
             jobDescription={jobDescription}
@@ -289,12 +305,26 @@ export default function CVTailorPage() {
           {!user && canTailor && !isLoading && (
             <p className="text-xs text-gray-400">Sign in to tailor your CV</p>
           )}
+          {guideStep === "tailor" && user && !isLoading && (
+            <p className="inline-flex items-center gap-2 text-xs font-medium text-[#dc4f33]">
+              <span className="w-5 h-5 rounded-full bg-[#dc4f33] text-white text-[11px] font-extrabold flex items-center justify-center">3</span>
+              You&apos;re all set — hit Tailor my CV
+            </p>
+          )}
         </div>
 
         {/* Results section */}
         <div className="pb-12">
           {results ? (
             <>
+              {guideEnabled && !nudgeDismissed && (
+                <NextStepNudge
+                  prepDone={!!prepQuestions}
+                  coverDone={!!coverLetter}
+                  companyDone={!!companyAnalysis}
+                  onDismiss={() => setNudgeDismissed(true)}
+                />
+              )}
               <div className={`relative z-10 ${enhanced ? "" : "bg-white"}`}>
                 <ResultsTabs
                   enhanced={enhanced}
@@ -317,7 +347,7 @@ export default function CVTailorPage() {
               </div>
             </>
           ) : !hasContent ? (
-            <EmptyState />
+            <EmptyState guide={guideEnabled} />
           ) : null}
         </div>
       </main>
@@ -329,6 +359,31 @@ export default function CVTailorPage() {
         onClose={() => setHistoryOpen(false)}
         onRestore={handleRestoreHistory}
       />
+    </div>
+  )
+}
+
+function NextStepNudge({
+  prepDone, coverDone, companyDone, onDismiss,
+}: { prepDone: boolean; coverDone: boolean; companyDone: boolean; onDismiss: () => void }) {
+  // Point the user at the first feature they haven't explored yet.
+  const next =
+    !prepDone ? { tab: "Interview Prep", desc: "see the questions you'll likely be asked" } :
+    !coverDone ? { tab: "Cover Letter", desc: "generate a tailored cover letter in one click" } :
+    !companyDone ? { tab: "Company", desc: "get a quick brief on the company" } :
+    null
+  if (!next) return null
+
+  return (
+    <div className="mb-4 flex items-center gap-3 bg-[#fff7f4] border border-[#f5d9d0] rounded-xl px-4 py-3">
+      <Lightbulb className="w-4 h-4 text-[#dc4f33] flex-shrink-0" />
+      <p className="flex-1 text-[13px] text-[#1e1813]">
+        Nice — your CV is tailored. <span className="font-semibold">Next:</span> open the{" "}
+        <span className="font-semibold text-[#dc4f33]">{next.tab}</span> tab to {next.desc}.
+      </p>
+      <button onClick={onDismiss} className="p-1 -mr-1 rounded text-gray-300 hover:text-gray-500 hover:bg-black/5 transition-colors" aria-label="Dismiss tip">
+        <X className="w-3.5 h-3.5" />
+      </button>
     </div>
   )
 }
