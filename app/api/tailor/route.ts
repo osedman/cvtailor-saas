@@ -5,6 +5,7 @@ import {
 } from '@/lib/anthropic'
 import { createClient } from '@/lib/supabase/server'
 import { sanitizeDeep } from '@/lib/sanitize'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
@@ -132,6 +133,10 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     }
+
+    // 1b. Rate limit (protects against runaway Claude API cost / abuse)
+    const limited = await checkRateLimit(user.id, 'tailor')
+    if (limited) return limited
 
     // 2. Validate input
     const { cv, jobDescription, jobUrl } = await req.json()

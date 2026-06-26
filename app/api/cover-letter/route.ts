@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { anthropic, COVER_LETTER_TOOL } from '@/lib/anthropic'
 import { createClient } from '@/lib/supabase/server'
 import { sanitizeDeep } from '@/lib/sanitize'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
@@ -10,6 +11,9 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+
+    const limited = await checkRateLimit(user.id, 'ai')
+    if (limited) return limited
 
     const { cv, jobDescription } = await req.json()
     if (!cv || !jobDescription) return NextResponse.json({ error: 'Missing inputs' }, { status: 400 })
