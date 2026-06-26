@@ -14,7 +14,6 @@ import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
 import { HistoryDrawer, type HistoryItem } from "@/components/cv-tailor/history-drawer"
 import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult } from "@/lib/anthropic"
 import { markOnboardingStep } from "@/lib/onboarding"
-import { isAdminEmail } from "@/lib/admin"
 
 /**
  * Safely read a JSON API response. If the body isn't JSON — e.g. Vercel's
@@ -60,9 +59,8 @@ function AuthErrorHandler() {
 
 export default function CVTailorPage() {
   const { user } = useAuth()
-  // Enhanced workspace UI — gated to the admin account for production review
-  // before a wider rollout. Flip to `true` to ship to everyone.
-  const enhanced = isAdminEmail(user?.email)
+  // Enhanced workspace UI — now rolled out to everyone.
+  const enhanced = true
   const [cvText, setCvText] = useState("")
   const [jobDescription, setJobDescription] = useState("")
   const [isLoading, setIsLoading] = useState(false)
