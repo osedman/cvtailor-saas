@@ -14,6 +14,7 @@ import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
 import { HistoryDrawer, type HistoryItem } from "@/components/cv-tailor/history-drawer"
 import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult } from "@/lib/anthropic"
 import { markOnboardingStep } from "@/lib/onboarding"
+import { isAdminEmail } from "@/lib/admin"
 
 /**
  * Safely read a JSON API response. If the body isn't JSON — e.g. Vercel's
@@ -59,6 +60,9 @@ function AuthErrorHandler() {
 
 export default function CVTailorPage() {
   const { user } = useAuth()
+  // Enhanced workspace UI — gated to the admin account for production review
+  // before a wider rollout. Flip to `true` to ship to everyone.
+  const enhanced = isAdminEmail(user?.email)
   const [cvText, setCvText] = useState("")
   const [jobDescription, setJobDescription] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -245,17 +249,19 @@ export default function CVTailorPage() {
   }, [])
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className={`min-h-screen flex flex-col ${enhanced ? "bg-[#f4f1ea]" : "bg-white"}`}>
       <Suspense fallback={null}><AuthErrorHandler /></Suspense>
       <Header
+        enhanced={enhanced}
         onSignInClick={() => setShowSignIn(true)}
         onHistoryClick={() => setHistoryOpen(true)}
       />
 
       <main className="flex-1 flex flex-col max-w-6xl mx-auto w-full px-4">
         {/* Workspace panels */}
-        <div className="flex-1 flex flex-col min-h-[60vh]">
+        <div className={`flex-1 flex flex-col min-h-[60vh] ${enhanced ? "pt-5" : ""}`}>
           <ResizablePanels
+            enhanced={enhanced}
             cvText={cvText}
             setCvText={setCvText}
             jobDescription={jobDescription}
@@ -266,14 +272,15 @@ export default function CVTailorPage() {
 
         {/* Match score (shown once results are ready) */}
         {results && (
-          <div className="py-4 flex justify-center">
-            <MatchScoreBadge score={results.matchScore} />
-          </div>
+          enhanced
+            ? <div className="pt-2 pb-4"><MatchScoreBar score={results.matchScore} /></div>
+            : <div className="py-4 flex justify-center"><MatchScoreBadge score={results.matchScore} /></div>
         )}
 
         {/* CTA */}
-        <div className="py-6 flex flex-col items-center gap-3 border-t border-gray-100">
+        <div className={`py-6 flex flex-col items-center gap-3 ${enhanced ? "" : "border-t border-gray-100"}`}>
           <TailorButton
+            enhanced={enhanced}
             isLoading={isLoading}
             loadingStatus={loadingStatus}
             onClick={handleTailor}
@@ -290,8 +297,9 @@ export default function CVTailorPage() {
         <div className="pb-12">
           {results ? (
             <>
-              <div className="relative z-10 bg-white">
+              <div className={`relative z-10 ${enhanced ? "" : "bg-white"}`}>
                 <ResultsTabs
+                  enhanced={enhanced}
                   results={results}
                   coverLetter={coverLetter}
                   loadingCoverLetter={loadingCoverLetter}
@@ -323,6 +331,31 @@ export default function CVTailorPage() {
         onClose={() => setHistoryOpen(false)}
         onRestore={handleRestoreHistory}
       />
+    </div>
+  )
+}
+
+function MatchScoreBar({ score }: { score: number }) {
+  const verdict =
+    score >= 75 ? { label: "Strong match", sub: "Your experience covers most must-have requirements.", color: "#1d9e75", ring: "#1d9e75", track: "#d3eee4" } :
+    score >= 50 ? { label: "Moderate match", sub: "A solid base — check Gaps to strengthen the rest.", color: "#bf7d10", ring: "#e0a32a", track: "#f5e6c8" } :
+    { label: "Low match — room to improve", sub: "See Gaps to close the missing requirements.", color: "#dc4f33", ring: "#dc4f33", track: "#f0d9d2" }
+
+  const c = 2 * Math.PI * 19
+  return (
+    <div className="flex items-center gap-4 bg-[#faf8f3] border border-[#f0ebe1] rounded-2xl px-5 py-4">
+      <div className="relative w-12 h-12 flex-shrink-0">
+        <svg className="w-12 h-12 -rotate-90" viewBox="0 0 46 46">
+          <circle cx="23" cy="23" r="19" fill="none" stroke={verdict.track} strokeWidth="5" />
+          <circle cx="23" cy="23" r="19" fill="none" stroke={verdict.ring} strokeWidth="5" strokeLinecap="round"
+            strokeDasharray={`${(score / 100) * c} ${c}`} />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-sm font-extrabold" style={{ color: verdict.color }}>{score}</span>
+      </div>
+      <div className="min-w-0">
+        <p className="text-[15px] font-bold text-[#1e1813]">{verdict.label}</p>
+        <p className="text-[12.5px] text-gray-500">{verdict.sub}</p>
+      </div>
     </div>
   )
 }

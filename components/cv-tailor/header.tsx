@@ -10,9 +10,10 @@ import { isAdminEmail } from "@/lib/admin"
 interface HeaderProps {
   onSignInClick?: () => void
   onHistoryClick?: () => void
+  enhanced?: boolean
 }
 
-export function Header({ onSignInClick, onHistoryClick }: HeaderProps) {
+export function Header({ onSignInClick, onHistoryClick, enhanced = false }: HeaderProps) {
   const [scrolled, setScrolled] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -33,7 +34,9 @@ export function Header({ onSignInClick, onHistoryClick }: HeaderProps) {
     <>
       <header
         className={`sticky top-0 z-50 transition-all duration-150 ease-out ${
-          scrolled ? "backdrop-blur-md bg-white/80 border-b border-gray-100" : "bg-white"
+          enhanced
+            ? "backdrop-blur-md bg-white/85 border-b border-[#ece6da]"
+            : scrolled ? "backdrop-blur-md bg-white/80 border-b border-gray-100" : "bg-white"
         }`}
       >
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
@@ -89,7 +92,11 @@ export function Header({ onSignInClick, onHistoryClick }: HeaderProps) {
                 <div className="relative">
                   <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-[#1e1813] transition-colors rounded-lg hover:bg-gray-50"
+                    className={`flex items-center gap-2 text-sm text-gray-600 hover:text-[#1e1813] transition-colors ${
+                      enhanced
+                        ? "pl-1 pr-2.5 py-1 rounded-full bg-white border border-[#ece6da] hover:border-[#dac9bf]"
+                        : "px-3 py-1.5 rounded-lg hover:bg-gray-50"
+                    }`}
                   >
                     <div className="w-6 h-6 rounded-full bg-[#dc4f33] flex items-center justify-center text-white text-xs font-medium">
                       {user.email?.[0].toUpperCase()}
