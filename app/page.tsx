@@ -32,7 +32,18 @@ function Reveal({ children, delay = 0, className = "" }: {
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [seen, setSeen] = useState(false)
+  const [reducedMotion, setReducedMotion] = useState(false)
+
   useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
+    setReducedMotion(mq.matches)
+    const onChange = () => setReducedMotion(mq.matches)
+    mq.addEventListener("change", onChange)
+    return () => mq.removeEventListener("change", onChange)
+  }, [])
+
+  useEffect(() => {
+    if (reducedMotion) { setSeen(true); return }
     const el = ref.current
     if (!el) return
     const io = new IntersectionObserver(([e]) => {
@@ -41,12 +52,13 @@ function Reveal({ children, delay = 0, className = "" }: {
     io.observe(el)
     if (el.getBoundingClientRect().top < (window.innerHeight || 800)) setSeen(true)
     return () => io.disconnect()
-  }, [])
+  }, [reducedMotion])
+
   return (
     <div
       ref={ref}
       className={className}
-      style={{
+      style={reducedMotion ? undefined : {
         opacity: seen ? 1 : 0,
         transform: seen ? "none" : "translateY(16px)",
         transition: `opacity .6s cubic-bezier(.2,.7,.2,1) ${delay}ms, transform .6s cubic-bezier(.2,.7,.2,1) ${delay}ms`,
@@ -248,7 +260,7 @@ function Hero() {
           </div>
         </Reveal>
         <Reveal delay={300}>
-          <p className="mt-5 text-[13px] text-gray-400">No card required · Magic-link sign-in · ATS-safe output</p>
+          <p className="mt-5 text-[13px] text-gray-500">No card required · Magic-link sign-in · ATS-safe output</p>
         </Reveal>
       </div>
 
@@ -274,7 +286,7 @@ function Stats() {
         {stats.map(([v, l], i) => (
           <Reveal key={l} delay={i * 70} className="text-center">
             <p className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#1e1813]">{v}</p>
-            <p className={`${jetbrains.className} mt-2 text-[11px] uppercase tracking-[0.14em] text-gray-400`}>{l}</p>
+            <p className={`${jetbrains.className} mt-2 text-[11px] uppercase tracking-[0.14em] text-gray-500`}>{l}</p>
           </Reveal>
         ))}
       </div>
@@ -565,7 +577,7 @@ function Beta() {
           <div className="mt-10 rounded-2xl border border-gray-200 bg-white shadow-[0_16px_48px_rgba(30,24,19,0.07)] p-8 sm:p-10">
             <div className="flex items-baseline justify-center gap-2">
               <span className="text-6xl font-extrabold tracking-tight text-[#1e1813]">£0</span>
-              <span className="text-gray-400 font-medium">during beta</span>
+              <span className="text-gray-500 font-medium">during beta</span>
             </div>
             <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-left max-w-xl mx-auto">
               {feats.map((f) => (
@@ -585,7 +597,7 @@ function Beta() {
               Try the beta — free
               <ArrowRight className="w-4 h-4" />
             </Link>
-            <p className="mt-4 text-[12px] text-gray-400">No card needed · magic-link sign-in · your feedback shapes what ships next</p>
+            <p className="mt-4 text-[12px] text-gray-500">No card needed · magic-link sign-in · your feedback shapes what ships next</p>
           </div>
         </Reveal>
       </div>
