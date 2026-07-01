@@ -608,10 +608,10 @@ function Beta() {
 // ── Final CTA + footer ───────────────────────────────────────────────────
 
 function Footer() {
-  const cols: [string, string[]][] = [
-    ["Product", ["How it works", "Features", "Beta"]],
-    ["Company", ["About", "Blog", "Contact"]],
-    ["Legal", ["Privacy", "Terms", "Data & security"]],
+  const cols: [string, [string, string][]][] = [
+    ["Product", [["How it works", "#how-it-works"], ["Features", "#features"], ["Beta", "#beta"]]],
+    ["Company", [["About", "#"], ["Blog", "#"], ["Contact", "#"]]],
+    ["Legal", [["Privacy", "/privacy"], ["Terms", "#"], ["Data & security", "/privacy#security"]]],
   ]
   return (
     <footer style={{ background: INK }}>
@@ -644,9 +644,9 @@ function Footer() {
           <div key={h}>
             <p className={`${jetbrains.className} text-[10px] uppercase tracking-[0.16em] text-white/40`}>{h}</p>
             <ul className="mt-4 space-y-2.5">
-              {links.map((l) => (
+              {links.map(([l, href]) => (
                 <li key={l}>
-                  <a href="#" className="text-[14px] text-white/70 hover:text-white transition-colors">{l}</a>
+                  <a href={href} className="text-[14px] text-white/70 hover:text-white transition-colors">{l}</a>
                 </li>
               ))}
             </ul>
