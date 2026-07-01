@@ -24,6 +24,7 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | Per-user rate limiting on AI endpoints | Feature | [#10](https://github.com/osedman/cvtailor-saas/pull/10) | Postgres counters; migration applied |
 | Unit tests + GitHub Actions CI | Chore | [#11](https://github.com/osedman/cvtailor-saas/pull/11) | 20 Vitest tests on sanitiser + scoring |
 | CI hardening: `pnpm build` in the workflow | Chore | [#16](https://github.com/osedman/cvtailor-saas/pull/16) | Catches typecheck/build errors on PRs, not just after merge |
+| Sentry error tracking (`@sentry/nextjs`) | Feature | [#17](https://github.com/osedman/cvtailor-saas/pull/17) | Native instrumentation, no next.config wrapper. Inert until DSN set |
 | Landing page accessibility (reduced motion, contrast, focus rings) | Fix | [#13](https://github.com/osedman/cvtailor-saas/pull/13) | WCAG contrast + prefers-reduced-motion |
 | Build-break hotfix (vitest.config type error) | Bug | [#14](https://github.com/osedman/cvtailor-saas/pull/14) | Broke production build; `singleFork` invalid |
 | Privacy policy page (`/privacy`) + footer link | Feature | [#15](https://github.com/osedman/cvtailor-saas/pull/15) | UK/EU GDPR, grounded in real data practices |
@@ -43,7 +44,8 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 
 | Item | Type | Priority | Notes |
 |------|------|----------|-------|
-| Error tracking (Sentry or similar) | Chore | High | Currently blind in prod beyond console + Vercel Analytics |
+| Activate Sentry: create project + set `NEXT_PUBLIC_SENTRY_DSN` in Vercel | Chore | High | Code merged and inert; needs external Sentry account + DSN env var |
+| Sentry source map upload | Enhancement | Low | Readable stack traces; needs a Sentry auth token |
 | Free-tier quota enforcement | Feature | Med | Plan-based caps → paywall; needs Stripe |
 | Career-memory layer (outcome-aware profile) | Feature | Med | The "billion-dollar" bet: compounding personal profile |
 | Emotional-investment features | Feature | Med | Win celebration, rejection reframing, negotiation, proactive nudges |
