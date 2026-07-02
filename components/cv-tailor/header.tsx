@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { LogOut, ChevronDown, Clock, Kanban, ShieldCheck } from "lucide-react"
+import { LogOut, ChevronDown, Clock, Kanban, ShieldCheck, Target } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { SignInModal } from "@/components/auth/sign-in-modal"
 import { isAdminEmail } from "@/lib/admin"
@@ -74,6 +74,14 @@ export function Header({ onSignInClick, onHistoryClick, enhanced = false }: Head
                 >
                   <Kanban className="w-4 h-4" />
                   <span className="hidden sm:block">Tracker</span>
+                </Link>
+                <Link
+                  href="/career-path"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-[#dc4f33] hover:bg-[#ffeae4] rounded-lg transition-colors"
+                  title="Career path"
+                >
+                  <Target className="w-4 h-4" />
+                  <span className="hidden sm:block">Career Path</span>
                 </Link>
                 {isAdminEmail(user.email) && (
                   <Link
