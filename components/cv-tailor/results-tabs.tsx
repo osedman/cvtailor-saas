@@ -49,6 +49,37 @@ function FormattedCV({ text }: { text: string }) {
   )
 }
 
+type CompanyAnalysisBlock = { type: "heading" | "bullet" | "text"; text: string }
+
+/**
+ * Groups the company-analysis plain text into heading/bullet/text blocks.
+ * The model sometimes puts a bullet marker on its own line with the sentence
+ * on the next line, or wraps a long bullet across several lines — a naive
+ * one-line-per-block split renders those as a floating bullet dot with no
+ * text, followed by an un-bulleted paragraph. Continuation lines (no marker,
+ * no heading) are appended to the block that's still open instead.
+ */
+function parseCompanyAnalysis(raw: string): CompanyAnalysisBlock[] {
+  const blocks: CompanyAnalysisBlock[] = []
+  for (const line of raw.split("\n")) {
+    const t = line.trim()
+    if (!t) continue
+    if (/^[A-Z][A-Z\s&'?]+$/.test(t)) {
+      blocks.push({ type: "heading", text: t })
+      continue
+    }
+    const isMarker = /^[-•]/.test(t)
+    const content = isMarker ? t.replace(/^[-•]\s*/, "").trim() : t
+    const prev = blocks[blocks.length - 1]
+    if (isMarker || !prev || prev.type === "heading") {
+      blocks.push({ type: isMarker ? "bullet" : "text", text: content })
+    } else {
+      prev.text = prev.text ? `${prev.text} ${content}` : content
+    }
+  }
+  return blocks
+}
+
 /** Thumbs up/down on a tailoring run, persisted to tailor_history.feedback */
 function FeedbackBar({ historyId }: { historyId: string }) {
   const [rating, setRating] = useState<"up" | "down" | null>(null)
@@ -401,21 +432,19 @@ export function ResultsTabs({
           <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
             {companyAnalysis ? (
               <div className="space-y-1">
-                {companyAnalysis.split("\n").map((line, i) => {
-                  const t = line.trim()
-                  if (!t) return <div key={i} className="h-2" />
-                  if (/^[A-Z][A-Z\s&'?]+$/.test(t)) {
-                    return <p key={i} className="text-xs font-bold uppercase tracking-widest text-[#dc4f33] pt-4 pb-1">{t}</p>
+                {parseCompanyAnalysis(companyAnalysis).map((block, i) => {
+                  if (block.type === "heading") {
+                    return <p key={i} className="text-xs font-bold uppercase tracking-widest text-[#dc4f33] pt-4 pb-1">{block.text}</p>
                   }
-                  if (/^[-•]/.test(t)) {
+                  if (block.type === "bullet") {
                     return (
                       <p key={i} className="text-sm text-gray-600 leading-relaxed pl-4">
                         <span className="text-[#dc4f33] mr-2">•</span>
-                        {t.replace(/^[-•]\s*/, "")}
+                        {block.text}
                       </p>
                     )
                   }
-                  return <p key={i} className="text-sm text-gray-500 leading-relaxed">{t}</p>
+                  return <p key={i} className="text-sm text-gray-500 leading-relaxed">{block.text}</p>
                 })}
               </div>
             ) : (
