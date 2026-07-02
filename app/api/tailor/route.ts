@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 60
+export const maxDuration = 300
 
 // ── Pass 1: extract requirements + evidence map (Haiku — fast) ──────────
 

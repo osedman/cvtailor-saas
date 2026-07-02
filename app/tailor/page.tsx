@@ -132,7 +132,7 @@ export default function CVTailorPage() {
       // Client-side timeout slightly under the platform limit, so we show a
       // clean message rather than waiting on a gateway error page.
       const ac = new AbortController()
-      const timer = setTimeout(() => ac.abort(), 70_000)
+      const timer = setTimeout(() => ac.abort(), 290_000)
 
       let data: { result?: TailorResult; historyId?: string | null; compressed?: boolean; error?: string }
       try {
