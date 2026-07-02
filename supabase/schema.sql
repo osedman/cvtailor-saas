@@ -2,6 +2,7 @@
 create table if not exists public.profiles (
   id uuid references auth.users on delete cascade primary key,
   email text,
+  full_name text,
   tailors_used integer not null default 0,
   plan text not null default 'free',  -- 'free' | 'pro'
   created_at timestamptz not null default now(),
@@ -80,6 +81,7 @@ create table if not exists public.tailor_history (
   company_name text not null default '',   -- extracted by Claude from the JD
   job_url      text not null default '',   -- original URL if scraped, else ''
   job_snippet  text not null default '',   -- first 200 chars of JD
+  job_description text not null default '', -- full JD text
   match_score  integer not null default 0,
   original_cv  text not null default '',   -- CV text as submitted (for side-by-side)
   feedback     jsonb,                      -- {rating: up|down, comment, created_at}
