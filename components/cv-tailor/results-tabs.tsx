@@ -319,8 +319,8 @@ export function ResultsTabs({
                 <h3 className="text-sm font-semibold text-[#1e1813] mb-3">Quick follow-ups to prepare for</h3>
                 <div className="space-y-3">
                   {(results.followUps ?? []).map((question, i) => (
-                    <div key={i} className="p-4 bg-white rounded-lg shadow-sm border border-gray-100">
-                      <span className="text-sm text-[#1e1813]">{question}</span>
+                    <div key={i} className="p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
+                      <p className="text-sm font-medium text-[#1e1813] leading-snug">{question}</p>
                     </div>
                   ))}
                 </div>
