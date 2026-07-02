@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
-import { ArrowLeft, Sparkles, Loader2, ExternalLink, Check, Circle, CircleDot, Target } from "lucide-react"
+import { ArrowLeft, Sparkles, Loader2, ExternalLink, Check, CircleDot, Target, ArrowRight } from "lucide-react"
 import { Header } from "@/components/cv-tailor/header"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
@@ -38,9 +38,9 @@ const STATUS_CYCLE: Record<CareerItemStatus, CareerItemStatus> = {
 }
 
 function StatusIcon({ status }: { status: CareerItemStatus }) {
-  if (status === "done") return <Check className="w-4 h-4 text-white" />
-  if (status === "in_progress") return <CircleDot className="w-4 h-4 text-white" />
-  return <Circle className="w-4 h-4 text-gray-300" />
+  if (status === "done") return <Check className="w-4 h-4 text-white" strokeWidth={2.75} />
+  if (status === "in_progress") return <CircleDot className="w-4 h-4 text-white" strokeWidth={2.25} />
+  return <ArrowRight className="w-3.5 h-3.5" style={{ color: ACCENT }} strokeWidth={2.5} />
 }
 
 function IntakeForm({ prefillSkills, onGenerated }: { prefillSkills: string[]; onGenerated: (r: Roadmap) => void }) {
@@ -73,7 +73,7 @@ function IntakeForm({ prefillSkills, onGenerated }: { prefillSkills: string[]; o
 
   return (
     <div className="max-w-xl mx-auto py-16 px-4">
-      <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-5" style={{ background: "#fff7f4", color: ACCENT }}>
+      <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-5 shadow-sm" style={{ background: "#fff7f4", color: ACCENT }}>
         <Target className="w-6 h-6" />
       </div>
       <h1 className="text-[28px] font-extrabold tracking-tight text-[#1e1813]">Build your career path</h1>
@@ -89,7 +89,7 @@ function IntakeForm({ prefillSkills, onGenerated }: { prefillSkills: string[]; o
             value={targetRole}
             onChange={(e) => setTargetRole(e.target.value)}
             placeholder="e.g. Senior Data Analyst"
-            className="w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg focus:outline-none focus:border-[#dc4f33] placeholder:text-gray-300"
+            className="w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300"
           />
         </div>
         <div>
@@ -97,7 +97,7 @@ function IntakeForm({ prefillSkills, onGenerated }: { prefillSkills: string[]; o
           <select
             value={hoursPerWeek}
             onChange={(e) => setHoursPerWeek(e.target.value)}
-            className="w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg focus:outline-none focus:border-[#dc4f33]"
+            className="w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15"
           >
             <option value="2">Around 2 hours</option>
             <option value="5">Around 5 hours</option>
@@ -111,7 +111,7 @@ function IntakeForm({ prefillSkills, onGenerated }: { prefillSkills: string[]; o
             value={skillsText}
             onChange={(e) => setSkillsText(e.target.value)}
             placeholder="e.g. SQL, stakeholder management"
-            className="w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg focus:outline-none focus:border-[#dc4f33] placeholder:text-gray-300"
+            className="w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300"
           />
           <p className="mt-1.5 text-[12px] text-gray-400">Comma-separated. Pre-filled from patterns in your tailor history where available.</p>
         </div>
@@ -120,7 +120,7 @@ function IntakeForm({ prefillSkills, onGenerated }: { prefillSkills: string[]; o
       <button
         onClick={submit}
         disabled={loading}
-        className="mt-8 w-full inline-flex items-center justify-center gap-2 py-3.5 text-[15px] font-semibold text-white rounded-xl transition-all disabled:opacity-60"
+        className="mt-8 w-full inline-flex items-center justify-center gap-2 py-3.5 text-[15px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100"
         style={{ background: ACCENT }}
       >
         {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Building your roadmap…</> : <><Sparkles className="w-4 h-4" />Build my roadmap</>}
@@ -155,6 +155,8 @@ function RoadmapView({ roadmap, onUpdated, onRebuild }: { roadmap: Roadmap; onUp
   }, [onUpdated])
 
   const done = roadmap.items.filter((i) => i.status === "done").length
+  const total = roadmap.items.length
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0
 
   return (
     <div className="max-w-3xl mx-auto py-12 px-4">
@@ -165,7 +167,7 @@ function RoadmapView({ roadmap, onUpdated, onRebuild }: { roadmap: Roadmap; onUp
             {roadmap.target_role || "Your roadmap"}
           </h1>
           <p className="mt-1 text-[13px] text-gray-500">
-            {done} of {roadmap.items.length} skills done{roadmap.hours_per_week ? ` · ~${roadmap.hours_per_week}h/week` : ""}
+            {done} of {total} skills done{roadmap.hours_per_week ? ` · ~${roadmap.hours_per_week}h/week` : ""}
           </p>
         </div>
         <button
@@ -176,59 +178,100 @@ function RoadmapView({ roadmap, onUpdated, onRebuild }: { roadmap: Roadmap; onUp
         </button>
       </div>
 
+      <div className="mt-5 h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+        <div
+          className="h-full rounded-full transition-[width] duration-500 ease-out"
+          style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${ACCENT}, #f4795c)` }}
+        />
+      </div>
+
       <div className="mt-8 space-y-4">
-        {roadmap.items.map((item) => (
-          <div key={item.skill} className="rounded-2xl border border-gray-100 bg-white p-5">
-            <div className="flex items-start gap-3">
-              <button
-                onClick={() => cycleStatus(item)}
-                disabled={updating === item.skill}
-                className="flex-shrink-0 w-7 h-7 mt-0.5 rounded-full flex items-center justify-center transition-colors"
-                style={{ background: item.status === "todo" ? "#f3f4f6" : ACCENT }}
-                title="Click to change status"
-              >
-                {updating === item.skill ? <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" /> : <StatusIcon status={item.status} />}
-              </button>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className={`text-[16px] font-bold ${item.status === "done" ? "text-gray-400 line-through" : "text-[#1e1813]"}`}>{item.skill}</h3>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                    style={{
-                      background: item.status === "done" ? "#dcfce7" : item.status === "in_progress" ? "#ffeae4" : "#f3f4f6",
-                      color: item.status === "done" ? "#16a34a" : item.status === "in_progress" ? ACCENT : "#9ca3af",
-                    }}>
-                    {item.status === "in_progress" ? "in progress" : item.status}
-                  </span>
-                </div>
-                <p className="mt-1 text-[13.5px] text-gray-500 leading-relaxed">{item.whyItMatters}</p>
-
-                {item.resources?.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {item.resources.map((r, i) => (
-                      <a key={i} href={r.url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-gray-600 hover:text-[#dc4f33] bg-gray-50 hover:bg-[#ffeae4] border border-gray-100 rounded-lg px-2.5 py-1.5 transition-colors">
-                        <ExternalLink className="w-3 h-3" />
-                        {r.title} <span className="text-gray-400">· {r.source}</span>
-                      </a>
-                    ))}
+        {roadmap.items.map((item) => {
+          const isDone = item.status === "done"
+          const isActive = item.status === "in_progress"
+          const isTodo = item.status === "todo"
+          return (
+            <div
+              key={item.skill}
+              className={`group rounded-2xl border bg-white p-5 transition-all ${
+                isTodo ? "border-gray-100 hover:border-[#f5c9bb] hover:shadow-[0_2px_16px_rgba(220,79,51,0.06)]" : "border-gray-100"
+              }`}
+              style={isActive ? { borderColor: "#f5d9d0", background: "linear-gradient(180deg, #fffaf8, #ffffff)" } : undefined}
+            >
+              <div className="flex items-start gap-3">
+                <button
+                  onClick={() => cycleStatus(item)}
+                  disabled={updating === item.skill}
+                  className="flex-shrink-0 w-8 h-8 mt-0.5 rounded-full flex items-center justify-center transition-all active:scale-90"
+                  style={
+                    isDone
+                      ? { background: "#16a34a" }
+                      : isActive
+                      ? { background: ACCENT, boxShadow: "0 0 0 4px rgba(220,79,51,0.14)" }
+                      : { background: "#fff", border: `1.5px dashed ${ACCENT}66` }
+                  }
+                  title={isDone ? "Mark as to do" : isActive ? "Mark as done" : "Start this skill"}
+                >
+                  {updating === item.skill ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: isDone || isActive ? "#fff" : ACCENT }} />
+                  ) : (
+                    <StatusIcon status={item.status} />
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className={`text-[16px] font-bold ${isDone ? "text-gray-400 line-through" : "text-[#1e1813]"}`}>{item.skill}</h3>
+                    <span
+                      className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                      style={{
+                        background: isDone ? "#dcfce7" : isActive ? "#ffeae4" : "#fff7f4",
+                        color: isDone ? "#16a34a" : ACCENT,
+                      }}
+                    >
+                      {isActive ? "in progress" : isDone ? "done" : "not started"}
+                    </span>
                   </div>
-                )}
+                  <p className={`mt-1 text-[13.5px] leading-relaxed ${isTodo ? "text-gray-600" : "text-gray-500"}`}>{item.whyItMatters}</p>
 
-                <div className="mt-3 rounded-xl bg-gray-50/70 p-3.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Project idea</p>
-                  <p className="text-[13px] text-gray-700 leading-relaxed">{item.projectBrief}</p>
-                </div>
+                  {item.resources?.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {item.resources.map((r, i) => (
+                        <a key={i} href={r.url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-gray-600 hover:text-[#dc4f33] bg-gray-50 hover:bg-[#ffeae4] border border-gray-100 rounded-lg px-2.5 py-1.5 transition-colors">
+                          <ExternalLink className="w-3 h-3" />
+                          {r.title} <span className="text-gray-400">· {r.source}</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
 
-                {item.status === "done" && (
-                  <div className="mt-3 rounded-xl border border-green-100 bg-green-50/60 p-3.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600 mb-1">Add to your CV</p>
-                    <p className="text-[13px] text-[#1e1813] leading-relaxed">{item.cvPhrasing}</p>
+                  <div className="mt-3 rounded-xl bg-gray-50/70 p-3.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Project idea</p>
+                    <p className="text-[13px] text-gray-700 leading-relaxed">{item.projectBrief}</p>
                   </div>
-                )}
+
+                  {isDone && (
+                    <div className="mt-3 rounded-xl border border-green-100 bg-green-50/60 p-3.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600 mb-1">Add to your CV</p>
+                      <p className="text-[13px] text-[#1e1813] leading-relaxed">{item.cvPhrasing}</p>
+                    </div>
+                  )}
+
+                  {isTodo && (
+                    <button
+                      onClick={() => cycleStatus(item)}
+                      disabled={updating === item.skill}
+                      className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] font-semibold transition-colors hover:underline"
+                      style={{ color: ACCENT }}
+                    >
+                      Start this skill <ArrowRight className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
