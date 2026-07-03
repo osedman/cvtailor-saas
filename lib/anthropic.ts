@@ -395,3 +395,110 @@ export const CAREER_ROADMAP_TOOL: Anthropic.Tool = {
   },
 }
 
+
+// ── Career Arc (career highlight reel) ────────────────────────────────────
+
+export interface CareerProfileTimelineItem {
+  company: string
+  title: string
+  start: string
+  end: string
+  highlights: string[]
+}
+
+export interface CareerProfileSkill {
+  name: string
+  category: string
+}
+
+export interface CareerProfileProject {
+  title: string
+  summary: string
+}
+
+export interface CareerProfileGrowth {
+  fromTitle: string
+  toTitle: string
+  tenureYears: number | null
+}
+
+export interface CareerProfileSections {
+  headline: string
+  timeline: CareerProfileTimelineItem[]
+  skills: CareerProfileSkill[]
+  growth: CareerProfileGrowth
+  projects: CareerProfileProject[]
+  qualities: string[]
+}
+
+export const CAREER_PROFILE_TOOL: Anthropic.Tool = {
+  name: "submit_career_profile",
+  description: "Extract a factual career highlight reel from a CV — timeline, skills, growth signal, key projects, and a short list of inferred professional qualities. Every fact must come directly from the CV text provided. Never invent facts, dates, numbers, or achievements that are not present in the CV.",
+  input_schema: {
+    type: "object",
+    properties: {
+      headline: {
+        type: "string",
+        description: "One short line summarising who they are professionally, drawn from their most senior/current role in the CV — not invented, a natural summary of what's actually there",
+      },
+      timeline: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            company: { type: "string", description: "Company name exactly as it appears in the CV" },
+            title: { type: "string", description: "Job title exactly as it appears in the CV" },
+            start: { type: "string", description: "Start date as it appears in the CV, e.g. '2021' or 'Jan 2021'" },
+            end: { type: "string", description: "End date as it appears in the CV, e.g. '2023' or 'Present'" },
+            highlights: {
+              type: "array",
+              items: { type: "string" },
+              description: "1-2 of the strongest bullet points from this specific role, taken directly from the CV (may be lightly tightened for length, but must not add facts not present)",
+            },
+          },
+          required: ["company", "title", "start", "end", "highlights"],
+        },
+        description: "Every role in the CV, ordered chronologically oldest to newest",
+      },
+      skills: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Skill name exactly as it appears or is clearly evidenced in the CV" },
+            category: { type: "string", description: "A short grouping label, e.g. 'Technical', 'Leadership', 'Domain'" },
+          },
+          required: ["name", "category"],
+        },
+        description: "Skills explicitly listed or clearly evidenced in the CV, grouped by category",
+      },
+      growth: {
+        type: "object",
+        properties: {
+          fromTitle: { type: "string", description: "Their earliest job title in the CV. Empty string if there is only one role." },
+          toTitle: { type: "string", description: "Their most recent/current job title in the CV" },
+          tenureYears: { type: "number", description: "Total years of experience span across the CV, calculated from the dates present. Null if dates are not clear enough to calculate." },
+        },
+        required: ["fromTitle", "toTitle", "tenureYears"],
+      },
+      projects: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string", description: "A short name for the project, drawn from the CV bullet describing it" },
+            summary: { type: "string", description: "1-2 sentences describing the project, taken directly from the CV content" },
+          },
+          required: ["title", "summary"],
+        },
+        description: "2-4 project-shaped achievements pulled out from role bullets across the CV — only include ones that read as a distinct, scoped piece of work, not routine responsibilities",
+      },
+      qualities: {
+        type: "array",
+        items: { type: "string" },
+        description: "3-5 short professional trait words or phrases (e.g. 'builder', 'mentor', 'closer') inferred ONLY from repeated patterns in the CV's language (e.g. repeated verbs like 'led', 'mentored', 'shipped'). This is the one soft-inference field — still ground every trait in an actual repeated pattern in the text, never invent a trait with no textual basis.",
+      },
+    },
+    required: ["headline", "timeline", "skills", "growth", "projects", "qualities"],
+  },
+}
