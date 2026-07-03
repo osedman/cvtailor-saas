@@ -20,17 +20,37 @@ The candidate may also have answered a few personal questions about their career
 
 const QUESTIONS_PROMPT = `Read this CV, then write 4 short, warm, personalised questions for the candidate — one each for: how their career started (reference their actual first role by name), their turning point (reference their actual title change), their proudest project, and where they want to go next. ${NO_INVENTION}`
 
+const MIN_CV_LENGTH = 300 // anything shorter can't be a real CV (seeded/test rows, fragments)
+
 async function resolveCv(supabase: Awaited<ReturnType<typeof createClient>>, userId: string, pastedCv: string): Promise<string> {
-  if (pastedCv) return pastedCv
-  const { data: lastTailor, error } = await supabase
+  if (pastedCv.trim().length >= MIN_CV_LENGTH) return pastedCv
+  const { data: rows, error } = await supabase
     .from('tailor_history')
     .select('original_cv')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+    .limit(5)
   if (error) throw error
-  return lastTailor?.original_cv ?? ''
+  const substantive = (rows ?? []).find((r) => (r.original_cv ?? '').trim().length >= MIN_CV_LENGTH)
+  return substantive?.original_cv ?? ''
+}
+
+const FALLBACK_QUESTIONS: CareerQuestion[] = [
+  { key: 'origin', question: 'How did your career start — what drew you to your first role?' },
+  { key: 'turning_point', question: 'What was the turning point that changed how you work?' },
+  { key: 'proudest', question: 'Which project are you proudest of, and why that one?' },
+  { key: 'ambition', question: 'Where do you want this career to go next?' },
+]
+
+/** Guard against placeholder/empty output ever reaching the form */
+function validateQuestions(raw: CareerQuestion[]): CareerQuestion[] {
+  const isGood = (q: CareerQuestion | undefined): q is CareerQuestion =>
+    !!q && typeof q.question === 'string' && q.question.trim().length >= 10 &&
+    !/[<>]/.test(q.question) && !/unknown/i.test(q.question)
+  return FALLBACK_QUESTIONS.map((fb) => {
+    const match = raw.find((q) => q?.key === fb.key)
+    return isGood(match) ? match : fb
+  })
 }
 
 export async function GET() {
@@ -88,7 +108,7 @@ export async function POST(req: NextRequest) {
         throw new Error('Could not prepare your questions. Please try again.')
       }
       const { questions } = sanitizeDeep(toolUse.input as { questions: CareerQuestion[] })
-      return NextResponse.json({ questions })
+      return NextResponse.json({ questions: validateQuestions(Array.isArray(questions) ? questions : []) })
     }
 
     // Pass 2: full build (Sonnet), weaving in any answers
