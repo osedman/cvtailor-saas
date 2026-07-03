@@ -292,9 +292,10 @@ function Steps({ s }: { s: CareerProfileSections }) {
   const n = s.timeline?.length ?? 0
   if (n < 2) return null
 
-  const W = 600, H = 200, PADX = 20, PADT = 40, PADB = 26
+  const W = 600, PADX = 20, PADT = 42, PADB = 28, RISE = 40
+  const H = PADT + PADB + (n - 1) * RISE
   const run = (W - PADX * 2) / n
-  const ys = s.timeline.map((_, i) => H - PADB - (i * (H - PADB - PADT)) / (n - 1))
+  const ys = s.timeline.map((_, i) => H - PADB - i * RISE)
   const xs = s.timeline.map((_, i) => PADX + i * run)
 
   let d = `M ${xs[0]} ${ys[0]}`
@@ -307,7 +308,7 @@ function Steps({ s }: { s: CareerProfileSections }) {
   s.timeline.forEach((t, i) => { if (milestoneYears.has(yearOf(t))) labelled.add(i) })
 
   const halo = { paintOrder: "stroke" as const, stroke: "#fff", strokeWidth: 4, strokeLinejoin: "round" as const }
-  const short = (t: string) => (t.length > 26 ? t.slice(0, 24) + "…" : t)
+  const short = (t: string) => (t.length > 30 ? t.slice(0, 28) + "…" : t)
 
   return (
     <div ref={ref}>
@@ -321,15 +322,16 @@ function Steps({ s }: { s: CareerProfileSections }) {
           {Array.from(labelled).sort((a, b) => a - b).map((i, k) => {
             const role = s.timeline[i]
             const isLast = i === n - 1
-            const lx = xs[i] + 5
+            const label = short(role.title)
+            const estWidth = label.length * 6.6
+            const overflows = xs[i] + 5 + estWidth > W - 6
+            const lx = overflows ? W - PADX : xs[i] + 5
+            const anchor = overflows ? "end" : "start"
             const ly = ys[i]
-            const below = !isLast && k % 2 === 1
-            const y1 = below ? ly + 18 : ly - 20
-            const y2 = below ? ly + 30 : ly - 8
             return (
               <g key={i} style={{ opacity: visible ? 1 : 0, transition: `opacity 0.3s ease-out ${0.4 + k * 0.15}s` }}>
-                <text x={lx} y={y1} fontSize={11} fontWeight={700} fill={isLast ? ACCENT : INK} style={halo}>{short(role.title)}</text>
-                <text x={lx} y={y2} fontSize={10} fontWeight={500} fill="#55504a" style={halo}>
+                <text x={lx} y={ly - 21} textAnchor={anchor} fontSize={11} fontWeight={700} fill={isLast ? ACCENT : INK} style={halo}>{label}</text>
+                <text x={lx} y={ly - 9} textAnchor={anchor} fontSize={10} fontWeight={500} fill="#55504a" style={halo}>
                   {isLast && /present|now|current/i.test(role.end) ? "Now" : yearOf(role)}
                 </text>
               </g>
