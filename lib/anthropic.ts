@@ -458,6 +458,12 @@ export interface CareerProfileStory {
   ambition: string
 }
 
+export interface CareerProfileChapter {
+  span: string
+  name: string
+  summary: string
+}
+
 export interface CareerProfileSections {
   identity: CareerProfileIdentity
   stats: CareerProfileStat[]
@@ -466,6 +472,7 @@ export interface CareerProfileSections {
   organisations: CareerProfileOrganisation[]
   skills: CareerProfileSkill[]
   growth: CareerProfileGrowth
+  chapters: CareerProfileChapter[]
   story: CareerProfileStory
   projects: CareerProfileProject[]
   qualities: CareerProfileQuality[]
@@ -602,6 +609,19 @@ export const CAREER_PROFILE_TOOL: Anthropic.Tool = {
         },
         required: ["fromTitle", "toTitle", "tenureYears", "milestones"],
       },
+      chapters: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            span: { type: "string", description: "The era's year range from CV dates, e.g. '2016-2019'" },
+            name: { type: "string", description: "A short evocative chapter name, 2-4 words, e.g. 'The foundations', 'Going senior', 'Leading the change'. Grounded in what actually happened in those roles, never invented." },
+            summary: { type: "string", description: "One sentence-case line describing the era, drawn from the CV roles it covers (and the candidate's answers if given)" },
+          },
+          required: ["span", "name", "summary"],
+        },
+        description: "The career told as 2-3 named eras. Cluster consecutive roles into chapters by seniority/theme shifts visible in the CV. Chronological order, oldest first.",
+      },
       story: {
         type: "object",
         properties: {
@@ -638,6 +658,6 @@ export const CAREER_PROFILE_TOOL: Anthropic.Tool = {
         description: "3-5 professional traits inferred ONLY from repeated patterns in the CV's language. Ground every trait in an actual repeated pattern; never invent one.",
       },
     },
-    required: ["identity", "stats", "achievements", "timeline", "organisations", "skills", "growth", "story", "projects", "qualities"],
+    required: ["identity", "stats", "achievements", "timeline", "organisations", "skills", "growth", "chapters", "story", "projects", "qualities"],
   },
 }

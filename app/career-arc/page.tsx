@@ -285,65 +285,76 @@ function Achievements({ achievements }: { achievements: CareerProfileSections["a
   )
 }
 
-/** The ascent: mountain area chart, 2-3 milestone camps only, turning point quote as caption */
-function Ascent({ s }: { s: CareerProfileSections }) {
+/** The climb as literal steps: one flat run per role, one vertical jump per move.
+    Only the first, last, and milestone steps get labels, so text can never collide. */
+function Steps({ s }: { s: CareerProfileSections }) {
   const { ref, visible } = useInView<HTMLDivElement>()
   const n = s.timeline?.length ?? 0
   if (n < 2) return null
 
-  const W = 600, H = 214, PADX = 24, PADY = 42
-  const points = s.timeline.map((_, i) => ({
-    x: PADX + (i * (W - PADX * 2)) / (n - 1),
-    y: H - PADY - (i * (H - PADY * 2)) / (n - 1),
-  }))
-  const line = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")
-  const area = `${line} L ${points[n - 1].x} ${H - 6} L ${points[0].x} ${H - 6} Z`
+  const W = 600, H = 200, PADX = 20, PADT = 40, PADB = 26
+  const run = (W - PADX * 2) / n
+  const ys = s.timeline.map((_, i) => H - PADB - (i * (H - PADB - PADT)) / (n - 1))
+  const xs = s.timeline.map((_, i) => PADX + i * run)
 
-  const milestones = (s.growth?.milestones ?? []).slice(0, 3)
+  let d = `M ${xs[0]} ${ys[0]}`
+  for (let i = 1; i < n; i++) d += ` L ${xs[i]} ${ys[i - 1]} L ${xs[i]} ${ys[i]}`
+  d += ` L ${W - PADX} ${ys[n - 1]}`
+
   const yearOf = (t: CareerProfileSections["timeline"][number]) => (t.start.match(/\d{4}/)?.[0] ?? "")
-  const camps = milestones.map((m) => {
-    const idx = s.timeline.findIndex((t) => yearOf(t) === m.year)
-    return { ...m, idx: idx >= 0 ? idx : null }
-  }).filter((c): c is typeof c & { idx: number } => c.idx !== null)
+  const milestoneYears = new Set((s.growth?.milestones ?? []).map((m) => m.year))
+  const labelled = new Set<number>([0, n - 1])
+  s.timeline.forEach((t, i) => { if (milestoneYears.has(yearOf(t))) labelled.add(i) })
+
+  const halo = { paintOrder: "stroke" as const, stroke: "#fff", strokeWidth: 4, strokeLinejoin: "round" as const }
+  const short = (t: string) => (t.length > 26 ? t.slice(0, 24) + "…" : t)
 
   return (
     <div ref={ref}>
       <SectionHeading icon={TrendingUp}>The climb</SectionHeading>
       <div className="rounded-2xl bg-white p-5">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
-          <path d={area} fill="#fdeee8" style={{ opacity: visible ? 1 : 0, transition: "opacity 0.8s ease-out 0.4s" }} />
           <path
-            d={line} fill="none" stroke={ACCENT} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
-            style={{ strokeDasharray: 900, strokeDashoffset: visible ? 0 : 900, transition: "stroke-dashoffset 1.2s ease-out" }}
+            d={d} fill="none" stroke={ACCENT} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"
+            style={{ strokeDasharray: 1400, strokeDashoffset: visible ? 0 : 1400, transition: "stroke-dashoffset 1.4s ease-out" }}
           />
-          {camps.map((c, i) => {
-            const p = points[c.idx]
-            const isLast = c.idx === n - 1
-            const anchor = c.idx === 0 ? "start" : isLast ? "end" : "middle"
-            const tx = c.idx === 0 ? p.x : isLast ? p.x + 6 : p.x
-            const halo = { paintOrder: "stroke" as const, stroke: "#fff", strokeWidth: 4, strokeLinejoin: "round" as const }
+          {Array.from(labelled).sort((a, b) => a - b).map((i, k) => {
+            const role = s.timeline[i]
+            const isLast = i === n - 1
+            const lx = xs[i] + 5
+            const ly = ys[i]
             return (
-              <g key={i} style={{ opacity: visible ? 1 : 0, transition: `opacity 0.3s ease-out ${0.5 + i * 0.2}s` }}>
-                <circle cx={p.x} cy={p.y} r={isLast ? 7 : 5} fill={isLast ? ACCENT : "#fff"} stroke={ACCENT} strokeWidth={2.5} />
-                {isLast ? (
-                  <>
-                    <text x={tx} y={p.y - 26} textAnchor={anchor} fontSize={12} fontWeight={700} fill={INK} style={halo}>{c.year}</text>
-                    <text x={tx} y={p.y - 13} textAnchor={anchor} fontSize={11} fontWeight={500} fill={INK} style={halo}>{c.label}</text>
-                  </>
-                ) : (
-                  <>
-                    <text x={tx} y={p.y + 20} textAnchor={anchor} fontSize={12} fontWeight={700} fill={INK} style={halo}>{c.year}</text>
-                    <text x={tx} y={p.y + 33} textAnchor={anchor} fontSize={11} fontWeight={500} fill={INK} style={halo}>{c.label}</text>
-                  </>
-                )}
+              <g key={i} style={{ opacity: visible ? 1 : 0, transition: `opacity 0.3s ease-out ${0.4 + k * 0.15}s` }}>
+                <text x={lx} y={ly - 20} fontSize={11} fontWeight={700} fill={isLast ? ACCENT : INK} style={halo}>{short(role.title)}</text>
+                <text x={lx} y={ly - 8} fontSize={10} fontWeight={500} fill="#55504a" style={halo}>
+                  {isLast && /present|now|current/i.test(role.end) ? "Now" : yearOf(role)}
+                </text>
               </g>
             )
           })}
+          <circle cx={W - PADX} cy={ys[n - 1]} r={6} fill={ACCENT} style={{ opacity: visible ? 1 : 0, transition: "opacity 0.3s ease-out 1.2s" }} />
         </svg>
         {s.story?.turningPoint && (
           <p className="mt-3 text-[13px] italic border-t border-gray-50 pt-3" style={{ color: "#55504a" }}>&ldquo;{s.story.turningPoint}&rdquo;</p>
         )}
       </div>
+    </div>
+  )
+}
+
+/** The career told as named eras */
+function Chapters({ chapters }: { chapters: CareerProfileSections["chapters"] }) {
+  if (!chapters?.length) return null
+  const TOPS = ["#f5d9d0", "#e68a6d", "#dc4f33", "#993c1d"]
+  return (
+    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {chapters.map((ch, i) => (
+        <div key={i} className="bg-white p-5 rounded-b-2xl" style={{ borderTop: `3px solid ${TOPS[i % TOPS.length]}` }}>
+          <p className="text-[10.5px] uppercase tracking-[0.1em] text-gray-400">Chapter {i + 1} · {ch.span}</p>
+          <p className="mt-1.5 text-[15px] font-bold text-[#1e1813]">{ch.name}</p>
+          <p className="mt-1 text-[12.5px] text-gray-500 leading-relaxed">{ch.summary}</p>
+        </div>
+      ))}
     </div>
   )
 }
@@ -525,7 +536,8 @@ function CareerArcView({ profile, onRebuild }: { profile: Profile; onRebuild: ()
       <div className="max-w-4xl mx-auto px-4 space-y-14 pb-20 pt-8">
         {s.story?.origin && <Reveal><StoryQuote label="Where it started" text={s.story.origin} /></Reveal>}
         <Reveal><Achievements achievements={s.achievements} /></Reveal>
-        <Reveal><Ascent s={s} /></Reveal>
+        <Reveal><Steps s={s} /></Reveal>
+        <Reveal><Chapters chapters={s.chapters} /></Reveal>
         <Reveal><Staircase timeline={s.timeline} /></Reveal>
         <div className="grid lg:grid-cols-2 gap-10 items-start">
           <Reveal><Organisations organisations={s.organisations} /></Reveal>
