@@ -234,7 +234,7 @@ function Hero({ s }: { s: CareerProfileSections }) {
   const { ref, visible } = useInView<HTMLDivElement>()
   return (
     <div ref={ref} className={visible ? "animate-fade-in-up" : "opacity-0"}>
-      <div className="pt-14 pb-4 px-4 max-w-3xl mx-auto">
+      <div className="pt-14 pb-4 px-4 max-w-4xl mx-auto">
         <p className="text-[11px] font-semibold uppercase tracking-[0.25em]" style={{ color: ACCENT }}>Career Arc</p>
         {s.identity.name && (
           <h1 className="mt-2 font-extrabold tracking-tight text-[#1e1813]" style={{ fontSize: "clamp(1.9rem, 4.5vw, 2.6rem)", lineHeight: 1.1 }}>
@@ -291,7 +291,7 @@ function Ascent({ s }: { s: CareerProfileSections }) {
   const n = s.timeline?.length ?? 0
   if (n < 2) return null
 
-  const W = 600, H = 190, PADX = 24, PADY = 30
+  const W = 600, H = 214, PADX = 24, PADY = 42
   const points = s.timeline.map((_, i) => ({
     x: PADX + (i * (W - PADX * 2)) / (n - 1),
     y: H - PADY - (i * (H - PADY * 2)) / (n - 1),
@@ -318,19 +318,30 @@ function Ascent({ s }: { s: CareerProfileSections }) {
           />
           {camps.map((c, i) => {
             const p = points[c.idx]
-            const anchor = c.idx === 0 ? "start" : c.idx === n - 1 ? "end" : "middle"
-            const tx = c.idx === 0 ? p.x - 6 : c.idx === n - 1 ? p.x + 6 : p.x
+            const isLast = c.idx === n - 1
+            const anchor = c.idx === 0 ? "start" : isLast ? "end" : "middle"
+            const tx = c.idx === 0 ? p.x : isLast ? p.x + 6 : p.x
+            const halo = { paintOrder: "stroke" as const, stroke: "#fff", strokeWidth: 4, strokeLinejoin: "round" as const }
             return (
               <g key={i} style={{ opacity: visible ? 1 : 0, transition: `opacity 0.3s ease-out ${0.5 + i * 0.2}s` }}>
-                <circle cx={p.x} cy={p.y} r={c.idx === n - 1 ? 7 : 5} fill={c.idx === n - 1 ? ACCENT : "#fff"} stroke={ACCENT} strokeWidth={2.5} />
-                <text x={tx} y={p.y - 22} textAnchor={anchor} fontSize={10.5} fontWeight={600} fill={INK}>{c.year}</text>
-                <text x={tx} y={p.y - 10} textAnchor={anchor} fontSize={10} fill="#8a8178">{c.label}</text>
+                <circle cx={p.x} cy={p.y} r={isLast ? 7 : 5} fill={isLast ? ACCENT : "#fff"} stroke={ACCENT} strokeWidth={2.5} />
+                {isLast ? (
+                  <>
+                    <text x={tx} y={p.y - 26} textAnchor={anchor} fontSize={12} fontWeight={700} fill={INK} style={halo}>{c.year}</text>
+                    <text x={tx} y={p.y - 13} textAnchor={anchor} fontSize={11} fontWeight={500} fill={INK} style={halo}>{c.label}</text>
+                  </>
+                ) : (
+                  <>
+                    <text x={tx} y={p.y + 20} textAnchor={anchor} fontSize={12} fontWeight={700} fill={INK} style={halo}>{c.year}</text>
+                    <text x={tx} y={p.y + 33} textAnchor={anchor} fontSize={11} fontWeight={500} fill={INK} style={halo}>{c.label}</text>
+                  </>
+                )}
               </g>
             )
           })}
         </svg>
         {s.story?.turningPoint && (
-          <p className="mt-3 text-[12.5px] text-gray-500 italic border-t border-gray-50 pt-3">&ldquo;{s.story.turningPoint}&rdquo;</p>
+          <p className="mt-3 text-[13px] italic border-t border-gray-50 pt-3" style={{ color: "#55504a" }}>&ldquo;{s.story.turningPoint}&rdquo;</p>
         )}
       </div>
     </div>
@@ -511,13 +522,15 @@ function CareerArcView({ profile, onRebuild }: { profile: Profile; onRebuild: ()
   return (
     <div>
       <Hero s={s} />
-      <div className="max-w-3xl mx-auto px-4 space-y-14 pb-20 pt-8">
+      <div className="max-w-4xl mx-auto px-4 space-y-14 pb-20 pt-8">
         {s.story?.origin && <Reveal><StoryQuote label="Where it started" text={s.story.origin} /></Reveal>}
         <Reveal><Achievements achievements={s.achievements} /></Reveal>
         <Reveal><Ascent s={s} /></Reveal>
         <Reveal><Staircase timeline={s.timeline} /></Reveal>
-        <Reveal><Organisations organisations={s.organisations} /></Reveal>
-        <Reveal><SkillBars skills={s.skills} /></Reveal>
+        <div className="grid lg:grid-cols-2 gap-10 items-start">
+          <Reveal><Organisations organisations={s.organisations} /></Reveal>
+          <Reveal><SkillBars skills={s.skills} /></Reveal>
+        </div>
         <Reveal><TrophyCase projects={s.projects} proudestQuote="" /></Reveal>
         <Reveal><Qualities qualities={s.qualities} /></Reveal>
         {s.story?.ambition && <Reveal><StoryQuote label="Where this is heading" text={s.story.ambition} /></Reveal>}
