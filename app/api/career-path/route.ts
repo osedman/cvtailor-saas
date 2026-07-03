@@ -37,7 +37,72 @@ export async function POST(req: NextRequest) {
     const limited = await checkRateLimit(user.id, 'ai')
     if (limited) return limited
 
-    const { targetRole, hoursPerWeek, skills } = await req.json()
+    const body = await req.json()
+    const { targetRole, hoursPerWeek, skills } = body
+
+    // Living-profile path: append a single skill to an existing roadmap (or
+    // start one) — called from the tailor results panel when a new gap shows up.
+    if (body?.mode === 'add-skill') {
+      const skill = String(body.skill ?? '').trim().slice(0, 80)
+      if (!skill) return NextResponse.json({ error: 'A skill is required' }, { status: 400 })
+
+      const { data: existing, error: fetchErr } = await supabase
+        .from('career_roadmaps')
+        .select('id, target_role, hours_per_week, items')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (fetchErr) throw fetchErr
+
+      const items = (existing?.items as CareerRoadmapItem[] | undefined) ?? []
+      if (items.some((i) => i.skill.toLowerCase() === skill.toLowerCase())) {
+        return NextResponse.json({ error: 'That skill is already on your career path.' }, { status: 409 })
+      }
+
+      const addPrompt = `${PROMPT_PREFIX}
+
+Target role: ${existing?.target_role || 'unspecified'}
+
+Skills to address, most important first:
+1. ${skill}`
+
+      const message = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1500,
+        tools: [
+          { type: 'web_search_20250305', name: 'web_search', max_uses: 3 } as never,
+          CAREER_ROADMAP_TOOL,
+        ],
+        messages: [{ role: 'user', content: addPrompt }],
+      })
+
+      const toolUse = message.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_roadmap')
+      if (!toolUse || toolUse.type !== 'tool_use') {
+        throw new Error('Could not build that skill entry. Please try again.')
+      }
+      const raw = toolUse.input as { items?: CareerRoadmapItem[] }
+      const newItem = (Array.isArray(raw.items) ? raw.items : [])[0]
+      if (!newItem) throw new Error('Could not build that skill entry. Please try again.')
+
+      const merged = sanitizeDeep([...items, { ...newItem, status: 'todo' as const }])
+
+      const { data: saved, error } = await supabase
+        .from('career_roadmaps')
+        .upsert(
+          {
+            user_id: user.id,
+            target_role: existing?.target_role ?? '',
+            hours_per_week: existing?.hours_per_week ?? null,
+            items: merged,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' },
+        )
+        .select('id, created_at, updated_at, target_role, hours_per_week, items')
+        .single()
+      if (error) throw error
+      return NextResponse.json({ roadmap: saved })
+    }
+
     if (!Array.isArray(skills) || skills.length === 0) {
       return NextResponse.json({ error: 'At least one skill is required' }, { status: 400 })
     }
