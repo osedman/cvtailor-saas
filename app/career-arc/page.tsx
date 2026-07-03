@@ -323,10 +323,13 @@ function Steps({ s }: { s: CareerProfileSections }) {
             const isLast = i === n - 1
             const lx = xs[i] + 5
             const ly = ys[i]
+            const below = !isLast && k % 2 === 1
+            const y1 = below ? ly + 18 : ly - 20
+            const y2 = below ? ly + 30 : ly - 8
             return (
               <g key={i} style={{ opacity: visible ? 1 : 0, transition: `opacity 0.3s ease-out ${0.4 + k * 0.15}s` }}>
-                <text x={lx} y={ly - 20} fontSize={11} fontWeight={700} fill={isLast ? ACCENT : INK} style={halo}>{short(role.title)}</text>
-                <text x={lx} y={ly - 8} fontSize={10} fontWeight={500} fill="#55504a" style={halo}>
+                <text x={lx} y={y1} fontSize={11} fontWeight={700} fill={isLast ? ACCENT : INK} style={halo}>{short(role.title)}</text>
+                <text x={lx} y={y2} fontSize={10} fontWeight={500} fill="#55504a" style={halo}>
                   {isLast && /present|now|current/i.test(role.end) ? "Now" : yearOf(role)}
                 </text>
               </g>
