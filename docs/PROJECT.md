@@ -44,6 +44,7 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | Career-memory Phase 2/3: generated roadmap + checklist | Feature | — | `staging` only, not merged. New `/career-path` page + `/api/career-path` route: Sonnet + web search finds free resources per skill gap, project brief, CV phrasing; progress checklist persisted in `career_roadmaps` table (migration 004). Entry point is the Phase 1 banner's "See your career path" link |
 | Schema drift fix (`tailor_history.job_description`, `profiles.full_name`) | Bug | — | `staging` DB was missing columns production actually has, discovered while testing career-memory. `schema.sql` corrected + migration 003 added |
 | `/api/tailor` and `/api/career-path` timeout fix (`maxDuration` 60→300) | Bug | — | `staging` only, not merged. See "Bug: AI endpoints timing out at 60s" below |
+| CV/job description too long — needs automatic handling, not a hard error | Bug | [#6](https://github.com/osedman/cvtailor-saas/pull/6) | Users hitting the 400 "Input too long" wall with no recovery path. PR #6 already adds Haiku pre-compression for CVs >12k chars (30k hard cap) — needs review/merge. Job description side still has no compression, just the 10k hard cap |
 
 ## 📋 Backlog (suggested, not started)
 
