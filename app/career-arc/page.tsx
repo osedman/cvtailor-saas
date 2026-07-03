@@ -4,13 +4,22 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
-import { ArrowLeft, Loader2, Sparkles, TrendingUp, Trophy, Star } from "lucide-react"
+import {
+  ArrowLeft, Loader2, Sparkles, TrendingUp, Trophy, Star, Briefcase,
+  ShieldCheck, LineChart, Users, Rocket, Target, Layers, BookOpen, Wrench,
+  type LucideIcon,
+} from "lucide-react"
 import { Header } from "@/components/cv-tailor/header"
 import { useAuth } from "@/components/auth/auth-provider"
-import type { CareerProfileSections } from "@/lib/anthropic"
+import type { CareerProfileSections, CareerQuestion } from "@/lib/anthropic"
 
 const ACCENT = "#dc4f33"
 const INK = "#1e1813"
+
+const QUALITY_ICONS: Record<string, LucideIcon> = {
+  shield: ShieldCheck, chart: LineChart, users: Users, rocket: Rocket,
+  target: Target, layers: Layers, book: BookOpen, tool: Wrench,
+}
 
 interface Profile {
   id: string
@@ -43,7 +52,6 @@ function usePrefersReducedMotion() {
   return reduced
 }
 
-/** Fires once when the element scrolls into view */
 function useInView<T extends HTMLElement>() {
   const ref = useRef<T | null>(null)
   const [visible, setVisible] = useState(false)
@@ -52,7 +60,7 @@ function useInView<T extends HTMLElement>() {
     if (!el) return
     const obs = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect() } },
-      { threshold: 0.2 },
+      { threshold: 0.15 },
     )
     obs.observe(el)
     return () => obs.disconnect()
@@ -60,17 +68,12 @@ function useInView<T extends HTMLElement>() {
   return { ref, visible }
 }
 
-function Reveal({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Reveal({ children }: { children: React.ReactNode }) {
   const { ref, visible } = useInView<HTMLDivElement>()
-  return (
-    <div ref={ref} className={`${className} ${visible ? "animate-fade-in-up" : "opacity-0"}`}>
-      {children}
-    </div>
-  )
+  return <div ref={ref} className={visible ? "animate-fade-in-up" : "opacity-0"}>{children}</div>
 }
 
-/** Counts 0 -> target once the value becomes visible/active */
-function useCountUp(target: number, active: boolean, durationMs = 1100) {
+function useCountUp(target: number, active: boolean, durationMs = 1000) {
   const [value, setValue] = useState(0)
   const reduced = usePrefersReducedMotion()
   useEffect(() => {
@@ -80,7 +83,7 @@ function useCountUp(target: number, active: boolean, durationMs = 1100) {
     const start = performance.now()
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / durationMs)
-      const eased = 1 - Math.pow(1 - t, 3) // ease-out cubic
+      const eased = 1 - Math.pow(1 - t, 3)
       setValue(Math.round(eased * target))
       if (t < 1) raf = requestAnimationFrame(tick)
     }
@@ -90,55 +93,119 @@ function useCountUp(target: number, active: boolean, durationMs = 1100) {
   return value
 }
 
-/** Click-to-edit text — click to reveal an input/textarea, blur or Enter to save */
-function EditableText({
-  value, onSave, multiline = false, className = "", placeholder = "",
-}: {
-  value: string; onSave: (next: string) => void; multiline?: boolean; className?: string; placeholder?: string
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(value)
-  useEffect(() => { setDraft(value) }, [value])
-  const commit = () => { setEditing(false); if (draft.trim() !== value.trim()) onSave(draft.trim()) }
-
-  if (editing) {
-    const Field = multiline ? "textarea" : "input"
-    return (
-      <Field
-        autoFocus
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => { if (!multiline && e.key === "Enter") commit() }}
-        rows={multiline ? 3 : undefined}
-        className={`${className} w-full bg-white border border-[#f5c9bb] rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-[#dc4f33]/15`}
-      />
-    )
-  }
+/** A stat block: counts up if the value is a plain number, renders as-is otherwise */
+function StatBlock({ value, label, active }: { value: string; label: string; active: boolean }) {
+  const numeric = /^\d+$/.test(value.trim()) ? parseInt(value.trim(), 10) : null
+  const count = useCountUp(numeric ?? 0, active && numeric !== null)
   return (
-    <button onClick={() => setEditing(true)} className={`${className} text-left w-full rounded-lg px-2 py-1 -mx-2 -my-1 transition-colors hover:bg-[#fff7f4] cursor-text`} title="Click to edit">
-      {value || <span className="text-gray-300">{placeholder}</span>}
-    </button>
+    <div className="bg-white rounded-2xl p-4 text-center">
+      <p className="font-extrabold tabular-nums leading-none" style={{ fontSize: "clamp(1.8rem, 4vw, 2.4rem)", color: ACCENT }}>
+        {numeric !== null ? count : value}
+      </p>
+      <p className="mt-1.5 text-[12px] text-gray-400">{label}</p>
+    </div>
   )
 }
 
-function CVPasteForm({ onGenerated }: { onGenerated: (p: Profile) => void }) {
-  const [cv, setCv] = useState("")
-  const [loading, setLoading] = useState(false)
-  const submit = useCallback(async () => {
-    if (!cv.trim()) { toast.error("Paste your CV first."); return }
-    setLoading(true)
+function SectionHeading({ icon: Icon, children, sub }: { icon?: LucideIcon; children: React.ReactNode; sub?: string }) {
+  return (
+    <div className="mb-5">
+      <h2 className="text-sm font-semibold text-[#1e1813] flex items-center gap-2">
+        {Icon && <Icon className="w-4 h-4" style={{ color: ACCENT }} />}{children}
+      </h2>
+      {sub && <p className="mt-1 text-[12px] text-gray-400">{sub}</p>}
+    </div>
+  )
+}
+
+/** Wizard step 2: personalised questions, each individually skippable (blank = skipped) */
+function QuestionsStep({ cv, questions, onBuilt }: { cv: string; questions: CareerQuestion[]; onBuilt: (p: Profile) => void }) {
+  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [building, setBuilding] = useState(false)
+
+  const build = useCallback(async (withAnswers: boolean) => {
+    setBuilding(true)
     try {
-      const res = await fetch("/api/career-profile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cv }) })
+      const payload = withAnswers
+        ? questions.map((q) => ({ question: q.question, answer: answers[q.key] ?? "" }))
+        : []
+      const res = await fetch("/api/career-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cv, answers: payload }),
+      })
       const data = await readJson<{ profile: Profile }>(res)
-      onGenerated(data.profile)
+      onBuilt(data.profile)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to build your Career Arc.")
-    } finally {
-      setLoading(false)
+      setBuilding(false)
     }
-  }, [cv, onGenerated])
+  }, [cv, questions, answers, onBuilt])
 
+  if (building) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-24">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+        <p className="text-sm text-gray-400">Building your Career Arc…</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-xl mx-auto py-12 px-4">
+      <div className="flex items-center gap-2 mb-6">
+        <div className="w-6 h-6 rounded-full flex items-center justify-center text-white" style={{ background: ACCENT }}>
+          <Sparkles className="w-3 h-3" />
+        </div>
+        <span className="text-[12px] text-gray-400">CV read</span>
+        <div className="flex-1 h-px" style={{ background: ACCENT }} />
+        <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[11px] font-semibold" style={{ background: ACCENT }}>2</div>
+        <span className="text-[12px] font-semibold text-[#1e1813]">Your story</span>
+        <div className="flex-1 h-px bg-gray-200" />
+        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] text-gray-400 bg-white border border-gray-200">3</div>
+        <span className="text-[12px] text-gray-400">Build</span>
+      </div>
+
+      <h1 className="text-[22px] font-extrabold tracking-tight text-[#1e1813]">A few things your CV can&apos;t tell us</h1>
+      <p className="mt-1.5 text-[13px] text-gray-500">All optional — answer any, skip any. Your answers appear in your arc, in your own words.</p>
+
+      <div className="mt-6 space-y-3">
+        {questions.map((q) => (
+          <div key={q.key} className="bg-white rounded-2xl border border-gray-100 p-4">
+            <p className="text-[13.5px] font-semibold text-[#1e1813] mb-2">{q.question}</p>
+            <textarea
+              value={answers[q.key] ?? ""}
+              onChange={(e) => setAnswers((a) => ({ ...a, [q.key]: e.target.value }))}
+              placeholder="A sentence or two — or leave blank to skip"
+              rows={2}
+              className="w-full text-[13px] px-3 py-2 border border-gray-200 rounded-lg outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 flex gap-3">
+        <button
+          onClick={() => build(true)}
+          className="flex-1 inline-flex items-center justify-center gap-2 py-3 text-[14px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]"
+          style={{ background: ACCENT }}
+        >
+          <Sparkles className="w-4 h-4" />Build my arc
+        </button>
+        <button
+          onClick={() => build(false)}
+          className="px-4 py-3 text-[13px] font-medium text-gray-500 border border-gray-200 rounded-xl hover:text-[#1e1813] hover:border-gray-300 transition-colors"
+        >
+          Skip questions
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** Wizard step 1 when no tailor history exists: paste CV */
+function CVPasteStep({ onCv }: { onCv: (cv: string) => void }) {
+  const [cv, setCv] = useState("")
   return (
     <div className="max-w-xl mx-auto py-16 px-4">
       <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-5 shadow-sm" style={{ background: "#fff7f4", color: ACCENT }}>
@@ -146,141 +213,205 @@ function CVPasteForm({ onGenerated }: { onGenerated: (p: Profile) => void }) {
       </div>
       <h1 className="text-[28px] font-extrabold tracking-tight text-[#1e1813]">Build your Career Arc</h1>
       <p className="mt-2 text-[15px] text-gray-500 leading-relaxed">
-        Paste your CV and Tailr will turn it into a highlight reel of your career — timeline, skills, growth, and the projects you should be proud of.
+        Paste your CV, answer a couple of quick questions, and Tailr turns it into a highlight reel of your career.
       </p>
       <textarea
         value={cv} onChange={(e) => setCv(e.target.value)} placeholder="Paste your CV text here…" rows={12}
         className="mt-6 w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300"
       />
       <button
-        onClick={submit} disabled={loading}
-        className="mt-4 w-full inline-flex items-center justify-center gap-2 py-3.5 text-[15px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100"
+        onClick={() => { if (!cv.trim()) { toast.error("Paste your CV first."); return } onCv(cv) }}
+        className="mt-4 w-full inline-flex items-center justify-center gap-2 py-3.5 text-[15px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]"
         style={{ background: ACCENT }}
       >
-        {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Building your Career Arc…</> : <><Sparkles className="w-4 h-4" />Build my Career Arc</>}
+        Continue
       </button>
     </div>
   )
 }
 
-/** Hero: name/headline in oversized type + one big honest stat, count-up on reveal */
 function Hero({ s }: { s: CareerProfileSections }) {
   const { ref, visible } = useInView<HTMLDivElement>()
-  const years = s.growth?.tenureYears ?? 0
-  const count = useCountUp(years, visible)
   return (
     <div ref={ref} className={visible ? "animate-fade-in-up" : "opacity-0"}>
-      <div className="text-center py-16 px-4">
-        <p className="text-[12px] font-semibold uppercase tracking-[0.25em]" style={{ color: ACCENT }}>Career Arc</p>
-        <h1 className="mt-3 font-extrabold tracking-tight text-[#1e1813]" style={{ fontSize: "clamp(2.25rem, 6vw, 4.5rem)", lineHeight: 1.05 }}>
-          {s.headline}
-        </h1>
-        {years > 0 && (
-          <div className="mt-8 inline-flex items-baseline gap-3">
-            <span className="font-extrabold tabular-nums" style={{ fontSize: "clamp(3.5rem, 12vw, 7rem)", color: ACCENT, lineHeight: 1 }}>
-              {count}
-            </span>
-            <span className="text-lg font-semibold text-gray-400 pb-2">years building a career</span>
+      <div className="pt-14 pb-4 px-4 max-w-3xl mx-auto">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.25em]" style={{ color: ACCENT }}>Career Arc</p>
+        {s.identity.name && (
+          <h1 className="mt-2 font-extrabold tracking-tight text-[#1e1813]" style={{ fontSize: "clamp(1.9rem, 4.5vw, 2.6rem)", lineHeight: 1.1 }}>
+            {s.identity.name}
+          </h1>
+        )}
+        <p className={`${s.identity.name ? "mt-1 text-[17px] text-gray-500" : "mt-2 font-extrabold tracking-tight text-[#1e1813]"}`}
+          style={s.identity.name ? undefined : { fontSize: "clamp(1.6rem, 4vw, 2.2rem)", lineHeight: 1.15 }}>
+          {s.identity.roleLine}
+        </p>
+        {s.stats?.length > 0 && (
+          <div className="mt-7 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {s.stats.slice(0, 4).map((st, i) => <StatBlock key={i} value={st.value} label={st.label} active={visible} />)}
           </div>
+        )}
+        {s.identity.supportingLine && (
+          <p className="mt-5 text-[13px] text-gray-400 leading-relaxed max-w-xl">{s.identity.supportingLine}</p>
         )}
       </div>
     </div>
   )
 }
 
-/** An actual ascending line chart from first title to current title, one point per role */
-function GrowthArc({ timeline, growth }: { timeline: CareerProfileSections["timeline"]; growth: CareerProfileSections["growth"] }) {
-  if (!timeline || timeline.length < 2) return null
-  const { ref, visible } = useInView<HTMLDivElement>()
-  const W = 600, H = 180, PAD = 30
-  const n = timeline.length
-  const points = timeline.map((role, i) => {
-    const x = PAD + (i * (W - PAD * 2)) / (n - 1)
-    const y = H - PAD - (i * (H - PAD * 2)) / (n - 1) // later roles sit higher
-    return { x, y, title: role.title }
-  })
-  const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")
-  const pathLen = 900 // generous upper bound for stroke-dash animation
-
+function StoryQuote({ label, text }: { label: string; text: string }) {
+  if (!text) return null
   return (
-    <div ref={ref}>
-      <h2 className="text-sm font-semibold text-[#1e1813] mb-1.5 flex items-center gap-2">
-        <TrendingUp className="w-4 h-4" style={{ color: ACCENT }} />Growth
-      </h2>
-      <p className="text-[12px] text-gray-400 mb-4">{growth.fromTitle} → {growth.toTitle}</p>
-      <div className="rounded-2xl border border-gray-100 bg-white p-6 overflow-x-auto">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 480 }}>
-          <path
-            d={path}
-            fill="none"
-            stroke={ACCENT}
-            strokeWidth={3}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{
-              strokeDasharray: pathLen,
-              strokeDashoffset: visible ? 0 : pathLen,
-              transition: "stroke-dashoffset 1.2s ease-out",
-            }}
-          />
-          {points.map((p, i) => (
-            <g key={i} style={{ opacity: visible ? 1 : 0, transition: `opacity 0.3s ease-out ${0.3 + i * 0.15}s` }}>
-              <circle cx={p.x} cy={p.y} r={i === n - 1 ? 7 : 5} fill={i === n - 1 ? ACCENT : "#fff"} stroke={ACCENT} strokeWidth={2.5} />
-              <text x={p.x} y={p.y - 14} textAnchor="middle" className="text-[10px] font-semibold" fill={INK}>
-                {p.title.length > 18 ? p.title.slice(0, 16) + "…" : p.title}
-              </text>
-            </g>
-          ))}
-        </svg>
+    <div className="bg-white rounded-r-2xl p-5" style={{ borderLeft: `3px solid ${ACCENT}` }}>
+      <p className="text-[10.5px] uppercase tracking-[0.12em] text-gray-400 mb-1.5">{label}</p>
+      <p className="text-[14px] text-[#1e1813] leading-relaxed italic">&ldquo;{text}&rdquo;</p>
+    </div>
+  )
+}
+
+function Achievements({ achievements }: { achievements: CareerProfileSections["achievements"] }) {
+  if (!achievements?.length) return null
+  return (
+    <div>
+      <SectionHeading icon={Trophy}>The numbers</SectionHeading>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {achievements.slice(0, 4).map((a, i) => (
+          <div key={i} className="bg-white rounded-2xl p-5">
+            <p className="font-extrabold leading-none" style={{ fontSize: "clamp(1.4rem, 3vw, 1.8rem)", color: ACCENT }}>{a.value}</p>
+            <p className="mt-2 text-[12px] text-gray-500 leading-relaxed">{a.label}</p>
+          </div>
+        ))}
       </div>
     </div>
   )
 }
 
-/** Vertical timeline: alternating cards on a line that draws itself in on scroll */
-function Timeline({ timeline }: { timeline: CareerProfileSections["timeline"] }) {
+/** The ascent: mountain area chart, 2-3 milestone camps only, turning point quote as caption */
+function Ascent({ s }: { s: CareerProfileSections }) {
   const { ref, visible } = useInView<HTMLDivElement>()
-  if (!timeline?.length) return null
+  const n = s.timeline?.length ?? 0
+  if (n < 2) return null
+
+  const W = 600, H = 190, PADX = 24, PADY = 30
+  const points = s.timeline.map((_, i) => ({
+    x: PADX + (i * (W - PADX * 2)) / (n - 1),
+    y: H - PADY - (i * (H - PADY * 2)) / (n - 1),
+  }))
+  const line = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")
+  const area = `${line} L ${points[n - 1].x} ${H - 6} L ${points[0].x} ${H - 6} Z`
+
+  const milestones = (s.growth?.milestones ?? []).slice(0, 3)
+  const yearOf = (t: CareerProfileSections["timeline"][number]) => (t.start.match(/\d{4}/)?.[0] ?? "")
+  const camps = milestones.map((m) => {
+    const idx = s.timeline.findIndex((t) => yearOf(t) === m.year)
+    return { ...m, idx: idx >= 0 ? idx : null }
+  }).filter((c): c is typeof c & { idx: number } => c.idx !== null)
+
   return (
     <div ref={ref}>
-      <h2 className="text-sm font-semibold text-[#1e1813] mb-6">Timeline</h2>
-      <div className="relative">
-        <div
-          className="absolute left-1/2 md:left-1/2 top-0 w-px bg-gradient-to-b from-[#dc4f33] to-[#f5d9d0] -translate-x-1/2 origin-top"
-          style={{ height: "100%", transform: `translateX(-50%) scaleY(${visible ? 1 : 0})`, transition: "transform 1.4s ease-out" }}
-        />
-        <div className="space-y-10">
-          {timeline.map((role, i) => {
-            const left = i % 2 === 0
+      <SectionHeading icon={TrendingUp}>The climb</SectionHeading>
+      <div className="rounded-2xl bg-white p-5">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+          <path d={area} fill="#fdeee8" style={{ opacity: visible ? 1 : 0, transition: "opacity 0.8s ease-out 0.4s" }} />
+          <path
+            d={line} fill="none" stroke={ACCENT} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
+            style={{ strokeDasharray: 900, strokeDashoffset: visible ? 0 : 900, transition: "stroke-dashoffset 1.2s ease-out" }}
+          />
+          {camps.map((c, i) => {
+            const p = points[c.idx]
+            const anchor = c.idx === 0 ? "start" : c.idx === n - 1 ? "end" : "middle"
+            const tx = c.idx === 0 ? p.x - 6 : c.idx === n - 1 ? p.x + 6 : p.x
             return (
-              <div key={i} className="relative grid md:grid-cols-2 gap-4 md:gap-10 items-start">
-                <div
-                  className="absolute left-1/2 top-1.5 w-3 h-3 rounded-full -translate-x-1/2 border-2 border-white"
-                  style={{ background: ACCENT, boxShadow: visible ? "0 0 0 4px rgba(220,79,51,0.12)" : "none", transition: `box-shadow 0.4s ease-out ${0.3 + i * 0.15}s` }}
-                />
-                <div className={left ? "md:text-right md:pr-14" : "md:col-start-2 md:pl-14"}>
-                  <div className="rounded-2xl border border-gray-100 bg-white p-5 inline-block w-full text-left">
-                    <p className="text-[15px] font-bold text-[#1e1813]">{role.title}</p>
-                    <p className="text-[12.5px] text-gray-400 mb-2">{role.company} · {role.start}–{role.end}</p>
-                    {role.highlights?.map((h, j) => (
-                      <p key={j} className="text-[13px] text-gray-600 leading-relaxed">{h}</p>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <g key={i} style={{ opacity: visible ? 1 : 0, transition: `opacity 0.3s ease-out ${0.5 + i * 0.2}s` }}>
+                <circle cx={p.x} cy={p.y} r={c.idx === n - 1 ? 7 : 5} fill={c.idx === n - 1 ? ACCENT : "#fff"} stroke={ACCENT} strokeWidth={2.5} />
+                <text x={tx} y={p.y - 22} textAnchor={anchor} fontSize={10.5} fontWeight={600} fill={INK}>{c.year}</text>
+                <text x={tx} y={p.y - 10} textAnchor={anchor} fontSize={10} fill="#8a8178">{c.label}</text>
+              </g>
             )
           })}
-        </div>
+        </svg>
+        {s.story?.turningPoint && (
+          <p className="mt-3 text-[12.5px] text-gray-500 italic border-t border-gray-50 pt-3">&ldquo;{s.story.turningPoint}&rdquo;</p>
+        )}
       </div>
     </div>
   )
 }
 
-/** Skill categories rendered as bars sized by real skill-count share, not invented proficiency */
-function SkillBars({ skills, patch }: { skills: CareerProfileSections["skills"]; patch: (p: Partial<CareerProfileSections>) => void }) {
+/** Staircase: role-by-role detail, bar width = seniority progression, highlights inline */
+function Staircase({ timeline }: { timeline: CareerProfileSections["timeline"] }) {
+  const { ref, visible } = useInView<HTMLDivElement>()
+  const n = timeline?.length ?? 0
+  if (!n) return null
+  const rows = [...timeline].reverse() // newest first
+
+  return (
+    <div ref={ref}>
+      <SectionHeading icon={Briefcase}>Role by role</SectionHeading>
+      <div className="rounded-2xl bg-white p-5 divide-y divide-gray-50">
+        {rows.map((role, i) => {
+          const seniority = (n - i) / n
+          const isCurrent = i === 0
+          return (
+            <div key={i} className="py-4 first:pt-0 last:pb-0">
+              <div className="h-2 rounded-full bg-gray-50 mb-2.5 overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: visible ? `${Math.max(18, seniority * 100)}%` : "0%",
+                    background: isCurrent ? ACCENT : `rgba(220,79,51,${0.25 + seniority * 0.5})`,
+                    transition: `width 0.8s ease-out ${i * 0.1}s`,
+                  }}
+                />
+              </div>
+              <p className="text-[14px] font-bold text-[#1e1813]">
+                {role.title}
+                <span className="font-normal text-gray-400"> · {role.company}</span>
+              </p>
+              <p className="text-[11.5px] mb-1" style={{ color: isCurrent ? ACCENT : "#a89e93" }}>
+                {isCurrent && /present|now|current/i.test(role.end) ? "Now" : `${role.start}–${role.end}`}
+              </p>
+              {role.highlights?.map((h, j) => (
+                <p key={j} className="text-[13px] text-gray-600 leading-relaxed">{h}</p>
+              ))}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function Organisations({ organisations }: { organisations: CareerProfileSections["organisations"] }) {
+  if (!organisations?.length) return null
+  const MONO_BG = [INK, ACCENT, "#6b6259", "#993c1d", "#444441"]
+  return (
+    <div>
+      <SectionHeading icon={Users}>Organisations</SectionHeading>
+      <div className="flex flex-wrap gap-2.5">
+        {organisations.map((org, i) => {
+          const initials = org.name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase()
+          return (
+            <div key={i} className="flex items-center gap-2.5 bg-white rounded-xl py-2 pl-2 pr-4">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-[11px] font-semibold" style={{ background: MONO_BG[i % MONO_BG.length] }}>
+                {initials}
+              </div>
+              <div>
+                <p className="text-[12.5px] font-semibold text-[#1e1813]">{org.name}</p>
+                <p className="text-[10.5px] text-gray-400">
+                  {org.roleCount} role{org.roleCount === 1 ? "" : "s"}{org.span ? ` · ${org.span}` : ""}
+                </p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function SkillBars({ skills }: { skills: CareerProfileSections["skills"] }) {
   const { ref, visible } = useInView<HTMLDivElement>()
   if (!skills?.length) return null
-
   const byCategory = new Map<string, string[]>()
   for (const sk of skills) {
     const list = byCategory.get(sk.category) ?? []
@@ -292,7 +423,7 @@ function SkillBars({ skills, patch }: { skills: CareerProfileSections["skills"];
 
   return (
     <div ref={ref}>
-      <h2 className="text-sm font-semibold text-[#1e1813] mb-4">Skills</h2>
+      <SectionHeading>Skills</SectionHeading>
       <div className="space-y-4">
         {entries.map(([category, names], i) => (
           <div key={category}>
@@ -312,9 +443,7 @@ function SkillBars({ skills, patch }: { skills: CareerProfileSections["skills"];
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {names.map((name, j) => (
-                <span key={j} className="text-[11.5px] font-medium px-2.5 py-1 rounded-full bg-[#fff7f4] text-[#1e1813] border border-[#f5d9d0]">
-                  {name}
-                </span>
+                <span key={j} className="text-[11.5px] font-medium px-2.5 py-1 rounded-full bg-[#fff7f4] text-[#1e1813] border border-[#f5d9d0]">{name}</span>
               ))}
             </div>
           </div>
@@ -324,22 +453,29 @@ function SkillBars({ skills, patch }: { skills: CareerProfileSections["skills"];
   )
 }
 
-/** Project cards as a "trophy case" grid */
-function TrophyCase({ projects, onSave }: { projects: CareerProfileSections["projects"]; onSave: (i: number, next: string) => void }) {
+function TrophyCase({ projects, proudestQuote }: { projects: CareerProfileSections["projects"]; proudestQuote: string }) {
   if (!projects?.length) return null
+  const featured = projects.find((p) => p.featured)
+  const rest = projects.filter((p) => !p.featured)
   return (
     <div>
-      <h2 className="text-sm font-semibold text-[#1e1813] mb-4 flex items-center gap-2">
-        <Trophy className="w-4 h-4" style={{ color: ACCENT }} />Key projects
-      </h2>
-      <div className="grid sm:grid-cols-2 gap-4">
-        {projects.map((p, i) => (
-          <div key={i} className="rounded-2xl border border-gray-100 bg-white p-5 transition-all hover:shadow-md hover:-translate-y-0.5">
+      <SectionHeading icon={Trophy}>Key projects</SectionHeading>
+      {featured && (
+        <div className="mb-4 rounded-2xl p-5 text-white" style={{ background: INK }}>
+          <p className="text-[10.5px] uppercase tracking-[0.12em] mb-1.5" style={{ color: "#f4a58e" }}>Proudest work</p>
+          <p className="text-[16px] font-bold mb-1">{featured.title}</p>
+          <p className="text-[13px] leading-relaxed" style={{ color: "#cfc8bf" }}>{featured.summary}</p>
+          {proudestQuote && <p className="mt-3 text-[13px] italic" style={{ color: "#f4a58e" }}>&ldquo;{proudestQuote}&rdquo;</p>}
+        </div>
+      )}
+      <div className="grid sm:grid-cols-2 gap-3">
+        {rest.map((p, i) => (
+          <div key={i} className="rounded-2xl bg-white p-5 transition-all hover:shadow-md hover:-translate-y-0.5">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-3" style={{ background: "#fff7f4", color: ACCENT }}>
               <Trophy className="w-4 h-4" />
             </div>
-            <p className="text-[15px] font-bold text-[#1e1813] mb-1">{p.title}</p>
-            <EditableText value={p.summary} multiline onSave={(next) => onSave(i, next)} className="text-[13px] text-gray-600 leading-relaxed" />
+            <p className="text-[14px] font-bold text-[#1e1813] mb-1">{p.title}</p>
+            <p className="text-[13px] text-gray-600 leading-relaxed">{p.summary}</p>
           </div>
         ))}
       </div>
@@ -347,93 +483,92 @@ function TrophyCase({ projects, onSave }: { projects: CareerProfileSections["pro
   )
 }
 
-/** Inferred trait tiles — bold, badge-like, but flat/professional, not cartoon medals */
-function QualityTiles({ qualities }: { qualities: string[] }) {
+function Qualities({ qualities }: { qualities: CareerProfileSections["qualities"] }) {
   if (!qualities?.length) return null
   return (
     <div>
-      <h2 className="text-sm font-semibold text-[#1e1813] mb-1.5 flex items-center gap-2">
-        <Star className="w-4 h-4" style={{ color: ACCENT }} />What your career says about you
-      </h2>
-      <p className="text-[12px] text-gray-400 mb-4">Inferred from patterns across your CV — a signal, not a verdict.</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {qualities.map((q, i) => (
-          <div key={i} className="rounded-xl border-2 p-4 text-center transition-transform hover:-translate-y-0.5" style={{ borderColor: "#f5d9d0" }}>
-            <p className="text-[15px] font-extrabold uppercase tracking-wide" style={{ color: ACCENT }}>{q}</p>
-          </div>
-        ))}
+      <SectionHeading icon={Star} sub="Inferred from patterns across your CV — a signal, not a verdict.">
+        What your career says about you
+      </SectionHeading>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {qualities.map((q, i) => {
+          const Icon = QUALITY_ICONS[q.icon] ?? Star
+          return (
+            <div key={i} className="rounded-2xl bg-white p-4">
+              <Icon className="w-5 h-5 mb-2" style={{ color: ACCENT }} />
+              <p className="text-[14px] font-bold text-[#1e1813]">{q.label}</p>
+              <p className="mt-0.5 text-[12px] text-gray-500 leading-relaxed">{q.evidence}</p>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
 }
 
-function CareerArcView({ profile, onUpdated }: { profile: Profile; onUpdated: (p: Profile) => void }) {
+function CareerArcView({ profile, onRebuild }: { profile: Profile; onRebuild: () => void }) {
   const s = profile.sections
-
-  const patch = useCallback(async (partial: Partial<CareerProfileSections>) => {
-    try {
-      const res = await fetch("/api/career-profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sections: partial }) })
-      const data = await readJson<{ profile: Profile }>(res)
-      onUpdated(data.profile)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save your edit.")
-    }
-  }, [onUpdated])
-
   return (
     <div>
       <Hero s={s} />
-      <div className="max-w-3xl mx-auto px-4 space-y-16 pb-20">
-        <Reveal><GrowthArc timeline={s.timeline} growth={s.growth} /></Reveal>
-        <Reveal><Timeline timeline={s.timeline} /></Reveal>
-        <Reveal><SkillBars skills={s.skills} patch={patch} /></Reveal>
+      <div className="max-w-3xl mx-auto px-4 space-y-14 pb-20 pt-8">
+        {s.story?.origin && <Reveal><StoryQuote label="Where it started" text={s.story.origin} /></Reveal>}
+        <Reveal><Achievements achievements={s.achievements} /></Reveal>
+        <Reveal><Ascent s={s} /></Reveal>
+        <Reveal><Staircase timeline={s.timeline} /></Reveal>
+        <Reveal><Organisations organisations={s.organisations} /></Reveal>
+        <Reveal><SkillBars skills={s.skills} /></Reveal>
+        <Reveal><TrophyCase projects={s.projects} proudestQuote="" /></Reveal>
+        <Reveal><Qualities qualities={s.qualities} /></Reveal>
+        {s.story?.ambition && <Reveal><StoryQuote label="Where this is heading" text={s.story.ambition} /></Reveal>}
         <Reveal>
-          <TrophyCase
-            projects={s.projects}
-            onSave={(i, next) => {
-              const projects = s.projects.map((pr, j) => (j === i ? { ...pr, summary: next } : pr))
-              patch({ projects })
-            }}
-          />
-        </Reveal>
-        <Reveal><QualityTiles qualities={s.qualities} /></Reveal>
-        <Reveal>
-          <div className="pt-4 border-t border-gray-100">
-            <p className="text-[11px] text-gray-400 mb-1">Headline</p>
-            <EditableText value={s.headline} onSave={(next) => patch({ headline: next })} className="text-[14px] text-[#1e1813]" />
+          <div className="pt-2 text-center">
+            <button
+              onClick={onRebuild}
+              className="text-[13px] font-medium text-gray-400 hover:text-[#1e1813] border border-gray-200 hover:border-gray-300 rounded-lg px-4 py-2 transition-colors"
+            >
+              Rebuild my arc
+            </button>
           </div>
         </Reveal>
       </div>
     </div>
   )
 }
+
+type WizardState =
+  | { step: "loading" }
+  | { step: "paste" }
+  | { step: "fetching-questions"; cv: string }
+  | { step: "questions"; cv: string; questions: CareerQuestion[] }
+  | { step: "done"; profile: Profile }
 
 export default function CareerArcPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
-  const [profile, setProfile] = useState<Profile | null | undefined>(undefined) // undefined = loading
-  const [needsCv, setNeedsCv] = useState(false)
-  const [generating, setGenerating] = useState(false)
+  const [state, setState] = useState<WizardState>({ step: "loading" })
 
   useEffect(() => {
     if (!authLoading && !user) router.push("/tailor")
   }, [authLoading, user, router])
 
-  const autoGenerate = useCallback(async () => {
-    setGenerating(true)
+  const startWizard = useCallback(async (cv: string) => {
+    setState({ step: "fetching-questions", cv })
     try {
-      const res = await fetch("/api/career-profile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) })
-      const data = await readJson<{ profile: Profile }>(res)
-      setProfile(data.profile)
+      const res = await fetch("/api/career-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cv, mode: "questions" }),
+      })
+      const data = await readJson<{ questions: CareerQuestion[] }>(res)
+      setState({ step: "questions", cv, questions: data.questions })
     } catch (err) {
       if (err instanceof Error && /paste your CV/i.test(err.message)) {
-        setNeedsCv(true)
+        setState({ step: "paste" })
       } else {
-        toast.error(err instanceof Error ? err.message : "Failed to build your Career Arc.")
-        setNeedsCv(true)
+        toast.error(err instanceof Error ? err.message : "Failed to read your CV.")
+        setState({ step: "paste" })
       }
-    } finally {
-      setGenerating(false)
     }
   }, [])
 
@@ -442,17 +577,17 @@ export default function CareerArcPage() {
     fetch("/api/career-profile")
       .then((res) => readJson<{ profile: Profile | null }>(res))
       .then((data) => {
-        if (data.profile) {
-          setProfile(data.profile)
+        // Old-schema rows (pre-redesign) lack identity — treat as not built yet
+        if (data.profile?.sections?.identity) {
+          setState({ step: "done", profile: data.profile })
         } else {
-          setProfile(null)
-          autoGenerate()
+          startWizard("")
         }
       })
-      .catch(() => { setProfile(null); setNeedsCv(true) })
-  }, [user, autoGenerate])
+      .catch(() => setState({ step: "paste" }))
+  }, [user, startWizard])
 
-  if (authLoading || !user || profile === undefined) {
+  if (authLoading || !user || state.step === "loading") {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
@@ -469,19 +604,22 @@ export default function CareerArcPage() {
         </Link>
       </div>
 
-      {profile ? (
-        <CareerArcView profile={profile} onUpdated={setProfile} />
-      ) : generating ? (
+      {state.step === "done" && (
+        <CareerArcView profile={state.profile} onRebuild={() => startWizard("")} />
+      )}
+      {state.step === "paste" && <CVPasteStep onCv={startWizard} />}
+      {state.step === "fetching-questions" && (
         <div className="flex flex-col items-center justify-center gap-4 py-24">
           <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
-          <p className="text-sm text-gray-400">Building your Career Arc…</p>
+          <p className="text-sm text-gray-400">Reading your CV…</p>
         </div>
-      ) : needsCv ? (
-        <CVPasteForm onGenerated={setProfile} />
-      ) : (
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
-        </div>
+      )}
+      {state.step === "questions" && (
+        <QuestionsStep
+          cv={state.cv}
+          questions={state.questions}
+          onBuilt={(profile) => setState({ step: "done", profile })}
+        />
       )}
     </div>
   )
