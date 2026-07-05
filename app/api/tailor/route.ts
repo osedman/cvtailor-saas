@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import {
   anthropic, SYSTEM_PROMPT, EXTRACT_TOOL, REWRITE_TOOL, ROLE_GUIDANCE,
@@ -189,10 +190,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     }
 
-    // 1b. Rate limit (protects against runaway Claude API cost / abuse)
-    const limited = await checkRateLimit(user.id, 'tailor')
-    if (limited) return limited
-
     // 2. Validate input
     const { cv, jobDescription, jobUrl } = await req.json()
     if (!cv || !jobDescription) {
@@ -201,6 +198,28 @@ export async function POST(req: NextRequest) {
     if (cv.length > CV_RAW_LIMIT || jobDescription.length > JD_RAW_LIMIT) {
       return NextResponse.json({ error: 'Input too long. CV max 30,000 chars, job description max 20,000.' }, { status: 400 })
     }
+
+    // 2b. Identical re-run? Serve the stored result instead of re-rolling the
+    // pipeline — the extraction pass is non-deterministic, so re-running the
+    // exact same CV+JD produces a different match score for no reason (and
+    // burns API cost). Checked before the rate limit: cache hits are free.
+    const inputHash = createHash('sha256').update(`${cv}\n---\n${jobDescription}`).digest('hex')
+    const { data: cachedRow } = await supabase
+      .from('tailor_history')
+      .select('id, result')
+      .eq('user_id', user.id)
+      .eq('input_hash', inputHash)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (cachedRow?.result) {
+      return NextResponse.json({ result: cachedRow.result, historyId: cachedRow.id, cached: true })
+    }
+
+    // 2c. Rate limit (protects against runaway Claude API cost / abuse) —
+    // applied only to real pipeline runs, never to cache hits above.
+    const limited = await checkRateLimit(user.id, 'tailor')
+    if (limited) return limited
 
     // 3. Pass 0 — compress long inputs (strips noise, preserves all content).
     // Both compressions are independent Haiku calls, so run them in parallel.
@@ -282,6 +301,7 @@ export async function POST(req: NextRequest) {
           job_description: jobDescription,
           match_score:  result.matchScore,
           original_cv:  processedCv,
+          input_hash:   inputHash,
           result,
         })
         .select('id')
