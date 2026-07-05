@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import {
   anthropic, SYSTEM_PROMPT, EXTRACT_TOOL, REWRITE_TOOL, ROLE_GUIDANCE,
@@ -7,7 +8,62 @@ import { createClient } from '@/lib/supabase/server'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 60
+export const maxDuration = 300
+
+const CV_RAW_LIMIT = 30_000
+const CV_COMPRESS_THRESHOLD = 12_000
+const JD_RAW_LIMIT = 20_000
+const JD_COMPRESS_THRESHOLD = 6_000
+
+// ── Pass 0: strip formatting noise from long inputs (Haiku — fast) ──────
+
+async function compressCV(cv: string): Promise<string> {
+  const message = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 4000,
+    messages: [{
+      role: 'user',
+      content: `You are preparing a CV for AI processing. Strip formatting noise without losing any career content.
+
+REMOVE: page headers/footers repeated across pages, page numbers ("Page 1 of 2", "1 | Name"), "Curriculum Vitae" title decorations, repeated contact lines (keep one at the top), decorative separators (====, ----, • • •, ___), "References available on request", redundant blank lines (max two in a row).
+
+KEEP: every work experience bullet, every role and date, all skills, education, certifications, projects, and achievements. Preserve structure and section headings — only remove noise.
+
+Return ONLY the cleaned CV text. No commentary, no preamble.
+
+CV:
+${cv}`,
+    }],
+  })
+
+  const block = message.content.find((b) => b.type === 'text')
+  const cleaned = block?.type === 'text' ? block.text.trim() : ''
+  return cleaned && cleaned.length < cv.length ? cleaned : cv
+}
+
+async function compressJD(jd: string): Promise<string> {
+  const message = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 3000,
+    messages: [{
+      role: 'user',
+      content: `You are preparing a job description for AI processing. Strip boilerplate without losing anything that matters for tailoring a CV to this role.
+
+REMOVE: equal-opportunity/diversity statements, benefits and perks lists, generic company marketing paragraphs, application instructions, cookie/privacy notices, repeated legal disclaimers, "about our culture" fluff that names no skills.
+
+KEEP: the job title, the hiring company's name, every responsibility, every requirement (must-have and nice-to-have), all named skills/tools/technologies, seniority signals, team context, and anything about what the role actually does day to day.
+
+Return ONLY the cleaned job description text. No commentary, no preamble.
+
+Job description:
+${jd}`,
+    }],
+  })
+
+  const block = message.content.find((b) => b.type === 'text')
+  const cleaned = block?.type === 'text' ? block.text.trim() : ''
+  return cleaned && cleaned.length < jd.length ? cleaned : jd
+}
 
 // ── Pass 1: extract requirements + evidence map (Haiku — fast) ──────────
 
@@ -19,7 +75,7 @@ async function extractRequirements(cv: string, jobDescription: string): Promise<
     tool_choice: { type: 'tool', name: 'submit_requirements_map' },
     messages: [{
       role: 'user',
-      content: `Extract the requirements from this job description and map each one against the candidate's CV evidence. Judge evidence strength STRICTLY — "strong" needs direct, explicit CV support.\n\nCV:\n\n${cv}\n\n---\n\nJob Description:\n\n${jobDescription}`,
+      content: `Extract the requirements from this job description and map each one against the candidate's CV evidence. Judge evidence strength STRICTLY — "strong" needs direct, explicit CV support. The companyName is the company HIRING for this role and must come ONLY from the Job Description below — never from the candidate's CV or employment history.\n\nCV:\n\n${cv}\n\n---\n\nJob Description:\n\n${jobDescription}`,
     }],
   })
 
@@ -84,7 +140,7 @@ async function rewriteCV(cv: string, jobDescription: string, extract: ExtractRes
   const message = await anthropic.messages.create(
     {
       model: 'claude-sonnet-4-6',
-      max_tokens: 5000,
+      max_tokens: 8000,
       system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       tools: [REWRITE_TOOL],
       tool_choice: { type: 'tool', name: 'submit_tailored_result' },
@@ -134,25 +190,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     }
 
-    // 1b. Rate limit (protects against runaway Claude API cost / abuse)
-    const limited = await checkRateLimit(user.id, 'tailor')
-    if (limited) return limited
-
     // 2. Validate input
     const { cv, jobDescription, jobUrl } = await req.json()
     if (!cv || !jobDescription) {
       return NextResponse.json({ error: 'Both cv and jobDescription are required' }, { status: 400 })
     }
-    if (cv.length > 20_000 || jobDescription.length > 10_000) {
-      return NextResponse.json({ error: 'Input too long. CV max 20,000 chars, job description max 10,000.' }, { status: 400 })
+    if (cv.length > CV_RAW_LIMIT || jobDescription.length > JD_RAW_LIMIT) {
+      return NextResponse.json({ error: 'Input too long. CV max 30,000 chars, job description max 20,000.' }, { status: 400 })
     }
 
-    // 3. Pass 1 — extract + map (fast)
-    const extract = await extractRequirements(cv, jobDescription)
+    // 2b. Identical re-run? Serve the stored result instead of re-rolling the
+    // pipeline — the extraction pass is non-deterministic, so re-running the
+    // exact same CV+JD produces a different match score for no reason (and
+    // burns API cost). Checked before the rate limit: cache hits are free.
+    const inputHash = createHash('sha256').update(`${cv}\n---\n${jobDescription}`).digest('hex')
+    const { data: cachedRow } = await supabase
+      .from('tailor_history')
+      .select('id, result')
+      .eq('user_id', user.id)
+      .eq('input_hash', inputHash)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (cachedRow?.result) {
+      return NextResponse.json({ result: cachedRow.result, historyId: cachedRow.id, cached: true })
+    }
+
+    // 2c. Rate limit (protects against runaway Claude API cost / abuse) —
+    // applied only to real pipeline runs, never to cache hits above.
+    const limited = await checkRateLimit(user.id, 'tailor')
+    if (limited) return limited
+
+    // 3. Pass 0 — compress long inputs (strips noise, preserves all content).
+    // Both compressions are independent Haiku calls, so run them in parallel.
+    const [processedCv, processedJd] = await Promise.all([
+      cv.length > CV_COMPRESS_THRESHOLD ? compressCV(cv) : Promise.resolve(cv),
+      jobDescription.length > JD_COMPRESS_THRESHOLD ? compressJD(jobDescription) : Promise.resolve(jobDescription),
+    ])
+    const compressed = processedCv !== cv || processedJd !== jobDescription
+
+    // 4. Pass 1 — extract + map (fast)
+    const extract = await extractRequirements(processedCv, processedJd)
     const matchScore = computeMatchScore(extract.requirements)
 
-    // 4. Pass 2 — rewrite grounded in the map
-    const rewrite = await rewriteCV(cv, jobDescription, extract)
+    // 5. Pass 2 — rewrite grounded in the map
+    const rewrite = await rewriteCV(processedCv, processedJd, extract)
     if (rewrite.truncated) {
       return NextResponse.json(
         { error: 'Your CV is a bit long for one pass — try trimming it slightly and tailoring again.' },
@@ -218,7 +300,8 @@ export async function POST(req: NextRequest) {
           job_snippet:  jobSnippet,
           job_description: jobDescription,
           match_score:  result.matchScore,
-          original_cv:  cv,
+          original_cv:  processedCv,
+          input_hash:   inputHash,
           result,
         })
         .select('id')
@@ -228,7 +311,7 @@ export async function POST(req: NextRequest) {
       console.error('[tailor] history save failed:', e)
     }
 
-    return NextResponse.json({ result, historyId })
+    return NextResponse.json({ result, historyId, compressed })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     const status = (err as { status?: number })?.status

@@ -131,9 +131,9 @@ export default function CVTailorPage() {
       // Client-side timeout slightly under the platform limit, so we show a
       // clean message rather than waiting on a gateway error page.
       const ac = new AbortController()
-      const timer = setTimeout(() => ac.abort(), 70_000)
+      const timer = setTimeout(() => ac.abort(), 290_000)
 
-      let data: { result?: TailorResult; historyId?: string | null; compressed?: boolean; error?: string }
+      let data: { result?: TailorResult; historyId?: string | null; compressed?: boolean; cached?: boolean; error?: string }
       try {
         const res = await fetch("/api/tailor", {
           method: "POST",
@@ -157,6 +157,10 @@ export default function CVTailorPage() {
       setHistoryId(data.historyId ?? null)
       setTailoredFromCv(cvText)
       markOnboardingStep("tailor")
+
+      if (data.cached) {
+        toast.info("Same CV and job as a previous run — showing your existing result.", { duration: 6000 })
+      }
 
       if (data.compressed) {
         toast.info("Your CV was quite long, so we removed formatting noise before tailoring. All your experience and content is preserved.", { duration: 8000 })
