@@ -35,12 +35,16 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | Word CV download template + "Made with Tailr" footer | Feature | — | Modern Clean template |
 | Weekly digest newsletter automation | Chore | — | Scheduled task; drafts HTML + LeanFrame Gmail draft |
 | Mailing list cleanup (test/bounce rows) | Chore | — | Removed 4 junk rows |
+| AI endpoint timeout fix (`maxDuration` 60→300 + client abort 290s) | Bug | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | 60s FUNCTION_INVOCATION_TIMEOUT on real tailor runs |
+| CV/JD auto-compression (Haiku Pass 0, limits 30k/20k) | Bug | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Replaces the hard 400 wall; supersedes PR #6. LengthBar warnings in panel footers |
+| Identical re-run cache (input_hash, migration 006) | Bug | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Same CV+JD no longer re-rolls a different match score. Run migration 006 on production Supabase |
+| Interview Prep follow-up card alignment | Fix | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Line-height/styling matched to question cards |
+| Company Analysis floating bullet-dot parser fix | Fix | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Wrapped/split bullets now group into one block |
 
 ## 🔧 In progress / open PRs
 
 | Item | Type | PR | Notes |
 |------|------|----|-------|
-| Long-CV handling (Pass 0 compression, higher limits) | Feature | [#6](https://github.com/osedman/cvtailor-saas/pull/6) | Adds a Haiku pre-compress pass; awaiting review |
 | Career-signal banner (career-memory Phase 1) | Feature | [#19](https://github.com/osedman/cvtailor-saas/pull/19) | Mines tailor_history for recurring weak-evidence keywords; merged to staging, awaiting review before prod |
 
 ## 📋 Backlog (suggested, not started)
