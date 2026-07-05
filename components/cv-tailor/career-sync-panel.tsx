@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { Check, Copy, Loader2, Plus, Target, ArrowRight, CircleDot } from "lucide-react"
+import { Check, Copy, Loader2, Plus, Target, ArrowRight, CircleDot, X } from "lucide-react"
 import type { TailorResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 
 const ACCENT = "#dc4f33"
@@ -26,6 +26,14 @@ export function CareerSyncPanel({ results }: { results: TailorResult }) {
   const [adding, setAdding] = useState<string | null>(null)
   const [marking, setMarking] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const [dismissed, setDismissed] = useState(false)
+  const [shown, setShown] = useState(false)
+
+  // Slide in a beat after the results land, so it reads as a follow-up, not clutter
+  useEffect(() => {
+    const t = setTimeout(() => setShown(true), 1200)
+    return () => clearTimeout(t)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -123,8 +131,8 @@ export function CareerSyncPanel({ results }: { results: TailorResult }) {
     setTimeout(() => setCopied(null), 2000)
   }, [])
 
-  // Nothing to say: still loading, or no roadmap and no gaps worth flagging
-  if (roadmap === undefined) return null
+  // Nothing to say: still loading, dismissed, or no signal worth interrupting for
+  if (roadmap === undefined || dismissed) return null
   const { closing, nowStrong, newGaps } = analysis
   const hasContent = closing.length > 0 || nowStrong.length > 0 || newGaps.length > 0
   if (!hasContent) return null
@@ -132,16 +140,28 @@ export function CareerSyncPanel({ results }: { results: TailorResult }) {
   const doneItems = (roadmap?.items ?? []).filter((i) => i.status === "done" && nowStrong.every((s) => s.skill !== i.skill))
 
   return (
-    <div className="mt-6 rounded-2xl border border-[#f5d9d0] bg-[#fffaf8] p-5">
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+    <div
+      className="fixed bottom-4 right-4 z-40 w-[min(26rem,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto rounded-2xl border border-[#f5d9d0] bg-[#fffaf8] p-5 shadow-[0_8px_32px_rgba(30,24,19,0.14)] transition-all duration-300 ease-out"
+      style={{ opacity: shown ? 1 : 0, transform: shown ? "translateY(0)" : "translateY(16px)", pointerEvents: shown ? "auto" : "none" }}
+      role="dialog"
+      aria-label="Career path updates from this application"
+    >
+      <div className="flex items-start justify-between gap-3 mb-1">
         <h3 className="text-sm font-semibold text-[#1e1813] flex items-center gap-2">
-          <Target className="w-4 h-4" style={{ color: ACCENT }} />
+          <Target className="w-4 h-4 flex-shrink-0" style={{ color: ACCENT }} />
           Your career path, updated by this application
         </h3>
-        <Link href="/career-path" className="inline-flex items-center gap-1 text-[12px] font-semibold hover:underline" style={{ color: ACCENT }}>
-          Open career path <ArrowRight className="w-3 h-3" />
-        </Link>
+        <button
+          onClick={() => setDismissed(true)}
+          className="flex-shrink-0 p-1 -mr-1 -mt-1 rounded text-gray-300 hover:text-gray-500 hover:bg-black/5 transition-colors"
+          aria-label="Dismiss"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
+      <Link href="/career-path" className="inline-flex items-center gap-1 text-[12px] font-semibold hover:underline mb-3" style={{ color: ACCENT }}>
+        Open career path <ArrowRight className="w-3 h-3" />
+      </Link>
 
       <div className="space-y-3">
         {nowStrong.map((item) => (
