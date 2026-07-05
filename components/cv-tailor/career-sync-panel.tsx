@@ -7,6 +7,16 @@ import { Check, Copy, Loader2, Plus, Target, ArrowRight, CircleDot, X } from "lu
 import type { TailorResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 
 const ACCENT = "#dc4f33"
+const SEEN_GAPS_KEY = "tailr:career-sync:seen-gaps"
+
+/** Remember suggested gaps so the same skill isn't re-pitched on every run (keep the list bounded) */
+function rememberGaps(skills: string[]) {
+  try {
+    const seen: string[] = JSON.parse(localStorage.getItem(SEEN_GAPS_KEY) ?? "[]")
+    const merged = Array.from(new Set([...seen, ...skills.map((s) => s.toLowerCase())])).slice(-50)
+    localStorage.setItem(SEEN_GAPS_KEY, JSON.stringify(merged))
+  } catch { /* ignore */ }
+}
 
 interface Roadmap {
   id: string
@@ -49,6 +59,7 @@ export function CareerSyncPanel({ results }: { results: TailorResult }) {
   const analysis = useMemo(() => {
     const coverage = results.requirementsCoverage ?? []
     const weak = new Map<string, string>() // lowercase -> display
+    const mustWeak = new Map<string, string>() // weak keywords from must-have requirements only
     const strong = new Set<string>()
     for (const r of coverage) {
       for (const kw of r.keywords ?? []) {
@@ -56,6 +67,7 @@ export function CareerSyncPanel({ results }: { results: TailorResult }) {
         if (!key) continue
         if (r.strength === "partial" || r.strength === "none") {
           if (!weak.has(key)) weak.set(key, kw.trim())
+          if (r.type === "must" && !mustWeak.has(key)) mustWeak.set(key, kw.trim())
         } else if (r.strength === "strong") {
           strong.add(key)
         }
@@ -78,11 +90,16 @@ export function CareerSyncPanel({ results }: { results: TailorResult }) {
       }
     }
 
+    // Anti-spam: only suggest gaps from MUST-have requirements, max 2 per run,
+    // and never re-suggest a skill the user has already seen and ignored.
+    let seenSuggestions: string[] = []
+    try { seenSuggestions = JSON.parse(localStorage.getItem(SEEN_GAPS_KEY) ?? "[]") } catch { /* ignore */ }
     const knownSkills = items.map((i) => i.skill.toLowerCase())
-    const newGaps = Array.from(weak.entries())
+    const newGaps = Array.from(mustWeak.entries())
       .filter(([key]) => !knownSkills.some((s) => matches(s, key)))
+      .filter(([key]) => !seenSuggestions.includes(key))
       .map(([, display]) => display)
-      .slice(0, 3)
+      .slice(0, 2)
 
     return { closing, nowStrong, newGaps }
   }, [results, roadmap])
@@ -98,6 +115,7 @@ export function CareerSyncPanel({ results }: { results: TailorResult }) {
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || "Failed to add the skill.")
       setRoadmap(data.roadmap)
+      rememberGaps([skill])
       toast.success(`${skill} added to your career path — resources and a project idea are ready.`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to add the skill.")
@@ -131,11 +149,12 @@ export function CareerSyncPanel({ results }: { results: TailorResult }) {
     setTimeout(() => setCopied(null), 2000)
   }, [])
 
-  // Nothing to say: still loading, dismissed, or no signal worth interrupting for
+  // Nothing to say: still loading, dismissed, or nothing ACTIONABLE — status
+  // chips alone aren't worth a popup, only mark-done suggestions or new gaps.
   if (roadmap === undefined || dismissed) return null
   const { closing, nowStrong, newGaps } = analysis
-  const hasContent = closing.length > 0 || nowStrong.length > 0 || newGaps.length > 0
-  if (!hasContent) return null
+  const actionable = nowStrong.length > 0 || newGaps.length > 0
+  if (!actionable) return null
 
   const doneItems = (roadmap?.items ?? []).filter((i) => i.status === "done" && nowStrong.every((s) => s.skill !== i.skill))
 
@@ -152,7 +171,7 @@ export function CareerSyncPanel({ results }: { results: TailorResult }) {
           Your career path, updated by this application
         </h3>
         <button
-          onClick={() => setDismissed(true)}
+          onClick={() => { rememberGaps(newGaps); setDismissed(true) }}
           className="flex-shrink-0 p-1 -mr-1 -mt-1 rounded text-gray-300 hover:text-gray-500 hover:bg-black/5 transition-colors"
           aria-label="Dismiss"
         >
