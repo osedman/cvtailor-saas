@@ -49,6 +49,33 @@ function WordCountBadge({ count }: { count: number }) {
   )
 }
 
+const CV_COMPRESS_THRESHOLD = 12_000
+const CV_RAW_LIMIT = 30_000
+const JD_COMPRESS_THRESHOLD = 6_000
+const JD_RAW_LIMIT = 20_000
+
+/** Warns when input is long enough to trigger auto-compression, errors when over the hard limit */
+function LengthBar({ charCount, threshold, limit, noun }: { charCount: number; threshold: number; limit: number; noun: string }) {
+  if (charCount < threshold) return null
+
+  const isOver = charCount > limit
+  const pct = Math.min((charCount / limit) * 100, 100)
+  const barColor = isOver ? "bg-red-400" : "bg-amber-400"
+  const textColor = isOver ? "text-red-500" : "text-amber-500"
+  const message = isOver
+    ? `${noun} too long — please trim before tailoring`
+    : `Long ${noun.toLowerCase()} — we'll auto-compress before tailoring`
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium ${textColor}`}>
+      <span className="w-14 h-1 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
+        <span className={`block h-full ${barColor} rounded-full`} style={{ width: `${pct}%` }} />
+      </span>
+      {message}
+    </span>
+  )
+}
+
 export function ResizablePanels({
   cvText,
   setCvText,
@@ -297,12 +324,15 @@ export function ResizablePanels({
 
           {/* Footer: word count */}
           <div className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 ${panelFooterBg}`}>
-            {words > 0 ? (
-              <WordCountBadge count={words} />
-            ) : (
-              <span className="text-[10px] text-gray-300">Ideal: 400–700 words</span>
-            )}
-            <span className="text-[10px] text-gray-400">{cvText.length.toLocaleString()} chars</span>
+            <div className="flex items-center gap-2 min-w-0">
+              {words > 0 ? (
+                <WordCountBadge count={words} />
+              ) : (
+                <span className="text-[10px] text-gray-300">Ideal: 400–700 words</span>
+              )}
+              <LengthBar charCount={cvText.length} threshold={CV_COMPRESS_THRESHOLD} limit={CV_RAW_LIMIT} noun="CV" />
+            </div>
+            <span className="text-[10px] text-gray-400 flex-shrink-0">{cvText.length.toLocaleString()} chars</span>
           </div>
         </div>
       </div>
@@ -359,8 +389,9 @@ export function ResizablePanels({
           />
 
           {/* Footer */}
-          <div className={`flex-shrink-0 flex items-center justify-end px-3 py-1.5 ${panelFooterBg}`}>
-            <span className="text-[10px] text-gray-400">{jobDescription.length.toLocaleString()} chars</span>
+          <div className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 ${panelFooterBg}`}>
+            <LengthBar charCount={jobDescription.length} threshold={JD_COMPRESS_THRESHOLD} limit={JD_RAW_LIMIT} noun="Job description" />
+            <span className="text-[10px] text-gray-400 flex-shrink-0 ml-auto">{jobDescription.length.toLocaleString()} chars</span>
           </div>
         </div>
       </div>
