@@ -533,10 +533,129 @@ function Qualities({ qualities }: { qualities: CareerProfileSections["qualities"
   )
 }
 
-function CareerArcView({ profile, onRebuild }: { profile: Profile; onRebuild: () => void }) {
+/** Monograph-style full-screen title card, shown once when a fresh arc finishes building */
+function TitleCard({ s, onBegin, onSkip }: { s: CareerProfileSections; onBegin: () => void; onSkip: () => void }) {
+  const [leaving, setLeaving] = useState(false)
+  const years = s.stats?.find((st) => /year/i.test(st.label))?.value
+  const roles = s.stats?.find((st) => /role/i.test(st.label))?.value
+  const line = years && roles ? `${years} years. ${roles} roles. One direction.` : s.identity.roleLine
+
+  const begin = () => { setLeaving(true); setTimeout(onBegin, 450) }
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 transition-opacity duration-500"
+      style={{ background: "#f9f6f0", opacity: leaving ? 0 : 1 }}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-gray-400 mb-6">Your Career Arc</p>
+      <div className="w-10 h-0.5 mb-8" style={{ background: ACCENT }} />
+      <h1
+        className="font-extrabold tracking-tight text-[#1e1813] text-center max-w-2xl animate-fade-in-up"
+        style={{ fontSize: "clamp(1.9rem, 5.5vw, 3.4rem)", lineHeight: 1.15 }}
+      >
+        {line}
+      </h1>
+      <button
+        onClick={begin}
+        className="mt-12 inline-flex items-center gap-2 px-6 py-3 text-[15px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]"
+        style={{ background: ACCENT }}
+      >
+        <Sparkles className="w-4 h-4" />Let&apos;s look at what you built
+      </button>
+      <button onClick={onSkip} className="mt-4 text-[13px] text-gray-400 hover:text-[#1e1813] transition-colors">
+        Skip to the full picture
+      </button>
+    </div>
+  )
+}
+
+function StoryBeat({ children }: { children: React.ReactNode }) {
+  const { ref, visible } = useInView<HTMLDivElement>()
+  return (
+    <div ref={ref} className="min-h-[55vh] flex flex-col items-center justify-center text-center px-4">
+      <div className={visible ? "animate-fade-in-up" : "opacity-0"}>{children}</div>
+    </div>
+  )
+}
+
+/** Scroll-driven story: each beat reveals as the user scrolls, ending at the full arc below */
+function RevealStory({ s }: { s: CareerProfileSections }) {
+  const { ref, visible } = useInView<HTMLDivElement>()
+  const years = s.stats?.find((st) => /year/i.test(st.label))
+  const yearsNum = years && /^\d+$/.test(years.value.trim()) ? parseInt(years.value, 10) : null
+  const count = useCountUp(yearsNum ?? 0, visible)
+  const topAchievement = s.achievements?.[0]
+  const qualities = (s.qualities ?? []).slice(0, 3)
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      {yearsNum !== null && (
+        <div ref={ref} className="min-h-[55vh] flex flex-col items-center justify-center text-center px-4">
+          <div className={visible ? "animate-fade-in-up" : "opacity-0"}>
+            <p className="font-extrabold tabular-nums leading-none" style={{ fontSize: "clamp(5rem, 18vw, 10rem)", color: ACCENT }}>{count}</p>
+            <p className="mt-3 text-[17px] font-semibold text-gray-500">years building a career</p>
+          </div>
+        </div>
+      )}
+
+      {s.story?.origin && (
+        <StoryBeat>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 mb-4">Where it started</p>
+          <p className="text-[20px] text-[#1e1813] leading-relaxed italic max-w-xl">&ldquo;{s.story.origin}&rdquo;</p>
+        </StoryBeat>
+      )}
+
+      {s.timeline?.length >= 2 && (
+        <StoryBeat>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 mb-6">Then, the climb</p>
+          <div className="w-full max-w-2xl"><Steps s={{ ...s, story: { ...s.story, turningPoint: "" } }} /></div>
+        </StoryBeat>
+      )}
+
+      {topAchievement && (
+        <StoryBeat>
+          <p className="font-extrabold leading-none" style={{ fontSize: "clamp(3rem, 11vw, 6rem)", color: ACCENT }}>{topAchievement.value}</p>
+          <p className="mt-3 text-[16px] text-gray-600 max-w-md">{topAchievement.label}</p>
+        </StoryBeat>
+      )}
+
+      {qualities.length > 0 && (
+        <StoryBeat>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 mb-5">Your career says you&apos;re a</p>
+          <p className="font-extrabold tracking-tight text-[#1e1813]" style={{ fontSize: "clamp(1.6rem, 5vw, 2.6rem)", lineHeight: 1.3 }}>
+            {qualities.map((q, i) => (
+              <span key={i} className="block" style={i === qualities.length - 1 ? { color: ACCENT } : undefined}>{q.label}.</span>
+            ))}
+          </p>
+        </StoryBeat>
+      )}
+
+      <div className="flex flex-col items-center gap-3 pb-16 pt-4">
+        <div className="w-10 h-0.5" style={{ background: ACCENT }} />
+        <p className="text-[13px] font-semibold text-gray-400">The full picture</p>
+      </div>
+    </div>
+  )
+}
+
+function CareerArcView({ profile, onRebuild, reveal }: { profile: Profile; onRebuild: () => void; reveal: boolean }) {
   const s = profile.sections
+  const [stage, setStage] = useState<"title" | "story" | "none">(reveal ? "title" : "none")
+
+  const replay = () => {
+    window.scrollTo({ top: 0 })
+    setStage("title")
+  }
+
   return (
     <div>
+      {stage === "title" && (
+        <TitleCard
+          s={s}
+          onBegin={() => { window.scrollTo({ top: 0 }); setStage("story") }}
+          onSkip={() => setStage("none")}
+        />
+      )}
+      {stage === "story" && <RevealStory s={s} />}
       <Hero s={s} />
       <div className="max-w-4xl mx-auto px-4 space-y-14 pb-20 pt-8">
         {s.story?.origin && <Reveal><StoryQuote label="Where it started" text={s.story.origin} /></Reveal>}
@@ -553,12 +672,20 @@ function CareerArcView({ profile, onRebuild }: { profile: Profile; onRebuild: ()
         {s.story?.ambition && <Reveal><StoryQuote label="Where this is heading" text={s.story.ambition} /></Reveal>}
         <Reveal>
           <div className="pt-2 text-center">
-            <button
-              onClick={onRebuild}
-              className="text-[13px] font-medium text-gray-400 hover:text-[#1e1813] border border-gray-200 hover:border-gray-300 rounded-lg px-4 py-2 transition-colors"
-            >
-              Rebuild my arc
-            </button>
+            <div className="inline-flex items-center gap-3">
+              <button
+                onClick={replay}
+                className="text-[13px] font-medium text-gray-400 hover:text-[#1e1813] border border-gray-200 hover:border-gray-300 rounded-lg px-4 py-2 transition-colors"
+              >
+                Replay the reveal
+              </button>
+              <button
+                onClick={onRebuild}
+                className="text-[13px] font-medium text-gray-400 hover:text-[#1e1813] border border-gray-200 hover:border-gray-300 rounded-lg px-4 py-2 transition-colors"
+              >
+                Rebuild my arc
+              </button>
+            </div>
           </div>
         </Reveal>
       </div>
@@ -571,7 +698,7 @@ type WizardState =
   | { step: "paste" }
   | { step: "fetching-questions"; cv: string }
   | { step: "questions"; cv: string; questions: CareerQuestion[] }
-  | { step: "done"; profile: Profile }
+  | { step: "done"; profile: Profile; fresh: boolean }
 
 export default function CareerArcPage() {
   const { user, loading: authLoading } = useAuth()
@@ -609,7 +736,7 @@ export default function CareerArcPage() {
       .then((data) => {
         // Old-schema rows (pre-redesign) lack identity — treat as not built yet
         if (data.profile?.sections?.identity) {
-          setState({ step: "done", profile: data.profile })
+          setState({ step: "done", profile: data.profile, fresh: false })
         } else {
           startWizard("")
         }
@@ -635,7 +762,7 @@ export default function CareerArcPage() {
       </div>
 
       {state.step === "done" && (
-        <CareerArcView profile={state.profile} onRebuild={() => startWizard("")} />
+        <CareerArcView profile={state.profile} onRebuild={() => startWizard("")} reveal={state.fresh} />
       )}
       {state.step === "paste" && <CVPasteStep onCv={startWizard} />}
       {state.step === "fetching-questions" && (
@@ -648,7 +775,7 @@ export default function CareerArcPage() {
         <QuestionsStep
           cv={state.cv}
           questions={state.questions}
-          onBuilt={(profile) => setState({ step: "done", profile })}
+          onBuilt={(profile) => setState({ step: "done", profile, fresh: true })}
         />
       )}
     </div>
