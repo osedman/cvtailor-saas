@@ -41,7 +41,7 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | Interview Prep follow-up card alignment | Fix | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Line-height/styling matched to question cards |
 | Company Analysis floating bullet-dot parser fix | Fix | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Wrapped/split bullets now group into one block |
 | Career Arc: private CV highlight reel (`/career-arc`) | Feature | [#23](https://github.com/osedman/cvtailor-saas/pull/23) | Guided intake (4 personalised skippable questions), art-directed card reveal, document frame. Migration 005 required on production Supabase. Follow-up: re-add inline editing (dropped in v2 redesign) |
-| Career Arc in-app launch announcement | Chore | [#24](https://github.com/osedman/cvtailor-saas/pull/24) | Dismissible ink banner on /tailor; auto-hides once an arc exists. Mailing-list email drafted in Gmail |
+| Career Arc in-app launch announcement | Chore | [#24](https://github.com/osedman/cvtailor-saas/pull/24) | Dismissible ink banner on /tailor; auto-hides once an arc exists. Launch email sent to mailing list 6 Jul |
 
 ## 🔧 In progress / open PRs
 
