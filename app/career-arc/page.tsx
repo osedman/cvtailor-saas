@@ -533,8 +533,8 @@ function Qualities({ qualities }: { qualities: CareerProfileSections["qualities"
   )
 }
 
-/** Card-based reveal: a centered monograph card that steps through the story
-    one beat at a time — tap/Next to advance, always skippable, no scrolling. */
+/** Card-based reveal with full art direction: alternating ink/cream slides,
+    ghost numerals, glows, staggered type. Tap to advance, always skippable. */
 function RevealCard({ s, onDone }: { s: CareerProfileSections; onDone: () => void }) {
   const years = s.stats?.find((st) => /year/i.test(st.label))
   const roles = s.stats?.find((st) => /role/i.test(st.label))
@@ -555,110 +555,158 @@ function RevealCard({ s, onDone }: { s: CareerProfileSections; onDone: () => voi
   const [index, setIndex] = useState(0)
   const slide = slides[index]
   const isLast = index === slides.length - 1
-  const count = useCountUp(yearsNum ?? 0, slide === "years")
+  const count = useCountUp(yearsNum ?? 0, slide === "years", 1400)
 
+  // Ink slides feel cinematic; cream slides breathe. Alternate by content weight.
+  const DARK: Slide[] = ["title", "climb", "number", "final"]
+  const dark = DARK.includes(slide)
   const next = () => { if (isLast) onDone(); else setIndex(index + 1) }
 
+  const stagger = (i: number) => ({ animation: "fade-in-up 0.55s ease-out both", animationDelay: `${0.15 + i * 0.18}s` })
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(30,24,19,0.55)" }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(30,24,19,0.6)", backdropFilter: "blur(4px)" }}>
+      <style>{`@keyframes arc-draw { from { stroke-dashoffset: 700; } to { stroke-dashoffset: 0; } }
+@keyframes glow-in { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }`}</style>
       <div
         role="dialog"
         aria-label="Your Career Arc reveal"
-        className="w-full max-w-lg rounded-3xl p-8 sm:p-10 flex flex-col shadow-[0_16px_48px_rgba(30,24,19,0.3)] cursor-pointer select-none"
-        style={{ background: "#f9f6f0", minHeight: "26rem" }}
+        className="relative w-full max-w-xl rounded-[28px] p-8 sm:p-12 flex flex-col overflow-hidden shadow-[0_24px_64px_rgba(30,24,19,0.45)] cursor-pointer select-none transition-colors duration-500"
+        style={{ background: dark ? INK : "#f9f6f0", minHeight: "30rem" }}
         onClick={next}
       >
-        <div className="flex items-center justify-between mb-6">
-          <p className="text-[11px] tabular-nums text-gray-400">{String(index + 1).padStart(2, "0")} — {String(slides.length).padStart(2, "0")}</p>
+        {/* Ambient glow on ink slides */}
+        {dark && (
+          <div className="absolute pointer-events-none" style={{
+            width: 420, height: 420, right: -140, top: -140, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(220,79,51,0.28) 0%, rgba(220,79,51,0) 70%)",
+          }} />
+        )}
+
+        <div className="relative flex items-center justify-between mb-4">
+          <p className="text-[11px] tabular-nums" style={{ color: dark ? "#8a8178" : "#a89e93" }}>
+            {String(index + 1).padStart(2, "0")} — {String(slides.length).padStart(2, "0")}
+          </p>
           <button
             onClick={(e) => { e.stopPropagation(); onDone() }}
-            className="text-[12px] text-gray-400 hover:text-[#1e1813] transition-colors"
+            className="text-[12px] transition-colors"
+            style={{ color: dark ? "#8a8178" : "#a89e93" }}
           >
             Skip
           </button>
         </div>
 
-        <div key={index} className="flex-1 flex flex-col justify-center animate-fade-in-up">
-          <div className="w-8 h-0.5 mb-6" style={{ background: ACCENT }} />
+        <div key={index} className="relative flex-1 flex flex-col justify-center py-6">
+          <div className="w-9 h-[3px] mb-7 rounded-full" style={{ background: ACCENT, ...stagger(0) }} />
 
           {slide === "title" && (
             <>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-gray-400 mb-4">Your Career Arc</p>
-              <p className="font-extrabold tracking-tight text-[#1e1813]" style={{ fontSize: "clamp(1.7rem, 5vw, 2.4rem)", lineHeight: 1.2 }}>
-                {years && roles ? `${years.value} years. ${roles.value} roles. One direction.` : s.identity.roleLine}
+              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] mb-5" style={{ color: "#f4a58e", ...stagger(1) }}>Your Career Arc</p>
+              <p className="font-extrabold tracking-tight" style={{ fontSize: "clamp(1.9rem, 5.5vw, 2.9rem)", lineHeight: 1.15, color: "#f9f6f0" }}>
+                {years && roles ? (
+                  <>
+                    <span className="block" style={stagger(2)}>{years.value} years.</span>
+                    <span className="block" style={stagger(3)}>{roles.value} roles.</span>
+                    <span className="block" style={{ color: "#f4a58e", ...stagger(4) }}>One direction.</span>
+                  </>
+                ) : (
+                  <span style={stagger(2)}>{s.identity.roleLine}</span>
+                )}
               </p>
             </>
           )}
 
           {slide === "years" && (
             <>
-              <p className="font-extrabold tabular-nums leading-none" style={{ fontSize: "clamp(4rem, 14vw, 6.5rem)", color: ACCENT }}>{count}</p>
-              <p className="mt-3 text-[16px] font-semibold text-gray-500">years building a career</p>
+              <p className="absolute right-0 top-1/2 -translate-y-1/2 font-extrabold tabular-nums pointer-events-none" style={{ fontSize: "17rem", lineHeight: 1, color: "rgba(220,79,51,0.07)" }}>
+                {years?.value}
+              </p>
+              <p className="font-extrabold tabular-nums leading-none" style={{ fontSize: "clamp(5rem, 16vw, 8rem)", color: ACCENT, ...stagger(1) }}>{count}</p>
+              <p className="mt-4 text-[17px] font-semibold text-gray-500" style={stagger(2)}>years building a career</p>
             </>
           )}
 
           {slide === "origin" && (
             <>
-              <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 mb-4">Where it started</p>
-              <p className="text-[18px] text-[#1e1813] leading-relaxed italic">&ldquo;{s.story.origin}&rdquo;</p>
+              <p className="absolute -left-2 -top-2 font-extrabold pointer-events-none" style={{ fontSize: "11rem", lineHeight: 1, color: "rgba(220,79,51,0.1)", fontFamily: "Georgia, serif" }}>&ldquo;</p>
+              <p className="text-[11px] uppercase tracking-[0.25em] mb-5 text-gray-400" style={stagger(1)}>Where it started</p>
+              <p className="text-[20px] text-[#1e1813] leading-relaxed italic" style={stagger(2)}>&ldquo;{s.story.origin}&rdquo;</p>
             </>
           )}
 
           {slide === "climb" && (
             <>
-              <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 mb-4">The climb</p>
-              <p className="text-[15px] font-bold text-[#1e1813] mb-4">{s.growth?.fromTitle} → <span style={{ color: ACCENT }}>{s.growth?.toTitle}</span></p>
-              <svg viewBox="0 0 300 110" className="w-full">
-                {(() => {
-                  const n = s.timeline.length
-                  const run = 280 / n
-                  let d = `M 10 ${96}`
-                  for (let i = 1; i < n; i++) {
-                    const y = 96 - (i * 82) / (n - 1)
-                    d += ` L ${10 + i * run} ${96 - ((i - 1) * 82) / (n - 1)} L ${10 + i * run} ${y}`
-                  }
-                  d += ` L 290 14`
-                  return (
-                    <>
-                      <path d={d} fill="none" stroke={ACCENT} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"
-                        style={{ strokeDasharray: 700, strokeDashoffset: 0, animation: "arc-draw 1.4s ease-out" }} />
-                      <circle cx={290} cy={14} r={5.5} fill={ACCENT} />
-                    </>
-                  )
-                })()}
-              </svg>
-              <style>{`@keyframes arc-draw { from { stroke-dashoffset: 700; } to { stroke-dashoffset: 0; } }`}</style>
+              <p className="text-[11px] uppercase tracking-[0.25em] mb-2" style={{ color: "#8a8178", ...stagger(1) }}>The climb</p>
+              <p className="text-[16px] font-bold mb-6" style={{ color: "#f9f6f0", ...stagger(2) }}>
+                {s.growth?.fromTitle} <span style={{ color: "#8a8178" }}>→</span> <span style={{ color: "#f4a58e" }}>{s.growth?.toTitle}</span>
+              </p>
+              <div style={stagger(3)}>
+                <svg viewBox="0 0 300 110" className="w-full">
+                  {(() => {
+                    const n = s.timeline.length
+                    const run = 280 / n
+                    let d = `M 10 ${96}`
+                    for (let i = 1; i < n; i++) {
+                      const y = 96 - (i * 82) / (n - 1)
+                      d += ` L ${10 + i * run} ${96 - ((i - 1) * 82) / (n - 1)} L ${10 + i * run} ${y}`
+                    }
+                    d += ` L 290 14`
+                    return (
+                      <>
+                        <path d={d} fill="none" stroke="rgba(220,79,51,0.25)" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round"
+                          style={{ strokeDasharray: 700, animation: "arc-draw 1.6s ease-out both", animationDelay: "0.5s" }} />
+                        <path d={d} fill="none" stroke={ACCENT} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"
+                          style={{ strokeDasharray: 700, animation: "arc-draw 1.6s ease-out both", animationDelay: "0.5s" }} />
+                        <circle cx={290} cy={14} r={6} fill={ACCENT} style={{ animation: "glow-in 0.4s ease-out both", animationDelay: "2s" }} />
+                        <circle cx={290} cy={14} r={12} fill="none" stroke={ACCENT} strokeWidth={1.5} opacity={0.4} style={{ animation: "glow-in 0.5s ease-out both", animationDelay: "2.1s" }} />
+                      </>
+                    )
+                  })()}
+                </svg>
+              </div>
+              <p className="mt-4 text-[12px]" style={{ color: "#8a8178", ...stagger(4) }}>{s.timeline.length} roles, every one a step up</p>
             </>
           )}
 
           {slide === "number" && topAchievement && (
             <>
-              <p className="font-extrabold leading-none" style={{ fontSize: "clamp(2.6rem, 9vw, 4.2rem)", color: ACCENT }}>{topAchievement.value}</p>
-              <p className="mt-3 text-[15px] text-gray-600">{topAchievement.label}</p>
+              <div className="absolute pointer-events-none" style={{
+                width: 300, height: 300, left: "50%", top: "50%", transform: "translate(-50%, -50%)", borderRadius: "50%",
+                background: "radial-gradient(circle, rgba(220,79,51,0.18) 0%, rgba(220,79,51,0) 70%)",
+                animation: "glow-in 1s ease-out both", animationDelay: "0.3s",
+              }} />
+              <p className="text-[11px] uppercase tracking-[0.25em] mb-4" style={{ color: "#8a8178", ...stagger(1) }}>One number that says it all</p>
+              <p className="font-extrabold leading-none" style={{ fontSize: "clamp(3.2rem, 11vw, 5.5rem)", color: "#f4a58e", textShadow: "0 0 40px rgba(220,79,51,0.35)", ...stagger(2) }}>
+                {topAchievement.value}
+              </p>
+              <p className="mt-4 text-[15px] leading-relaxed" style={{ color: "#cfc8bf", ...stagger(3) }}>{topAchievement.label}</p>
             </>
           )}
 
           {slide === "qualities" && (
             <>
-              <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 mb-4">Your career says you&apos;re a</p>
-              <p className="font-extrabold tracking-tight text-[#1e1813]" style={{ fontSize: "clamp(1.5rem, 4.5vw, 2.1rem)", lineHeight: 1.3 }}>
+              <p className="text-[11px] uppercase tracking-[0.25em] mb-6 text-gray-400" style={stagger(1)}>Your career says you&apos;re a</p>
+              <div className="space-y-2">
                 {qualities.map((q, i) => (
-                  <span key={i} className="block" style={i === qualities.length - 1 ? { color: ACCENT } : undefined}>{q.label}.</span>
+                  <p key={i} className="font-extrabold tracking-tight flex items-baseline gap-3" style={{ fontSize: "clamp(1.6rem, 5vw, 2.4rem)", lineHeight: 1.2, color: i === qualities.length - 1 ? ACCENT : INK, ...stagger(2 + i) }}>
+                    <span className="w-2 h-2 rounded-full flex-shrink-0 translate-y-[-0.35rem]" style={{ background: ACCENT }} />
+                    {q.label}.
+                  </p>
                 ))}
-              </p>
+              </div>
             </>
           )}
 
           {slide === "final" && (
             <>
-              <p className="text-[11px] uppercase tracking-[0.25em] text-gray-400 mb-4">Ready</p>
-              <p className="font-extrabold tracking-tight text-[#1e1813] mb-6" style={{ fontSize: "clamp(1.5rem, 4.5vw, 2.1rem)", lineHeight: 1.25 }}>
-                This is your Career Arc{s.identity.name ? `, ${s.identity.name.split(" ")[0]}` : ""}.
+              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] mb-5" style={{ color: "#f4a58e", ...stagger(1) }}>Ready</p>
+              <p className="font-extrabold tracking-tight mb-8" style={{ fontSize: "clamp(1.8rem, 5vw, 2.6rem)", lineHeight: 1.2, color: "#f9f6f0", ...stagger(2) }}>
+                This is your Career Arc{s.identity.name ? `, ${s.identity.name.split(" ")[0]}` : ""}<span style={{ color: ACCENT }}>.</span>
               </p>
               <button
                 onClick={(e) => { e.stopPropagation(); onDone() }}
-                className="self-start inline-flex items-center gap-2 px-5 py-2.5 text-[14px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]"
-                style={{ background: ACCENT }}
+                className="self-start inline-flex items-center gap-2 px-6 py-3 text-[15px] font-semibold text-white rounded-xl shadow-lg transition-all hover:shadow-xl hover:brightness-105 active:scale-[0.98]"
+                style={{ background: ACCENT, boxShadow: "0 8px 24px rgba(220,79,51,0.4)", ...stagger(3) }}
               >
                 See the full picture
               </button>
@@ -666,13 +714,13 @@ function RevealCard({ s, onDone }: { s: CareerProfileSections; onDone: () => voi
           )}
         </div>
 
-        <div className="flex items-center justify-between mt-8">
+        <div className="relative flex items-center justify-between mt-6">
           <div className="flex gap-1.5">
             {slides.map((_, i) => (
-              <div key={i} className="h-1 rounded-full transition-all duration-300" style={{ width: i === index ? 20 : 8, background: i <= index ? ACCENT : "#e8ddd2" }} />
+              <div key={i} className="h-1 rounded-full transition-all duration-300" style={{ width: i === index ? 22 : 8, background: i <= index ? ACCENT : dark ? "#4a4038" : "#e8ddd2" }} />
             ))}
           </div>
-          {!isLast && <p className="text-[11px] text-gray-300">tap to continue</p>}
+          {!isLast && <p className="text-[11px]" style={{ color: dark ? "#6b6259" : "#c4bab0" }}>tap to continue</p>}
         </div>
       </div>
     </div>
