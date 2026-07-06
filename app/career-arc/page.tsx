@@ -230,30 +230,48 @@ function CVPasteStep({ onCv }: { onCv: (cv: string) => void }) {
   )
 }
 
-function Hero({ s }: { s: CareerProfileSections }) {
+function Cover({ s }: { s: CareerProfileSections }) {
   const { ref, visible } = useInView<HTMLDivElement>()
   return (
-    <div ref={ref} className={visible ? "animate-fade-in-up" : "opacity-0"}>
-      <div className="pt-14 pb-4 px-4 max-w-4xl mx-auto">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.25em]" style={{ color: ACCENT }}>Career Arc</p>
+    <div ref={ref} className="relative overflow-hidden px-6 sm:px-10 py-10 sm:py-12" style={{ background: INK }}>
+      <div className="absolute pointer-events-none" style={{
+        width: 380, height: 380, right: -120, top: -120, borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(220,79,51,0.25) 0%, rgba(220,79,51,0) 70%)",
+      }} />
+      <div className={`relative ${visible ? "animate-fade-in-up" : "opacity-0"}`}>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.3em]" style={{ color: "#f4a58e" }}>Career Arc</p>
         {s.identity.name && (
-          <h1 className="mt-2 font-extrabold tracking-tight text-[#1e1813]" style={{ fontSize: "clamp(1.9rem, 4.5vw, 2.6rem)", lineHeight: 1.1 }}>
-            {s.identity.name}
+          <h1 className="mt-3 font-extrabold tracking-tight" style={{ fontSize: "clamp(1.9rem, 4.5vw, 2.8rem)", lineHeight: 1.1, color: "#f9f6f0" }}>
+            {s.identity.name}<span style={{ color: ACCENT }}>.</span>
           </h1>
         )}
-        <p className={`${s.identity.name ? "mt-1 text-[17px] text-gray-500" : "mt-2 font-extrabold tracking-tight text-[#1e1813]"}`}
-          style={s.identity.name ? undefined : { fontSize: "clamp(1.6rem, 4vw, 2.2rem)", lineHeight: 1.15 }}>
+        <p className={`${s.identity.name ? "mt-1.5 text-[16px]" : "mt-3 font-extrabold text-[24px]"}`} style={{ color: s.identity.name ? "#a89e93" : "#f9f6f0" }}>
           {s.identity.roleLine}
         </p>
         {s.stats?.length > 0 && (
-          <div className="mt-7 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {s.stats.slice(0, 4).map((st, i) => <StatBlock key={i} value={st.value} label={st.label} active={visible} />)}
+          <div className="mt-7 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {s.stats.slice(0, 4).map((st, i) => (
+              <CoverStat key={i} value={st.value} label={st.label} active={visible} />
+            ))}
           </div>
         )}
         {s.identity.supportingLine && (
-          <p className="mt-5 text-[13px] text-gray-400 leading-relaxed max-w-xl">{s.identity.supportingLine}</p>
+          <p className="mt-6 text-[13px] leading-relaxed max-w-xl" style={{ color: "#8a8178" }}>{s.identity.supportingLine}</p>
         )}
       </div>
+    </div>
+  )
+}
+
+function CoverStat({ value, label, active }: { value: string; label: string; active: boolean }) {
+  const numeric = /^\d+$/.test(value.trim()) ? parseInt(value.trim(), 10) : null
+  const count = useCountUp(numeric ?? 0, active && numeric !== null)
+  return (
+    <div className="rounded-xl p-3.5 text-center" style={{ background: "rgba(249,246,240,0.07)" }}>
+      <p className="font-extrabold tabular-nums leading-none" style={{ fontSize: "clamp(1.5rem, 3.5vw, 2rem)", color: "#f4a58e" }}>
+        {numeric !== null ? count : value}
+      </p>
+      <p className="mt-1.5 text-[11px]" style={{ color: "#8a8178" }}>{label}</p>
     </div>
   )
 }
@@ -733,23 +751,35 @@ function CareerArcView({ profile, onRebuild, reveal }: { profile: Profile; onReb
 
   const replay = () => setShowReveal(true)
 
+  const Section = ({ children }: { children: React.ReactNode }) => (
+    <div className="py-10 first:pt-0 last:pb-0"><Reveal>{children}</Reveal></div>
+  )
+
   return (
-    <div>
+    <div className="max-w-4xl mx-auto px-4 pt-6 pb-20">
       {showReveal && <RevealCard s={s} onDone={() => setShowReveal(false)} />}
-      <Hero s={s} />
-      <div className="max-w-4xl mx-auto px-4 space-y-14 pb-20 pt-8">
-        {s.story?.origin && <Reveal><StoryQuote label="Where it started" text={s.story.origin} /></Reveal>}
-        <Reveal><Achievements achievements={s.achievements} /></Reveal>
-        <Reveal><Steps s={s} /></Reveal>
-        <Reveal><Chapters chapters={s.chapters} /></Reveal>
-        <Reveal><Staircase timeline={s.timeline} /></Reveal>
-        <div className="grid lg:grid-cols-2 gap-10 items-start">
-          <Reveal><Organisations organisations={s.organisations} /></Reveal>
-          <Reveal><SkillBars skills={s.skills} /></Reveal>
+
+      <div className="rounded-[24px] overflow-hidden border border-[#e0d6c9] shadow-[0_16px_48px_rgba(30,24,19,0.14)]">
+        <Cover s={s} />
+        <div className="px-6 sm:px-10 py-10 divide-y divide-[#ece2d6]" style={{ background: "#fdfcf9" }}>
+          {s.story?.origin && <Section><StoryQuote label="Where it started" text={s.story.origin} /></Section>}
+          <Section><Achievements achievements={s.achievements} /></Section>
+          <Section><Steps s={s} /></Section>
+          {(s.chapters?.length ?? 0) > 0 && <Section><Chapters chapters={s.chapters} /></Section>}
+          <Section><Staircase timeline={s.timeline} /></Section>
+          <Section>
+            <div className="grid lg:grid-cols-2 gap-10 items-start">
+              <Organisations organisations={s.organisations} />
+              <SkillBars skills={s.skills} />
+            </div>
+          </Section>
+          <Section><TrophyCase projects={s.projects} proudestQuote="" /></Section>
+          <Section><Qualities qualities={s.qualities} /></Section>
+          {s.story?.ambition && <Section><StoryQuote label="Where this is heading" text={s.story.ambition} /></Section>}
         </div>
-        <Reveal><TrophyCase projects={s.projects} proudestQuote="" /></Reveal>
-        <Reveal><Qualities qualities={s.qualities} /></Reveal>
-        {s.story?.ambition && <Reveal><StoryQuote label="Where this is heading" text={s.story.ambition} /></Reveal>}
+      </div>
+
+      <div className="mt-8 text-center">
         <Reveal>
           <div className="pt-2 text-center">
             <div className="inline-flex items-center gap-3">
