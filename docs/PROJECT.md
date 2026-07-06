@@ -40,6 +40,7 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | Identical re-run cache (input_hash, migration 006) | Bug | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Same CV+JD no longer re-rolls a different match score. Run migration 006 on production Supabase |
 | Interview Prep follow-up card alignment | Fix | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Line-height/styling matched to question cards |
 | Company Analysis floating bullet-dot parser fix | Fix | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Wrapped/split bullets now group into one block |
+| Career Arc: private CV highlight reel (`/career-arc`) | Feature | [#23](https://github.com/osedman/cvtailor-saas/pull/23) | Guided intake (4 personalised skippable questions), art-directed card reveal, document frame. Migration 005 required on production Supabase. Follow-up: re-add inline editing (dropped in v2 redesign) |
 
 ## 🔧 In progress / open PRs
 
