@@ -41,6 +41,7 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | Interview Prep follow-up card alignment | Fix | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Line-height/styling matched to question cards |
 | Company Analysis floating bullet-dot parser fix | Fix | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Wrapped/split bullets now group into one block |
 | Career Arc: private CV highlight reel (`/career-arc`) | Feature | [#23](https://github.com/osedman/cvtailor-saas/pull/23) | Guided intake (4 personalised skippable questions), art-directed card reveal, document frame. Migration 005 required on production Supabase. Follow-up: re-add inline editing (dropped in v2 redesign) |
+| Career Arc in-app launch announcement | Chore | [#24](https://github.com/osedman/cvtailor-saas/pull/24) | Dismissible ink banner on /tailor; auto-hides once an arc exists. Mailing-list email drafted in Gmail |
 
 ## 🔧 In progress / open PRs
 
@@ -60,6 +61,7 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | Design pass: Tracker / History pages | Enhancement | Low | Still original styling, pre-enhanced-workspace |
 | Design pass: results-content cards | Enhancement | Low | Tab bar redesigned; inner content not |
 | Social proof / testimonials on landing | Enhancement | Low | Recommended by design audit; needs real users |
+| Reviews: collect in-app user reviews/ratings | Feature | Med | Prompt at high-satisfaction moments (strong tailor result, arc built); feeds the landing testimonials item |
 | Terms of Service page | Chore | Low | Companion to the privacy policy |
 | Dedicated privacy@ contact address | Chore | Low | Swap into the privacy policy once set up |
 | `tsconfig.tsbuildinfo` gitignore tidy | Chore | Low | Build artifact tracked in git |
