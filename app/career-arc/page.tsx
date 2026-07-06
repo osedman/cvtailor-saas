@@ -533,105 +533,147 @@ function Qualities({ qualities }: { qualities: CareerProfileSections["qualities"
   )
 }
 
-/** Monograph-style full-screen title card, shown once when a fresh arc finishes building */
-function TitleCard({ s, onBegin, onSkip }: { s: CareerProfileSections; onBegin: () => void; onSkip: () => void }) {
-  const [leaving, setLeaving] = useState(false)
-  const years = s.stats?.find((st) => /year/i.test(st.label))?.value
-  const roles = s.stats?.find((st) => /role/i.test(st.label))?.value
-  const line = years && roles ? `${years} years. ${roles} roles. One direction.` : s.identity.roleLine
-
-  const begin = () => { setLeaving(true); setTimeout(onBegin, 450) }
-  return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 transition-opacity duration-500"
-      style={{ background: "#f9f6f0", opacity: leaving ? 0 : 1 }}
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-gray-400 mb-6">Your Career Arc</p>
-      <div className="w-10 h-0.5 mb-8" style={{ background: ACCENT }} />
-      <h1
-        className="font-extrabold tracking-tight text-[#1e1813] text-center max-w-2xl animate-fade-in-up"
-        style={{ fontSize: "clamp(1.9rem, 5.5vw, 3.4rem)", lineHeight: 1.15 }}
-      >
-        {line}
-      </h1>
-      <button
-        onClick={begin}
-        className="mt-12 inline-flex items-center gap-2 px-6 py-3 text-[15px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]"
-        style={{ background: ACCENT }}
-      >
-        <Sparkles className="w-4 h-4" />Let&apos;s look at what you built
-      </button>
-      <button onClick={onSkip} className="mt-4 text-[13px] text-gray-400 hover:text-[#1e1813] transition-colors">
-        Skip to the full picture
-      </button>
-    </div>
-  )
-}
-
-function StoryBeat({ children }: { children: React.ReactNode }) {
-  const { ref, visible } = useInView<HTMLDivElement>()
-  return (
-    <div ref={ref} className="min-h-[55vh] flex flex-col items-center justify-center text-center px-4">
-      <div className={visible ? "animate-fade-in-up" : "opacity-0"}>{children}</div>
-    </div>
-  )
-}
-
-/** Scroll-driven story: each beat reveals as the user scrolls, ending at the full arc below */
-function RevealStory({ s }: { s: CareerProfileSections }) {
-  const { ref, visible } = useInView<HTMLDivElement>()
+/** Card-based reveal: a centered monograph card that steps through the story
+    one beat at a time — tap/Next to advance, always skippable, no scrolling. */
+function RevealCard({ s, onDone }: { s: CareerProfileSections; onDone: () => void }) {
   const years = s.stats?.find((st) => /year/i.test(st.label))
+  const roles = s.stats?.find((st) => /role/i.test(st.label))
   const yearsNum = years && /^\d+$/.test(years.value.trim()) ? parseInt(years.value, 10) : null
-  const count = useCountUp(yearsNum ?? 0, visible)
   const topAchievement = s.achievements?.[0]
   const qualities = (s.qualities ?? []).slice(0, 3)
 
+  type Slide = "title" | "years" | "origin" | "climb" | "number" | "qualities" | "final"
+  const slides: Slide[] = [
+    "title",
+    ...(yearsNum !== null ? (["years"] as Slide[]) : []),
+    ...(s.story?.origin ? (["origin"] as Slide[]) : []),
+    ...((s.timeline?.length ?? 0) >= 2 ? (["climb"] as Slide[]) : []),
+    ...(topAchievement ? (["number"] as Slide[]) : []),
+    ...(qualities.length > 0 ? (["qualities"] as Slide[]) : []),
+    "final",
+  ]
+  const [index, setIndex] = useState(0)
+  const slide = slides[index]
+  const isLast = index === slides.length - 1
+  const count = useCountUp(yearsNum ?? 0, slide === "years")
+
+  const next = () => { if (isLast) onDone(); else setIndex(index + 1) }
+
   return (
-    <div className="max-w-3xl mx-auto">
-      {yearsNum !== null && (
-        <div ref={ref} className="min-h-[55vh] flex flex-col items-center justify-center text-center px-4">
-          <div className={visible ? "animate-fade-in-up" : "opacity-0"}>
-            <p className="font-extrabold tabular-nums leading-none" style={{ fontSize: "clamp(5rem, 18vw, 10rem)", color: ACCENT }}>{count}</p>
-            <p className="mt-3 text-[17px] font-semibold text-gray-500">years building a career</p>
-          </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(30,24,19,0.55)" }}>
+      <div
+        role="dialog"
+        aria-label="Your Career Arc reveal"
+        className="w-full max-w-lg rounded-3xl p-8 sm:p-10 flex flex-col shadow-[0_16px_48px_rgba(30,24,19,0.3)] cursor-pointer select-none"
+        style={{ background: "#f9f6f0", minHeight: "26rem" }}
+        onClick={next}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <p className="text-[11px] tabular-nums text-gray-400">{String(index + 1).padStart(2, "0")} — {String(slides.length).padStart(2, "0")}</p>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDone() }}
+            className="text-[12px] text-gray-400 hover:text-[#1e1813] transition-colors"
+          >
+            Skip
+          </button>
         </div>
-      )}
 
-      {s.story?.origin && (
-        <StoryBeat>
-          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 mb-4">Where it started</p>
-          <p className="text-[20px] text-[#1e1813] leading-relaxed italic max-w-xl">&ldquo;{s.story.origin}&rdquo;</p>
-        </StoryBeat>
-      )}
+        <div key={index} className="flex-1 flex flex-col justify-center animate-fade-in-up">
+          <div className="w-8 h-0.5 mb-6" style={{ background: ACCENT }} />
 
-      {s.timeline?.length >= 2 && (
-        <StoryBeat>
-          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 mb-6">Then, the climb</p>
-          <div className="w-full max-w-2xl"><Steps s={{ ...s, story: { ...s.story, turningPoint: "" } }} /></div>
-        </StoryBeat>
-      )}
+          {slide === "title" && (
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-gray-400 mb-4">Your Career Arc</p>
+              <p className="font-extrabold tracking-tight text-[#1e1813]" style={{ fontSize: "clamp(1.7rem, 5vw, 2.4rem)", lineHeight: 1.2 }}>
+                {years && roles ? `${years.value} years. ${roles.value} roles. One direction.` : s.identity.roleLine}
+              </p>
+            </>
+          )}
 
-      {topAchievement && (
-        <StoryBeat>
-          <p className="font-extrabold leading-none" style={{ fontSize: "clamp(3rem, 11vw, 6rem)", color: ACCENT }}>{topAchievement.value}</p>
-          <p className="mt-3 text-[16px] text-gray-600 max-w-md">{topAchievement.label}</p>
-        </StoryBeat>
-      )}
+          {slide === "years" && (
+            <>
+              <p className="font-extrabold tabular-nums leading-none" style={{ fontSize: "clamp(4rem, 14vw, 6.5rem)", color: ACCENT }}>{count}</p>
+              <p className="mt-3 text-[16px] font-semibold text-gray-500">years building a career</p>
+            </>
+          )}
 
-      {qualities.length > 0 && (
-        <StoryBeat>
-          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 mb-5">Your career says you&apos;re a</p>
-          <p className="font-extrabold tracking-tight text-[#1e1813]" style={{ fontSize: "clamp(1.6rem, 5vw, 2.6rem)", lineHeight: 1.3 }}>
-            {qualities.map((q, i) => (
-              <span key={i} className="block" style={i === qualities.length - 1 ? { color: ACCENT } : undefined}>{q.label}.</span>
+          {slide === "origin" && (
+            <>
+              <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 mb-4">Where it started</p>
+              <p className="text-[18px] text-[#1e1813] leading-relaxed italic">&ldquo;{s.story.origin}&rdquo;</p>
+            </>
+          )}
+
+          {slide === "climb" && (
+            <>
+              <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 mb-4">The climb</p>
+              <p className="text-[15px] font-bold text-[#1e1813] mb-4">{s.growth?.fromTitle} → <span style={{ color: ACCENT }}>{s.growth?.toTitle}</span></p>
+              <svg viewBox="0 0 300 110" className="w-full">
+                {(() => {
+                  const n = s.timeline.length
+                  const run = 280 / n
+                  let d = `M 10 ${96}`
+                  for (let i = 1; i < n; i++) {
+                    const y = 96 - (i * 82) / (n - 1)
+                    d += ` L ${10 + i * run} ${96 - ((i - 1) * 82) / (n - 1)} L ${10 + i * run} ${y}`
+                  }
+                  d += ` L 290 14`
+                  return (
+                    <>
+                      <path d={d} fill="none" stroke={ACCENT} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"
+                        style={{ strokeDasharray: 700, strokeDashoffset: 0, animation: "arc-draw 1.4s ease-out" }} />
+                      <circle cx={290} cy={14} r={5.5} fill={ACCENT} />
+                    </>
+                  )
+                })()}
+              </svg>
+              <style>{`@keyframes arc-draw { from { stroke-dashoffset: 700; } to { stroke-dashoffset: 0; } }`}</style>
+            </>
+          )}
+
+          {slide === "number" && topAchievement && (
+            <>
+              <p className="font-extrabold leading-none" style={{ fontSize: "clamp(2.6rem, 9vw, 4.2rem)", color: ACCENT }}>{topAchievement.value}</p>
+              <p className="mt-3 text-[15px] text-gray-600">{topAchievement.label}</p>
+            </>
+          )}
+
+          {slide === "qualities" && (
+            <>
+              <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 mb-4">Your career says you&apos;re a</p>
+              <p className="font-extrabold tracking-tight text-[#1e1813]" style={{ fontSize: "clamp(1.5rem, 4.5vw, 2.1rem)", lineHeight: 1.3 }}>
+                {qualities.map((q, i) => (
+                  <span key={i} className="block" style={i === qualities.length - 1 ? { color: ACCENT } : undefined}>{q.label}.</span>
+                ))}
+              </p>
+            </>
+          )}
+
+          {slide === "final" && (
+            <>
+              <p className="text-[11px] uppercase tracking-[0.25em] text-gray-400 mb-4">Ready</p>
+              <p className="font-extrabold tracking-tight text-[#1e1813] mb-6" style={{ fontSize: "clamp(1.5rem, 4.5vw, 2.1rem)", lineHeight: 1.25 }}>
+                This is your Career Arc{s.identity.name ? `, ${s.identity.name.split(" ")[0]}` : ""}.
+              </p>
+              <button
+                onClick={(e) => { e.stopPropagation(); onDone() }}
+                className="self-start inline-flex items-center gap-2 px-5 py-2.5 text-[14px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]"
+                style={{ background: ACCENT }}
+              >
+                See the full picture
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between mt-8">
+          <div className="flex gap-1.5">
+            {slides.map((_, i) => (
+              <div key={i} className="h-1 rounded-full transition-all duration-300" style={{ width: i === index ? 20 : 8, background: i <= index ? ACCENT : "#e8ddd2" }} />
             ))}
-          </p>
-        </StoryBeat>
-      )}
-
-      <div className="flex flex-col items-center gap-3 pb-16 pt-4">
-        <div className="w-10 h-0.5" style={{ background: ACCENT }} />
-        <p className="text-[13px] font-semibold text-gray-400">The full picture</p>
+          </div>
+          {!isLast && <p className="text-[11px] text-gray-300">tap to continue</p>}
+        </div>
       </div>
     </div>
   )
@@ -639,23 +681,13 @@ function RevealStory({ s }: { s: CareerProfileSections }) {
 
 function CareerArcView({ profile, onRebuild, reveal }: { profile: Profile; onRebuild: () => void; reveal: boolean }) {
   const s = profile.sections
-  const [stage, setStage] = useState<"title" | "story" | "none">(reveal ? "title" : "none")
+  const [showReveal, setShowReveal] = useState(reveal)
 
-  const replay = () => {
-    window.scrollTo({ top: 0 })
-    setStage("title")
-  }
+  const replay = () => setShowReveal(true)
 
   return (
     <div>
-      {stage === "title" && (
-        <TitleCard
-          s={s}
-          onBegin={() => { window.scrollTo({ top: 0 }); setStage("story") }}
-          onSkip={() => setStage("none")}
-        />
-      )}
-      {stage === "story" && <RevealStory s={s} />}
+      {showReveal && <RevealCard s={s} onDone={() => setShowReveal(false)} />}
       <Hero s={s} />
       <div className="max-w-4xl mx-auto px-4 space-y-14 pb-20 pt-8">
         {s.story?.origin && <Reveal><StoryQuote label="Where it started" text={s.story.origin} /></Reveal>}
