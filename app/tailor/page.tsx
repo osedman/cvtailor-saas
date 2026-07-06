@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { Header } from "@/components/cv-tailor/header"
+import { ArcAnnouncement } from "@/components/cv-tailor/arc-announcement"
 import { ResizablePanels } from "@/components/cv-tailor/resizable-panels"
 import { TailorButton } from "@/components/cv-tailor/tailor-button"
 import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
@@ -275,6 +276,11 @@ export default function CVTailorPage() {
       />
 
       <main className="flex-1 flex flex-col max-w-6xl mx-auto w-full px-4">
+        {user && (
+          <div className="pt-4">
+            <ArcAnnouncement />
+          </div>
+        )}
         {/* Workspace panels */}
         <div className={`flex-1 flex flex-col min-h-[60vh] ${enhanced ? "pt-5" : ""}`}>
           <ResizablePanels
