@@ -199,11 +199,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Input too long. CV max 30,000 chars, job description max 20,000.' }, { status: 400 })
     }
 
+    // 2a. Feedback edge (living career path): pull skills the user has
+    // genuinely CLOSED on their path so a closed gap can lift this match and be
+    // honestly worked in. Best-effort + no-op (and hash-neutral) when empty, so
+    // the money path is never broken by it.
+    let evidenceBlock = ''
+    try {
+      const { data: rm } = await supabase.from('career_roadmaps').select('items').eq('user_id', user.id).maybeSingle()
+      const done = (((rm?.items ?? []) as Array<{ skill?: string; cvPhrasing?: string; status?: string }>)
+        .filter((i) => i.status === 'done'))
+        .slice(0, 8)
+      if (done.length > 0) {
+        evidenceBlock = '[CANDIDATE UPDATE - skills the candidate has since developed via their learning path. Treat these as genuine and weave them in ONLY where the job calls for them. Never fabricate beyond what is listed here.]\n' +
+          done.map((i) => `- ${String(i.skill ?? '').slice(0, 80)}: ${String(i.cvPhrasing ?? '').slice(0, 200)}`).join('\n')
+      }
+    } catch { /* feedback edge is best-effort; never break tailoring */ }
+
     // 2b. Identical re-run? Serve the stored result instead of re-rolling the
     // pipeline — the extraction pass is non-deterministic, so re-running the
     // exact same CV+JD produces a different match score for no reason (and
     // burns API cost). Checked before the rate limit: cache hits are free.
-    const inputHash = createHash('sha256').update(`${cv}\n---\n${jobDescription}`).digest('hex')
+    const hashSource = evidenceBlock
+      ? `${cv}\n---\n${jobDescription}\n---EV---\n${evidenceBlock}`
+      : `${cv}\n---\n${jobDescription}`
+    const inputHash = createHash('sha256').update(hashSource).digest('hex')
     const { data: cachedRow } = await supabase
       .from('tailor_history')
       .select('id, result')
@@ -228,13 +247,14 @@ export async function POST(req: NextRequest) {
       jobDescription.length > JD_COMPRESS_THRESHOLD ? compressJD(jobDescription) : Promise.resolve(jobDescription),
     ])
     const compressed = processedCv !== cv || processedJd !== jobDescription
+    const cvForAI = evidenceBlock ? `${processedCv}\n\n${evidenceBlock}` : processedCv
 
     // 4. Pass 1 — extract + map (fast)
-    const extract = await extractRequirements(processedCv, processedJd)
+    const extract = await extractRequirements(cvForAI, processedJd)
     const matchScore = computeMatchScore(extract.requirements)
 
     // 5. Pass 2 — rewrite grounded in the map
-    const rewrite = await rewriteCV(processedCv, processedJd, extract)
+    const rewrite = await rewriteCV(cvForAI, processedJd, extract)
     if (rewrite.truncated) {
       return NextResponse.json(
         { error: 'Your CV is a bit long for one pass — try trimming it slightly and tailoring again.' },
