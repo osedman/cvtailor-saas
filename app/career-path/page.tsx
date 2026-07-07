@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
-import { ArrowLeft, Sparkles, Loader2, ExternalLink, Check, CircleDot, Target, ArrowRight, Flag, MapPin } from "lucide-react"
+import { ArrowLeft, Sparkles, Loader2, ExternalLink, Check, CircleDot, Target, ArrowRight, Flag, MapPin, PartyPopper, FolderPlus, FileSearch, Plus, X } from "lucide-react"
 import { Header } from "@/components/cv-tailor/header"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
@@ -333,11 +333,119 @@ function SeededStart({ seedTarget, seedSkills, onGenerated }: { seedTarget: stri
   )
 }
 
+function Modal({ icon: Icon, title, subtitle, children, onClose }: { icon: typeof PartyPopper; title: string; subtitle: string; children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(30,24,19,0.5)" }}>
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-[0_16px_48px_rgba(30,24,19,0.3)]">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#fff7f4", color: ACCENT }}><Icon className="w-4 h-4" /></div>
+            <div>
+              <h3 className="text-[16px] font-bold text-[#1e1813]">{title}</h3>
+              <p className="text-[12px] text-gray-400">{subtitle}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 -mr-1 rounded text-gray-300 hover:text-gray-500 hover:bg-black/5 transition-colors" aria-label="Close"><X className="w-4 h-4" /></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function GotJobModal({ currentTarget, onClose, onDone }: { currentTarget: string; onClose: () => void; onDone: () => void }) {
+  const [role, setRole] = useState(currentTarget)
+  const [next, setNext] = useState("")
+  const [loading, setLoading] = useState(false)
+  const submit = async () => {
+    if (!role.trim()) { toast.error("Which role did you land?"); return }
+    setLoading(true)
+    try {
+      const res = await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "got-job", role, nextTarget: next }) })
+      await readJson(res)
+      toast.success(`Congratulations on ${role.trim()}! It's on your path — and your Arc.`)
+      onDone()
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Failed to update."); setLoading(false) }
+  }
+  return (
+    <Modal icon={PartyPopper} title="You got the job" subtitle="We'll mark the rung reached and set what's next" onClose={onClose}>
+      <label className="block text-[13px] font-semibold text-[#1e1813] mb-1.5">Which role did you land?</label>
+      <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Senior Data Analyst" className="w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg outline-none focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15" />
+      <label className="block text-[13px] font-semibold text-[#1e1813] mb-1.5 mt-4">Where next? <span className="font-normal text-gray-400">(optional)</span></label>
+      <input value={next} onChange={(e) => setNext(e.target.value)} placeholder="Your next target role" className="w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg outline-none focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15" />
+      <button onClick={submit} disabled={loading} className="mt-5 w-full inline-flex items-center justify-center gap-2 py-3 text-[14px] font-semibold text-white rounded-xl transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-60" style={{ background: ACCENT }}>
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Mark it reached <PartyPopper className="w-4 h-4" /></>}
+      </button>
+    </Modal>
+  )
+}
+
+function AddProjectModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [text, setText] = useState("")
+  const [loading, setLoading] = useState(false)
+  const submit = async () => {
+    if (!text.trim()) { toast.error("Describe the project first."); return }
+    setLoading(true)
+    try {
+      const res = await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "add-project", text }) })
+      await readJson(res)
+      toast.success("Project added to your Career Arc.")
+      onDone()
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Failed to add project."); setLoading(false) }
+  }
+  return (
+    <Modal icon={FolderPlus} title="Add a project" subtitle="From your current work — it joins your Arc" onClose={onClose}>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} placeholder="Describe something you built or delivered — what it was, what you did, any real numbers…" className="w-full px-3.5 py-2.5 text-[13.5px] border border-gray-200 rounded-lg outline-none focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300" />
+      <p className="mt-1.5 text-[12px] text-gray-400">Tailr tidies it into a CV-ready entry. It won&apos;t invent anything you don&apos;t say.</p>
+      <button onClick={submit} disabled={loading} className="mt-4 w-full inline-flex items-center justify-center gap-2 py-3 text-[14px] font-semibold text-white rounded-xl transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-60" style={{ background: ACCENT }}>
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Add to my Arc <FolderPlus className="w-4 h-4" /></>}
+      </button>
+    </Modal>
+  )
+}
+
+function AddSkillsForJdModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [jd, setJd] = useState("")
+  const [loading, setLoading] = useState(false)
+  const submit = async () => {
+    if (!jd.trim()) { toast.error("Paste the job description first."); return }
+    setLoading(true)
+    try {
+      const res = await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "add-skill-for-jd", jobDescription: jd }) })
+      const data = await readJson<{ added: number; message?: string }>(res)
+      if (data.added > 0) toast.success(`Added ${data.added} skill${data.added === 1 ? "" : "s"} to your path.`)
+      else toast.info(data.message || "Your path already covers this job.")
+      onDone()
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Failed to read the job."); setLoading(false) }
+  }
+  return (
+    <Modal icon={FileSearch} title="Add skills for a job" subtitle="Paste a JD — we add what you're missing" onClose={onClose}>
+      <textarea value={jd} onChange={(e) => setJd(e.target.value)} rows={6} placeholder="Paste the full job description…" className="w-full px-3.5 py-2.5 text-[13.5px] border border-gray-200 rounded-lg outline-none focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300" />
+      <p className="mt-1.5 text-[12px] text-gray-400">We read its requirements, skip what you already have, and add the rest with resources.</p>
+      <button onClick={submit} disabled={loading} className="mt-4 w-full inline-flex items-center justify-center gap-2 py-3 text-[14px] font-semibold text-white rounded-xl transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-60" style={{ background: ACCENT }}>
+        {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Reading the job…</> : <>Add the gaps <Plus className="w-4 h-4" /></>}
+      </button>
+    </Modal>
+  )
+}
+
+function ActionsBar({ onGotJob, onAddProject, onAddSkills }: { onGotJob: () => void; onAddProject: () => void; onAddSkills: () => void }) {
+  const btn = "flex-1 inline-flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold rounded-xl border transition-all hover:shadow-sm"
+  return (
+    <div className="mt-5 flex flex-col sm:flex-row gap-2.5">
+      <button onClick={onGotJob} className={btn} style={{ borderColor: "#f5d9d0", color: ACCENT, background: "#fff7f4" }}><PartyPopper className="w-4 h-4" />I got the job</button>
+      <button onClick={onAddProject} className={`${btn} border-gray-200 text-[#1e1813] bg-white hover:border-gray-300`}><FolderPlus className="w-4 h-4" />Add a project</button>
+      <button onClick={onAddSkills} className={`${btn} border-gray-200 text-[#1e1813] bg-white hover:border-gray-300`}><FileSearch className="w-4 h-4" />Add skills for a job</button>
+    </div>
+  )
+}
+
 function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<void> }) {
   const roadmap = data.roadmap!
   const [updating, setUpdating] = useState<string | null>(null)
   const [confirmRebuild, setConfirmRebuild] = useState(false)
   const [rebuilding, setRebuilding] = useState(false)
+  const [modal, setModal] = useState<null | "gotjob" | "project" | "skills">(null)
 
   const cycleStatus = useCallback(async (item: CareerRoadmapItem) => {
     const nextStatus = STATUS_CYCLE[item.status]
@@ -379,6 +487,12 @@ function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<vo
 
       <JourneyLine roadmap={roadmap} readiness={data.readiness} derivedTarget={data.derivedTarget} />
 
+      <ActionsBar
+        onGotJob={() => setModal("gotjob")}
+        onAddProject={() => setModal("project")}
+        onAddSkills={() => setModal("skills")}
+      />
+
       <div className="mt-8 flex items-center gap-2">
         <Flag className="w-4 h-4" style={{ color: ACCENT }} />
         <h2 className="text-sm font-semibold text-[#1e1813]">Skills to close{openItems.length > 0 ? ` · ${openItems.length}` : ""}</h2>
@@ -405,6 +519,15 @@ function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<vo
 
       {confirmRebuild && (
         <RebuildConfirm doneCount={doneCount} onCancel={() => setConfirmRebuild(false)} onConfirm={() => { setConfirmRebuild(false); setRebuilding(true) }} />
+      )}
+      {modal === "gotjob" && (
+        <GotJobModal currentTarget={roadmap.target_role || data.derivedTarget} onClose={() => setModal(null)} onDone={() => { setModal(null); reload() }} />
+      )}
+      {modal === "project" && (
+        <AddProjectModal onClose={() => setModal(null)} onDone={() => setModal(null)} />
+      )}
+      {modal === "skills" && (
+        <AddSkillsForJdModal onClose={() => setModal(null)} onDone={() => { setModal(null); reload() }} />
       )}
     </div>
   )
