@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
-import { ArrowLeft, Sparkles, Loader2, ExternalLink, Check, CircleDot, Target, ArrowRight, Flag, MapPin, PartyPopper, FolderPlus, FileSearch, Plus, X, ChevronDown } from "lucide-react"
+import { ArrowLeft, Sparkles, Loader2, ExternalLink, Check, CircleDot, Target, ArrowRight, Flag, MapPin, PartyPopper, FolderPlus, FileSearch, Plus, X, ChevronDown, TrendingUp, Database, Code2, Cloud, BarChart3, Users, Wrench, Palette, Presentation, BookOpen, Zap } from "lucide-react"
 import { Header } from "@/components/cv-tailor/header"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
@@ -174,89 +174,101 @@ function JourneyLine({ roadmap, readiness, derivedTarget }: { roadmap: Roadmap; 
   )
 }
 
-function SkillCard({ item, gap, onCycle, updating }: { item: CareerRoadmapItem; gap?: RankedGap; onCycle: (i: CareerRoadmapItem) => void; updating: boolean }) {
-  const [open, setOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
+const SKILL_ICONS: Array<[RegExp, typeof Target]> = [
+  [/power ?bi|tableau|analytics|\bbi\b|dashboard|report|excel/, BarChart3],
+  [/sql|data|database|warehouse|etl/, Database],
+  [/python|code|program|software|api|script|java|typescript|react|develop/, Code2],
+  [/cloud|aws|azure|gcp|devops|kubernetes|docker|infra/, Cloud],
+  [/stakeholder|leadership|manage|team|people|communicat|collaborat|influence/, Users],
+  [/design|ux|ui|figma|brand|creative/, Palette],
+  [/present|workshop|facilitat|training|coaching|speaking/, Presentation],
+  [/rpa|automation|power ?platform|process|tooling|engineer/, Wrench],
+  [/strategy|governance|framework|requirement|business|roadmap|planning/, BookOpen],
+]
+function pickIcon(skill: string): typeof Target {
+  const s = skill.toLowerCase()
+  for (const [re, icon] of SKILL_ICONS) if (re.test(s)) return icon
+  return Zap
+}
+
+function SkillTile({ item, gap, onOpen }: { item: CareerRoadmapItem; gap?: RankedGap; onOpen: (i: CareerRoadmapItem) => void }) {
+  const Icon = pickIcon(item.skill)
   const isDone = item.status === "done"
   const isActive = item.status === "in_progress"
-
   return (
-    <div className="rounded-2xl border bg-white transition-all"
-      style={isActive ? { borderColor: "#f5d9d0", background: "linear-gradient(180deg, #fffaf8, #ffffff)" } : { borderColor: "#f0ebe1" }}>
-      {/* Collapsed header — always visible; click toggles detail */}
-      <div className="flex items-center gap-3 p-4 cursor-pointer select-none" onClick={() => setOpen((o) => !o)}>
-        <button
-          onClick={(e) => { e.stopPropagation(); onCycle(item) }}
-          disabled={updating}
-          className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90"
-          style={isDone ? { background: "#16a34a" } : isActive ? { background: ACCENT, boxShadow: "0 0 0 4px rgba(220,79,51,0.14)" } : { background: "#fff", border: `1.5px dashed ${ACCENT}66` }}
-          title={isDone ? "Mark as to do" : isActive ? "Mark as done" : "Start this skill"}
-        >
-          {updating ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: isDone || isActive ? "#fff" : ACCENT }} /> : <StatusIcon status={item.status} />}
-        </button>
+    <button onClick={() => onOpen(item)}
+      className="relative text-left rounded-2xl border p-4 transition-all hover:shadow-[0_4px_20px_rgba(30,24,19,0.08)] hover:-translate-y-0.5"
+      style={isActive ? { borderColor: "#f5d9d0", background: "linear-gradient(180deg,#fffaf8,#fff)" } : isDone ? { borderColor: "#d7ecd9", background: "#fff" } : { borderColor: "#eee6da", background: "#fff" }}>
+      {!isDone && gap && gap.unlockCount > 0 && (
+        <span className="absolute top-3 right-3 inline-flex items-center gap-0.5 text-[10px] font-bold" style={{ color: ACCENT }} title={`Unlocks ${gap.sourceJobs.join(", ")}`}>
+          <TrendingUp className="w-3 h-3" />{gap.unlockCount}
+        </span>
+      )}
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={isDone ? { background: "#eafaf0", color: "#16a34a" } : { background: "#fff7f4", color: ACCENT }}>
+        {isDone ? <Check className="w-5 h-5" strokeWidth={2.5} /> : <Icon className="w-5 h-5" />}
+      </div>
+      <p className={`text-[14px] font-bold truncate ${isDone ? "text-gray-400 line-through" : "text-[#1e1813]"}`}>{item.skill}</p>
+      <p className="text-[11px] mt-0.5" style={{ color: isActive ? ACCENT : isDone ? "#16a34a" : "#a89e93" }}>
+        {isActive ? "Learning" : isDone ? "Closed" : "Not started"}
+      </p>
+    </button>
+  )
+}
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className={`text-[15px] font-bold truncate ${isDone ? "text-gray-400 line-through" : "text-[#1e1813]"}`}>{item.skill}</h3>
-            {isActive && <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-[#ffeae4]" style={{ color: ACCENT }}>learning</span>}
-            {isDone && <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-[#dcfce7] text-green-600">done</span>}
-          </div>
-          {!open && <p className="mt-0.5 text-[12px] text-gray-400 truncate">{item.whyItMatters}</p>}
-        </div>
-
+function SkillDetailModal({ item, gap, onClose, onCycle, updating }: { item: CareerRoadmapItem; gap?: RankedGap; onClose: () => void; onCycle: (i: CareerRoadmapItem) => void; updating: boolean }) {
+  const [copied, setCopied] = useState(false)
+  const Icon = pickIcon(item.skill)
+  const isDone = item.status === "done"
+  const isActive = item.status === "in_progress"
+  const statusLabel = isActive ? "Learning" : isDone ? "Closed" : "Not started yet"
+  return (
+    <Modal icon={Icon} title={item.skill} subtitle={statusLabel} onClose={onClose}>
+      <div className="max-h-[68vh] overflow-y-auto -mr-2 pr-2">
         {!isDone && gap && gap.unlockCount > 0 && (
-          <span className="flex-shrink-0 hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#1e1813] text-white" title={gap.sourceJobs.join(", ")}>
-            <Sparkles className="w-2.5 h-2.5" />unlocks {gap.unlockCount}
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#1e1813] text-white mb-3" title={gap.sourceJobs.join(", ")}>
+            <TrendingUp className="w-2.5 h-2.5" />unlocks {gap.unlockCount} saved job{gap.unlockCount === 1 ? "" : "s"}
           </span>
         )}
-        <ChevronDown className="flex-shrink-0 w-4 h-4 text-gray-300 transition-transform duration-200" style={{ transform: open ? "rotate(180deg)" : "none" }} />
+        <p className="text-[13px] text-gray-600 leading-relaxed">{item.whyItMatters}</p>
+
+        {item.resources?.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {item.resources.map((r, i) => (
+              <a key={i} href={r.url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-600 hover:text-[#dc4f33] bg-gray-50 hover:bg-[#ffeae4] border border-gray-100 rounded-lg px-2.5 py-1.5 transition-colors">
+                <ExternalLink className="w-3 h-3" />{r.title} <span className="text-gray-400">· {r.source}</span>
+              </a>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-3 rounded-xl bg-gray-50/70 p-3.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Project idea</p>
+          <p className="text-[13px] text-gray-700 leading-relaxed">{item.projectBrief}</p>
+        </div>
+
+        {isDone && (
+          <div className="mt-3 rounded-xl border border-green-100 bg-green-50/60 p-3.5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600 mb-1">Add to your CV</p>
+                <p className="text-[13px] text-[#1e1813] leading-relaxed">{item.cvPhrasing}</p>
+              </div>
+              <button onClick={() => { navigator.clipboard.writeText(item.cvPhrasing); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+                className="flex-shrink-0 text-[11px] font-medium text-green-700 bg-white hover:bg-green-100 border border-green-200 rounded-lg px-2.5 py-1.5 transition-colors">
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Expanded detail — resources, project, CV bullet, action */}
-      {open && (
-        <div className="px-4 pb-4 pl-[60px] animate-fade-in-up">
-          <p className="text-[13px] text-gray-600 leading-relaxed">{item.whyItMatters}</p>
-
-          {item.resources?.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {item.resources.map((r, i) => (
-                <a key={i} href={r.url} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-600 hover:text-[#dc4f33] bg-gray-50 hover:bg-[#ffeae4] border border-gray-100 rounded-lg px-2.5 py-1.5 transition-colors">
-                  <ExternalLink className="w-3 h-3" />{r.title} <span className="text-gray-400">· {r.source}</span>
-                </a>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-3 rounded-xl bg-gray-50/70 p-3.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Project idea</p>
-            <p className="text-[13px] text-gray-700 leading-relaxed">{item.projectBrief}</p>
-          </div>
-
-          {isDone && (
-            <div className="mt-3 rounded-xl border border-green-100 bg-green-50/60 p-3.5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600 mb-1">Add to your CV</p>
-                  <p className="text-[13px] text-[#1e1813] leading-relaxed">{item.cvPhrasing}</p>
-                </div>
-                <button onClick={() => { navigator.clipboard.writeText(item.cvPhrasing); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-                  className="flex-shrink-0 text-[11px] font-medium text-green-700 bg-white hover:bg-green-100 border border-green-200 rounded-lg px-2.5 py-1.5 transition-colors">
-                  {copied ? "Copied" : "Copy"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {!isDone && (
-            <button onClick={() => onCycle(item)} disabled={updating}
-              className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-white rounded-lg px-3.5 py-2 transition-all hover:brightness-105 active:scale-[0.98]" style={{ background: ACCENT }}>
-              {isActive ? <>Mark as done <Check className="w-3.5 h-3.5" /></> : <>Start this skill <ArrowRight className="w-3 h-3" /></>}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
+      <button onClick={() => onCycle(item)} disabled={updating}
+        className="mt-4 w-full inline-flex items-center justify-center gap-2 py-3 text-[14px] font-semibold rounded-xl transition-all active:scale-[0.98] disabled:opacity-60"
+        style={isDone ? { background: "#fff", border: "1px solid #e5e7eb", color: "#6b7280" } : { background: ACCENT, color: "#fff" }}>
+        {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : isDone ? <>Move back to learning</> : isActive ? <>Mark as done <Check className="w-4 h-4" /></> : <>Start this skill <ArrowRight className="w-4 h-4" /></>}
+      </button>
+    </Modal>
   )
 }
 
@@ -449,6 +461,7 @@ function ActionsBar({ onGotJob, onAddProject, onAddSkills }: { onGotJob: () => v
 function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<void> }) {
   const roadmap = data.roadmap!
   const [updating, setUpdating] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
   const [confirmRebuild, setConfirmRebuild] = useState(false)
   const [rebuilding, setRebuilding] = useState(false)
   const [modal, setModal] = useState<null | "gotjob" | "project" | "skills">(null)
@@ -503,9 +516,9 @@ function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<vo
         <Flag className="w-4 h-4" style={{ color: ACCENT }} />
         <h2 className="text-sm font-semibold text-[#1e1813]">Skills to close{openItems.length > 0 ? ` · ${openItems.length}` : ""}</h2>
       </div>
-      <div className="mt-4 space-y-4">
+      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
         {openItems.map((item) => (
-          <SkillCard key={item.skill} item={item} gap={gapBySkill.get(item.skill.toLowerCase())} onCycle={cycleStatus} updating={updating === item.skill} />
+          <SkillTile key={item.skill} item={item} gap={gapBySkill.get(item.skill.toLowerCase())} onOpen={(i) => setSelected(i.skill)} />
         ))}
       </div>
 
@@ -515,9 +528,9 @@ function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<vo
             <Check className="w-4 h-4 text-green-600" />
             <h2 className="text-sm font-semibold text-[#1e1813]">Closed · {doneItems.length}</h2>
           </div>
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
             {doneItems.map((item) => (
-              <SkillCard key={item.skill} item={item} onCycle={cycleStatus} updating={updating === item.skill} />
+              <SkillTile key={item.skill} item={item} onOpen={(i) => setSelected(i.skill)} />
             ))}
           </div>
         </>
@@ -534,6 +547,15 @@ function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<vo
       )}
       {modal === "skills" && (
         <AddSkillsForJdModal onClose={() => setModal(null)} onDone={() => { setModal(null); reload() }} />
+      )}
+      {selected && roadmap.items.some((i) => i.skill === selected) && (
+        <SkillDetailModal
+          item={roadmap.items.find((i) => i.skill === selected)!}
+          gap={gapBySkill.get(selected.toLowerCase())}
+          onClose={() => setSelected(null)}
+          onCycle={cycleStatus}
+          updating={updating === selected}
+        />
       )}
     </div>
   )
