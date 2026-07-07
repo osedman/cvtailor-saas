@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
-import { ArrowLeft, Sparkles, Loader2, ExternalLink, Check, CircleDot, Target, ArrowRight, Flag, MapPin, PartyPopper, FolderPlus, FileSearch, Plus, X } from "lucide-react"
+import { ArrowLeft, Sparkles, Loader2, ExternalLink, Check, CircleDot, Target, ArrowRight, Flag, MapPin, PartyPopper, FolderPlus, FileSearch, Plus, X, ChevronDown } from "lucide-react"
 import { Header } from "@/components/cv-tailor/header"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
@@ -175,46 +175,53 @@ function JourneyLine({ roadmap, readiness, derivedTarget }: { roadmap: Roadmap; 
 }
 
 function SkillCard({ item, gap, onCycle, updating }: { item: CareerRoadmapItem; gap?: RankedGap; onCycle: (i: CareerRoadmapItem) => void; updating: boolean }) {
+  const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const isDone = item.status === "done"
   const isActive = item.status === "in_progress"
-  const isTodo = item.status === "todo"
 
   return (
-    <div
-      className={`group rounded-2xl border bg-white p-5 transition-all ${isTodo ? "border-gray-100 hover:border-[#f5c9bb] hover:shadow-[0_2px_16px_rgba(220,79,51,0.06)]" : "border-gray-100"}`}
-      style={isActive ? { borderColor: "#f5d9d0", background: "linear-gradient(180deg, #fffaf8, #ffffff)" } : undefined}
-    >
-      <div className="flex items-start gap-3">
+    <div className="rounded-2xl border bg-white transition-all"
+      style={isActive ? { borderColor: "#f5d9d0", background: "linear-gradient(180deg, #fffaf8, #ffffff)" } : { borderColor: "#f0ebe1" }}>
+      {/* Collapsed header — always visible; click toggles detail */}
+      <div className="flex items-center gap-3 p-4 cursor-pointer select-none" onClick={() => setOpen((o) => !o)}>
         <button
-          onClick={() => onCycle(item)}
+          onClick={(e) => { e.stopPropagation(); onCycle(item) }}
           disabled={updating}
-          className="flex-shrink-0 w-8 h-8 mt-0.5 rounded-full flex items-center justify-center transition-all active:scale-90"
+          className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90"
           style={isDone ? { background: "#16a34a" } : isActive ? { background: ACCENT, boxShadow: "0 0 0 4px rgba(220,79,51,0.14)" } : { background: "#fff", border: `1.5px dashed ${ACCENT}66` }}
           title={isDone ? "Mark as to do" : isActive ? "Mark as done" : "Start this skill"}
         >
           {updating ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: isDone || isActive ? "#fff" : ACCENT }} /> : <StatusIcon status={item.status} />}
         </button>
+
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className={`text-[16px] font-bold ${isDone ? "text-gray-400 line-through" : "text-[#1e1813]"}`}>{item.skill}</h3>
-            <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-              style={{ background: isDone ? "#dcfce7" : isActive ? "#ffeae4" : "#fff7f4", color: isDone ? "#16a34a" : ACCENT }}>
-              {isActive ? "in progress" : isDone ? "done" : "not started"}
-            </span>
-            {!isDone && gap && gap.unlockCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#1e1813] text-white" title={gap.sourceJobs.join(", ")}>
-                <Sparkles className="w-2.5 h-2.5" />unlocks {gap.unlockCount} saved job{gap.unlockCount === 1 ? "" : "s"}
-              </span>
-            )}
+          <div className="flex items-center gap-2">
+            <h3 className={`text-[15px] font-bold truncate ${isDone ? "text-gray-400 line-through" : "text-[#1e1813]"}`}>{item.skill}</h3>
+            {isActive && <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-[#ffeae4]" style={{ color: ACCENT }}>learning</span>}
+            {isDone && <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-[#dcfce7] text-green-600">done</span>}
           </div>
-          <p className={`mt-1 text-[13.5px] leading-relaxed ${isTodo ? "text-gray-600" : "text-gray-500"}`}>{item.whyItMatters}</p>
+          {!open && <p className="mt-0.5 text-[12px] text-gray-400 truncate">{item.whyItMatters}</p>}
+        </div>
+
+        {!isDone && gap && gap.unlockCount > 0 && (
+          <span className="flex-shrink-0 hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#1e1813] text-white" title={gap.sourceJobs.join(", ")}>
+            <Sparkles className="w-2.5 h-2.5" />unlocks {gap.unlockCount}
+          </span>
+        )}
+        <ChevronDown className="flex-shrink-0 w-4 h-4 text-gray-300 transition-transform duration-200" style={{ transform: open ? "rotate(180deg)" : "none" }} />
+      </div>
+
+      {/* Expanded detail — resources, project, CV bullet, action */}
+      {open && (
+        <div className="px-4 pb-4 pl-[60px] animate-fade-in-up">
+          <p className="text-[13px] text-gray-600 leading-relaxed">{item.whyItMatters}</p>
 
           {item.resources?.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {item.resources.map((r, i) => (
                 <a key={i} href={r.url} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-gray-600 hover:text-[#dc4f33] bg-gray-50 hover:bg-[#ffeae4] border border-gray-100 rounded-lg px-2.5 py-1.5 transition-colors">
+                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-600 hover:text-[#dc4f33] bg-gray-50 hover:bg-[#ffeae4] border border-gray-100 rounded-lg px-2.5 py-1.5 transition-colors">
                   <ExternalLink className="w-3 h-3" />{r.title} <span className="text-gray-400">· {r.source}</span>
                 </a>
               ))}
@@ -233,23 +240,22 @@ function SkillCard({ item, gap, onCycle, updating }: { item: CareerRoadmapItem; 
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600 mb-1">Add to your CV</p>
                   <p className="text-[13px] text-[#1e1813] leading-relaxed">{item.cvPhrasing}</p>
                 </div>
-                <button
-                  onClick={() => { navigator.clipboard.writeText(item.cvPhrasing); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-                  className="flex-shrink-0 text-[11px] font-medium text-green-700 bg-white hover:bg-green-100 border border-green-200 rounded-lg px-2.5 py-1.5 transition-colors"
-                >
+                <button onClick={() => { navigator.clipboard.writeText(item.cvPhrasing); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+                  className="flex-shrink-0 text-[11px] font-medium text-green-700 bg-white hover:bg-green-100 border border-green-200 rounded-lg px-2.5 py-1.5 transition-colors">
                   {copied ? "Copied" : "Copy"}
                 </button>
               </div>
             </div>
           )}
 
-          {isTodo && (
-            <button onClick={() => onCycle(item)} disabled={updating} className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] font-semibold transition-colors hover:underline" style={{ color: ACCENT }}>
-              Start this skill <ArrowRight className="w-3 h-3" />
+          {!isDone && (
+            <button onClick={() => onCycle(item)} disabled={updating}
+              className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-white rounded-lg px-3.5 py-2 transition-all hover:brightness-105 active:scale-[0.98]" style={{ background: ACCENT }}>
+              {isActive ? <>Mark as done <Check className="w-3.5 h-3.5" /></> : <>Start this skill <ArrowRight className="w-3 h-3" /></>}
             </button>
           )}
         </div>
-      </div>
+      )}
     </div>
   )
 }
