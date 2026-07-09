@@ -12,7 +12,26 @@ export const maxDuration = 300
 
 const PROMPT_PREFIX = `You are helping a job seeker close specific skill gaps that keep showing up across their job applications. For EACH skill listed below, search the web and find 2-3 REAL, FREE, reputable learning resources (prefer freeCodeCamp, MIT OpenCourseWare, Khan Academy, official framework/language documentation, Coursera or edX audit-mode courses, or well-known official YouTube channels). Only include resources you actually find via search — never invent a URL or a course that may not exist. For each skill also suggest one concrete, scoped project the candidate could build in their spare time to demonstrate it, and a single CV bullet point they could add once they have completed it.`
 
-const ROADMAP_COLS = 'id, created_at, updated_at, target_role, hours_per_week, current_title, milestones, items'
+const ROADMAP_COLS = 'id, created_at, updated_at, target_role, hours_per_week, current_title, milestones, intention, items'
+
+const MIN_CV = 300
+
+/** Most recent substantial CV, for calibrating generation to the real candidate. */
+async function loadCandidateCv(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): Promise<string> {
+  try {
+    const { data } = await supabase.from('tailor_history').select('original_cv').eq('user_id', userId).order('created_at', { ascending: false }).limit(5)
+    const cv = (data ?? []).map((r) => (r.original_cv as string) ?? '').find((c) => c.trim().length >= MIN_CV) ?? ''
+    return cv.slice(0, 12_000)
+  } catch { return '' }
+}
+
+/** Ground generation in who the candidate is (CV) and where they're going (intention). */
+function calibration(cv: string, intention: string): string {
+  let out = ''
+  if (cv) out += `\n\nThe candidate's CV — CALIBRATE to it: skip beginner material they are clearly past, pitch projects that build on this real experience, and phrase everything relative to their actual background. Never invent anything about them:\n${cv}`
+  if (intention) out += `\n\nThe candidate's stated goal: "${intention.slice(0, 400)}". Bias the resources and projects toward this direction.`
+  return out
+}
 
 /**
  * GET returns the roadmap PLUS the living-path intelligence computed from data
@@ -25,10 +44,11 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
-    const [roadmapRes, histRes, trackRes] = await Promise.all([
+    const [roadmapRes, histRes, trackRes, arcRes] = await Promise.all([
       supabase.from('career_roadmaps').select(ROADMAP_COLS).eq('user_id', user.id).maybeSingle(),
       supabase.from('tailor_history').select('id, job_title, created_at, result').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50),
       supabase.from('job_tracker').select('history_id, status, job_title').eq('user_id', user.id),
+      supabase.from('career_profiles').select('sections').eq('user_id', user.id).maybeSingle(),
     ])
     if (roadmapRes.error) throw roadmapRes.error
 
@@ -56,7 +76,9 @@ export async function GET() {
     const readiness = computeReadiness(target, history, closedSkills)
     const rankedGaps = rankGapsByUnlock(openSkills, tracker, historyById)
 
-    return NextResponse.json({ roadmap, derivedTarget, readiness, rankedGaps })
+    const arcAmbition = ((arcRes.data?.sections as { story?: { ambition?: string } } | null)?.story?.ambition ?? '').trim()
+
+    return NextResponse.json({ roadmap, derivedTarget, readiness, rankedGaps, arcAmbition })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: msg }, { status: 500 })
@@ -73,7 +95,36 @@ export async function POST(req: NextRequest) {
     if (limited) return limited
 
     const body = await req.json()
-    const { targetRole, hoursPerWeek, skills } = body
+    const { targetRole, hoursPerWeek, skills, intention } = body
+
+    // Set/update the stated intention (goal) on its own.
+    if (body?.mode === 'set-intention') {
+      const value = String(body.intention ?? '').slice(0, 400)
+      const { data: saved, error } = await supabase
+        .from('career_roadmaps')
+        .upsert({ user_id: user.id, intention: value, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+        .select(ROADMAP_COLS).single()
+      if (error) throw error
+      return NextResponse.json({ roadmap: saved })
+    }
+
+    // Remove a skill from the path and remember it so it's never re-added.
+    if (body?.mode === 'remove-skill') {
+      const skill = String(body.skill ?? '').trim()
+      if (!skill) return NextResponse.json({ error: 'A skill is required' }, { status: 400 })
+      const { data: existing, error: fErr } = await supabase
+        .from('career_roadmaps').select('items, removed_skills').eq('user_id', user.id).maybeSingle()
+      if (fErr) throw fErr
+      if (!existing) return NextResponse.json({ error: 'No path found' }, { status: 404 })
+      const items = ((existing.items as CareerRoadmapItem[]) ?? []).filter((i) => i.skill.toLowerCase() !== skill.toLowerCase())
+      const removed = Array.from(new Set([...(((existing.removed_skills as string[]) ?? [])), skill.toLowerCase()])).slice(-100)
+      const { data: saved, error } = await supabase
+        .from('career_roadmaps')
+        .update({ items, removed_skills: removed, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id).select(ROADMAP_COLS).single()
+      if (error) throw error
+      return NextResponse.json({ roadmap: saved })
+    }
 
     // ── Stage 3: living-path update actions ───────────────────────────────
 
@@ -172,10 +223,12 @@ export async function POST(req: NextRequest) {
 
       const { data: existing } = await supabase
         .from('career_roadmaps')
-        .select('target_role, hours_per_week, items')
+        .select('target_role, hours_per_week, intention, items, removed_skills')
         .eq('user_id', user.id).maybeSingle()
       const existingItems = (existing?.items as CareerRoadmapItem[] | undefined) ?? []
       const existingSkills = existingItems.map((i) => i.skill)
+      const removedForJd = ((existing?.removed_skills as string[] | undefined) ?? [])
+      const jdCv = await loadCandidateCv(supabase, user.id)
 
       const skillsTool = {
         name: 'submit_skills',
@@ -196,7 +249,7 @@ export async function POST(req: NextRequest) {
       const etu = extractMsg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_skills')
       if (!etu || etu.type !== 'tool_use') throw new Error('Could not read that job description. Please try again.')
       const named = (((etu.input as { skills?: unknown[] }).skills ?? []) as unknown[]).map((s) => String(s).trim().slice(0, 80)).filter(Boolean)
-      const toAdd = named.filter((s) => !existingSkills.some((e) => skillMatches(e, s))).slice(0, 3)
+      const toAdd = named.filter((s) => !existingSkills.some((e) => skillMatches(e, s)) && !removedForJd.some((r) => skillMatches(r, s))).slice(0, 3)
 
       if (toAdd.length === 0) {
         return NextResponse.json({ added: 0, message: 'Your path already covers what this job needs.' })
@@ -207,7 +260,7 @@ export async function POST(req: NextRequest) {
 Target role: ${existing?.target_role || 'unspecified'}
 
 Skills to address, most important first:
-${toAdd.map((s, i) => `${i + 1}. ${s}`).join('\n')}`
+${toAdd.map((s, i) => `${i + 1}. ${s}`).join('\n')}${calibration(jdCv, (existing?.intention as string) || '')}`
       const genMsg = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 2500,
@@ -243,7 +296,7 @@ ${toAdd.map((s, i) => `${i + 1}. ${s}`).join('\n')}`
 
       const { data: existing, error: fetchErr } = await supabase
         .from('career_roadmaps')
-        .select('id, target_role, hours_per_week, items')
+        .select('id, target_role, hours_per_week, intention, items')
         .eq('user_id', user.id)
         .maybeSingle()
       if (fetchErr) throw fetchErr
@@ -253,12 +306,13 @@ ${toAdd.map((s, i) => `${i + 1}. ${s}`).join('\n')}`
         return NextResponse.json({ error: 'That skill is already on your career path.' }, { status: 409 })
       }
 
+      const addCv = await loadCandidateCv(supabase, user.id)
       const addPrompt = `${PROMPT_PREFIX}
 
 Target role: ${existing?.target_role || 'unspecified'}
 
 Skills to address, most important first:
-1. ${skill}`
+1. ${skill}${calibration(addCv, (existing?.intention as string) || '')}`
 
       const message = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
@@ -303,13 +357,14 @@ Skills to address, most important first:
     }
     const trimmedSkills = skills.slice(0, 5).map((s: unknown) => String(s).slice(0, 80))
 
+    const genCv = await loadCandidateCv(supabase, user.id)
     const userPrompt = `${PROMPT_PREFIX}
 
 Target role: ${targetRole || 'unspecified'}
 Time available: ${hoursPerWeek ? `${hoursPerWeek} hours/week` : 'unspecified'}
 
 Skills to address, most important first:
-${trimmedSkills.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')}`
+${trimmedSkills.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')}${calibration(genCv, String(intention ?? ''))}`
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -333,7 +388,7 @@ ${trimmedSkills.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')}`
     }))
     if (items.length === 0) throw new Error('The roadmap came back empty. Please try again.')
 
-    const clean = sanitizeDeep({ target_role: targetRole || '', hours_per_week: hoursPerWeek || null, items })
+    const clean = sanitizeDeep({ target_role: targetRole || '', hours_per_week: hoursPerWeek || null, intention: String(intention ?? ''), items })
 
     const { data: saved, error } = await supabase
       .from('career_roadmaps')

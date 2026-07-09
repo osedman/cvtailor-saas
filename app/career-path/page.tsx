@@ -19,11 +19,12 @@ interface Roadmap {
   hours_per_week: number | null
   current_title: string
   milestones: Milestone[]
+  intention: string
   items: CareerRoadmapItem[]
 }
 interface Readiness { pct: number; have: number; total: number; missing: string[] }
 interface RankedGap { skill: string; unlockCount: number; sourceJobs: string[] }
-interface PathData { roadmap: Roadmap | null; derivedTarget: string; readiness: Readiness; rankedGaps: RankedGap[] }
+interface PathData { roadmap: Roadmap | null; derivedTarget: string; readiness: Readiness; rankedGaps: RankedGap[]; arcAmbition: string }
 
 async function readJson<T>(res: Response): Promise<T> {
   const text = await res.text()
@@ -215,8 +216,9 @@ function SkillTile({ item, gap, onOpen }: { item: CareerRoadmapItem; gap?: Ranke
   )
 }
 
-function SkillDetailModal({ item, gap, onClose, onCycle, updating }: { item: CareerRoadmapItem; gap?: RankedGap; onClose: () => void; onCycle: (i: CareerRoadmapItem) => void; updating: boolean }) {
+function SkillDetailModal({ item, gap, onClose, onCycle, onRemove, updating }: { item: CareerRoadmapItem; gap?: RankedGap; onClose: () => void; onCycle: (i: CareerRoadmapItem) => void; onRemove: (i: CareerRoadmapItem) => void; updating: boolean }) {
   const [copied, setCopied] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState(false)
   const Icon = pickIcon(item.skill)
   const isDone = item.status === "done"
   const isActive = item.status === "in_progress"
@@ -268,6 +270,18 @@ function SkillDetailModal({ item, gap, onClose, onCycle, updating }: { item: Car
         style={isDone ? { background: "#fff", border: "1px solid #e5e7eb", color: "#6b7280" } : { background: ACCENT, color: "#fff" }}>
         {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : isDone ? <>Move back to learning</> : isActive ? <>Mark as done <Check className="w-4 h-4" /></> : <>Start this skill <ArrowRight className="w-4 h-4" /></>}
       </button>
+
+      <div className="mt-3 text-center">
+        {confirmRemove ? (
+          <span className="text-[12px] text-gray-500">Remove this skill?{" "}
+            <button onClick={() => onRemove(item)} className="font-semibold" style={{ color: ACCENT }}>Yes, remove</button>
+            <span className="text-gray-300"> · </span>
+            <button onClick={() => setConfirmRemove(false)} className="text-gray-500">Keep it</button>
+          </span>
+        ) : (
+          <button onClick={() => setConfirmRemove(true)} className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors">Remove from path</button>
+        )}
+      </div>
     </Modal>
   )
 }
@@ -291,9 +305,10 @@ function RebuildConfirm({ doneCount, onConfirm, onCancel }: { doneCount: number;
 }
 
 /** Pre-seeded generate — no blank form. Target + skills come from the user's history/signal. */
-function SeededStart({ seedTarget, seedSkills, onGenerated }: { seedTarget: string; seedSkills: string[]; onGenerated: () => void }) {
+function SeededStart({ seedTarget, seedSkills, seedIntention, onGenerated }: { seedTarget: string; seedSkills: string[]; seedIntention: string; onGenerated: () => void }) {
   const [targetRole, setTargetRole] = useState(seedTarget)
   const [skillsText, setSkillsText] = useState(seedSkills.join(", "))
+  const [intention, setIntention] = useState(seedIntention)
   const [loading, setLoading] = useState(false)
 
   const submit = useCallback(async () => {
@@ -303,7 +318,7 @@ function SeededStart({ seedTarget, seedSkills, onGenerated }: { seedTarget: stri
     try {
       const res = await fetch("/api/career-path", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetRole, hoursPerWeek: 5, skills }),
+        body: JSON.stringify({ targetRole, hoursPerWeek: 5, skills, intention }),
       })
       await readJson(res)
       onGenerated()
@@ -311,7 +326,7 @@ function SeededStart({ seedTarget, seedSkills, onGenerated }: { seedTarget: stri
       toast.error(err instanceof Error ? err.message : "Failed to build your path.")
       setLoading(false)
     }
-  }, [targetRole, skillsText, onGenerated])
+  }, [targetRole, skillsText, intention, onGenerated])
 
   if (loading) {
     return (
@@ -342,6 +357,12 @@ function SeededStart({ seedTarget, seedSkills, onGenerated }: { seedTarget: stri
           <input value={skillsText} onChange={(e) => setSkillsText(e.target.value)} placeholder="e.g. SQL, stakeholder management"
             className="w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300" />
           <p className="mt-1.5 text-[12px] text-gray-400">Comma-separated. Pre-filled from gaps that keep coming up in your tailors.</p>
+        </div>
+        <div>
+          <label className="block text-[13px] font-semibold text-[#1e1813] mb-1.5">What are you trying to accomplish? <span className="font-normal text-gray-400">(optional)</span></label>
+          <textarea value={intention} onChange={(e) => setIntention(e.target.value)} rows={2} placeholder="e.g. move from delivery consulting into AI product leadership within 18 months"
+            className="w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300" />
+          <p className="mt-1.5 text-[12px] text-gray-400">Your goal steers what gets recommended, and your CV calibrates it — not just the job title.</p>
         </div>
       </div>
       <button onClick={submit} className="mt-8 w-full inline-flex items-center justify-center gap-2 py-3.5 text-[15px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]" style={{ background: ACCENT }}>
@@ -458,6 +479,38 @@ function ActionsBar({ onGotJob, onAddProject, onAddSkills }: { onGotJob: () => v
   )
 }
 
+function IntentionLine({ value, onSave }: { value: string; onSave: (v: string) => Promise<void> }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { setDraft(value) }, [value])
+  const save = async () => { setSaving(true); try { await onSave(draft.trim()) ; setEditing(false) } finally { setSaving(false) } }
+
+  if (editing) {
+    return (
+      <div className="mb-6 rounded-xl border border-[#f5d9d0] bg-[#fffaf8] p-3.5">
+        <label className="block text-[11px] font-semibold text-[#1e1813] mb-1.5">What are you trying to accomplish?</label>
+        <textarea autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} rows={2}
+          placeholder="e.g. move from delivery consulting into AI product leadership within 18 months"
+          className="w-full text-[13px] px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300" />
+        <div className="mt-2 flex gap-2">
+          <button onClick={save} disabled={saving} className="text-[12px] font-semibold text-white rounded-lg px-3 py-1.5" style={{ background: ACCENT }}>{saving ? "Saving…" : "Save goal"}</button>
+          <button onClick={() => { setDraft(value); setEditing(false) }} className="text-[12px] text-gray-500 px-2 py-1.5">Cancel</button>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <button onClick={() => setEditing(true)} className="mb-6 w-full text-left rounded-xl border border-dashed border-[#e5ddd2] hover:border-[#f5c9bb] px-3.5 py-2.5 transition-colors group">
+      {value ? (
+        <p className="text-[13px] text-[#1e1813]"><span className="text-gray-400">Aiming to </span>{value} <span className="text-[11px] text-gray-300 group-hover:text-[#dc4f33]">· edit</span></p>
+      ) : (
+        <p className="text-[13px] text-gray-400 group-hover:text-[#dc4f33]">+ Add your goal — what are you working towards? It steers what the path recommends.</p>
+      )}
+    </button>
+  )
+}
+
 function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<void> }) {
   const roadmap = data.roadmap!
   const [updating, setUpdating] = useState<string | null>(null)
@@ -481,6 +534,15 @@ function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<vo
     }
   }, [reload])
 
+  const removeSkill = useCallback(async (item: CareerRoadmapItem) => {
+    try {
+      await readJson(await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "remove-skill", skill: item.skill }) }))
+      toast.success(`Removed ${item.skill} from your path.`)
+      setSelected(null)
+      await reload()
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Failed to remove.") }
+  }, [reload])
+
   const gapBySkill = new Map(data.rankedGaps.map((g) => [g.skill.toLowerCase(), g]))
   // not-done first, ordered by unlock count; done at the bottom
   const openItems = roadmap.items.filter((i) => i.status !== "done")
@@ -489,7 +551,7 @@ function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<vo
   const doneCount = doneItems.length
 
   if (rebuilding) {
-    return <SeededStart seedTarget={roadmap.target_role || data.derivedTarget} seedSkills={roadmap.items.map((i) => i.skill)} onGenerated={() => { setRebuilding(false); reload() }} />
+    return <SeededStart seedTarget={roadmap.target_role || data.derivedTarget} seedSkills={roadmap.items.map((i) => i.skill)} seedIntention={roadmap.intention || data.arcAmbition} onGenerated={() => { setRebuilding(false); reload() }} />
   }
 
   return (
@@ -503,6 +565,11 @@ function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<vo
           Rebuild path
         </button>
       </div>
+
+      <IntentionLine value={roadmap.intention} onSave={async (v) => {
+        await readJson(await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "set-intention", intention: v }) }))
+        await reload()
+      }} />
 
       <JourneyLine roadmap={roadmap} readiness={data.readiness} derivedTarget={data.derivedTarget} />
 
@@ -554,6 +621,7 @@ function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<vo
           gap={gapBySkill.get(selected.toLowerCase())}
           onClose={() => setSelected(null)}
           onCycle={cycleStatus}
+          onRemove={removeSkill}
           updating={updating === selected}
         />
       )}
@@ -597,6 +665,7 @@ function CareerPathContent() {
         <SeededStart
           seedTarget={data?.derivedTarget ?? ""}
           seedSkills={prefillSkills}
+          seedIntention={data?.arcAmbition ?? ""}
           onGenerated={() => load()}
         />
       )}
