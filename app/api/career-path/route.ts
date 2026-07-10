@@ -38,6 +38,18 @@ function calibration(cv: string, intention: string): string {
  * the app already stores (tailor_history + job_tracker), via the pure compute
  * layer — so the client just renders. No AI here.
  */
+
+/** Surface real messages from Supabase/Postgrest errors, which are plain
+ * objects (not Error instances) — otherwise String(err) yields "[object Object]". */
+function errMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (err && typeof err === 'object') {
+    const e = err as { message?: string; error?: string; details?: string; hint?: string; code?: string }
+    return e.message || e.error || e.details || e.hint || (e.code ? `Database error ${e.code}` : JSON.stringify(err))
+  }
+  return String(err)
+}
+
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -80,7 +92,7 @@ export async function GET() {
 
     return NextResponse.json({ roadmap, derivedTarget, readiness, rankedGaps, arcAmbition })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
@@ -399,7 +411,7 @@ ${trimmedSkills.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')}${cal
     if (error) throw error
     return NextResponse.json({ roadmap: saved })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errMessage(err)
     const status = (err as { status?: number })?.status
     if (status === 429) {
       return NextResponse.json({ error: 'Too many requests right now — please wait a moment and try again.' }, { status: 429 })
@@ -441,7 +453,7 @@ export async function PATCH(req: NextRequest) {
     if (error) throw error
     return NextResponse.json({ roadmap: saved })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
