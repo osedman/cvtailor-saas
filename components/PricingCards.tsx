@@ -40,14 +40,14 @@ export default function PricingCards({ isLoggedIn }: Props) {
 
         {isLoggedIn ? (
           <Link
-            href="/dashboard"
+            href="/tailor"
             className="block text-center border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
           >
-            Go to dashboard
+            Go to Tailr
           </Link>
         ) : (
           <Link
-            href="/signup"
+            href="/tailor"
             className="block text-center border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
           >
             Get started free
@@ -88,7 +88,7 @@ export default function PricingCards({ isLoggedIn }: Props) {
           </button>
         ) : (
           <Link
-            href="/signup"
+            href="/tailor"
             className="block text-center bg-brand-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-brand-700 transition-colors"
           >
             Get started
