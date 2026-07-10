@@ -12,13 +12,13 @@ export default async function PricingPage() {
         <Link href="/" className="font-bold text-xl text-brand-600">Tailr</Link>
         <div className="flex items-center gap-4">
           {user ? (
-            <Link href="/dashboard" className="text-sm text-brand-600 font-medium">
-              Go to dashboard
+            <Link href="/tailor" className="text-sm text-brand-600 font-medium">
+              Go to Tailr
             </Link>
           ) : (
             <>
-              <Link href="/login" className="text-sm text-gray-600 hover:text-gray-900">Log in</Link>
-              <Link href="/signup" className="text-sm bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors">
+              <Link href="/tailor" className="text-sm text-gray-600 hover:text-gray-900">Log in</Link>
+              <Link href="/tailor" className="text-sm bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors">
                 Get started free
               </Link>
             </>
