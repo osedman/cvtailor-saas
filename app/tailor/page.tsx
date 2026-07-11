@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { Header } from "@/components/cv-tailor/header"
 import { ArcAnnouncement } from "@/components/cv-tailor/arc-announcement"
+import { CareerSignalBanner } from "@/components/cv-tailor/career-signal-banner"
+import { CareerSyncPanel } from "@/components/cv-tailor/career-sync-panel"
 import { ResizablePanels } from "@/components/cv-tailor/resizable-panels"
 import { TailorButton } from "@/components/cv-tailor/tailor-button"
 import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
@@ -279,6 +281,7 @@ export default function CVTailorPage() {
         {user && (
           <div className="pt-4">
             <ArcAnnouncement />
+            <CareerSignalBanner />
           </div>
         )}
         {/* Workspace panels */}
@@ -354,6 +357,7 @@ export default function CVTailorPage() {
                   onGenerateCompany={handleGenerateCompany}
                   historyId={historyId}
                 />
+                {user && <CareerSyncPanel key={historyId ?? "sync"} results={results} />}
               </div>
             </>
           ) : !hasContent ? (
