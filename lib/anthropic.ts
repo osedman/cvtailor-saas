@@ -599,3 +599,64 @@ export const CAREER_PROFILE_TOOL: Anthropic.Tool = {
     required: ["identity", "stats", "achievements", "timeline", "organisations", "skills", "growth", "chapters", "story", "projects", "qualities"],
   },
 }
+
+export type CareerItemStatus = "todo" | "in_progress" | "done"
+
+export interface CareerResource {
+  title: string
+  url: string
+  source: string   // e.g. "freeCodeCamp", "MIT OpenCourseWare"
+}
+
+export interface CareerRoadmapItem {
+  skill: string
+  whyItMatters: string
+  resources: CareerResource[]
+  projectBrief: string
+  cvPhrasing: string
+  status: CareerItemStatus
+}
+
+export interface CareerRoadmapResult {
+  items: CareerRoadmapItem[]
+}
+
+export const CAREER_ROADMAP_TOOL: Anthropic.Tool = {
+  name: "submit_career_roadmap",
+  description: "Submit a career roadmap: free resources and a project brief for each skill gap.",
+  input_schema: {
+    type: "object",
+    properties: {
+      items: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            skill: { type: "string", description: "The skill or requirement being addressed, matching the input as closely as possible" },
+            whyItMatters: { type: "string", description: "One short sentence on why this skill matters for the target role" },
+            resources: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  title: { type: "string", description: "The resource's real title" },
+                  url: { type: "string", description: "A real, working URL found via search. Never invent a URL." },
+                  source: { type: "string", description: "The site/platform, e.g. freeCodeCamp, MIT OpenCourseWare, Khan Academy, official docs" },
+                },
+                required: ["title", "url", "source"],
+              },
+              description: "2-3 REAL, FREE, reputable resources found via web search. Prefer freeCodeCamp, MIT OpenCourseWare, Khan Academy, official framework/language docs, Coursera/edX audit-mode courses, or well-known official YouTube channels. Never invent a URL or resource — only include ones actually found via search.",
+            },
+            projectBrief: { type: "string", description: "A concrete, scoped project idea (2-3 sentences) the candidate could build to demonstrate this skill" },
+            cvPhrasing: { type: "string", description: "A single suggested CV bullet point they could add once they have completed the project, written in the same evidence-based style as the rest of Tailr" },
+          },
+          required: ["skill", "whyItMatters", "resources", "projectBrief", "cvPhrasing"],
+        },
+        description: "One entry per skill gap provided, ranked most important first. Maximum 5 items.",
+      },
+    },
+    required: ["items"],
+  },
+}
+
+

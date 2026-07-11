@@ -1,0 +1,165 @@
+import type { RequirementMapping } from "@/lib/anthropic"
+
+/**
+ * Living-path compute layer. Pure functions — no AI, no DB — that turn the
+ * data Tailr already stores (tailor_history + job_tracker) into the living
+ * path's intelligence: which target the user is aiming at, how ready they are,
+ * and which gaps unlock the most of their real saved jobs. Tested in isolation
+ * like lib/career-signal.ts.
+ */
+
+/** A tailor run reduced to what the path needs. */
+export interface HistoryEntry {
+  historyId: string
+  jobTitle: string
+  createdAt: string
+  coverage: RequirementMapping[]
+}
+
+/** A tracked job reduced to what the path needs. */
+export interface TrackerJob {
+  historyId: string | null
+  status: "saved" | "applied" | "interview" | "offer"
+  jobTitle: string
+}
+
+export interface RankedGap {
+  skill: string
+  /** distinct active tracker jobs that need this skill */
+  unlockCount: number
+  /** titles of those jobs, for "unlocks: Data Lead, …" */
+  sourceJobs: string[]
+}
+
+export interface Readiness {
+  pct: number
+  have: number
+  total: number
+  /** target requirements still not evidenced, most-common first */
+  missing: string[]
+}
+
+const WEAK = new Set(["partial", "none"])
+const STRONG = new Set(["strong", "transferable"])
+
+/** Two-way substring match so "sql" ↔ "SQL", "stakeholder" ↔ "stakeholder management". */
+export function skillMatches(a: string, b: string): boolean {
+  const x = a.trim().toLowerCase()
+  const y = b.trim().toLowerCase()
+  if (!x || !y) return false
+  return x === y || x.includes(y) || y.includes(x)
+}
+
+/** Most-frequent recent job title — seeds the target so the intake form can die. */
+export function deriveTargetRole(history: HistoryEntry[]): string {
+  if (history.length === 0) return ""
+  const counts = new Map<string, { n: number; last: string; display: string }>()
+  for (const h of history) {
+    const title = h.jobTitle.trim()
+    if (!title) continue
+    const key = title.toLowerCase()
+    const cur = counts.get(key)
+    if (cur) {
+      cur.n += 1
+      if (h.createdAt > cur.last) cur.last = h.createdAt
+    } else {
+      counts.set(key, { n: 1, last: h.createdAt, display: title })
+    }
+  }
+  const ranked = Array.from(counts.values()).sort(
+    (a, b) => b.n - a.n || b.last.localeCompare(a.last),
+  )
+  return ranked[0]?.display ?? ""
+}
+
+/**
+ * Rank candidate gap skills by how many of the user's ACTIVE tracked jobs
+ * (saved/applied — the ones still in play) need them. A gap that blocks six
+ * saved jobs matters more than one that blocks one.
+ */
+export function rankGapsByUnlock(
+  gaps: string[],
+  tracker: TrackerJob[],
+  historyById: Map<string, HistoryEntry>,
+): RankedGap[] {
+  const active = tracker.filter((t) => t.status === "saved" || t.status === "applied")
+
+  return gaps
+    .map((skill) => {
+      const sourceJobs: string[] = []
+      const seen = new Set<string>()
+      for (const job of active) {
+        if (!job.historyId) continue
+        const entry = historyById.get(job.historyId)
+        if (!entry) continue
+        const needs = entry.coverage.some(
+          (r) =>
+            (WEAK.has(r.strength) || r.type === "must") &&
+            (r.keywords ?? []).some((k) => skillMatches(k, skill)),
+        )
+        const label = (job.jobTitle || entry.jobTitle || "A saved job").trim()
+        if (needs && !seen.has(label.toLowerCase())) {
+          seen.add(label.toLowerCase())
+          sourceJobs.push(label)
+        }
+      }
+      return { skill, unlockCount: sourceJobs.length, sourceJobs }
+    })
+    .sort((a, b) => b.unlockCount - a.unlockCount)
+}
+
+/**
+ * Readiness for the target role: of the requirements the user's tailors for
+ * that role surface, how many do they now have strong evidence for — counting
+ * skills they've closed on the path as evidence. Powers the readiness ring.
+ */
+export function computeReadiness(
+  targetRole: string,
+  history: HistoryEntry[],
+  closedSkills: string[],
+): Readiness {
+  const target = targetRole.trim().toLowerCase()
+  // Requirements from tailors against the target role (fall back to all history
+  // if nothing matches the target title, so a new target still says something).
+  const relevant = target
+    ? history.filter((h) => skillMatches(h.jobTitle, target))
+    : []
+  const pool = relevant.length > 0 ? relevant : history
+
+  // Dedupe requirements by their primary keyword; track best strength seen and
+  // how often the requirement appears (to order the misses sensibly).
+  const reqs = new Map<string, { best: string; count: number; label: string }>()
+  for (const h of pool) {
+    for (const r of h.coverage) {
+      const kw = (r.keywords ?? [])[0]?.trim().toLowerCase()
+      if (!kw) continue
+      const cur = reqs.get(kw)
+      const strengthRank = STRONG.has(r.strength) ? 2 : r.strength === "partial" ? 1 : 0
+      if (cur) {
+        cur.count += 1
+        if (strengthRank > (STRONG.has(cur.best) ? 2 : cur.best === "partial" ? 1 : 0)) cur.best = r.strength
+      } else {
+        reqs.set(kw, { best: r.strength, count: 1, label: (r.keywords ?? [])[0] })
+      }
+    }
+  }
+
+  const total = reqs.size
+  if (total === 0) return { pct: 0, have: 0, total: 0, missing: [] }
+
+  let have = 0
+  const missing: Array<{ label: string; count: number }> = []
+  for (const [kw, v] of reqs) {
+    const evidenced = STRONG.has(v.best) || closedSkills.some((s) => skillMatches(s, kw))
+    if (evidenced) have += 1
+    else missing.push({ label: v.label, count: v.count })
+  }
+
+  missing.sort((a, b) => b.count - a.count)
+  return {
+    pct: Math.round((have / total) * 100),
+    have,
+    total,
+    missing: missing.map((m) => m.label),
+  }
+}
