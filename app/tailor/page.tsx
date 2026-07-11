@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { Header } from "@/components/cv-tailor/header"
 import { ArcAnnouncement } from "@/components/cv-tailor/arc-announcement"
+import { CareerPathAnnouncement } from "@/components/cv-tailor/career-path-announcement"
 import { CareerSignalBanner } from "@/components/cv-tailor/career-signal-banner"
 import { CareerSyncPanel } from "@/components/cv-tailor/career-sync-panel"
 import { ResizablePanels } from "@/components/cv-tailor/resizable-panels"
@@ -281,6 +282,7 @@ export default function CVTailorPage() {
         {user && (
           <div className="pt-4">
             <ArcAnnouncement />
+            <CareerPathAnnouncement />
             <CareerSignalBanner />
           </div>
         )}
