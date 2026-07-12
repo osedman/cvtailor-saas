@@ -18,7 +18,6 @@ import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
 import { HistoryDrawer, type HistoryItem } from "@/components/cv-tailor/history-drawer"
 import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult } from "@/lib/anthropic"
 import { markOnboardingStep, isOnboardingDismissed } from "@/lib/onboarding"
-import { isAdminEmail } from "@/lib/admin"
 import { Lightbulb, X } from "lucide-react"
 
 /**
@@ -98,8 +97,8 @@ export default function CVTailorPage() {
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
 
   // Onboarding guidance (coachmarks, feature strip, post-tailor nudge) —
-  // gated to the admin account for review before a wider rollout.
-  const guideEnabled = isAdminEmail(user?.email) && !isOnboardingDismissed()
+  // rolled out to all signed-in users (was admin-gated in #9).
+  const guideEnabled = !!user && !isOnboardingDismissed()
   const guideStep: "cv" | "job" | "tailor" | null = !guideEnabled
     ? null
     : cvText.length === 0 ? "cv"
