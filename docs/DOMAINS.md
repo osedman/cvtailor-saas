@@ -8,7 +8,7 @@
 | `app.gettailr.com` | Tailr product (this Next.js app) | Engineering |
 | `gettailr.com` (apex) | Redirects only | DNS |
 
-Code support lives in `lib/site-url.ts` and `middleware.ts`. Apex redirects stay **off** until you set `DOMAIN_SPLIT_ENABLED=true` in Vercel — so production keeps working on apex until DNS is ready.
+Code support lives in `lib/site-url.ts` and `proxy.ts`. Apex redirects stay **off** until you set `DOMAIN_SPLIT_ENABLED=true` in Vercel — so production keeps working on apex until DNS is ready.
 
 ---
 
@@ -84,7 +84,7 @@ Magic-link emails use `window.location.origin`, so once users open the app on `a
 ## What engineering already shipped in the repo
 
 - `lib/site-url.ts` — `getAppOrigin()`, `getMarketingOrigin()`, `appPath()`
-- `middleware.ts` — host-aware redirects (apex gated on `DOMAIN_SPLIT_ENABLED`)
+- `proxy.ts` — host-aware redirects (apex gated on `DOMAIN_SPLIT_ENABLED`; Next.js 16 uses `proxy` instead of `middleware`)
 - Welcome email CTA uses `appPath('/tailor')`
 - `.env.example` documents the new vars
 
