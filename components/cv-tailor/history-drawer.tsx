@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { X, Trash2, Clock, ChevronRight, Loader2, ExternalLink, Building2 } from "lucide-react"
 import { toast } from "sonner"
-import type { TailorResult } from "@/lib/anthropic"
+import type { TailorResult, CareerRoadmapItem } from "@/lib/anthropic"
 
 export interface HistoryItem {
   id: string
@@ -15,6 +15,7 @@ export interface HistoryItem {
   job_snippet: string
   match_score: number
   result: TailorResult
+  upskill?: CareerRoadmapItem[]
 }
 
 interface HistoryDrawerProps {

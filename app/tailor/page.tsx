@@ -15,7 +15,7 @@ import { SignInModal } from "@/components/auth/sign-in-modal"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
 import { HistoryDrawer, type HistoryItem } from "@/components/cv-tailor/history-drawer"
-import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult } from "@/lib/anthropic"
+import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 import { markOnboardingStep, isOnboardingDismissed } from "@/lib/onboarding"
 import { isAdminEmail } from "@/lib/admin"
 import { Lightbulb, X } from "lucide-react"
@@ -94,6 +94,8 @@ export default function CVTailorPage() {
   const [loadingCompany, setLoadingCompany] = useState(false)
   const [historyId, setHistoryId] = useState<string | null>(null)
   const [tailoredFromCv, setTailoredFromCv] = useState<string | null>(null)
+  const [upskill, setUpskill] = useState<CareerRoadmapItem[] | null>(null)
+  const [loadingUpskill, setLoadingUpskill] = useState(false)
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
 
   // Onboarding guidance (coachmarks, feature strip, post-tailor nudge) —
@@ -116,6 +118,7 @@ export default function CVTailorPage() {
     setPitches(null)
     setPrepQuestions(null)
     setCompanyAnalysis(null)
+    setUpskill(null)
     setHistoryId(null)
     setProgressStep(0)
     setLoadingStatus("Analysing job requirements…")
@@ -257,12 +260,52 @@ export default function CVTailorPage() {
     }
   }, [results, jobDescription])
 
+  const handleGenerateUpskill = useCallback(async () => {
+    if (!results || !historyId) return
+    setLoadingUpskill(true)
+    try {
+      const weak = (results.requirementsCoverage ?? []).filter((r) => r.strength === "partial" || r.strength === "none")
+      const skills = Array.from(new Set(
+        weak.flatMap((r) => (r.keywords && r.keywords.length ? r.keywords : [r.requirement]))
+          .map((s) => s.trim()).filter(Boolean)
+      )).slice(0, 6)
+      const res = await fetch("/api/upskill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ historyId, skills, jobTitle: results.jobTitle }),
+      })
+      const data = await readJson<{ items: CareerRoadmapItem[] }>(res)
+      setUpskill(data.items)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to build your upskill plan.")
+    } finally {
+      setLoadingUpskill(false)
+    }
+  }, [results, historyId])
+
+  const handleUpdateUpskillItem = useCallback(async (skill: string, status: CareerItemStatus) => {
+    if (!historyId) return
+    setUpskill((prev) => prev ? prev.map((it) => it.skill === skill ? { ...it, status } : it) : prev)
+    try {
+      const res = await fetch("/api/upskill", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ historyId, skill, status }),
+      })
+      const data = await readJson<{ items: CareerRoadmapItem[] }>(res)
+      setUpskill(data.items)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update.")
+    }
+  }, [historyId])
+
   const handleRestoreHistory = useCallback((item: HistoryItem) => {
     setResults(item.result)
     setCoverLetter(null)
     setPitches(null)
     setPrepQuestions(null)
     setCompanyAnalysis(null)
+    setUpskill(item.upskill ?? null)
     setHistoryId(item.id)
     setTailoredFromCv(null)
   }, [])
@@ -355,6 +398,10 @@ export default function CVTailorPage() {
                   loadingCompany={loadingCompany}
                   onGenerateCompany={handleGenerateCompany}
                   historyId={historyId}
+                  upskill={upskill}
+                  loadingUpskill={loadingUpskill}
+                  onGenerateUpskill={handleGenerateUpskill}
+                  onUpdateUpskillItem={handleUpdateUpskillItem}
                 />
                 {user && <CareerSyncPanel key={historyId ?? "sync"} results={results} />}
               </div>

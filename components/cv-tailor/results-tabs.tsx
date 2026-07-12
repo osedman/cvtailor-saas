@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles, ThumbsUp, ThumbsDown, Building2, FileText, GitCompare, Mail, MessagesSquare, ListChecks, Pencil, type LucideIcon } from "lucide-react"
+import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles, ThumbsUp, ThumbsDown, Building2, FileText, GitCompare, Mail, MessagesSquare, ListChecks, Pencil, GraduationCap, CircleDot, ArrowRight, ExternalLink, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import type { TailorResult, InterviewPrepResult, PitchesResult } from "@/lib/anthropic"
+import type { TailorResult, InterviewPrepResult, PitchesResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 import { downloadWordDoc } from "@/lib/word"
 import { InterviewPrep } from "./interview-prep"
 import { InterviewPitches } from "./interview-pitches"
@@ -169,6 +169,11 @@ interface ResultsTabsProps {
   onGenerateCompany?: () => void
   /** tailor_history row id — enables the feedback bar */
   historyId?: string | null
+  /** Upskill: per-application plan to close this run's gaps */
+  upskill?: CareerRoadmapItem[] | null
+  loadingUpskill?: boolean
+  onGenerateUpskill?: () => void
+  onUpdateUpskillItem?: (skill: string, status: CareerItemStatus) => void
   /** Enhanced (gated) workspace styling */
   enhanced?: boolean
 }
@@ -181,6 +186,7 @@ const tabs = [
   "Company",
   "Key Changes",
   "Gaps",
+  "Upskill",
   "Follow-ups",
   "ATS Notes",
 ] as const
@@ -195,6 +201,7 @@ const TAB_ICONS: Record<TabName, LucideIcon> = {
   "Company": Building2,
   "Key Changes": Pencil,
   "Gaps": ListChecks,
+  "Upskill": GraduationCap,
   "Follow-ups": MessagesSquare,
   "ATS Notes": CheckCircle,
 }
@@ -215,6 +222,10 @@ export function ResultsTabs({
   loadingCompany = false,
   onGenerateCompany,
   historyId = null,
+  upskill = null,
+  loadingUpskill = false,
+  onGenerateUpskill,
+  onUpdateUpskillItem,
   enhanced = false,
 }: ResultsTabsProps) {
   // Interview Prep only appears where a generator is wired up (the tailor page).
@@ -548,6 +559,112 @@ export function ResultsTabs({
             </div>
           </div>
         )}
+
+        {activeTab === "Upskill" && (() => {
+          const ACCENT = "#dc4f33"
+          const weak = (results.requirementsCoverage ?? []).filter((r) => r.strength === "partial" || r.strength === "none")
+          const plan = upskill ?? []
+          const STATUS_NEXT: Record<CareerItemStatus, CareerItemStatus> = { todo: "in_progress", in_progress: "done", done: "todo" }
+
+          if (plan.length === 0) {
+            return (
+              <div className="space-y-5">
+                <div className="rounded-xl border border-[#f5d9d0] bg-[#fff7f4] p-4">
+                  <p className="text-[13.5px] leading-relaxed text-[#1e1813]">
+                    <span className="font-semibold">Close the gaps for this job.</span> Turn the weak spots below into a plan — free resources, a project to prove each skill, and the exact CV line — to raise your match for {results.jobTitle || "this role"}.
+                  </p>
+                </div>
+                {weak.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {weak.map((r, i) => (
+                      <span key={i} className="inline-flex items-center gap-1.5 text-[12px] font-medium rounded-lg px-2.5 py-1.5 bg-gray-50 border border-gray-100 text-gray-600">
+                        <AlertCircle className="w-3 h-3 text-[#dc4f33]" /> {r.requirement}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {weak.length === 0 ? (
+                  <p className="text-[13px] text-gray-500">No gaps flagged on this run — your CV already covers what this job asks for.</p>
+                ) : historyId ? (
+                  <div>
+                    <button
+                      onClick={onGenerateUpskill}
+                      disabled={loadingUpskill}
+                      className="inline-flex items-center gap-2 py-3 px-5 text-[14px] font-semibold text-white rounded-xl shadow-sm transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-60"
+                      style={{ background: ACCENT }}
+                    >
+                      {loadingUpskill ? <><Loader2 className="w-4 h-4 animate-spin" />Finding resources…</> : <><Sparkles className="w-4 h-4" />Suggest how to close these</>}
+                    </button>
+                    {loadingUpskill && <p className="mt-2.5 text-[12px] text-gray-400">Searching for real, free resources — this can take up to a minute.</p>}
+                  </div>
+                ) : (
+                  <p className="text-[13px] text-gray-400">Run a tailor while signed in to build an upskill plan.</p>
+                )}
+              </div>
+            )
+          }
+
+          const done = plan.filter((i) => i.status === "done").length
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[13px] text-gray-500">{done} of {plan.length} closed</p>
+                <button onClick={onGenerateUpskill} disabled={loadingUpskill} className="text-[12px] font-medium text-gray-500 hover:text-[#1e1813] border border-gray-200 rounded-lg px-3 py-1.5 transition-colors">
+                  {loadingUpskill ? "Rebuilding…" : "Rebuild"}
+                </button>
+              </div>
+              <div className="space-y-3">
+                {plan.map((item) => {
+                  const isDone = item.status === "done"
+                  const isActive = item.status === "in_progress"
+                  return (
+                    <div key={item.skill} className="rounded-2xl border border-gray-100 bg-white p-4">
+                      <div className="flex items-start gap-3">
+                        <button
+                          onClick={() => onUpdateUpskillItem?.(item.skill, STATUS_NEXT[item.status])}
+                          className="flex-shrink-0 w-7 h-7 mt-0.5 rounded-full flex items-center justify-center transition-all active:scale-90"
+                          style={isDone ? { background: "#16a34a" } : isActive ? { background: ACCENT } : { background: "#fff", border: `1.5px dashed ${ACCENT}66` }}
+                          title={isDone ? "Mark as to do" : isActive ? "Mark as done" : "Start this skill"}
+                        >
+                          {isDone ? <Check className="w-3.5 h-3.5 text-white" strokeWidth={2.75} /> : isActive ? <CircleDot className="w-3.5 h-3.5 text-white" /> : <ArrowRight className="w-3 h-3" style={{ color: ACCENT }} />}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className={`text-[15px] font-bold ${isDone ? "text-gray-400 line-through" : "text-[#1e1813]"}`}>{item.skill}</h4>
+                            <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: isDone ? "#dcfce7" : "#fff7f4", color: isDone ? "#16a34a" : ACCENT }}>
+                              {isActive ? "in progress" : isDone ? "done" : "not started"}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-[13px] text-gray-600 leading-relaxed">{item.whyItMatters}</p>
+                          {item.resources?.length > 0 && (
+                            <div className="mt-2.5 flex flex-wrap gap-2">
+                              {item.resources.map((r, i) => (
+                                <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-600 hover:text-[#dc4f33] bg-gray-50 hover:bg-[#ffeae4] border border-gray-100 rounded-lg px-2.5 py-1.5 transition-colors">
+                                  <ExternalLink className="w-3 h-3" />{r.title} <span className="text-gray-400">· {r.source}</span>
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                          <div className="mt-2.5 rounded-xl bg-gray-50/70 p-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Project idea</p>
+                            <p className="text-[12.5px] text-gray-700 leading-relaxed">{item.projectBrief}</p>
+                          </div>
+                          {isDone && (
+                            <div className="mt-2.5 rounded-xl border border-green-100 bg-green-50/60 p-3">
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600 mb-1">Add to your CV</p>
+                              <p className="text-[12.5px] text-[#1e1813] leading-relaxed">{item.cvPhrasing}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-[12px] text-gray-400 text-center">Close a gap, then re-tailor this job to see your match rise.</p>
+            </div>
+          )
+        })()}
 
         {activeTab === "Follow-ups" && (
           <div className="space-y-3">
