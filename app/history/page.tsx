@@ -12,7 +12,7 @@ import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
 import { JobTrackerBoard } from "@/components/tracker/job-tracker-board"
-import type { TailorResult, InterviewPrepResult } from "@/lib/anthropic"
+import type { TailorResult, InterviewPrepResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 
 interface HistoryItem {
   id: string
@@ -25,6 +25,7 @@ interface HistoryItem {
   match_score: number
   result: TailorResult
   original_cv?: string
+  upskill?: CareerRoadmapItem[]
 }
 
 // ── helpers ────────────────────────────────────────────────────────────
@@ -250,6 +251,7 @@ export default function HistoryPage() {
   const [loadingCoverLetter, setLoadingCoverLetter] = useState(false)
   const [prepQuestions, setPrepQuestions] = useState<InterviewPrepResult["interviewQuestions"] | null>(null)
   const [loadingPrep, setLoadingPrep] = useState(false)
+  const [loadingUpskill, setLoadingUpskill] = useState(false)
 
   const selectedItem = history.find(h => h.id === selectedId) ?? null
 
@@ -283,6 +285,48 @@ export default function HistoryPage() {
       setLoadingCoverLetter(false)
     }
   }, [canGenerate, genCv, genJd])
+
+  const handleGenerateUpskill = useCallback(async () => {
+    if (!selectedItem) return
+    setLoadingUpskill(true)
+    try {
+      const weak = (selectedItem.result.requirementsCoverage ?? []).filter((r) => r.strength === "partial" || r.strength === "none")
+      const skills = Array.from(new Set(
+        weak.flatMap((r) => (r.keywords && r.keywords.length ? r.keywords : [r.requirement])).map((s) => s.trim()).filter(Boolean)
+      )).slice(0, 6)
+      const res = await fetch("/api/upskill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ historyId: selectedItem.id, skills, jobTitle: selectedItem.result.jobTitle }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed")
+      const id = selectedItem.id
+      setHistory((prev) => prev.map((h) => h.id === id ? { ...h, upskill: data.items } : h))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to build your upskill plan.")
+    } finally {
+      setLoadingUpskill(false)
+    }
+  }, [selectedItem])
+
+  const handleUpdateUpskillItem = useCallback(async (skill: string, status: CareerItemStatus) => {
+    if (!selectedItem) return
+    const id = selectedItem.id
+    setHistory((prev) => prev.map((h) => h.id === id ? { ...h, upskill: (h.upskill ?? []).map((it) => it.skill === skill ? { ...it, status } : it) } : h))
+    try {
+      const res = await fetch("/api/upskill", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ historyId: id, skill, status }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed")
+      setHistory((prev) => prev.map((h) => h.id === id ? { ...h, upskill: data.items } : h))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update.")
+    }
+  }, [selectedItem])
 
   const handleGeneratePrep = useCallback(async () => {
     if (!canGenerate) { toast.error("This run predates stored job details, so regeneration isn't available."); return }
@@ -540,6 +584,11 @@ export default function HistoryPage() {
                     loadingPrep={loadingPrep}
                     onGeneratePrep={handleGeneratePrep}
                     originalCV={selectedItem.original_cv || null}
+                    historyId={selectedItem.id}
+                    upskill={selectedItem.upskill ?? null}
+                    loadingUpskill={loadingUpskill}
+                    onGenerateUpskill={handleGenerateUpskill}
+                    onUpdateUpskillItem={handleUpdateUpskillItem}
                   />
                 </div>
               </div>
