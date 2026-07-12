@@ -20,8 +20,7 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | Prominent coral CV section headings + company-analyser source fix | Fix | [#5](https://github.com/osedman/cvtailor-saas/pull/5) | Faint headings; company now from JD only |
 | Enhanced workspace UI (gated) | Feature | [#7](https://github.com/osedman/cvtailor-saas/pull/7) | Oat canvas, cards, score bar, tab icons |
 | Enhanced workspace UI rolled out to all users | Feature | [#8](https://github.com/osedman/cvtailor-saas/pull/8) | Flag flipped on |
-| Richer onboarding guidance (coachmarks, feature strip, nudge, 7-step checklist) | Feature | [#9](https://github.com/osedman/cvtailor-saas/pull/9) | Gated to admin |
-| Richer onboarding guidance rolled out to all users | Feature | [#25](https://github.com/osedman/cvtailor-saas/pull/25) | Flag flipped: removed `isAdminEmail` gates in onboarding + tailor coachmarks |
+| Richer onboarding guidance (coachmarks, feature strip, nudge, 7-step checklist) | Feature | [#9](https://github.com/osedman/cvtailor-saas/pull/9) | Gated to admin, then rolled out via #25 |
 | Per-user rate limiting on AI endpoints | Feature | [#10](https://github.com/osedman/cvtailor-saas/pull/10) | Postgres counters; migration applied |
 | Unit tests + GitHub Actions CI | Chore | [#11](https://github.com/osedman/cvtailor-saas/pull/11) | 20 Vitest tests on sanitiser + scoring |
 | CI hardening: `pnpm build` in the workflow | Chore | [#16](https://github.com/osedman/cvtailor-saas/pull/16) | Catches typecheck/build errors on PRs, not just after merge |
@@ -43,12 +42,13 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | Company Analysis floating bullet-dot parser fix | Fix | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Wrapped/split bullets now group into one block |
 | Career Arc: private CV highlight reel (`/career-arc`) | Feature | [#23](https://github.com/osedman/cvtailor-saas/pull/23) | Guided intake (4 personalised skippable questions), art-directed card reveal, document frame. Migration 005 required on production Supabase. Follow-up: re-add inline editing (dropped in v2 redesign) |
 | Career Arc in-app launch announcement | Chore | [#24](https://github.com/osedman/cvtailor-saas/pull/24) | Dismissible ink banner on /tailor; auto-hides once an arc exists. Launch email sent to mailing list 6 Jul |
+| Richer onboarding guidance rolled out to all users | Feature | [#25](https://github.com/osedman/cvtailor-saas/pull/25) | Flag flipped: removed `isAdminEmail` gates in onboarding + tailor coachmarks |
+| www + app domain split | Chore | [#25](https://github.com/osedman/cvtailor-saas/pull/25) [#26](https://github.com/osedman/cvtailor-saas/pull/26) | `www.gettailr.com` marketing, `app.gettailr.com` product. Domains on Vercel; `DOMAIN_SPLIT_ENABLED=true`; apex redirects live. #26 folded redirects into `proxy.ts` (Next 16). Supabase Site URL + redirect URLs updated. Optional later: Framer/Webflow for www |
 
 ## 🔧 In progress / open PRs
 
 | Item | Type | PR | Notes |
 |------|------|----|-------|
-| www + app domain split | Chore | [#25](https://github.com/osedman/cvtailor-saas/pull/25) | `app.gettailr.com` + `www.gettailr.com` added/verified on Vercel; env URLs set. Apex redirects still off (`DOMAIN_SPLIT_ENABLED`). See `docs/DOMAINS.md` — still need Supabase redirect URLs + optional Framer later |
 | Career-signal banner (career-memory Phase 1) | Feature | [#19](https://github.com/osedman/cvtailor-saas/pull/19) | Mines tailor_history for recurring weak-evidence keywords; merged to staging, awaiting review before prod |
 
 ## 📋 Backlog (suggested, not started)
