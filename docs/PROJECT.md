@@ -21,7 +21,7 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | Enhanced workspace UI (gated) | Feature | [#7](https://github.com/osedman/cvtailor-saas/pull/7) | Oat canvas, cards, score bar, tab icons |
 | Enhanced workspace UI rolled out to all users | Feature | [#8](https://github.com/osedman/cvtailor-saas/pull/8) | Flag flipped on |
 | Richer onboarding guidance (coachmarks, feature strip, nudge, 7-step checklist) | Feature | [#9](https://github.com/osedman/cvtailor-saas/pull/9) | Gated to admin |
-| Richer onboarding guidance rolled out to all users | Feature | — | Flag flipped: removed `isAdminEmail` gates in onboarding + tailor coachmarks |
+| Richer onboarding guidance rolled out to all users | Feature | [#25](https://github.com/osedman/cvtailor-saas/pull/25) | Flag flipped: removed `isAdminEmail` gates in onboarding + tailor coachmarks |
 | Per-user rate limiting on AI endpoints | Feature | [#10](https://github.com/osedman/cvtailor-saas/pull/10) | Postgres counters; migration applied |
 | Unit tests + GitHub Actions CI | Chore | [#11](https://github.com/osedman/cvtailor-saas/pull/11) | 20 Vitest tests on sanitiser + scoring |
 | CI hardening: `pnpm build` in the workflow | Chore | [#16](https://github.com/osedman/cvtailor-saas/pull/16) | Catches typecheck/build errors on PRs, not just after merge |
@@ -48,7 +48,7 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 
 | Item | Type | PR | Notes |
 |------|------|----|-------|
-| www + app domain split | Chore | — | Target: `www.gettailr.com` marketing, `app.gettailr.com` product. Code + middleware ready; DNS/Framer + Vercel env flip documented in `docs/DOMAINS.md`. Do not set `DOMAIN_SPLIT_ENABLED=true` until www and app both resolve |
+| www + app domain split | Chore | [#25](https://github.com/osedman/cvtailor-saas/pull/25) | `app.gettailr.com` + `www.gettailr.com` added/verified on Vercel; env URLs set. Apex redirects still off (`DOMAIN_SPLIT_ENABLED`). See `docs/DOMAINS.md` — still need Supabase redirect URLs + optional Framer later |
 | Career-signal banner (career-memory Phase 1) | Feature | [#19](https://github.com/osedman/cvtailor-saas/pull/19) | Mines tailor_history for recurring weak-evidence keywords; merged to staging, awaiting review before prod |
 
 ## 📋 Backlog (suggested, not started)
