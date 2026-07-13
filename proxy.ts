@@ -19,8 +19,14 @@ export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl
   const splitEnabled = process.env.DOMAIN_SPLIT_ENABLED === 'true'
 
-  // app.gettailr.com/ → marketing site owns the landing page
+  // app.gettailr.com/ → marketing site owns the landing page.
+  // Exception: auth error/success query params belong on /tailor (where the
+  // toast lives). Never strip them into a silent www homepage.
   if (host === APP_HOST && (pathname === '/' || pathname === '')) {
+    const params = request.nextUrl.searchParams
+    if (params.has('error') || params.has('error_description') || params.has('code')) {
+      return NextResponse.redirect(new URL(`/tailor${search}`, getAppOrigin()), 308)
+    }
     return NextResponse.redirect(new URL(getMarketingOrigin()), 308)
   }
 

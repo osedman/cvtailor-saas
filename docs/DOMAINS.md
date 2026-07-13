@@ -63,7 +63,7 @@ In **both** production and staging Supabase projects → Authentication → URL 
 - `https://gettailr.com/auth/confirm` (keep briefly for in-flight magic links)
 - `https://gettailr.com/auth/callback`
 
-Magic-link emails use `window.location.origin`, so once users open the app on `app.gettailr.com`, new links will already target the app host.
+Magic-link emails use `emailRedirectTo` → `/auth/confirm` on the product origin (`NEXT_PUBLIC_APP_URL`). Failed verifies redirect to `/tailor?error=…` (where the toast lives) — never to `/`, which the domain proxy would strip into a silent www homepage.
 
 ### 5. Smoke test
 

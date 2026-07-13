@@ -47,7 +47,10 @@ export function SignInModal({ onClose }: SignInModalProps) {
             </div>
             <h2 className="text-base font-semibold text-[#1e1813] mb-2">Check your email</h2>
             <p className="text-sm text-gray-500">
-              We sent a magic link to <strong>{email}</strong>. Click it to sign in — no password needed.
+              We sent a magic link to <strong>{email}</strong>. Open it on this device to sign in — no password needed.
+            </p>
+            <p className="mt-3 text-xs text-gray-400 leading-relaxed">
+              The link works once and expires after a few minutes. If it says it&apos;s already used, request a fresh one here.
             </p>
           </div>
         ) : (
