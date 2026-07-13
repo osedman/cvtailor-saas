@@ -37,11 +37,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function signInWithEmail(email: string) {
+    // Prefer the configured product origin so magic links always land on
+    // app.gettailr.com/auth/confirm — even if the user opened Sign in from a
+    // preview URL or a host that later redirects.
+    const appOrigin =
+      (typeof process !== "undefined" && process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")) ||
+      (typeof window !== "undefined" ? window.location.origin : "")
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         // token_hash verification route (stateless, works cross-device).
-        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+        emailRedirectTo: `${appOrigin}/auth/confirm`,
       },
     })
     return { error: error?.message ?? null }

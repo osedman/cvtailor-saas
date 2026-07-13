@@ -63,7 +63,21 @@ In **both** production and staging Supabase projects → Authentication → URL 
 - `https://gettailr.com/auth/confirm` (keep briefly for in-flight magic links)
 - `https://gettailr.com/auth/callback`
 
-Magic-link emails use `window.location.origin`, so once users open the app on `app.gettailr.com`, new links will already target the app host.
+Magic-link emails use `emailRedirectTo` → `/auth/confirm` on the product origin (`NEXT_PUBLIC_APP_URL`). `/auth/confirm` is a **click-to-continue** page (does not verify on GET) so mobile email prefetchers cannot burn the one-time token. Failed verifies redirect to `/tailor?error=…` (where the toast lives) — never to `/`, which the domain proxy would strip into a silent www homepage.
+
+**Magic Link email template** (Auth → Email Templates → Magic Link) — required for mobile:
+
+```html
+<h2>Sign in to Tailr</h2>
+<p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">Sign in to Tailr</a></p>
+<p>Or enter this code in the app: <strong>{{ .Token }}</strong></p>
+```
+
+Do **not** use `{{ .ConfirmationURL }}` — that hits Supabase’s verify endpoint on the first GET (email scanners / iOS Mail / Outlook Safe Links), which is what breaks mobile login.
+
+**Session cookies** use `Domain=.gettailr.com` in production (`VERCEL_ENV=production`) so a sign-in on `app` stays valid if the user later hits apex/www. Override with `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` if needed.
+
+**Supabase dashboard (Auth → Sessions):** keep refresh sessions enabled; prefer a long inactivity timeout (or none) so users are not forced back through magic link every few days. JWT (access token) expiry can stay short — the proxy refreshes it.
 
 ### 5. Smoke test
 

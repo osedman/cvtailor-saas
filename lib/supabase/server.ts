@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { withAuthCookieOptions } from '@/lib/supabase/cookie-options'
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -15,7 +16,7 @@ export async function createClient() {
         setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options as Parameters<typeof cookieStore.set>[2])
+              cookieStore.set(name, value, withAuthCookieOptions(options) as Parameters<typeof cookieStore.set>[2])
             )
           } catch {
             // Ignored in Server Components; proxy handles session refresh

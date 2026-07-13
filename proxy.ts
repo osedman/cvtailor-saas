@@ -8,19 +8,26 @@ import {
   getAppOrigin,
   isAppPath,
 } from '@/lib/site-url'
+import { withAuthCookieOptions } from '@/lib/supabase/cookie-options'
 
 /**
  * Next.js 16 proxy (replaces middleware.ts). Handles:
  * 1. www/app domain-split redirects (see docs/DOMAINS.md)
- * 2. Supabase session refresh for Auth
+ * 2. Supabase session refresh for Auth (keeps long-lived refresh cookies fresh)
  */
 export async function proxy(request: NextRequest) {
   const host = request.headers.get('host')?.split(':')[0]?.toLowerCase() ?? ''
   const { pathname, search } = request.nextUrl
   const splitEnabled = process.env.DOMAIN_SPLIT_ENABLED === 'true'
 
-  // app.gettailr.com/ → marketing site owns the landing page
+  // app.gettailr.com/ → marketing site owns the landing page.
+  // Exception: auth error/success query params belong on /tailor (where the
+  // toast lives). Never strip them into a silent www homepage.
   if (host === APP_HOST && (pathname === '/' || pathname === '')) {
+    const params = request.nextUrl.searchParams
+    if (params.has('error') || params.has('error_description') || params.has('code')) {
+      return NextResponse.redirect(new URL(`/tailor${search}`, getAppOrigin()), 308)
+    }
     return NextResponse.redirect(new URL(getMarketingOrigin()), 308)
   }
 
@@ -53,14 +60,15 @@ export async function proxy(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, withAuthCookieOptions(options))
           )
         },
       },
     }
   )
 
-  // Refresh session — required for Supabase Auth to work correctly
+  // Refresh session — rotates the refresh token and writes new cookies so the
+  // user stays signed in across visits without another magic link.
   await supabase.auth.getUser()
 
   return supabaseResponse
