@@ -67,7 +67,7 @@ function wordFilename(item: { job_title: string; company_name: string }) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60)
-  return `cv-${slug || "tailored"}.doc`
+  return `cv-${slug || "tailored"}.docx`
 }
 
 function MatchLabel({ score }: { score: number }) {
