@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { X, Mail, Loader2, CheckCircle } from "lucide-react"
 import { useAuth } from "./auth-provider"
+import { createClient } from "@/lib/supabase/client"
 
 interface SignInModalProps {
   onClose: () => void
@@ -14,6 +15,8 @@ export function SignInModal({ onClose }: SignInModalProps) {
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [code, setCode] = useState("")
+  const [verifying, setVerifying] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -29,6 +32,32 @@ export function SignInModal({ onClose }: SignInModalProps) {
     }
   }
 
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault()
+    const token = code.replace(/\s/g, "")
+    if (!email || token.length < 6) return
+    setVerifying(true)
+    setError(null)
+    const supabase = createClient()
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: "email",
+    })
+    if (verifyError) {
+      setError(verifyError.message || "That code didn't work. Try again or request a new link.")
+      setVerifying(false)
+      return
+    }
+    try {
+      await fetch("/api/auth/post-login", { method: "POST" })
+    } catch {
+      /* ignore */
+    }
+    setVerifying(false)
+    onClose()
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose} />
@@ -41,16 +70,47 @@ export function SignInModal({ onClose }: SignInModalProps) {
         </button>
 
         {sent ? (
-          <div className="text-center py-4">
-            <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-6 h-6 text-green-500" />
+          <div className="py-2">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-6 h-6 text-green-500" />
+              </div>
+              <h2 className="text-base font-semibold text-[#1e1813] mb-2">Check your email</h2>
+              <p className="text-sm text-gray-500">
+                We sent a sign-in link to <strong>{email}</strong>. On your phone, open the link
+                and tap <strong>Continue</strong> — or enter the 6-digit code below.
+              </p>
             </div>
-            <h2 className="text-base font-semibold text-[#1e1813] mb-2">Check your email</h2>
-            <p className="text-sm text-gray-500">
-              We sent a magic link to <strong>{email}</strong>. Open it on this device to sign in — no password needed.
-            </p>
-            <p className="mt-3 text-xs text-gray-400 leading-relaxed">
-              The link works once and expires after a few minutes. If it says it&apos;s already used, request a fresh one here.
+
+            <form onSubmit={handleVerifyCode} className="mt-5 space-y-3">
+              <label className="block text-xs font-medium text-gray-500" htmlFor="otp-code">
+                6-digit code
+              </label>
+              <input
+                id="otp-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={8}
+                placeholder="000000"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/[^\d]/g, "").slice(0, 8))}
+                className="w-full px-3 py-2.5 text-sm tracking-[0.3em] text-center font-mono border border-gray-200 rounded-lg focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/20 transition-all"
+              />
+              {error && <p className="text-xs text-red-500">{error}</p>}
+              <button
+                type="submit"
+                disabled={verifying || code.replace(/\s/g, "").length < 6}
+                className="w-full py-2.5 text-sm font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {verifying && <Loader2 className="w-4 h-4 animate-spin" />}
+                {verifying ? "Verifying…" : "Verify code"}
+              </button>
+            </form>
+
+            <p className="mt-4 text-xs text-gray-400 leading-relaxed text-center">
+              The link and code each work once and expire after about an hour. If either fails,
+              request a fresh one.
             </p>
           </div>
         ) : (
@@ -70,6 +130,7 @@ export function SignInModal({ onClose }: SignInModalProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
                 className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/20 transition-all"
               />
               {error && <p className="text-xs text-red-500">{error}</p>}
