@@ -519,7 +519,7 @@ function Benefits() {
     { icon: <ShieldCheck className="w-5 h-5" />, t: "Truth-guaranteed", d: "Every claim traces to your original CV. Nothing invented, ever." },
     { icon: <Zap className="w-5 h-5" />, t: "~30 second runs", d: "Two fast passes instead of one slow one. Built for momentum." },
     { icon: <Target className="w-5 h-5" />, t: "Computed match score", d: "Weighted requirement coverage you can audit — not model vibes." },
-    { icon: <Download className="w-5 h-5" />, t: "Word & text export", d: "Download as .doc or .txt, formatted and ATS-safe." },
+    { icon: <Download className="w-5 h-5" />, t: "Word & text export", d: "Download as .docx or .txt, formatted and ATS-safe." },
     { icon: <History className="w-5 h-5" />, t: "Full history", d: "Every tailored version saved with side-by-side comparison." },
     { icon: <Clock className="w-5 h-5" />, t: "Role-aware writing", d: "Engineering, sales, healthcare — bullets follow your field's rules." },
   ]

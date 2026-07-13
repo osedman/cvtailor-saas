@@ -33,6 +33,7 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | Welcome email + mailing list | Feature | — | Resend; one-time welcome; `mailing_list` table |
 | PDF upload fix (unpdf + DOMMatrix polyfill) | Bug | — | Production 500 on PDF parse |
 | Word CV download template + "Made with Tailr" footer | Feature | — | Modern Clean template |
+| Word download: real .docx (was HTML-as-.doc) | Bug | — | HTML renamed to .doc opened as plain text / looked corrupt for many users; now OOXML via `docx` |
 | Weekly digest newsletter automation | Chore | — | Scheduled task; drafts HTML + LeanFrame Gmail draft |
 | Mailing list cleanup (test/bounce rows) | Chore | — | Removed 4 junk rows |
 | AI endpoint timeout fix (`maxDuration` 60→300 + client abort 290s) | Bug | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | 60s FUNCTION_INVOCATION_TIMEOUT on real tailor runs |
@@ -70,4 +71,4 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 
 ---
 
-_Last updated: 12 July 2026_
+_Last updated: 13 July 2026_
