@@ -65,6 +65,10 @@ In **both** production and staging Supabase projects → Authentication → URL 
 
 Magic-link emails use `emailRedirectTo` → `/auth/confirm` on the product origin (`NEXT_PUBLIC_APP_URL`). Failed verifies redirect to `/tailor?error=…` (where the toast lives) — never to `/`, which the domain proxy would strip into a silent www homepage.
 
+**Session cookies** use `Domain=.gettailr.com` in production (`VERCEL_ENV=production`) so a sign-in on `app` stays valid if the user later hits apex/www. Override with `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` if needed.
+
+**Supabase dashboard (Auth → Sessions):** keep refresh sessions enabled; prefer a long inactivity timeout (or none) so users are not forced back through magic link every few days. JWT (access token) expiry can stay short — the proxy refreshes it.
+
 ### 5. Smoke test
 
 - [ ] `https://www.gettailr.com` loads marketing; CTA opens `app.gettailr.com/tailor`

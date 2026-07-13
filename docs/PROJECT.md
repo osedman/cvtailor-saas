@@ -34,7 +34,7 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | PDF upload fix (unpdf + DOMMatrix polyfill) | Bug | — | Production 500 on PDF parse |
 | Word CV download template + "Made with Tailr" footer | Feature | — | Modern Clean template |
 | Word download: real .docx (was HTML-as-.doc) | Bug | [#28](https://github.com/osedman/cvtailor-saas/pull/28) | HTML renamed to .doc opened as plain text / looked corrupt for many users; now OOXML via `docx` |
-| Magic-link errors swallowed by www redirect | Bug | [#29](https://github.com/osedman/cvtailor-saas/pull/29) | After domain split, failed `/auth/confirm` → `app/?error=…` was 308'd to www with query stripped; users saw a blank homepage and re-requested links. Fixed: redirect failures to `/tailor?error=…`, preserve auth params in proxy, accept PKCE `code` on confirm |
+| Magic-link errors swallowed by www redirect | Bug | [#29](https://github.com/osedman/cvtailor-saas/pull/29) | After domain split, failed `/auth/confirm` → `app/?error=…` was 308'd to www with query stripped; users saw a blank homepage and re-requested links. Also: persist sessions with `.gettailr.com` cookies + write auth cookies onto the redirect response so users stay signed in |
 | Weekly digest newsletter automation | Chore | — | Scheduled task; drafts HTML + LeanFrame Gmail draft |
 | Mailing list cleanup (test/bounce rows) | Chore | — | Removed 4 junk rows |
 | AI endpoint timeout fix (`maxDuration` 60→300 + client abort 290s) | Bug | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | 60s FUNCTION_INVOCATION_TIMEOUT on real tailor runs |

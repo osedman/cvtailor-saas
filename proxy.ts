@@ -8,11 +8,12 @@ import {
   getAppOrigin,
   isAppPath,
 } from '@/lib/site-url'
+import { withAuthCookieOptions } from '@/lib/supabase/cookie-options'
 
 /**
  * Next.js 16 proxy (replaces middleware.ts). Handles:
  * 1. www/app domain-split redirects (see docs/DOMAINS.md)
- * 2. Supabase session refresh for Auth
+ * 2. Supabase session refresh for Auth (keeps long-lived refresh cookies fresh)
  */
 export async function proxy(request: NextRequest) {
   const host = request.headers.get('host')?.split(':')[0]?.toLowerCase() ?? ''
@@ -59,14 +60,15 @@ export async function proxy(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, withAuthCookieOptions(options))
           )
         },
       },
     }
   )
 
-  // Refresh session — required for Supabase Auth to work correctly
+  // Refresh session — rotates the refresh token and writes new cookies so the
+  // user stays signed in across visits without another magic link.
   await supabase.auth.getUser()
 
   return supabaseResponse

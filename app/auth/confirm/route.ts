@@ -1,23 +1,18 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import type { EmailOtpType } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
 import { runPostAuth } from '@/lib/post-auth'
 import { getAppOrigin } from '@/lib/site-url'
+import { withAuthCookieOptions } from '@/lib/supabase/cookie-options'
 
 /**
- * Stateless magic-link verification via token_hash. Unlike the PKCE code flow
- * (/auth/callback), this does NOT need a verifier cookie, so it works when the
- * link is opened on a different device/browser than the one that requested it.
+ * Stateless magic-link verification via token_hash. Also accepts ?code= (PKCE).
  *
- * Also accepts ?code= (PKCE) for links still minted that way — exchanges the
- * code here so users aren't bounced with a false "expired" error.
- *
- * Always redirects to the product origin (app.gettailr.com), never the request
- * origin — after the www/app split, failing back to app/?error= was stripped by
- * the proxy into a silent www homepage.
+ * Session cookies are set on the redirect response so they survive the hop to
+ * /tailor. Always redirects to the product origin (app.gettailr.com).
  */
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
+export async function GET(request: NextRequest) {
+  const { searchParams } = request.nextUrl
   const token_hash = searchParams.get('token_hash')
   const code = searchParams.get('code')
   const type = (searchParams.get('type') as EmailOtpType | null) ?? 'email'
@@ -30,27 +25,44 @@ export async function GET(request: Request) {
       `${app}/tailor?error=auth&error_description=${encodeURIComponent(description)}`,
     )
 
-  const supabase = await createClient()
+  if (!token_hash && !code) {
+    return fail('link expired or already used')
+  }
+
+  let redirect = NextResponse.redirect(`${app}${next}`)
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            redirect.cookies.set(name, value, withAuthCookieOptions(options))
+          })
+        },
+      },
+    },
+  )
 
   if (token_hash) {
     const { data, error } = await supabase.auth.verifyOtp({ type, token_hash })
-    if (!error) {
-      await runPostAuth(data?.user, request)
-      return NextResponse.redirect(`${app}${next}`)
+    if (error) {
+      console.error('[auth/confirm] verifyOtp failed:', error.message)
+      return fail(error.message || 'link expired or already used')
     }
-    console.error('[auth/confirm] verifyOtp failed:', error.message)
-    return fail(error.message || 'link expired or already used')
+    await runPostAuth(data?.user, request)
+    return redirect
   }
 
-  if (code) {
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
-      await runPostAuth(data?.user, request)
-      return NextResponse.redirect(`${app}${next}`)
-    }
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code!)
+  if (error) {
     console.error('[auth/confirm] code exchange failed:', error.message)
     return fail(error.message || 'link expired or already used')
   }
-
-  return fail('link expired or already used')
+  await runPostAuth(data?.user, request)
+  return redirect
 }
