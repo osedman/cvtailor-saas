@@ -11,15 +11,28 @@ Tailr has a persistent staging environment for testing changes before they reach
 
 ## Who can open staging (Vercel Deployment Protection)
 
-Preview URLs return **403** until the person is on the Vercel team (or uses a shareable bypass link).
+Preview URLs return **403** when Vercel Authentication is on. Team Viewer seats / shareable links need **Pro** — use a Hobby workaround below.
 
-**Invite a teammate (e.g. oje.oifoh@gmail.com):**
+### Option A (easiest): disable Vercel Authentication
 
-1. Open [Vercel → Team Settings → Members](https://vercel.com/ooifoh-gmailcoms-projects/~/settings/members)
-2. **Invite** `oje.oifoh@gmail.com` as **Viewer** (enough to open protected previews)
-3. They accept the email invite, then open the staging URL while logged into Vercel with that Google account
+Staging already requires Tailr magic-link sign-in against `tailr-staging`, so turning off the Vercel wall is usually fine.
 
-**Alternative:** Project → Settings → Deployment Protection → create a **Shareable Link** for the staging deployment and send that URL (no team seat required).
+1. Vercel → project **cvtailor-saas** → **Settings** → **Deployment Protection**
+2. Set **Vercel Authentication** to **Disabled** (or only protect Production if that option appears)
+3. Send Oje the normal staging URL — no Vercel account needed
+
+### Option B: keep protection + share a bypass URL (Hobby)
+
+1. Same page → **Protection Bypass for Automation** → generate/copy the secret
+2. Send this once (sets a cookie so later visits work):
+
+`https://cvtailor-saas-git-staging-ooifoh-gmailcoms-projects.vercel.app/tailor?x-vercel-protection-bypass=SECRET&x-vercel-set-bypass-cookie=true`
+
+Do **not** commit the secret to git. Rotate it in Vercel if it leaks.
+
+### Option C (Pro only): invite as Viewer / Shareable Link
+
+Skip unless you upgrade.
 
 ## Staging login (Supabase `tailr-staging`)
 
