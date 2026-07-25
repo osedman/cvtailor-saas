@@ -105,9 +105,12 @@ function pickIcon(skill: string): typeof Target {
   return Zap
 }
 
-function SkillDetailModal({ item, gap, onClose, onCycle, onRemove, updating }: { item: CareerRoadmapItem; gap?: RankedGap; onClose: () => void; onCycle: (i: CareerRoadmapItem) => void; onRemove: (i: CareerRoadmapItem) => void; updating: boolean }) {
+function SkillDetailModal({ item, gap, onClose, onCycle, onRemove, onReviewed, updating }: { item: CareerRoadmapItem; gap?: RankedGap; onClose: () => void; onCycle: (i: CareerRoadmapItem) => void; onRemove: (i: CareerRoadmapItem) => void; onReviewed: () => Promise<void>; updating: boolean }) {
   const [copied, setCopied] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const [reviewing, setReviewing] = useState(false)
+  const [review, setReview] = useState<null | { passed: boolean; quality: number; feedback: string; cvPhrasing?: string; suggestedProject?: string }>(null)
+  const evidenceInputRef = useRef<HTMLInputElement>(null)
   const isDone = item.status === "done"
   const isActive = item.status === "in_progress"
 
@@ -117,6 +120,27 @@ function SkillDetailModal({ item, gap, onClose, onCycle, onRemove, updating }: {
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose])
 
+  const submitEvidence = async (file: File) => {
+    setReviewing(true)
+    setReview(null)
+    try {
+      const body = new FormData()
+      body.append("file", file)
+      body.append("skill", item.skill)
+      const data = await readJson<{ passed: boolean; quality: number; feedback: string; cvPhrasing?: string; suggestedProject?: string }>(
+        await fetch("/api/career-path/evidence", { method: "POST", body }),
+      )
+      setReview(data)
+      await onReviewed()
+      if (data.passed) toast.success(`${item.skill} closed — evidence accepted. Your readiness just moved.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't review that file.")
+    } finally {
+      setReviewing(false)
+      if (evidenceInputRef.current) evidenceInputRef.current.value = ""
+    }
+  }
+
   return (
     <div className="ns-scrim" onClick={(e) => { if (e.target === e.currentTarget) onClose() }} role="dialog" aria-modal="true" aria-label={item.skill}>
       <div className="ns ns-modal" style={{ background: "var(--ns-paper)" }}>
@@ -125,6 +149,7 @@ function SkillDetailModal({ item, gap, onClose, onCycle, onRemove, updating }: {
           <div>
             <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 6 }}>
               <span className="t-eyebrow" style={{ fontSize: 10 }}>{isDone ? "Closed" : isActive ? "In progress" : "Not started"}</span>
+              {item.evidence?.verdict === "pass" && <span className="t-mono" style={{ fontSize: 10 }}>· evidence on file</span>}
               {gap && gap.unlockCount > 0 && !isDone && (
                 <span className="t-mono" style={{ fontSize: 10 }} title={gap.sourceJobs.join(", ")}>· unlocks {gap.unlockCount} saved job{gap.unlockCount === 1 ? "" : "s"}</span>
               )}
@@ -138,7 +163,22 @@ function SkillDetailModal({ item, gap, onClose, onCycle, onRemove, updating }: {
         </div>
 
         {/* Body */}
-        <div style={{ padding: "16px 24px 0", maxHeight: "56vh", overflowY: "auto" }}>
+        <div style={{ padding: "16px 24px 0", maxHeight: "52vh", overflowY: "auto" }}>
+          {review && (
+            <div style={{ marginBottom: 16, padding: "14px 16px", background: review.passed ? "#eafaf0" : "var(--ns-tint-1)", border: `1px solid ${review.passed ? "#d7ecd9" : "var(--ns-tint-2)"}`, borderRadius: 12 }}>
+              <div className="t-eyebrow" style={{ fontSize: 10, marginBottom: 8, color: review.passed ? "#16a34a" : "var(--ns-coral)" }}>
+                {review.passed ? "Evidence accepted" : "Not quite yet"}
+              </div>
+              <p className="t-body" style={{ margin: 0 }}>{review.feedback}</p>
+              {review.passed && review.cvPhrasing && (
+                <p className="t-body" style={{ margin: "10px 0 0", fontWeight: 500 }}>New CV bullet: {review.cvPhrasing}</p>
+              )}
+              {!review.passed && review.suggestedProject && (
+                <p className="t-body" style={{ margin: "10px 0 0" }}><span style={{ fontWeight: 600 }}>Try this instead:</span> {review.suggestedProject}</p>
+              )}
+            </div>
+          )}
+
           <p className="t-body" style={{ color: "var(--ns-ink-70)", margin: 0 }}>{item.whyItMatters}</p>
 
           {item.resources?.length > 0 && (
@@ -181,10 +221,24 @@ function SkillDetailModal({ item, gap, onClose, onCycle, onRemove, updating }: {
 
         {/* Footer */}
         <div style={{ padding: "18px 24px 20px" }}>
-          <button onClick={() => onCycle(item)} disabled={updating}
-            className={`ns-btn ${isDone ? "ns-btn-secondary" : "ns-btn-primary"} w-full`} style={{ padding: "14px 20px" }}>
-            {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : isDone ? <>Move back to learning</> : isActive ? <>Mark as done <Check className="w-4 h-4" /></> : <>Start this skill <ArrowRight className="w-4 h-4" /></>}
-          </button>
+          <input ref={evidenceInputRef} type="file" accept=".pdf,.docx,.txt" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) submitEvidence(f) }} />
+          {isActive && !review?.passed ? (
+            <>
+              <button onClick={() => evidenceInputRef.current?.click()} disabled={reviewing}
+                className="ns-btn ns-btn-primary w-full" style={{ padding: "14px 20px" }}>
+                {reviewing ? <><Loader2 className="w-4 h-4 animate-spin" />Reviewing your evidence…</> : <>Upload evidence to close <ArrowRight className="w-4 h-4" /></>}
+              </button>
+              <p className="t-small" style={{ margin: "8px 0 0", textAlign: "center", fontSize: 11.5 }}>
+                Project document or course certificate (PDF, DOCX, TXT). Read once, never stored.
+              </p>
+            </>
+          ) : (
+            <button onClick={() => onCycle(item)} disabled={updating}
+              className={`ns-btn ${isDone ? "ns-btn-secondary" : "ns-btn-primary"} w-full`} style={{ padding: "14px 20px" }}>
+              {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : isDone ? <>Move back to learning</> : <>Start this skill <ArrowRight className="w-4 h-4" /></>}
+            </button>
+          )}
           <div className="text-center" style={{ marginTop: 12 }}>
             {confirmRemove ? (
               <span className="t-small">Remove this skill?{" "}
@@ -193,7 +247,12 @@ function SkillDetailModal({ item, gap, onClose, onCycle, onRemove, updating }: {
                 <button onClick={() => setConfirmRemove(false)}>Keep it</button>
               </span>
             ) : (
-              <button onClick={() => setConfirmRemove(true)} className="t-small" style={{ color: "var(--ns-ink-40)" }}>Remove from path</button>
+              <span className="t-small" style={{ color: "var(--ns-ink-40)" }}>
+                {isActive && !review?.passed && (
+                  <><button onClick={() => onCycle(item)} disabled={updating} style={{ color: "var(--ns-ink-40)" }}>Close without evidence</button><span style={{ color: "var(--ns-ink-15)" }}> · </span></>
+                )}
+                <button onClick={() => setConfirmRemove(true)} style={{ color: "var(--ns-ink-40)" }}>Remove from path</button>
+              </span>
             )}
           </div>
         </div>
@@ -858,6 +917,7 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
             onClose={() => setSelected(null)}
             onCycle={cycleStatus}
             onRemove={removeSkill}
+            onReviewed={reload}
             updating={updating === selected}
           />
         )}

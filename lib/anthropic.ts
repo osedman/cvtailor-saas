@@ -353,6 +353,16 @@ export interface CareerRoadmapItem {
   status: CareerItemStatus
   /** ISO timestamp of the last status change — powers "last stitch" momentum. */
   touchedAt?: string
+  /** Set when the skill was closed (or attempted) with uploaded evidence. */
+  evidence?: SkillEvidence
+}
+
+export interface SkillEvidence {
+  fileName: string
+  judgedAt: string
+  verdict: "pass" | "not_yet"
+  quality: number          // 1-5
+  note: string             // one-line summary of what the evidence showed
 }
 
 export interface CareerRoadmapResult {
@@ -544,6 +554,30 @@ export const ROLE_SKILLS_TOOL: Anthropic.Tool = {
       },
     },
     required: ["skills"],
+  },
+}
+
+
+// ── Skill evidence review ─────────────────────────────────────────────────
+// Completion is earned, not clicked: the user uploads the project artifact or
+// course certificate, and the reviewer judges it against the skill's brief.
+// Pass → the skill closes with a CV bullet grounded in the ACTUAL evidence.
+// Not yet → constructive feedback plus a right-sized replacement project.
+
+export const EVIDENCE_REVIEW_TOOL: Anthropic.Tool = {
+  name: "submit_evidence_review",
+  description: "Judge uploaded evidence (project document or course certificate) against the skill and its project brief. Be a fair but honest reviewer: substance over polish, never credit what the document doesn't show.",
+  input_schema: {
+    type: "object",
+    properties: {
+      verdict: { type: "string", enum: ["pass", "not_yet"], description: "pass = the evidence genuinely demonstrates the skill (a completed certificate for the right course/topic, or a project artifact with real substance matching the brief's intent). not_yet = thin, off-topic, incomplete, or clearly not the user's own work." },
+      quality: { type: "integer", description: "1-5. 1 = unrelated/empty, 3 = shows effort but gaps, 5 = strong, specific, would impress a hiring manager. Pass requires 3+." },
+      note: { type: "string", description: "One sentence on what the evidence showed, e.g. 'UiPath Academy certificate, Advanced RPA Developer, completed'." },
+      feedback: { type: "string", description: "2-3 sentences to the candidate. On pass: what makes it strong + one sharpening tip. On not_yet: what's missing, specifically and kindly — never shaming." },
+      cvPhrasing: { type: "string", description: "ONLY on pass: one CV bullet grounded in what the evidence ACTUALLY shows (its real scope, numbers, tools) — not the hypothetical brief." },
+      suggestedProject: { type: "string", description: "ONLY on not_yet: a right-sized replacement or refined project brief (2-3 sentences) the candidate can realistically complete — smaller if the original was too ambitious, sharper if the submission was off-target." },
+    },
+    required: ["verdict", "quality", "note", "feedback"],
   },
 }
 
