@@ -266,6 +266,9 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
             <button onClick={scan} className="ns-btn ns-btn-primary"><Sparkles className="w-4 h-4" />Scan my CV</button>
             {onCancel && <button onClick={onCancel} className="ns-btn ns-btn-ghost">Keep my current path</button>}
           </div>
+          <p className="t-small" style={{ marginTop: 18 }}>
+            No CV yet? <Link href="/career-path/first-cv" style={{ color: "var(--ns-coral)", fontWeight: 600 }}>Build one from projects, certificates and experience</Link> — you approve every fact.
+          </p>
         </main>
       </>
     )
@@ -895,14 +898,7 @@ function CareerPathContent() {
         <Link href="/tailor" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-400 hover:text-[#1e1813] transition-colors">
           <ArrowLeft className="w-3.5 h-3.5" />Back to Tailr
         </Link>
-        <Link href="/career-path/first-cv" className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-[#f1d4cb] bg-[#fff7f4] px-5 py-4 transition-all hover:border-[#dc4f33] hover:shadow-[0_4px_18px_rgba(30,24,19,0.06)]">
-          <span>
-            <span className="block text-[11px] font-bold uppercase tracking-[0.12em] text-[#dc4f33]">New · First CV builder</span>
-            <span className="mt-1 block text-sm font-bold text-[#1e1813]">No CV yet? Build one from projects, certificates and experience.</span>
-            <span className="mt-0.5 block text-xs text-gray-500">Upload evidence or tell us what you have done. You approve every fact.</span>
-          </span>
-          <ArrowRight className="h-5 w-5 shrink-0 text-[#dc4f33]" />
-        </Link>
+        
       </div>
       {changingTarget ? (
         <NorthStarJourney
