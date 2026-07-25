@@ -284,6 +284,7 @@ export function ResizablePanels({
               <p className="text-sm">Reading your CV…</p>
             </div>
           ) : !cvText ? (
+            <>
             <label
               htmlFor={fileInputId}
               className={`flex-1 flex flex-col items-center justify-center gap-3 cursor-pointer m-2 rounded-lg border-2 border-dashed transition-all duration-150 group ${
@@ -303,6 +304,10 @@ export function ResizablePanels({
               </div>
               <p className="text-xs text-gray-300">or paste your CV text below</p>
             </label>
+            <a href="/career-path/first-cv" className="block text-center text-xs text-gray-400 pb-2.5 -mt-0.5 hover:text-[#dc4f33] transition-colors">
+              No CV yet? <span className="font-semibold text-[#dc4f33]">Build one from projects, certificates and experience</span>
+            </a>
+            </>
           ) : (
             <textarea
               value={cvText}
