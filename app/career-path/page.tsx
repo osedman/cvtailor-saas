@@ -47,137 +47,43 @@ async function readJson<T>(res: Response): Promise<T> {
 
 const STATUS_CYCLE: Record<CareerItemStatus, CareerItemStatus> = { todo: "in_progress", in_progress: "done", done: "todo" }
 
-function StatusIcon({ status }: { status: CareerItemStatus }) {
-  if (status === "done") return <Check className="w-4 h-4 text-white" strokeWidth={2.75} />
-  if (status === "in_progress") return <CircleDot className="w-4 h-4 text-white" strokeWidth={2.25} />
-  return <ArrowRight className="w-3.5 h-3.5" style={{ color: ACCENT }} strokeWidth={2.5} />
-}
-
-function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(false)
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
-    setReduced(mq.matches)
-    const h = () => setReduced(mq.matches)
-    mq.addEventListener("change", h)
-    return () => mq.removeEventListener("change", h)
-  }, [])
-  return reduced
-}
-
-function useInView<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null)
-  const [visible, setVisible] = useState(false)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect() } }, { threshold: 0.2 })
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [])
-  return { ref, visible }
-}
-
-function useCountUp(target: number, active: boolean, durationMs = 1100) {
-  const [value, setValue] = useState(0)
-  const reduced = usePrefersReducedMotion()
-  useEffect(() => {
-    if (!active) return
-    if (reduced || target === 0) { setValue(target); return }
-    let raf = 0
-    const start = performance.now()
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / durationMs)
-      setValue(Math.round((1 - Math.pow(1 - t, 3)) * target))
-      if (t < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [active, target, durationMs, reduced])
-  return value
-}
-
-/**
- * The living path as one continuous line: reached rungs (milestones, solid) flow
- * into "you are here", then a forward segment toward the target whose fill is the
- * user's readiness for that role. The target node is a ring gauge of readiness %.
- */
-function JourneyLine({ roadmap, readiness, derivedTarget }: { roadmap: Roadmap; readiness: Readiness; derivedTarget: string }) {
-  const { ref, visible } = useInView<HTMLDivElement>()
-  const pct = useCountUp(readiness.pct, visible)
-
-  const current = roadmap.current_title?.trim() || "You"
-  const target = roadmap.target_role?.trim() || derivedTarget || "Your goal"
-  const past = (roadmap.milestones ?? []).map((m) => m.role).filter(Boolean)
-
-  const nodes = [
-    ...past.map((label) => ({ label, kind: "past" as const })),
-    { label: current, kind: "current" as const },
-    { label: target, kind: "target" as const },
+function Breadcrumb({ step }: { step: "A" | "B" | "C" | "D" }) {
+  const steps = [
+    { key: "A", label: "CV scan" },
+    { key: "B", label: "Choose North Star" },
+    { key: "C", label: "Lock target" },
+    { key: "D", label: "Your path" },
   ]
-  const n = nodes.length
-  const W = Math.max(380, n * 150), H = 176, PX = 46, TOP = 48, BOT = 46
-  const x = (i: number) => PX + (i * (W - PX * 2)) / (n - 1)
-  const y = (i: number) => H - BOT - (i * (H - BOT - TOP)) / (n - 1)
-
-  const currentIdx = n - 2
-  const targetIdx = n - 1
-  // Solid line through the travelled part (start → current)
-  const pastPath = nodes.slice(0, currentIdx + 1).map((_, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(i)}`).join(" ")
-  // Forward segment current → target, and its readiness fill
-  const cx = x(currentIdx), cy = y(currentIdx), tx = x(targetIdx), ty = y(targetIdx)
-  const f = readiness.pct / 100
-  const fx = cx + (tx - cx) * f, fy = cy + (ty - cy) * f
-  const halo = { paintOrder: "stroke" as const, stroke: "#fff", strokeWidth: 4, strokeLinejoin: "round" as const }
-
   return (
-    <div ref={ref} className="rounded-2xl bg-white p-5 sm:p-6 overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 340 }}>
-        {/* dashed forward segment */}
-        <line x1={cx} y1={cy} x2={tx} y2={ty} stroke="#e5ddd2" strokeWidth={3} strokeDasharray="2 7" strokeLinecap="round" />
-        {/* travelled solid line */}
-        {currentIdx > 0 && (
-          <path d={pastPath} fill="none" stroke={ACCENT} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"
-            style={{ strokeDasharray: 1200, strokeDashoffset: visible ? 0 : 1200, transition: "stroke-dashoffset 1.2s ease-out" }} />
-        )}
-        {/* readiness fill along the forward segment */}
-        <line x1={cx} y1={cy} x2={visible ? fx : cx} y2={visible ? fy : cy} stroke={ACCENT} strokeWidth={3.5} strokeLinecap="round"
-          style={{ transition: "all 1.2s ease-out 0.3s" }} />
-
-        {/* past nodes */}
-        {past.map((label, i) => (
-          <g key={`p${i}`} style={{ opacity: visible ? 1 : 0, transition: `opacity 0.3s ease-out ${i * 0.12}s` }}>
-            <circle cx={x(i)} cy={y(i)} r={5} fill={ACCENT} />
-            <text x={x(i)} y={y(i) + 20} textAnchor="middle" fontSize={10.5} fontWeight={600} fill="#8a8178" style={halo}>{label.length > 16 ? label.slice(0, 15) + "…" : label}</text>
-          </g>
+    <div className="flex items-center gap-3 px-6 sm:px-12 pt-4" style={{ color: "var(--ns-ink-55)" }}>
+      <span className="t-eyebrow">Career Path</span>
+      <span style={{ width: 14, height: 1, background: "var(--ns-ink-15)" }} />
+      <div className="flex items-center gap-2 flex-wrap">
+        {steps.map((st, i) => (
+          <span key={st.key} className="flex items-center gap-2">
+            <span style={{ fontSize: 12, fontWeight: st.key === step ? 600 : 400, color: st.key === step ? "var(--ns-ink)" : "var(--ns-ink-40)" }}>{st.label}</span>
+            {i < steps.length - 1 && <span style={{ width: 18, height: 1, background: "var(--ns-ink-15)", display: "inline-block" }} />}
+          </span>
         ))}
-
-        {/* current node */}
-        <g style={{ opacity: visible ? 1 : 0, transition: "opacity 0.4s ease-out 0.4s" }}>
-          <circle cx={cx} cy={cy} r={11} fill="none" stroke={ACCENT} strokeWidth={1.5} opacity={0.35} />
-          <circle cx={cx} cy={cy} r={7} fill={ACCENT} />
-          <text x={cx} y={cy - 26} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="#f4795c" style={halo}>YOU ARE HERE</text>
-          <text x={cx} y={cy - 14} textAnchor="middle" fontSize={12} fontWeight={700} fill={INK} style={halo}>{current.length > 22 ? current.slice(0, 20) + "…" : current}</text>
-        </g>
-
-        {/* target node = readiness ring */}
-        <g style={{ opacity: visible ? 1 : 0, transition: "opacity 0.4s ease-out 0.7s" }}>
-          <circle cx={tx} cy={ty} r={16} fill="#fff" stroke="#eee6da" strokeWidth={4} />
-          <circle cx={tx} cy={ty} r={16} fill="none" stroke={ACCENT} strokeWidth={4} strokeLinecap="round"
-            transform={`rotate(-90 ${tx} ${ty})`}
-            style={{ strokeDasharray: 2 * Math.PI * 16, strokeDashoffset: (2 * Math.PI * 16) * (1 - (visible ? f : 0)), transition: "stroke-dashoffset 1.3s ease-out 0.4s" }} />
-          <text x={tx} y={ty + 3.5} textAnchor="middle" fontSize={11} fontWeight={800} fill={INK} className="tabular-nums">{pct}%</text>
-          <text x={tx} y={ty - 26} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="#a89e93" style={halo}>TARGET</text>
-          <text x={tx} y={ty - 14} textAnchor="middle" fontSize={12} fontWeight={700} fill={INK} style={halo}>{target.length > 22 ? target.slice(0, 20) + "…" : target}</text>
-        </g>
-      </svg>
-
-      <p className="mt-2 text-center text-[13px] text-gray-500">
-        {readiness.total > 0
-          ? <>You have <span className="font-semibold text-[#1e1813]">{readiness.have} of {readiness.total}</span> things <span className="font-semibold text-[#1e1813]">{target}</span> roles ask for.</>
-          : <>Tailor a few {target !== "Your goal" ? `${target} ` : ""}jobs and your readiness will fill in here.</>}
-      </p>
+      </div>
     </div>
+  )
+}
+
+/** The stitched-thread readiness meter — Tailr's signature motif. */
+function ThreadMeter({ pct }: { pct: number }) {
+  const W = 460, step = 8
+  const filled = (pct / 100) * W
+  const pts: Array<[number, number]> = []
+  for (let x = 0; x <= filled; x += step) pts.push([x, x % (step * 2) === 0 ? 10 : 14])
+  const d = pts.length > 1 ? "M " + pts.map((pt) => pt.join(" ")).join(" L ") : ""
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} 22`} style={{ display: "block", overflow: "visible" }}>
+      <line x1="0" y1="12" x2={W} y2="12" stroke="var(--ns-ink-15)" strokeWidth="1" strokeDasharray="1 4" />
+      {d && <path d={d} stroke="var(--ns-coral)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />}
+      <circle cx={filled} cy="12" r="3.5" fill="var(--ns-coral)" />
+      <circle cx={filled} cy="12" r="6" fill="none" stroke="var(--ns-coral)" strokeOpacity="0.25" strokeWidth="1" />
+    </svg>
   )
 }
 
@@ -196,30 +102,6 @@ function pickIcon(skill: string): typeof Target {
   const s = skill.toLowerCase()
   for (const [re, icon] of SKILL_ICONS) if (re.test(s)) return icon
   return Zap
-}
-
-function SkillTile({ item, gap, onOpen }: { item: CareerRoadmapItem; gap?: RankedGap; onOpen: (i: CareerRoadmapItem) => void }) {
-  const Icon = pickIcon(item.skill)
-  const isDone = item.status === "done"
-  const isActive = item.status === "in_progress"
-  return (
-    <button onClick={() => onOpen(item)}
-      className="relative text-left rounded-2xl border p-4 transition-all hover:shadow-[0_4px_20px_rgba(30,24,19,0.08)] hover:-translate-y-0.5"
-      style={isActive ? { borderColor: "#f5d9d0", background: "linear-gradient(180deg,#fffaf8,#fff)" } : isDone ? { borderColor: "#d7ecd9", background: "#fff" } : { borderColor: "#eee6da", background: "#fff" }}>
-      {!isDone && gap && gap.unlockCount > 0 && (
-        <span className="absolute top-3 right-3 inline-flex items-center gap-0.5 text-[10px] font-bold" style={{ color: ACCENT }} title={`Unlocks ${gap.sourceJobs.join(", ")}`}>
-          <TrendingUp className="w-3 h-3" />{gap.unlockCount}
-        </span>
-      )}
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={isDone ? { background: "#eafaf0", color: "#16a34a" } : { background: "#fff7f4", color: ACCENT }}>
-        {isDone ? <Check className="w-5 h-5" strokeWidth={2.5} /> : <Icon className="w-5 h-5" />}
-      </div>
-      <p className={`text-[14px] font-bold truncate ${isDone ? "text-gray-400 line-through" : "text-[#1e1813]"}`}>{item.skill}</p>
-      <p className="text-[11px] mt-0.5" style={{ color: isActive ? ACCENT : isDone ? "#16a34a" : "#a89e93" }}>
-        {isActive ? "Learning" : isDone ? "Closed" : "Not started"}
-      </p>
-    </button>
-  )
 }
 
 function SkillDetailModal({ item, gap, onClose, onCycle, onRemove, updating }: { item: CareerRoadmapItem; gap?: RankedGap; onClose: () => void; onCycle: (i: CareerRoadmapItem) => void; onRemove: (i: CareerRoadmapItem) => void; updating: boolean }) {
@@ -343,168 +225,220 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
 
   if (stage === "intro") {
     return (
-      <div className="max-w-xl mx-auto py-16 px-4 text-center">
-        <div className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-6 shadow-sm" style={{ background: "#fff7f4", color: ACCENT }}>
-          <FileSearch className="w-7 h-7" />
-        </div>
-        <h1 className="text-[27px] font-extrabold tracking-tight text-[#1e1813]">Let&apos;s see where you stand</h1>
-        <p className="mt-3 text-[14.5px] text-gray-500 leading-relaxed max-w-md mx-auto">
-          Tailr reads your CV like a career coach — what makes you strong, where the honest gaps are — then helps you pick a North Star role and shows exactly what&apos;s between you and it.
-        </p>
-        <button onClick={scan} className="mt-8 inline-flex items-center justify-center gap-2 px-8 py-3.5 text-[15px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]" style={{ background: ACCENT }}>
-          <Sparkles className="w-4 h-4" />Scan my CV
-        </button>
-        {onCancel && <p className="mt-4"><button onClick={onCancel} className="text-[13px] text-gray-400 hover:text-gray-600">Keep my current path</button></p>}
-      </div>
+      <>
+        <Breadcrumb step="A" />
+        <main className="max-w-[1120px] mx-auto px-6 sm:px-12 py-16 pb-24">
+          <div style={{ maxWidth: 720 }}>
+            <div className="t-eyebrow" style={{ marginBottom: 14 }}>Step 1 · CV scan</div>
+            <h1 className="t-display text-[40px] sm:text-[56px]" style={{ margin: "0 0 18px" }}>
+              Let&apos;s see where you stand.
+            </h1>
+            <p className="t-lede" style={{ maxWidth: 620 }}>
+              Tailr reads your CV as a career coach would &mdash; strengths first, honest gaps second &mdash; then helps
+              you pick a North Star role and shows exactly what&apos;s between you and it. Everything traced
+              to a line in your CV. Nothing invented.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 mt-10">
+            <button onClick={scan} className="ns-btn ns-btn-primary"><Sparkles className="w-4 h-4" />Scan my CV</button>
+            {onCancel && <button onClick={onCancel} className="ns-btn ns-btn-ghost">Keep my current path</button>}
+          </div>
+        </main>
+      </>
     )
   }
 
   if (stage === "scanning") {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-28">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
-        <p className="text-sm text-gray-400">Reading your CV the way a coach would…</p>
-      </div>
+      <>
+        <Breadcrumb step="A" />
+        <div className="flex flex-col items-center justify-center gap-4 py-28">
+          <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--ns-ink-40)" }} />
+          <p className="t-lede">Reading your CV the way a coach would&hellip;</p>
+          <p className="t-small">No web research on this step. Just an honest read.</p>
+        </div>
+      </>
     )
   }
 
   if (stage === "findings" && findings) {
     return (
-      <div className="max-w-2xl mx-auto py-12 px-4">
-        <p className="text-[12px] font-semibold uppercase tracking-widest" style={{ color: ACCENT }}>Your CV, read honestly</p>
-        <h1 className="mt-2 text-[22px] font-extrabold tracking-tight text-[#1e1813] leading-snug">{findings.headline}</h1>
-
-        <div className="mt-7">
-          <div className="flex items-center gap-2 mb-3">
-            <Check className="w-4 h-4 text-green-600" />
-            <h2 className="text-sm font-semibold text-[#1e1813]">What makes you strong</h2>
+      <>
+        <Breadcrumb step="A" />
+        <main className="max-w-[1120px] mx-auto px-6 sm:px-12 py-10 pb-24">
+          <div style={{ marginBottom: 40, maxWidth: 720 }}>
+            <div className="t-eyebrow" style={{ marginBottom: 14 }}>Step 1 · CV scan</div>
+            <h1 className="t-display text-[40px] sm:text-[56px]" style={{ margin: "0 0 18px" }}>What your CV actually shows.</h1>
+            <p className="t-lede" style={{ maxWidth: 620 }}>{findings.headline}</p>
           </div>
-          <div className="space-y-2.5">
-            {findings.strengths.map((s, i) => (
-              <div key={i} className="rounded-xl border border-[#d7ecd9] bg-white p-3.5">
-                <p className="text-[13.5px] font-bold text-[#1e1813]">{s.label}</p>
-                <p className="mt-0.5 text-[12.5px] text-gray-500 leading-relaxed">{s.detail}</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <section>
+              <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, marginBottom: 22, borderBottom: "1px solid var(--ns-border)" }}>
+                <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Strengths<span style={{ color: "var(--ns-coral)" }}>.</span></h2>
+                <span className="t-mono">{String(findings.strengths.length).padStart(2, "0")}</span>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <div className="flex items-center gap-2 mb-3">
-            <Flag className="w-4 h-4" style={{ color: ACCENT }} />
-            <h2 className="text-sm font-semibold text-[#1e1813]">Where to grow next</h2>
-          </div>
-          <div className="space-y-2.5">
-            {findings.gaps.map((g, i) => (
-              <div key={i} className="rounded-xl border border-[#eee6da] bg-white p-3.5">
-                <p className="text-[13.5px] font-bold text-[#1e1813]">{g.label}</p>
-                <p className="mt-0.5 text-[12.5px] text-gray-500 leading-relaxed">{g.detail}</p>
+              <div className="flex flex-col" style={{ gap: 22 }}>
+                {findings.strengths.map((f, i) => (
+                  <div key={i}>
+                    <div className="flex items-start" style={{ gap: 12, marginBottom: 10 }}>
+                      <span style={{ marginTop: 8, width: 6, height: 6, borderRadius: "50%", background: "var(--ns-coral)", flexShrink: 0 }} />
+                      <h3 style={{ fontSize: 15.5, fontWeight: 500, margin: 0, lineHeight: 1.35 }}>{f.label}</h3>
+                    </div>
+                    <div style={{ paddingLeft: 18, borderLeft: "1px solid var(--ns-tint-2)", marginLeft: 3 }}>
+                      <p className="t-quote" style={{ margin: 0 }}>{f.detail}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+            </section>
 
-        <button onClick={toChooser} className="mt-8 w-full inline-flex items-center justify-center gap-2 py-3.5 text-[15px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]" style={{ background: ACCENT }}>
-          Choose my North Star <ArrowRight className="w-4 h-4" />
-        </button>
-        <p className="mt-2.5 text-center text-[12px] text-gray-400">Next: pick the role you&apos;re aiming at in the next 1–2 years.</p>
-      </div>
+            <section>
+              <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, marginBottom: 22, borderBottom: "1px solid var(--ns-border)" }}>
+                <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Development gaps</h2>
+                <span className="t-mono">{String(findings.gaps.length).padStart(2, "0")}</span>
+              </div>
+              <div className="flex flex-col" style={{ gap: 22 }}>
+                {findings.gaps.map((g, i) => (
+                  <div key={i}>
+                    <div className="flex items-start" style={{ gap: 12, marginBottom: 10 }}>
+                      <span style={{ marginTop: 8, width: 6, height: 6, borderRadius: "50%", background: "transparent", border: "1px solid var(--ns-ink-40)", flexShrink: 0 }} />
+                      <h3 style={{ fontSize: 15.5, fontWeight: 500, margin: 0, lineHeight: 1.35 }}>{g.label}</h3>
+                    </div>
+                    <div style={{ paddingLeft: 18, borderLeft: "1px dashed var(--ns-ink-15)", marginLeft: 3 }}>
+                      <p className="t-body" style={{ color: "var(--ns-ink-70)", margin: 0 }}>{g.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" style={{ marginTop: 56, paddingTop: 28, borderTop: "1px solid var(--ns-border)" }}>
+            <p className="t-small" style={{ maxWidth: 460, margin: 0 }}>No web research on this step. Just an honest read of what&apos;s already on your CV.</p>
+            <div className="flex gap-3">
+              {onCancel && <button onClick={onCancel} className="ns-btn ns-btn-secondary">Keep my current path</button>}
+              <button onClick={toChooser} className="ns-btn ns-btn-primary">Suggest target roles <ArrowRight className="w-3.5 h-3.5" /></button>
+            </div>
+          </div>
+        </main>
+      </>
     )
   }
 
   if (stage === "choosing") {
     return (
-      <div className="max-w-xl mx-auto py-12 px-4">
-        <p className="text-[12px] font-semibold uppercase tracking-widest" style={{ color: ACCENT }}>Your North Star</p>
-        <h1 className="mt-2 text-[24px] font-extrabold tracking-tight text-[#1e1813]">Where are you heading?</h1>
-        <p className="mt-2 text-[14px] text-gray-500 leading-relaxed">Pick the role you want in the next 1–2 years. Tailr will research what it really demands in the market and show you the honest distance.</p>
-
-        {suggestions === null ? (
-          <div className="mt-8 flex items-center gap-3 text-gray-400"><Loader2 className="w-4 h-4 animate-spin" /><span className="text-[13px]">Finding roles that fit your CV…</span></div>
-        ) : (
-          <div className="mt-6 space-y-2.5">
-            {suggestions.map((t, i) => (
-              <button key={i} onClick={() => build(t.role)}
-                className="w-full text-left rounded-xl border border-[#eee6da] bg-white p-4 transition-all hover:border-[#dc4f33] hover:shadow-[0_4px_18px_rgba(30,24,19,0.06)] group">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-[14.5px] font-bold text-[#1e1813]">{t.role}</p>
-                  <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-[#dc4f33] transition-colors flex-shrink-0" />
-                </div>
-                <p className="mt-1 text-[12.5px] text-gray-500 leading-relaxed">{t.whyYou}</p>
-              </button>
-            ))}
+      <>
+        <Breadcrumb step="B" />
+        <main className="max-w-[1120px] mx-auto px-6 sm:px-12 py-10 pb-24">
+          <div style={{ marginBottom: 40, maxWidth: 720 }}>
+            <div className="t-eyebrow" style={{ marginBottom: 14 }}>Step 2 · Choose your North Star</div>
+            <h1 className="t-display text-[40px] sm:text-[56px]" style={{ margin: "0 0 18px" }}>Where you could realistically be in 1&ndash;2 years.</h1>
+            <p className="t-lede" style={{ maxWidth: 620 }}>Targets grounded in what your CV already shows, best fit first. Not sure? You can search for your own role instead.</p>
           </div>
-        )}
 
-        <div className="mt-6">
-          <label className="block text-[13px] font-semibold text-[#1e1813] mb-1.5">Or search your own</label>
-          <div className="flex gap-2">
-            <input value={customRole} onChange={(e) => setCustomRole(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") build(customRole) }}
-              placeholder="e.g. Product Manager, Data Engineer…"
-              className="flex-1 px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300" />
-            <button onClick={() => build(customRole)} className="px-4 py-2.5 text-[14px] font-semibold text-white rounded-lg" style={{ background: ACCENT }}>Go</button>
+          {suggestions === null ? (
+            <div className="flex items-center gap-3 py-8" style={{ color: "var(--ns-ink-55)" }}>
+              <Loader2 className="w-4 h-4 animate-spin" /><span className="t-body">Finding roles that fit your CV&hellip;</span>
+            </div>
+          ) : (
+            <div className="flex flex-col" style={{ gap: 14, marginBottom: 24 }}>
+              {suggestions.map((t, i) => (
+                <button key={i} onClick={() => build(t.role)} className="text-left group transition-all"
+                  style={{ padding: "22px 26px", background: "var(--ns-paper)", border: i === 0 ? "1.5px solid var(--ns-coral)" : "1px solid var(--ns-border)", borderRadius: 12 }}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <span className="t-title" style={{ fontSize: 22 }}>{t.role}</span>
+                      {i === 0 && <span className="t-mono" style={{ fontSize: 10, color: "var(--ns-coral-deep)", padding: "3px 8px", background: "var(--ns-tint-1)", border: "1px solid var(--ns-tint-2)", borderRadius: 4, letterSpacing: "0.08em" }}>BEST FIT</span>}
+                    </div>
+                    <ArrowRight className="w-4 h-4 transition-colors" style={{ color: "var(--ns-ink-40)" }} />
+                  </div>
+                  <p className="t-body" style={{ color: "var(--ns-ink-70)", margin: "8px 0 0", maxWidth: 560 }}>{t.whyYou}</p>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div style={{ marginTop: 8, paddingTop: 24, borderTop: "1px dashed var(--ns-border-strong)" }}>
+            <div className="t-eyebrow" style={{ marginBottom: 12 }}>Or search your own</div>
+            <div className="flex gap-3 max-w-md">
+              <input value={customRole} onChange={(e) => setCustomRole(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") build(customRole) }}
+                placeholder="e.g. Product Manager, Data Engineer&hellip;"
+                className="flex-1 outline-none t-body"
+                style={{ padding: "12px 16px", background: "var(--ns-paper)", border: "1px solid var(--ns-border)", borderRadius: 999 }} />
+              <button onClick={() => build(customRole)} className="ns-btn ns-btn-primary">Go</button>
+            </div>
+            {onCancel && <p style={{ marginTop: 20 }}><button onClick={onCancel} className="ns-btn ns-btn-ghost" style={{ padding: 0 }}>Keep my current path</button></p>}
           </div>
-        </div>
-        {onCancel && <p className="mt-5 text-center"><button onClick={onCancel} className="text-[13px] text-gray-400 hover:text-gray-600">Keep my current path</button></p>}
-      </div>
+        </main>
+      </>
     )
   }
 
-  // building
+  // building — Step 3, researching the locked target
   return (
-    <div className="flex flex-col items-center justify-center gap-4 py-28 px-4 text-center">
-      <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
-      <p className="text-sm font-semibold text-[#1e1813]">Researching what {buildingRole} roles really ask for…</p>
-      <p className="text-[13px] text-gray-400 max-w-sm">Tailr is reading real job postings, comparing them against your CV, and finding free UK resources for every gap. Takes a minute or two.</p>
-    </div>
+    <>
+      <Breadcrumb step="C" />
+      <main className="max-w-[1120px] mx-auto px-6 sm:px-12 py-10 pb-24">
+        <div className="t-eyebrow" style={{ marginBottom: 14 }}>Step 3 · Your North Star</div>
+        <h1 className="t-display text-[36px] sm:text-[48px]" style={{ margin: "0 0 18px", maxWidth: 720 }}>
+          Researching what {buildingRole} roles actually ask for.
+        </h1>
+        <p className="t-lede" style={{ maxWidth: 560 }}>
+          Tailr is reading live job postings, judging every requirement against your CV, and finding free
+          UK resources for each gap. Takes a minute or two.
+        </p>
+        <div className="flex items-center gap-3 mt-10" style={{ color: "var(--ns-ink-55)" }}>
+          <Loader2 className="w-5 h-5 animate-spin" /><span className="t-mono">researching &middot; live market data</span>
+        </div>
+      </main>
+    </>
   )
 }
 
-/** The transparent gap map: every skill the North Star's market asks for,
- * split into what the CV already evidences and what's still to close. This is
- * the "show me the 60" answer — nothing hidden behind a number. */
-function GapMap({ targetSkills, targetRole }: { targetSkills: TargetSkill[]; targetRole: string }) {
-  const [open, setOpen] = useState(false)
-  const have = targetSkills.filter((s) => s.have)
-  const missing = targetSkills.filter((s) => !s.have)
+function SkillSet({ targetSkills, haveList, missing }: { targetSkills: TargetSkill[]; haveList: string[]; missing: string[] }) {
+  const have = targetSkills.length > 0 ? targetSkills.filter((t) => t.have).map((t) => t.skill) : haveList
+  const miss = targetSkills.length > 0 ? targetSkills.filter((t) => !t.have).map((t) => t.skill) : missing
+  const core = new Set(targetSkills.filter((t) => t.importance === "core").map((t) => t.skill))
+  if (have.length + miss.length === 0) return null
   return (
-    <div className="mt-5 rounded-2xl bg-white p-5">
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between gap-3 text-left">
-        <div>
-          <p className="text-sm font-semibold text-[#1e1813]">What {targetRole} roles ask for</p>
-          <p className="text-[12px] text-gray-400 mt-0.5">You have {have.length} of {targetSkills.length} — every one listed, nothing hidden</p>
+    <section style={{ marginTop: 48 }}>
+      <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, borderBottom: "1px solid var(--ns-border)" }}>
+        <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Your skill set against the role</h2>
+        <span className="t-mono">{have.length + miss.length} skills researched</span>
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <div className="flex items-baseline gap-3" style={{ marginBottom: 12 }}>
+          <span className="t-title" style={{ fontSize: 18, color: "var(--ns-coral-deep)" }}>Have</span>
+          <span className="t-mono">{String(have.length).padStart(2, "0")}</span>
+          <span style={{ flex: 1, height: 1, background: "var(--ns-border)" }} />
         </div>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="mt-4 space-y-4">
-          {have.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600 mb-2">Already evidenced in your CV · {have.length}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {have.map((s, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 text-[12px] font-medium text-green-800 bg-[#eafaf0] border border-[#d7ecd9] rounded-full px-2.5 py-1">
-                    <Check className="w-3 h-3" strokeWidth={2.5} />{s.skill}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          {missing.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide mb-2" style={{ color: ACCENT }}>Still to close · {missing.length}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {missing.map((s, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 text-[12px] font-medium text-[#1e1813] bg-[#fff7f4] border border-[#f5d9d0] rounded-full px-2.5 py-1">
-                    {s.skill}{s.importance === "core" && <span className="text-[9px] font-bold uppercase" style={{ color: ACCENT }}>core</span>}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="flex flex-wrap" style={{ gap: 10 }}>
+          {have.map((sk, i) => (
+            <span key={i} className="ns-chip ns-chip-have"><Check className="w-3 h-3" strokeWidth={2.5} />{sk}</span>
+          ))}
+        </div>
+      </div>
+
+      {miss.length > 0 && (
+        <div style={{ marginTop: 28 }}>
+          <div className="flex items-baseline gap-3" style={{ marginBottom: 12 }}>
+            <span className="t-title" style={{ fontSize: 18 }}>Missing</span>
+            <span className="t-mono">{String(miss.length).padStart(2, "0")}</span>
+            <span style={{ flex: 1, height: 1, background: "var(--ns-border)" }} />
+          </div>
+          <div className="flex flex-wrap" style={{ gap: 10 }}>
+            {miss.map((sk, i) => (
+              <span key={i} className="ns-chip ns-chip-missing">
+                {sk}
+                {core.has(sk) && <span className="t-mono" style={{ fontSize: 9.5, color: "var(--ns-coral-deep)", letterSpacing: "0.08em" }}>CORE</span>}
+              </span>
+            ))}
+          </div>
         </div>
       )}
-    </div>
+    </section>
   )
 }
 
@@ -604,17 +538,6 @@ function AddSkillsForJdModal({ onClose, onDone }: { onClose: () => void; onDone:
   )
 }
 
-function ActionsBar({ onGotJob, onAddProject, onAddSkills }: { onGotJob: () => void; onAddProject: () => void; onAddSkills: () => void }) {
-  const btn = "flex-1 inline-flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold rounded-xl border transition-all hover:shadow-sm"
-  return (
-    <div className="mt-5 flex flex-col sm:flex-row gap-2.5">
-      <button onClick={onGotJob} className={btn} style={{ borderColor: "#f5d9d0", color: ACCENT, background: "#fff7f4" }}><PartyPopper className="w-4 h-4" />I got the job</button>
-      <button onClick={onAddProject} className={`${btn} border-gray-200 text-[#1e1813] bg-white hover:border-gray-300`}><FolderPlus className="w-4 h-4" />Add a project</button>
-      <button onClick={onAddSkills} className={`${btn} border-gray-200 text-[#1e1813] bg-white hover:border-gray-300`}><FileSearch className="w-4 h-4" />Add skills for a job</button>
-    </div>
-  )
-}
-
 function IntentionLine({ value, onSave }: { value: string; onSave: (v: string) => Promise<void> }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -678,86 +601,167 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
   }, [reload])
 
   const gapBySkill = new Map(data.rankedGaps.map((g) => [g.skill.toLowerCase(), g]))
-  // not-done first, ordered by unlock count; done at the bottom
-  const openItems = roadmap.items.filter((i) => i.status !== "done")
+  const target = roadmap.target_role?.trim() || data.derivedTarget || "your target"
+  const active = roadmap.items.filter((i) => i.status === "in_progress")
+  const queued = roadmap.items.filter((i) => i.status === "todo")
     .sort((a, b) => (gapBySkill.get(b.skill.toLowerCase())?.unlockCount ?? 0) - (gapBySkill.get(a.skill.toLowerCase())?.unlockCount ?? 0))
-  const doneItems = roadmap.items.filter((i) => i.status === "done")
+  const done = roadmap.items.filter((i) => i.status === "done")
+  const pct = data.readiness.pct
+
+  // Agenda rows: This week (active) → Next (first two queued) → Later (rest)
+  const agenda: Array<{ item: CareerRoadmapItem; when: string; kind: "active" | "queued" | "later" }> = [
+    ...active.map((item) => ({ item, when: "This week", kind: "active" as const })),
+    ...queued.slice(0, 2).map((item) => ({ item, when: "Next", kind: "queued" as const })),
+    ...queued.slice(2).map((item) => ({ item, when: "Later", kind: "later" as const })),
+  ]
 
   return (
-    <div className="max-w-3xl mx-auto py-10 px-4">
-      <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
-        <div>
-          <p className="text-[12px] font-semibold uppercase tracking-widest" style={{ color: ACCENT }}>Your career path</p>
-          <h1 className="mt-1 text-[24px] font-extrabold tracking-tight text-[#1e1813]">The road ahead</h1>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={onChangeTarget} className="text-[13px] font-medium text-gray-500 hover:text-[#1e1813] border border-gray-200 hover:border-gray-300 rounded-lg px-3.5 py-2 transition-colors">
-            Change North Star
-          </button>
-        </div>
-      </div>
-
-      <IntentionLine value={roadmap.intention} onSave={async (v) => {
-        await readJson(await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "set-intention", intention: v }) }))
-        await reload()
-      }} />
-
-      <JourneyLine roadmap={roadmap} readiness={data.readiness} derivedTarget={data.derivedTarget} />
-
-      {(roadmap.target_skills?.length ?? 0) > 0 && (
-        <GapMap targetSkills={roadmap.target_skills!} targetRole={roadmap.target_role || data.derivedTarget || "your target"} />
-      )}
-
-      <ActionsBar
-        onGotJob={() => setModal("gotjob")}
-        onAddProject={() => setModal("project")}
-        onAddSkills={() => setModal("skills")}
-      />
-
-      <div className="mt-8 flex items-center gap-2">
-        <Flag className="w-4 h-4" style={{ color: ACCENT }} />
-        <h2 className="text-sm font-semibold text-[#1e1813]">Skills to close{openItems.length > 0 ? ` · ${openItems.length}` : ""}</h2>
-      </div>
-      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {openItems.map((item) => (
-          <SkillTile key={item.skill} item={item} gap={gapBySkill.get(item.skill.toLowerCase())} onOpen={(i) => setSelected(i.skill)} />
-        ))}
-      </div>
-
-      {doneItems.length > 0 && (
-        <>
-          <div className="mt-8 flex items-center gap-2">
-            <Check className="w-4 h-4 text-green-600" />
-            <h2 className="text-sm font-semibold text-[#1e1813]">Closed · {doneItems.length}</h2>
+    <>
+      <Breadcrumb step="D" />
+      <main className="max-w-[1120px] mx-auto px-6 sm:px-12 py-10 pb-24">
+        {/* Header — North Star pinned */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between" style={{ gap: 40, marginBottom: 48 }}>
+          <div style={{ maxWidth: 640 }}>
+            <div className="t-eyebrow" style={{ marginBottom: 14 }}>Your path</div>
+            <h1 className="t-display text-[38px] sm:text-[56px]" style={{ margin: "0 0 14px" }}>
+              Stitching toward {target}.
+            </h1>
+            <p className="t-lede" style={{ maxWidth: 560, margin: 0 }}>
+              {active.length > 0
+                ? `${active.length === 1 ? "One skill" : `${active.length} skills`} in progress. The thread grows as you close each one — and lifts your next tailor automatically.`
+                : queued.length > 0
+                  ? "Start a skill below — the thread grows as you close each one, and lifts your next tailor automatically."
+                  : "Every skill on this path is closed. Time to raise the target?"}
+            </p>
+            <IntentionLine value={roadmap.intention} onSave={async (v) => {
+              await readJson(await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "set-intention", intention: v }) }))
+              await reload()
+            }} />
           </div>
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {doneItems.map((item) => (
-              <SkillTile key={item.skill} item={item} onOpen={(i) => setSelected(i.skill)} />
-            ))}
-          </div>
-        </>
-      )}
 
-      {modal === "gotjob" && (
-        <GotJobModal currentTarget={roadmap.target_role || data.derivedTarget} onClose={() => setModal(null)} onDone={() => { setModal(null); reload() }} />
-      )}
-      {modal === "project" && (
-        <AddProjectModal onClose={() => setModal(null)} onDone={() => setModal(null)} />
-      )}
-      {modal === "skills" && (
-        <AddSkillsForJdModal onClose={() => setModal(null)} onDone={() => { setModal(null); reload() }} />
-      )}
-      {selected && roadmap.items.some((i) => i.skill === selected) && (
-        <SkillDetailModal
-          item={roadmap.items.find((i) => i.skill === selected)!}
-          gap={gapBySkill.get(selected.toLowerCase())}
-          onClose={() => setSelected(null)}
-          onCycle={cycleStatus}
-          onRemove={removeSkill}
-          updating={updating === selected}
-        />
-      )}
-    </div>
+          {/* North Star pin */}
+          <div style={{ padding: "18px 22px", background: "var(--ns-paper)", border: "1px solid var(--ns-border)", borderRadius: 12, minWidth: 280 }}>
+            <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
+              <Flag className="w-3 h-3" style={{ color: "var(--ns-coral-deep)" }} />
+              <span className="t-mono" style={{ fontSize: 10.5, color: "var(--ns-coral-deep)", letterSpacing: "0.08em" }}>NORTH STAR</span>
+            </div>
+            <p className="t-title" style={{ fontSize: 22, margin: "0 0 12px" }}>{target}</p>
+            <div className="flex justify-between items-baseline">
+              <span className="t-small">Role readiness now</span>
+              <span className="t-mono" style={{ color: "var(--ns-coral-deep)" }}>
+                <span style={{ fontSize: 15 }}>{pct}%</span>{data.readiness.total > 0 ? ` · ${data.readiness.have}/${data.readiness.total}` : ""}
+              </span>
+            </div>
+            <div style={{ marginTop: 10 }}><ThreadMeter pct={pct} /></div>
+            <button onClick={onChangeTarget} className="ns-btn ns-btn-ghost" style={{ padding: "10px 0 0", fontSize: 12.5 }}>Change North Star</button>
+          </div>
+        </div>
+
+        {/* Agenda with vertical thread */}
+        {agenda.length > 0 && (
+          <div>
+            {agenda.map((row, i) => {
+              const isFirstOfGroup = i === 0 || agenda[i - 1].when !== row.when
+              const isLast = i === agenda.length - 1
+              const gap = gapBySkill.get(row.item.skill.toLowerCase())
+              return (
+                <div key={row.item.skill}>
+                  {isFirstOfGroup && <div className="t-eyebrow" style={{ margin: "8px 0 12px", paddingLeft: 48 }}>{row.when}</div>}
+                  <div className="grid" style={{ gridTemplateColumns: "48px 1fr", opacity: row.kind === "later" ? 0.75 : 1 }}>
+                    {/* Thread column */}
+                    <div style={{ position: "relative", minHeight: 96 }}>
+                      <div style={{ position: "absolute", left: 15, top: 0, bottom: 0, width: 1, borderLeft: row.kind === "later" ? "1px dashed var(--ns-ink-15)" : "1px solid var(--ns-ink-15)" }} />
+                      <div style={{
+                        position: "absolute", left: 8, top: 22, width: 16, height: 16, borderRadius: "50%",
+                        background: row.kind === "active" ? "var(--ns-coral)" : "var(--ns-cream)",
+                        border: row.kind === "active" ? "1.5px solid var(--ns-coral)" : row.kind === "queued" ? "1px solid var(--ns-ink-40)" : "1px dashed var(--ns-ink-40)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {row.kind === "active" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--ns-paper)" }} />}
+                      </div>
+                    </div>
+                    {/* Content */}
+                    <div style={{ padding: "18px 0 26px", borderBottom: isLast ? "none" : "1px solid var(--ns-border)" }}>
+                      <div className="flex items-baseline justify-between" style={{ gap: 20 }}>
+                        <div style={{ flex: 1 }}>
+                          <div className="flex items-center flex-wrap" style={{ gap: 10, marginBottom: 6 }}>
+                            <h3 style={{ fontSize: 17, fontWeight: 500, margin: 0, lineHeight: 1.3 }}>{row.item.skill}</h3>
+                            {row.kind === "active" && (
+                              <span className="t-mono" style={{ fontSize: 10, color: "var(--ns-coral-deep)", padding: "2px 7px", background: "var(--ns-tint-1)", border: "1px solid var(--ns-tint-2)", borderRadius: 4, letterSpacing: "0.08em" }}>IN PROGRESS</span>
+                            )}
+                            {gap && gap.unlockCount > 0 && (
+                              <span className="t-mono" style={{ fontSize: 10 }} title={gap.sourceJobs.join(", ")}>unlocks {gap.unlockCount} saved job{gap.unlockCount === 1 ? "" : "s"}</span>
+                            )}
+                          </div>
+                          <p className="t-body" style={{ color: "var(--ns-ink-70)", margin: "0 0 12px", maxWidth: 620 }}>{row.item.whyItMatters}</p>
+                          {row.item.resources?.length > 0 && (
+                            <span className="t-mono">{row.item.resources[0].source} · {row.item.resources.length} free resource{row.item.resources.length === 1 ? "" : "s"}</span>
+                          )}
+                        </div>
+                        <div style={{ paddingTop: 4, flexShrink: 0 }}>
+                          {row.kind === "active" ? (
+                            <button onClick={() => setSelected(row.item.skill)} className="ns-btn ns-btn-secondary" style={{ padding: "10px 16px", fontSize: 13 }}>Resume <ArrowRight className="w-3 h-3" /></button>
+                          ) : (
+                            <button onClick={() => setSelected(row.item.skill)} className="ns-btn ns-btn-ghost" style={{ padding: "10px 12px", fontSize: 13, color: "var(--ns-ink-55)" }}>Preview</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Closed skills */}
+        {done.length > 0 && (
+          <div style={{ marginTop: 32 }}>
+            <div className="t-eyebrow" style={{ marginBottom: 12 }}>Closed · {done.length}</div>
+            <div className="flex flex-wrap" style={{ gap: 10 }}>
+              {done.map((item) => (
+                <button key={item.skill} onClick={() => setSelected(item.skill)} className="ns-chip ns-chip-have">
+                  <Check className="w-3 h-3" strokeWidth={2.5} />{item.skill}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Skill set vs role (the transparent map) */}
+        <SkillSet targetSkills={roadmap.target_skills ?? []} haveList={data.readiness.haveList ?? []} missing={data.readiness.missing} />
+
+        {/* Footer actions */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" style={{ marginTop: 56, paddingTop: 28, borderTop: "1px solid var(--ns-border)" }}>
+          <p className="t-small" style={{ margin: 0, maxWidth: 480 }}>Close a skill and its CV bullet flows back into your next tailor automatically.</p>
+          <div className="flex flex-wrap gap-3">
+            <button onClick={() => setModal("gotjob")} className="ns-btn ns-btn-secondary"><PartyPopper className="w-4 h-4" />I got the job</button>
+            <button onClick={() => setModal("project")} className="ns-btn ns-btn-secondary"><FolderPlus className="w-4 h-4" />Add a project</button>
+            <button onClick={() => setModal("skills")} className="ns-btn ns-btn-primary"><FileSearch className="w-4 h-4" />Add skills for a job</button>
+          </div>
+        </div>
+
+        {modal === "gotjob" && (
+          <GotJobModal currentTarget={roadmap.target_role || data.derivedTarget} onClose={() => setModal(null)} onDone={() => { setModal(null); reload() }} />
+        )}
+        {modal === "project" && (
+          <AddProjectModal onClose={() => setModal(null)} onDone={() => setModal(null)} />
+        )}
+        {modal === "skills" && (
+          <AddSkillsForJdModal onClose={() => setModal(null)} onDone={() => { setModal(null); reload() }} />
+        )}
+        {selected && roadmap.items.some((i) => i.skill === selected) && (
+          <SkillDetailModal
+            item={roadmap.items.find((i) => i.skill === selected)!}
+            gap={gapBySkill.get(selected.toLowerCase())}
+            onClose={() => setSelected(null)}
+            onCycle={cycleStatus}
+            onRemove={removeSkill}
+            updating={updating === selected}
+          />
+        )}
+      </main>
+    </>
   )
 }
 
@@ -787,7 +791,7 @@ function CareerPathContent() {
   const cachedFindings = savedFindings?.strengths?.length ? savedFindings : null
 
   return (
-    <div className="min-h-screen bg-[#f9f6f0]">
+    <div className="ns min-h-screen">
       <Header enhanced />
       <div className="max-w-6xl mx-auto px-4 pt-4">
         <Link href="/tailor" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-400 hover:text-[#1e1813] transition-colors">

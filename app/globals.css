@@ -177,3 +177,96 @@
 .animate-slide-up {
   animation: slide-up 0.5s ease-out forwards;
 }
+
+/* ── North Star design system (career-path) ──────────────────────────────
+   Tokens + type classes from the design_handoff_north_star bundle.
+   Namespaced ns- / --ns-* so they can't collide with shadcn variables.
+   Display face: Fraunces (via next/font, exposed as --font-fraunces on the
+   page wrapper). Body: the app's established Geist. Mono: Geist Mono. */
+.ns {
+  --ns-ink: #1e1813;
+  --ns-ink-70: rgba(30, 24, 19, 0.7);
+  --ns-ink-55: rgba(30, 24, 19, 0.55);
+  --ns-ink-40: rgba(30, 24, 19, 0.4);
+  --ns-ink-15: rgba(30, 24, 19, 0.15);
+  --ns-ink-08: rgba(30, 24, 19, 0.08);
+  --ns-coral: #dc4f33;
+  --ns-coral-deep: #b3341b;
+  --ns-tint-1: #fff7f4;
+  --ns-tint-2: #f5d9d0;
+  --ns-cream: #f9f6f0;
+  --ns-paper: #fdfcf9;
+  --ns-border: #e8e2d6;
+  --ns-border-strong: #d9d1bf;
+  --ns-shadow-soft: 0 1px 0 rgba(30,24,19,0.03), 0 12px 40px -20px rgba(30,24,19,0.12);
+  color: var(--ns-ink);
+  background: var(--ns-cream);
+}
+.ns .t-display {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-weight: 400;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  font-variation-settings: "opsz" 96;
+}
+.ns .t-title {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-weight: 400;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  font-variation-settings: "opsz" 48;
+}
+.ns .t-quote {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-style: italic;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ns-ink-70);
+  font-variation-settings: "opsz" 20;
+}
+.ns .t-lede { font-size: 15px; line-height: 1.5; color: var(--ns-ink-70); }
+.ns .t-body { font-size: 14px; line-height: 1.55; }
+.ns .t-small { font-size: 12.5px; line-height: 1.5; color: var(--ns-ink-55); }
+.ns .t-mono {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--ns-ink-55);
+}
+.ns .t-eyebrow {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ns-ink-55);
+}
+.ns .ns-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 500;
+  padding: 8px 14px; border-radius: 999px;
+  line-height: 1; white-space: nowrap;
+}
+.ns .ns-chip-have {
+  background: var(--ns-tint-1);
+  color: var(--ns-coral-deep);
+  border: 1px solid var(--ns-tint-2);
+}
+.ns .ns-chip-missing {
+  background: transparent;
+  color: var(--ns-ink);
+  border: 1px dashed var(--ns-ink-40);
+}
+.ns .ns-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  border-radius: 999px; padding: 12px 22px;
+  font-size: 14px; font-weight: 500; line-height: 1;
+  cursor: pointer; transition: all 120ms ease;
+  border: 1px solid transparent;
+}
+.ns .ns-btn:disabled { opacity: 0.6; cursor: default; }
+.ns .ns-btn-primary { background: var(--ns-coral); color: var(--ns-paper); }
+.ns .ns-btn-primary:hover { background: var(--ns-coral-deep); }
+.ns .ns-btn-secondary { background: transparent; color: var(--ns-ink); border-color: var(--ns-ink-15); }
+.ns .ns-btn-secondary:hover { border-color: var(--ns-ink); }
+.ns .ns-btn-ghost { background: transparent; color: var(--ns-ink-70); padding: 12px 12px; }
+.ns .ns-btn-ghost:hover { color: var(--ns-ink); }
