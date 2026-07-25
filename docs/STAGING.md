@@ -36,7 +36,13 @@ Skip unless you upgrade.
 
 ## Staging login (Supabase `tailr-staging`)
 
-Magic links must stay on the staging host (not production). The app already uses `window.location.origin` for `emailRedirectTo`.
+Magic links must stay on the staging host (not production). The app sends OTPs via
+`POST /api/auth/request-otp` (Resend + `admin.generateLink`) so delivery does **not**
+depend on Supabase Auth SMTP. That bypasses a recurring staging failure where Resend
+rejects Supabase's mailer with `550` when the Auth SMTP From is still
+`onboarding@resend.dev` (test mode only delivers to the Resend account owner).
+
+Still keep Auth URL config correct for `/auth/confirm` redirects:
 
 In the **tailr-staging** Supabase project → Authentication → URL configuration:
 

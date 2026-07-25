@@ -10,6 +10,7 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
+import { errMessage } from '@/lib/err'
 
 export const maxDuration = 300
 
@@ -50,14 +51,6 @@ function calibration(cv: string, intention: string): string {
 
 /** Surface real messages from Supabase/Postgrest errors, which are plain
  * objects (not Error instances) — otherwise String(err) yields "[object Object]". */
-function errMessage(err: unknown): string {
-  if (err instanceof Error) return err.message
-  if (err && typeof err === 'object') {
-    const e = err as { message?: string; error?: string; details?: string; hint?: string; code?: string }
-    return e.message || e.error || e.details || e.hint || (e.code ? `Database error ${e.code}` : JSON.stringify(err))
-  }
-  return String(err)
-}
 
 export async function GET() {
   try {

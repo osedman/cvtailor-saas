@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { cleanString, isEvidenceCategory } from "@/lib/first-cv"
 import { sanitizeDeep } from "@/lib/sanitize"
+import { errMessage } from "@/lib/err"
 
 export const maxDuration = 300
 
@@ -83,6 +84,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ evidence: data ?? [], fileStored: false })
   } catch (error) {
     const status = (error as { status?: number })?.status === 429 ? 429 : 500
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status })
+    return NextResponse.json({ error: errMessage(error) }, { status })
   }
 }

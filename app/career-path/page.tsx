@@ -292,99 +292,12 @@ function SkillDetailModal({ item, gap, onClose, onCycle, onRemove, updating }: {
   )
 }
 
-function RebuildConfirm({ doneCount, onConfirm, onCancel }: { doneCount: number; onConfirm: () => void; onCancel: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(30,24,19,0.5)" }}>
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-[0_16px_48px_rgba(30,24,19,0.3)]">
-        <h3 className="text-[17px] font-bold text-[#1e1813]">Rebuild your path?</h3>
-        <p className="mt-2 text-[13.5px] text-gray-600 leading-relaxed">
-          This replaces your current path with a fresh one.
-          {doneCount > 0 && <> You&apos;ve marked <span className="font-semibold text-[#1e1813]">{doneCount} skill{doneCount === 1 ? "" : "s"} done</span> — that progress will be lost.</>}
-        </p>
-        <div className="mt-5 flex gap-3">
-          <button onClick={onConfirm} className="flex-1 py-2.5 text-[14px] font-semibold text-white rounded-xl" style={{ background: ACCENT }}>Rebuild anyway</button>
-          <button onClick={onCancel} className="px-4 py-2.5 text-[13px] font-medium text-gray-500 border border-gray-200 rounded-xl hover:text-[#1e1813]">Keep it</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/** Pre-seeded generate — no blank form. Target + skills come from the user's history/signal. */
-function SeededStart({ seedTarget, seedSkills, seedIntention, onGenerated }: { seedTarget: string; seedSkills: string[]; seedIntention: string; onGenerated: () => void }) {
-  const [targetRole, setTargetRole] = useState(seedTarget)
-  const [skillsText, setSkillsText] = useState(seedSkills.join(", "))
-  const [intention, setIntention] = useState(seedIntention)
-  const [loading, setLoading] = useState(false)
-
-  const submit = useCallback(async () => {
-    const skills = skillsText.split(",").map((s) => s.trim()).filter(Boolean)
-    if (skills.length === 0) { toast.error("Add at least one skill to build your path around."); return }
-    setLoading(true)
-    try {
-      const res = await fetch("/api/career-path", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetRole, hoursPerWeek: 5, skills, intention }),
-      })
-      await readJson(res)
-      onGenerated()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to build your path.")
-      setLoading(false)
-    }
-  }, [targetRole, skillsText, intention, onGenerated])
-
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-4 py-24">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
-        <p className="text-sm text-gray-400">Building your path — finding real, free resources…</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="max-w-xl mx-auto py-14 px-4">
-      <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-5 shadow-sm" style={{ background: "#fff7f4", color: ACCENT }}>
-        <MapPin className="w-6 h-6" />
-      </div>
-      <h1 className="text-[26px] font-extrabold tracking-tight text-[#1e1813]">Map your path</h1>
-      <p className="mt-2 text-[14.5px] text-gray-500 leading-relaxed">
-        {seedTarget ? <>Built from the roles you&apos;ve been tailoring for. Tweak anything, then map it.</> : <>Tell us where you&apos;re aiming and the skills to close.</>}
-      </p>
-      <div className="mt-7 space-y-5">
-        <div>
-          <label className="block text-[13px] font-semibold text-[#1e1813] mb-1.5">Where are you aiming?</label>
-          <input value={targetRole} onChange={(e) => setTargetRole(e.target.value)} placeholder="e.g. Senior Data Analyst"
-            className="w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300" />
-        </div>
-        <div>
-          <label className="block text-[13px] font-semibold text-[#1e1813] mb-1.5">Skills to close</label>
-          <input value={skillsText} onChange={(e) => setSkillsText(e.target.value)} placeholder="e.g. SQL, stakeholder management"
-            className="w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300" />
-          <p className="mt-1.5 text-[12px] text-gray-400">Comma-separated. Pre-filled from gaps that keep coming up in your tailors.</p>
-        </div>
-        <div>
-          <label className="block text-[13px] font-semibold text-[#1e1813] mb-1.5">What are you trying to accomplish? <span className="font-normal text-gray-400">(optional)</span></label>
-          <textarea value={intention} onChange={(e) => setIntention(e.target.value)} rows={2} placeholder="e.g. move from delivery consulting into AI product leadership within 18 months"
-            className="w-full px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300" />
-          <p className="mt-1.5 text-[12px] text-gray-400">Your goal steers what gets recommended, and your CV calibrates it — not just the job title.</p>
-        </div>
-      </div>
-      <button onClick={submit} className="mt-8 w-full inline-flex items-center justify-center gap-2 py-3.5 text-[15px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]" style={{ background: ACCENT }}>
-        <Sparkles className="w-4 h-4" />Map my path
-      </button>
-    </div>
-  )
-}
-
 /**
  * The CV-first North Star journey: scan the CV (strengths first, then honest
  * gaps), choose a 1-2 year target role, then Tailr researches what that role's
- * market demands and shows the transparent gap map. Replaces the blank form as
- * the way in.
+ * market demands and shows the transparent gap map. The only way into the path.
  */
-function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: { cachedFindings: CvFindings | null; seedIntention: string; onBuilt: () => Promise<void>; onCancel?: () => void }) {
+function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: { cachedFindings: CvFindings | null; seedIntention: string; onBuilt: () => Promise<void> | void; onCancel?: () => void }) {
   const [stage, setStage] = useState<"intro" | "scanning" | "findings" | "choosing" | "building">(cachedFindings ? "findings" : "intro")
   const [findings, setFindings] = useState<CvFindings | null>(cachedFindings)
   const [suggestions, setSuggestions] = useState<TargetSuggestion[] | null>(null)
@@ -738,8 +651,6 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
   const roadmap = data.roadmap!
   const [updating, setUpdating] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
-  const [confirmRebuild, setConfirmRebuild] = useState(false)
-  const [rebuilding, setRebuilding] = useState(false)
   const [modal, setModal] = useState<null | "gotjob" | "project" | "skills">(null)
 
   const cycleStatus = useCallback(async (item: CareerRoadmapItem) => {
@@ -771,11 +682,6 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
   const openItems = roadmap.items.filter((i) => i.status !== "done")
     .sort((a, b) => (gapBySkill.get(b.skill.toLowerCase())?.unlockCount ?? 0) - (gapBySkill.get(a.skill.toLowerCase())?.unlockCount ?? 0))
   const doneItems = roadmap.items.filter((i) => i.status === "done")
-  const doneCount = doneItems.length
-
-  if (rebuilding) {
-    return <SeededStart seedTarget={roadmap.target_role || data.derivedTarget} seedSkills={roadmap.items.map((i) => i.skill)} seedIntention={roadmap.intention || data.arcAmbition} onGenerated={() => { setRebuilding(false); reload() }} />
-  }
 
   return (
     <div className="max-w-3xl mx-auto py-10 px-4">
@@ -787,9 +693,6 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
         <div className="flex gap-2">
           <button onClick={onChangeTarget} className="text-[13px] font-medium text-gray-500 hover:text-[#1e1813] border border-gray-200 hover:border-gray-300 rounded-lg px-3.5 py-2 transition-colors">
             Change North Star
-          </button>
-          <button onClick={() => setConfirmRebuild(true)} className="text-[13px] font-medium text-gray-500 hover:text-[#1e1813] border border-gray-200 hover:border-gray-300 rounded-lg px-3.5 py-2 transition-colors">
-            Rebuild path
           </button>
         </div>
       </div>
@@ -835,9 +738,6 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
         </>
       )}
 
-      {confirmRebuild && (
-        <RebuildConfirm doneCount={doneCount} onCancel={() => setConfirmRebuild(false)} onConfirm={() => { setConfirmRebuild(false); setRebuilding(true) }} />
-      )}
       {modal === "gotjob" && (
         <GotJobModal currentTarget={roadmap.target_role || data.derivedTarget} onClose={() => setModal(null)} onDone={() => { setModal(null); reload() }} />
       )}
@@ -911,19 +811,12 @@ function CareerPathContent() {
         />
       ) : data && data.roadmap ? (
         <LivingPath data={data} reload={load} onChangeTarget={() => setChangingTarget(true)} />
-      ) : prefillSkills.length > 0 ? (
-        // Came from a tailor run with specific gaps — keep the seeded quick-start.
-        <SeededStart
-          seedTarget={data?.derivedTarget ?? ""}
-          seedSkills={prefillSkills}
-          seedIntention={data?.arcAmbition ?? ""}
-          onGenerated={() => load()}
-        />
       ) : (
-        // Fresh start: the CV-first North Star journey.
+        // The CV-first North Star journey is the only way in. Gaps passed via
+        // ?skills= (from a tailor run) steer the target suggestions.
         <NorthStarJourney
           cachedFindings={null}
-          seedIntention={data?.arcAmbition ?? ""}
+          seedIntention={[data?.arcAmbition ?? "", prefillSkills.length > 0 ? `Skills they want to close: ${prefillSkills.join(", ")}` : ""].filter(Boolean).join(". ")}
           onBuilt={() => load()}
         />
       )}
