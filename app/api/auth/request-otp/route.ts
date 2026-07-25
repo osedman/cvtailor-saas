@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/server"
 import { sendEmail } from "@/lib/email"
+import { checkRateLimit, anonRateLimitId } from "@/lib/rate-limit"
 
 /**
  * Send magic-link / OTP via Resend, bypassing Supabase Auth's SMTP mailer.
@@ -22,6 +23,14 @@ export async function POST(request: Request) {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 })
   }
+
+  // Unauthenticated endpoint that sends email — limit per target address AND
+  // per caller IP so it can't email-bomb an inbox or drain the Resend quota.
+  const ip = (request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown"
+  const limited =
+    (await checkRateLimit(anonRateLimitId(`email:${email}`), "auth")) ??
+    (await checkRateLimit(anonRateLimitId(`ip:${ip}`), "auth"))
+  if (limited) return limited
 
   const origin =
     request.headers.get("origin") ||
