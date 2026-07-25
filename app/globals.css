@@ -301,3 +301,35 @@
   .ns .ns-rise { animation: none; opacity: 1; transform: none; }
   .ns .ns-card, .ns .ns-btn, .ns .ns-chip { transition: none; }
 }
+
+/* North Star modal + interactive chips */
+.ns-scrim {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  background: rgba(30, 24, 19, 0.5);
+  animation: ns-fade 160ms ease-out;
+}
+.ns-modal {
+  width: 100%; max-width: 560px;
+  background: var(--ns-paper);
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgba(30, 24, 19, 0.28);
+  animation: ns-modal-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes ns-fade { from { opacity: 0; } }
+@keyframes ns-modal-in { from { opacity: 0; transform: translateY(10px) scale(0.97); } }
+.ns .ns-chip-action { cursor: pointer; }
+.ns .ns-chip-action:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(30,24,19,0.1); border-style: solid; border-color: var(--ns-coral); }
+.ns .ns-resource {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 44px; padding: 10px 14px;
+  border: 1px solid var(--ns-border); border-radius: 10px;
+  transition: border-color 140ms ease, background 140ms ease;
+  text-decoration: none; color: var(--ns-ink);
+}
+.ns .ns-resource:hover { border-color: var(--ns-coral); background: var(--ns-tint-1); }
+@media (prefers-reduced-motion: reduce) {
+  .ns-scrim, .ns-modal { animation: none; }
+  .ns .ns-chip-action:hover { transform: none; }
+}

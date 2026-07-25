@@ -107,78 +107,100 @@ function pickIcon(skill: string): typeof Target {
 function SkillDetailModal({ item, gap, onClose, onCycle, onRemove, updating }: { item: CareerRoadmapItem; gap?: RankedGap; onClose: () => void; onCycle: (i: CareerRoadmapItem) => void; onRemove: (i: CareerRoadmapItem) => void; updating: boolean }) {
   const [copied, setCopied] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
-  const Icon = pickIcon(item.skill)
   const isDone = item.status === "done"
   const isActive = item.status === "in_progress"
-  const statusLabel = isActive ? "Learning" : isDone ? "Closed" : "Not started yet"
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+
   return (
-    <Modal icon={Icon} title={item.skill} subtitle={statusLabel} onClose={onClose}>
-      <div className="max-h-[68vh] overflow-y-auto -mr-2 pr-2">
-        {!isDone && gap && gap.unlockCount > 0 && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#1e1813] text-white mb-3" title={gap.sourceJobs.join(", ")}>
-            <TrendingUp className="w-2.5 h-2.5" />unlocks {gap.unlockCount} saved job{gap.unlockCount === 1 ? "" : "s"}
-          </span>
-        )}
-        <p className="text-[13px] text-gray-600 leading-relaxed">{item.whyItMatters}</p>
-
-        {item.resources?.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {item.resources.map((r, i) => (
-              <a key={i} href={r.url} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-600 hover:text-[#dc4f33] bg-gray-50 hover:bg-[#ffeae4] border border-gray-100 rounded-lg px-2.5 py-1.5 transition-colors">
-                <ExternalLink className="w-3 h-3" />{r.title} <span className="text-gray-400">· {r.source}</span>
-              </a>
-            ))}
+    <div className="ns-scrim" onClick={(e) => { if (e.target === e.currentTarget) onClose() }} role="dialog" aria-modal="true" aria-label={item.skill}>
+      <div className="ns ns-modal" style={{ background: "var(--ns-paper)" }}>
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4" style={{ padding: "22px 24px 0" }}>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 6 }}>
+              <span className="t-eyebrow" style={{ fontSize: 10 }}>{isDone ? "Closed" : isActive ? "In progress" : "Not started"}</span>
+              {gap && gap.unlockCount > 0 && !isDone && (
+                <span className="t-mono" style={{ fontSize: 10 }} title={gap.sourceJobs.join(", ")}>· unlocks {gap.unlockCount} saved job{gap.unlockCount === 1 ? "" : "s"}</span>
+              )}
+            </div>
+            <h3 className="t-title" style={{ fontSize: 22, margin: 0 }}>{item.skill}</h3>
           </div>
-        )}
-
-        <div className="mt-3 rounded-xl bg-gray-50/70 p-3.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Project idea</p>
-          <p className="text-[13px] text-gray-700 leading-relaxed">{item.projectBrief}</p>
+          <button onClick={onClose} aria-label="Close" className="flex items-center justify-center"
+            style={{ width: 44, height: 44, marginTop: -8, marginRight: -10, borderRadius: 10, color: "var(--ns-ink-40)" }}>
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        {isDone && (
-          <div className="mt-3 rounded-xl border border-green-100 bg-green-50/60 p-3.5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600 mb-1">Add to your CV</p>
-                <p className="text-[13px] text-[#1e1813] leading-relaxed">{item.cvPhrasing}</p>
+        {/* Body */}
+        <div style={{ padding: "16px 24px 0", maxHeight: "56vh", overflowY: "auto" }}>
+          <p className="t-body" style={{ color: "var(--ns-ink-70)", margin: 0 }}>{item.whyItMatters}</p>
+
+          {item.resources?.length > 0 && (
+            <div style={{ marginTop: 20 }}>
+              <div className="t-eyebrow" style={{ fontSize: 10, marginBottom: 10 }}>Free resources</div>
+              <div className="flex flex-col" style={{ gap: 8 }}>
+                {item.resources.map((r, i) => (
+                  <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="ns-resource">
+                    <span className="t-body" style={{ fontWeight: 500 }}>{r.title}</span>
+                    <span className="flex items-center gap-2 flex-shrink-0">
+                      <span className="t-mono">{r.source}</span>
+                      <ExternalLink className="w-3.5 h-3.5" style={{ color: "var(--ns-ink-40)" }} />
+                    </span>
+                  </a>
+                ))}
               </div>
-              <button onClick={() => { navigator.clipboard.writeText(item.cvPhrasing); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-                className="flex-shrink-0 text-[11px] font-medium text-green-700 bg-white hover:bg-green-100 border border-green-200 rounded-lg px-2.5 py-1.5 transition-colors">
-                {copied ? "Copied" : "Copy"}
-              </button>
             </div>
+          )}
+
+          <div style={{ marginTop: 20, padding: "14px 16px", background: "var(--ns-cream)", border: "1px solid var(--ns-border)", borderRadius: 12 }}>
+            <div className="t-eyebrow" style={{ fontSize: 10, marginBottom: 8 }}>Project idea</div>
+            <p className="t-body" style={{ color: "var(--ns-ink-70)", margin: 0 }}>{item.projectBrief}</p>
           </div>
-        )}
-      </div>
 
-      <button onClick={() => onCycle(item)} disabled={updating}
-        className="mt-4 w-full inline-flex items-center justify-center gap-2 py-3 text-[14px] font-semibold rounded-xl transition-all active:scale-[0.98] disabled:opacity-60"
-        style={isDone ? { background: "#fff", border: "1px solid #e5e7eb", color: "#6b7280" } : { background: ACCENT, color: "#fff" }}>
-        {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : isDone ? <>Move back to learning</> : isActive ? <>Mark as done <Check className="w-4 h-4" /></> : <>Start this skill <ArrowRight className="w-4 h-4" /></>}
-      </button>
+          {isDone && (
+            <div style={{ marginTop: 16, padding: "14px 16px", background: "var(--ns-tint-1)", border: "1px solid var(--ns-tint-2)", borderRadius: 12 }}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="t-eyebrow" style={{ fontSize: 10, marginBottom: 8 }}>Add to your CV</div>
+                  <p className="t-body" style={{ margin: 0 }}>{item.cvPhrasing}</p>
+                </div>
+                <button onClick={() => { navigator.clipboard.writeText(item.cvPhrasing); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+                  className="ns-btn ns-btn-secondary flex-shrink-0" style={{ padding: "8px 14px", fontSize: 12.5 }}>
+                  {copied ? <>Copied <Check className="w-3 h-3" /></> : "Copy"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
-      <div className="mt-3 text-center">
-        {confirmRemove ? (
-          <span className="text-[12px] text-gray-500">Remove this skill?{" "}
-            <button onClick={() => onRemove(item)} className="font-semibold" style={{ color: ACCENT }}>Yes, remove</button>
-            <span className="text-gray-300"> · </span>
-            <button onClick={() => setConfirmRemove(false)} className="text-gray-500">Keep it</button>
-          </span>
-        ) : (
-          <button onClick={() => setConfirmRemove(true)} className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors">Remove from path</button>
-        )}
+        {/* Footer */}
+        <div style={{ padding: "18px 24px 20px" }}>
+          <button onClick={() => onCycle(item)} disabled={updating}
+            className={`ns-btn ${isDone ? "ns-btn-secondary" : "ns-btn-primary"} w-full`} style={{ padding: "14px 20px" }}>
+            {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : isDone ? <>Move back to learning</> : isActive ? <>Mark as done <Check className="w-4 h-4" /></> : <>Start this skill <ArrowRight className="w-4 h-4" /></>}
+          </button>
+          <div className="text-center" style={{ marginTop: 12 }}>
+            {confirmRemove ? (
+              <span className="t-small">Remove this skill?{" "}
+                <button onClick={() => onRemove(item)} style={{ fontWeight: 600, color: "var(--ns-coral)" }}>Yes, remove</button>
+                <span style={{ color: "var(--ns-ink-15)" }}> · </span>
+                <button onClick={() => setConfirmRemove(false)}>Keep it</button>
+              </span>
+            ) : (
+              <button onClick={() => setConfirmRemove(true)} className="t-small" style={{ color: "var(--ns-ink-40)" }}>Remove from path</button>
+            )}
+          </div>
+        </div>
       </div>
-    </Modal>
+    </div>
   )
 }
 
-/**
- * The CV-first North Star journey: scan the CV (strengths first, then honest
- * gaps), choose a 1-2 year target role, then Tailr researches what that role's
- * market demands and shows the transparent gap map. The only way into the path.
- */
 function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: { cachedFindings: CvFindings | null; seedIntention: string; onBuilt: () => Promise<void> | void; onCancel?: () => void }) {
   const [stage, setStage] = useState<"intro" | "scanning" | "findings" | "choosing" | "building">(cachedFindings ? "findings" : "intro")
   const [findings, setFindings] = useState<CvFindings | null>(cachedFindings)
@@ -406,11 +428,21 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
   )
 }
 
-function SkillSet({ targetSkills, haveList, missing }: { targetSkills: TargetSkill[]; haveList: string[]; missing: string[] }) {
+function SkillSet({ targetSkills, haveList, missing, items, onOpenSkill, onAddSkill, addingSkill }: {
+  targetSkills: TargetSkill[]
+  haveList: string[]
+  missing: string[]
+  items: CareerRoadmapItem[]
+  onOpenSkill: (skill: string) => void
+  onAddSkill: (skill: string) => void
+  addingSkill: string | null
+}) {
   const have = targetSkills.length > 0 ? targetSkills.filter((t) => t.have).map((t) => t.skill) : haveList
   const miss = targetSkills.length > 0 ? targetSkills.filter((t) => !t.have).map((t) => t.skill) : missing
   const core = new Set(targetSkills.filter((t) => t.importance === "core").map((t) => t.skill))
   if (have.length + miss.length === 0) return null
+  const planFor = (skill: string) => items.find((it) => it.skill.toLowerCase() === skill.toLowerCase())
+
   return (
     <section style={{ marginTop: 48 }}>
       <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, borderBottom: "1px solid var(--ns-border)" }}>
@@ -433,18 +465,27 @@ function SkillSet({ targetSkills, haveList, missing }: { targetSkills: TargetSki
 
       {miss.length > 0 && (
         <div style={{ marginTop: 28 }}>
-          <div className="flex items-baseline gap-3" style={{ marginBottom: 12 }}>
+          <div className="flex items-baseline gap-3" style={{ marginBottom: 6 }}>
             <span className="t-title" style={{ fontSize: 18 }}>Missing</span>
             <span className="t-mono">{String(miss.length).padStart(2, "0")}</span>
             <span style={{ flex: 1, height: 1, background: "var(--ns-border)" }} />
           </div>
+          <p className="t-small" style={{ margin: "0 0 12px" }}>Every one of these is closeable — click a skill to see its plan, or to build one with free resources.</p>
           <div className="flex flex-wrap" style={{ gap: 10 }}>
-            {miss.map((sk, i) => (
-              <span key={i} className="ns-chip ns-chip-missing">
-                {sk}
-                {core.has(sk) && <span className="t-mono" style={{ fontSize: 9.5, color: "var(--ns-coral-deep)", letterSpacing: "0.08em" }}>CORE</span>}
-              </span>
-            ))}
+            {miss.map((sk, i) => {
+              const plan = planFor(sk)
+              const isAdding = addingSkill === sk
+              return (
+                <button key={i} disabled={isAdding}
+                  onClick={() => (plan ? onOpenSkill(plan.skill) : onAddSkill(sk))}
+                  className="ns-chip ns-chip-missing ns-chip-action"
+                  title={plan ? "Open the plan for this skill" : "Build a plan with free resources"}>
+                  {isAdding ? <Loader2 className="w-3 h-3 animate-spin" /> : plan ? <ArrowRight className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                  {sk}
+                  {core.has(sk) && <span className="t-mono" style={{ fontSize: 9.5, color: "var(--ns-coral-deep)", letterSpacing: "0.08em" }}>CORE</span>}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
@@ -601,6 +642,21 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
     }
   }, [reload])
 
+  const [addingSkill, setAddingSkill] = useState<string | null>(null)
+  const addSkill = useCallback(async (skill: string) => {
+    setAddingSkill(skill)
+    try {
+      await readJson(await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "add-skill", skill }) }))
+      await reload()
+      setSelected(skill)
+      toast.success(`${skill} added to your path with free resources.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't build a plan for that skill.")
+    } finally {
+      setAddingSkill(null)
+    }
+  }, [reload])
+
   const removeSkill = useCallback(async (item: CareerRoadmapItem) => {
     try {
       await readJson(await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "remove-skill", skill: item.skill }) }))
@@ -739,7 +795,7 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
         )}
 
         {/* Skill set vs role (the transparent map) */}
-        <SkillSet targetSkills={roadmap.target_skills ?? []} haveList={data.readiness.haveList ?? []} missing={data.readiness.missing} />
+        <SkillSet targetSkills={roadmap.target_skills ?? []} haveList={data.readiness.haveList ?? []} missing={data.readiness.missing} items={roadmap.items} onOpenSkill={(sk) => setSelected(sk)} onAddSkill={addSkill} addingSkill={addingSkill} />
 
         {/* Footer actions */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" style={{ marginTop: 56, paddingTop: 28, borderTop: "1px solid var(--ns-border)" }}>
