@@ -8,6 +8,7 @@ import { ArrowLeft, Sparkles, Loader2, ExternalLink, Check, CircleDot, Target, A
 import { Header } from "@/components/cv-tailor/header"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
+import { forecastReadyDate, daysSinceLastStitch } from "@/lib/career-path-compute"
 
 const ACCENT = "#dc4f33"
 const INK = "#1e1813"
@@ -719,6 +720,37 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
               </span>
             </div>
             <div style={{ marginTop: 10 }}><ThreadMeter pct={pct} /></div>
+            {(() => {
+              const open = roadmap.items.filter((i) => i.status !== "done").length
+              const f = forecastReadyDate(open, roadmap.hours_per_week)
+              const stitch = daysSinceLastStitch(roadmap.items)
+              return (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--ns-border)" }}>
+                  {f.readyByLabel && (
+                    <p className="t-body" style={{ margin: 0 }}>
+                      At{" "}
+                      <select
+                        value={roadmap.hours_per_week ?? 3}
+                        onChange={async (e) => {
+                          try {
+                            await readJson(await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "set-pace", hoursPerWeek: Number(e.target.value) }) }))
+                            await reload()
+                          } catch (err) { toast.error(err instanceof Error ? err.message : "Couldn't update your pace.") }
+                        }}
+                        aria-label="Hours per week"
+                        style={{ font: "inherit", fontWeight: 600, color: "var(--ns-coral-deep)", background: "transparent", border: "none", borderBottom: "1px dashed var(--ns-ink-40)", cursor: "pointer", padding: "0 2px" }}>
+                        {[1, 2, 3, 5, 8, 10].map((h) => <option key={h} value={h}>{h}</option>)}
+                      </select>{" "}
+                      hrs/week · on course for <strong>{f.readyByLabel}</strong>
+                    </p>
+                  )}
+                  {stitch !== null && (
+                    <p className="t-mono" style={{ margin: "6px 0 0" }}>last stitch · {stitch === 0 ? "today" : stitch === 1 ? "yesterday" : `${stitch} days ago`}</p>
+                  )}
+                  <p className="t-small" style={{ margin: "6px 0 0", fontSize: 11 }}>A forecast, not a deadline — it shifts with your pace.</p>
+                </div>
+              )
+            })()}
             <button onClick={onChangeTarget} className="ns-btn ns-btn-ghost" style={{ padding: "10px 0 0", fontSize: 12.5 }}>Change North Star</button>
           </div>
         </div>

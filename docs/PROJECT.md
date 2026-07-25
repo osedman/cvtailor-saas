@@ -84,4 +84,32 @@ Ruled out first: the database/auth/RLS layer. Generated a real Supabase session 
 
 ---
 
-_Last updated: 2 July 2026_
+
+---
+
+## 🧭 Feature: Pace forecast + weekly digest (career path) — spec agreed 25 July 2026
+
+**Principle (Ose's call): no deadlines, no shame ledger.** A user-set due date is a
+commitment; missing it produces shame and app-avoidance. Instead the date is an
+**output, not an input** — a forecast computed from pace that only ever *shifts*,
+like a delivery estimate. No "overdue" state exists anywhere in the system.
+
+**V1 scope (shipped to staging 25 Jul 2026):**
+1. **Pace forecast** — `forecastReadyDate(openSkills, hoursPerWeek)` (pure fn,
+   ~10h/skill heuristic v1): North Star pin shows "At ~N hrs/week · ready by
+   {Month}". Pace editable inline (1/3/5/10 hrs) → `mode: set-pace`.
+2. **Momentum, not deadlines** — items stamp `touchedAt` on every status change;
+   pin shows "Last stitch: N days ago". The thread is continuity, not calendar.
+3. **Weekly digest email** — Vercel cron (Mon 09:00 UTC) → `/api/path-digest`
+   (Bearer CRON_SECRET). One email/week max: readiness now + forecast month +
+   in-progress skills + one next action. Tone rules: always lead with the win;
+   absence is never named; worst case is an offer to re-plan ("December drifted —
+   re-plan at 1 hr/week?"). Unsubscribe = one click, HMAC-signed link, no login
+   (`profiles.path_digest_opt_out`, migration 012).
+4. **Real external dates only** (job-tracker interviews/deadlines) may appear as
+   hard dates later — they're not self-judgment. Not in v1.
+
+**Later:** per-skill effort estimates from set-target research (replaces 10h
+heuristic); digest links that one-click start a skill; tracker-date integration.
+
+_Last updated: 25 July 2026_

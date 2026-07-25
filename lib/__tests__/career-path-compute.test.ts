@@ -6,6 +6,8 @@ import {
   rankGapsByUnlock,
   computeReadiness,
   readinessFromTargetSkills,
+  forecastReadyDate,
+  daysSinceLastStitch,
   type HistoryEntry,
   type TrackerJob,
 } from "@/lib/career-path-compute"
@@ -139,5 +141,40 @@ describe("readinessFromTargetSkills", () => {
     const skills = [t("A", true), t("B", false), t("C", false), t("D", true), t("E", false)]
     const r = readinessFromTargetSkills(skills, [])
     expect(r.haveList.length + r.missing.length).toBe(skills.length)
+  })
+})
+
+describe("forecastReadyDate", () => {
+  const now = new Date("2026-07-25T12:00:00Z")
+
+  it("forecasts from open skills and pace (10h per skill)", () => {
+    const f = forecastReadyDate(3, 5, now) // 30h / 5h = 6 weeks
+    expect(f.weeks).toBe(6)
+    expect(f.readyByLabel).toBe("September 2026")
+  })
+
+  it("defaults to 3 hrs/week when pace is unset", () => {
+    expect(forecastReadyDate(3, null, now).weeks).toBe(10)
+  })
+
+  it("returns no date when the path is complete — nothing to be behind on", () => {
+    expect(forecastReadyDate(0, 5, now)).toEqual({ readyByLabel: null, weeks: 0 })
+  })
+
+  it("never forecasts less than one week", () => {
+    expect(forecastReadyDate(1, 40, now).weeks).toBe(1)
+  })
+})
+
+describe("daysSinceLastStitch", () => {
+  const now = new Date("2026-07-25T12:00:00Z")
+
+  it("uses the most recent touchedAt", () => {
+    const items = [{ touchedAt: "2026-07-10T12:00:00Z" }, { touchedAt: "2026-07-22T12:00:00Z" }, {}]
+    expect(daysSinceLastStitch(items, now)).toBe(3)
+  })
+
+  it("returns null when nothing has ever been touched", () => {
+    expect(daysSinceLastStitch([{}, {}], now)).toBeNull()
   })
 })

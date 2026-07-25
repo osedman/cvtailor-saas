@@ -116,6 +116,20 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { targetRole, hoursPerWeek, skills, intention } = body
 
+    // Set the weekly learning pace — drives the forecast, never a deadline.
+    if (body?.mode === 'set-pace') {
+      const hours = Number(body.hoursPerWeek)
+      if (!Number.isFinite(hours) || hours < 1 || hours > 40) {
+        return NextResponse.json({ error: 'Pace must be between 1 and 40 hours a week.' }, { status: 400 })
+      }
+      const { data: saved, error } = await supabase
+        .from('career_roadmaps')
+        .upsert({ user_id: user.id, hours_per_week: Math.round(hours), updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+        .select(ROADMAP_COLS).single()
+      if (error) throw error
+      return NextResponse.json({ roadmap: saved })
+    }
+
     // Set/update the stated intention (goal) on its own.
     if (body?.mode === 'set-intention') {
       const value = String(body.intention ?? '').slice(0, 400)
@@ -554,7 +568,7 @@ export async function PATCH(req: NextRequest) {
     if (!row) return NextResponse.json({ error: 'No roadmap found' }, { status: 404 })
 
     const items = (row.items as CareerRoadmapItem[]).map((item) =>
-      item.skill === skill ? { ...item, status } : item
+      item.skill === skill ? { ...item, status, touchedAt: new Date().toISOString() } : item
     )
 
     const { data: saved, error } = await supabase

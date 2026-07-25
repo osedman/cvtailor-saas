@@ -205,3 +205,42 @@ export function readinessFromTargetSkills(
     haveList,
   }
 }
+
+/**
+ * Pace forecast — the date is an OUTPUT, not an input. No deadlines exist:
+ * the forecast simply shifts with pace, like a delivery estimate, so there is
+ * never an "overdue" state to feel ashamed of.
+ */
+export const EST_HOURS_PER_SKILL = 10
+
+export interface PaceForecast {
+  /** e.g. "October 2026" — null when nothing is open (path complete) */
+  readyByLabel: string | null
+  weeks: number
+}
+
+export function forecastReadyDate(
+  openSkillCount: number,
+  hoursPerWeek: number | null,
+  now: Date = new Date(),
+): PaceForecast {
+  if (openSkillCount <= 0) return { readyByLabel: null, weeks: 0 }
+  const pace = hoursPerWeek && hoursPerWeek > 0 ? hoursPerWeek : 3
+  const weeks = Math.max(1, Math.ceil((openSkillCount * EST_HOURS_PER_SKILL) / pace))
+  const ready = new Date(now)
+  ready.setDate(ready.getDate() + weeks * 7)
+  const readyByLabel = ready.toLocaleDateString("en-GB", { month: "long", year: "numeric" })
+  return { readyByLabel, weeks }
+}
+
+/** Days since the most recent item activity (touchedAt), or null if never. */
+export function daysSinceLastStitch(
+  items: Array<{ touchedAt?: string }>,
+  now: Date = new Date(),
+): number | null {
+  const times = items
+    .map((i) => (i.touchedAt ? Date.parse(i.touchedAt) : NaN))
+    .filter((t) => !Number.isNaN(t))
+  if (times.length === 0) return null
+  return Math.max(0, Math.floor((now.getTime() - Math.max(...times)) / 86_400_000))
+}

@@ -351,6 +351,8 @@ export interface CareerRoadmapItem {
   projectBrief: string
   cvPhrasing: string
   status: CareerItemStatus
+  /** ISO timestamp of the last status change — powers "last stitch" momentum. */
+  touchedAt?: string
 }
 
 export interface CareerRoadmapResult {
