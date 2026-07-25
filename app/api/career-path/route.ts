@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { anthropic, CAREER_ROADMAP_TOOL, type CareerRoadmapItem, type RequirementMapping } from '@/lib/anthropic'
 import {
-  deriveTargetRole, rankGapsByUnlock, computeReadiness, skillMatches,
-  type HistoryEntry, type TrackerJob,
+  anthropic, CAREER_ROADMAP_TOOL, CV_FINDINGS_TOOL, SUGGEST_TARGETS_TOOL, ROLE_SKILLS_TOOL,
+  buildRoadmapPrompt, type CareerRoadmapItem, type RequirementMapping, type RoleSkillJudged,
+} from '@/lib/anthropic'
+import {
+  deriveTargetRole, rankGapsByUnlock, computeReadiness, readinessFromTargetSkills, skillMatches,
+  type HistoryEntry, type TrackerJob, type TargetSkill,
 } from '@/lib/career-path-compute'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
+import { errMessage } from '@/lib/err'
 
 export const maxDuration = 300
 
-const PROMPT_PREFIX = `You are helping a job seeker close specific skill gaps that keep showing up across their job applications. For EACH skill listed below, search the web and find 2-3 REAL, FREE, reputable learning resources (prefer freeCodeCamp, MIT OpenCourseWare, Khan Academy, official framework/language documentation, Coursera or edX audit-mode courses, or well-known official YouTube channels). Only include resources you actually find via search — never invent a URL or a course that may not exist. For each skill also suggest one concrete, scoped project the candidate could build in their spare time to demonstrate it, and a single CV bullet point they could add once they have completed it.`
+const ROADMAP_COLS = 'id, created_at, updated_at, target_role, hours_per_week, current_title, milestones, intention, items, target_skills, findings'
 
-const ROADMAP_COLS = 'id, created_at, updated_at, target_role, hours_per_week, current_title, milestones, intention, items'
+/** The user's market, grounding region-aware course sourcing. Defaults to GB. */
+async function loadRegion(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): Promise<string> {
+  try {
+    const { data } = await supabase.from('profiles').select('country').eq('id', userId).maybeSingle()
+    return (data?.country as string | undefined)?.trim() || 'GB'
+  } catch { return 'GB' }
+}
 
 const MIN_CV = 300
 
@@ -41,14 +51,6 @@ function calibration(cv: string, intention: string): string {
 
 /** Surface real messages from Supabase/Postgrest errors, which are plain
  * objects (not Error instances) — otherwise String(err) yields "[object Object]". */
-function errMessage(err: unknown): string {
-  if (err instanceof Error) return err.message
-  if (err && typeof err === 'object') {
-    const e = err as { message?: string; error?: string; details?: string; hint?: string; code?: string }
-    return e.message || e.error || e.details || e.hint || (e.code ? `Database error ${e.code}` : JSON.stringify(err))
-  }
-  return String(err)
-}
 
 export async function GET() {
   try {
@@ -85,7 +87,12 @@ export async function GET() {
     const openSkills = items.filter((i) => i.status !== 'done').map((i) => i.skill)
     const target = ((roadmap?.target_role as string) || derivedTarget || '').trim()
 
-    const readiness = computeReadiness(target, history, closedSkills)
+    // Readiness against the chosen North Star (its market skill set) when we have
+    // one; otherwise fall back to what tailor history reveals about the target.
+    const targetSkills = (roadmap?.target_skills as TargetSkill[] | undefined) ?? []
+    const readiness = targetSkills.length > 0
+      ? readinessFromTargetSkills(targetSkills, closedSkills)
+      : computeReadiness(target, history, closedSkills)
     const rankedGaps = rankGapsByUnlock(openSkills, tracker, historyById)
 
     const arcAmbition = ((arcRes.data?.sections as { story?: { ambition?: string } } | null)?.story?.ambition ?? '').trim()
@@ -118,6 +125,110 @@ export async function POST(req: NextRequest) {
         .select(ROADMAP_COLS).single()
       if (error) throw error
       return NextResponse.json({ roadmap: saved })
+    }
+
+    // ── Stage 1 of the North Star journey: scan the CV → career-coach findings.
+    // Strengths first, then gaps, in Tailr's evidence voice. No web. Cached on
+    // the roadmap row so the scan screen is instant on return.
+    if (body?.mode === 'scan-cv') {
+      const cv = await loadCandidateCv(supabase, user.id)
+      if (!cv) return NextResponse.json({ error: "We couldn't find a CV to scan yet — tailor a CV first, or paste one." }, { status: 400 })
+
+      const msg = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 900,
+        tools: [CV_FINDINGS_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_cv_findings' },
+        messages: [{ role: 'user', content: `Read this candidate's CV as a career coach. Name their standout strengths FIRST (evidence-backed), then their honest development gaps. Use ONLY what the CV supports — never invent experience.\n\n${cv}` }],
+      })
+      const tu = msg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_cv_findings')
+      if (!tu || tu.type !== 'tool_use') throw new Error('Could not read your CV. Please try again.')
+      const findings = sanitizeDeep(tu.input as Record<string, unknown>)
+
+      // Best-effort cache; never block returning the findings.
+      try {
+        await supabase.from('career_roadmaps').upsert(
+          { user_id: user.id, findings, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id' },
+        )
+      } catch { /* caching is a nice-to-have */ }
+
+      return NextResponse.json({ findings })
+    }
+
+    // ── Stage 2: suggest North Stars from the CV + stated ambition. No web.
+    if (body?.mode === 'suggest-targets') {
+      const cv = await loadCandidateCv(supabase, user.id)
+      const { data: prof } = await supabase.from('career_profiles').select('sections').eq('user_id', user.id).maybeSingle()
+      const ambition = ((prof?.sections as { story?: { ambition?: string } } | null)?.story?.ambition ?? '').trim()
+      const steer = String(body.intention ?? '').trim() || ambition
+
+      const msg = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 700,
+        tools: [SUGGEST_TARGETS_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_target_suggestions' },
+        messages: [{ role: 'user', content: `Suggest 3-4 realistic 1-2 year target roles ("North Stars") for this candidate, grounded in their CV${steer ? ` and their stated goal: "${steer.slice(0, 300)}"` : ''}. Best-fit first, with one sentence each on why it fits them.${cv ? `\n\nCV:\n${cv}` : '\n\n(No CV available — suggest broadly sensible starting roles and say they can search their own.)'}` }],
+      })
+      const tu = msg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_target_suggestions')
+      if (!tu || tu.type !== 'tool_use') throw new Error('Could not suggest roles. Please try again.')
+      const targets = ((tu.input as { targets?: unknown[] }).targets ?? [])
+      return NextResponse.json({ targets })
+    }
+
+    // ── Stage 3: lock in a North Star → pull the role's UK-market skill set,
+    // judge each against the CV (the transparent "60"), then generate a plan for
+    // the gaps. This drives the readiness % against the CHOSEN target.
+    if (body?.mode === 'set-target') {
+      const role = String(body.role ?? '').trim().slice(0, 120)
+      if (!role) return NextResponse.json({ error: 'Which role are you aiming at?' }, { status: 400 })
+
+      const [cv, region] = await Promise.all([loadCandidateCv(supabase, user.id), loadRegion(supabase, user.id)])
+      const { data: existing } = await supabase
+        .from('career_roadmaps').select('intention, hours_per_week').eq('user_id', user.id).maybeSingle()
+      const intention = (existing?.intention as string) || ''
+      const regionName = region.toUpperCase() === 'GB' ? 'the UK' : 'their country'
+
+      // 1) The role's market-demanded skills, judged have/missing against the CV.
+      const skillsMsg = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1500,
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 } as never, ROLE_SKILLS_TOOL],
+        messages: [{ role: 'user', content: `Research what the "${role}" role demands in ${regionName} job market today (search real, current job postings). Then list the 8-14 skills/requirements that role asks for — core ones first — and for EACH, judge whether this candidate's CV already gives clear evidence of it (have=true) or not. Include skills they HAVE and skills they LACK, so they see the full picture.${cv ? `\n\nCandidate CV:\n${cv}` : '\n\n(No CV provided — mark have=false unless clearly implied.)'}` }],
+      })
+      const stu = skillsMsg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_role_skills')
+      if (!stu || stu.type !== 'tool_use') throw new Error('Could not research that role. Please try again.')
+      const roleSkills = (((stu.input as { skills?: RoleSkillJudged[] }).skills ?? []) as RoleSkillJudged[])
+        .filter((s) => s && typeof s.skill === 'string' && s.skill.trim())
+        .map((s) => ({ skill: s.skill.trim().slice(0, 80), have: !!s.have, importance: s.importance || 'common' }))
+      if (roleSkills.length === 0) throw new Error('That role came back empty. Please try again.')
+
+      // 2) A learning plan for the gaps (the skills they lack), UK-sourced.
+      const gaps = roleSkills.filter((s) => !s.have).map((s) => s.skill).slice(0, 5)
+      let items: CareerRoadmapItem[] = []
+      if (gaps.length > 0) {
+        const planMsg = await anthropic.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 3000,
+          tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 } as never, CAREER_ROADMAP_TOOL],
+          messages: [{ role: 'user', content: buildRoadmapPrompt({ skills: gaps, targetRole: role, hoursPerWeek: (existing?.hours_per_week as number) ?? null, region, calibration: calibration(cv, intention) }) }],
+        })
+        const ptu = planMsg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_roadmap')
+        if (ptu && ptu.type === 'tool_use') {
+          items = ((ptu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const }))
+        }
+      }
+
+      const clean = sanitizeDeep({ target_role: role, target_skills: roleSkills, items })
+      const { data: saved, error } = await supabase
+        .from('career_roadmaps')
+        .upsert({ user_id: user.id, ...clean, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+        .select(ROADMAP_COLS).single()
+      if (error) throw error
+
+      const closed = (saved.items as CareerRoadmapItem[]).filter((i) => i.status === 'done').map((i) => i.skill)
+      const readiness = readinessFromTargetSkills(roleSkills as TargetSkill[], closed)
+      return NextResponse.json({ roadmap: saved, readiness })
     }
 
     // Remove a skill from the path and remember it so it's never re-added.
@@ -267,12 +378,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ added: 0, message: 'Your path already covers what this job needs.' })
       }
 
-      const genPrompt = `${PROMPT_PREFIX}
-
-Target role: ${existing?.target_role || 'unspecified'}
-
-Skills to address, most important first:
-${toAdd.map((s, i) => `${i + 1}. ${s}`).join('\n')}${calibration(jdCv, (existing?.intention as string) || '')}`
+      const jdRegion = await loadRegion(supabase, user.id)
+      const genPrompt = buildRoadmapPrompt({
+        skills: toAdd,
+        targetRole: (existing?.target_role as string) || undefined,
+        region: jdRegion,
+        calibration: calibration(jdCv, (existing?.intention as string) || ''),
+      })
       const genMsg = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 2500,
@@ -319,12 +431,13 @@ ${toAdd.map((s, i) => `${i + 1}. ${s}`).join('\n')}${calibration(jdCv, (existing
       }
 
       const addCv = await loadCandidateCv(supabase, user.id)
-      const addPrompt = `${PROMPT_PREFIX}
-
-Target role: ${existing?.target_role || 'unspecified'}
-
-Skills to address, most important first:
-1. ${skill}${calibration(addCv, (existing?.intention as string) || '')}`
+      const addRegion = await loadRegion(supabase, user.id)
+      const addPrompt = buildRoadmapPrompt({
+        skills: [skill],
+        targetRole: (existing?.target_role as string) || undefined,
+        region: addRegion,
+        calibration: calibration(addCv, (existing?.intention as string) || ''),
+      })
 
       const message = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
@@ -370,13 +483,14 @@ Skills to address, most important first:
     const trimmedSkills = skills.slice(0, 5).map((s: unknown) => String(s).slice(0, 80))
 
     const genCv = await loadCandidateCv(supabase, user.id)
-    const userPrompt = `${PROMPT_PREFIX}
-
-Target role: ${targetRole || 'unspecified'}
-Time available: ${hoursPerWeek ? `${hoursPerWeek} hours/week` : 'unspecified'}
-
-Skills to address, most important first:
-${trimmedSkills.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')}${calibration(genCv, String(intention ?? ''))}`
+    const genRegion = await loadRegion(supabase, user.id)
+    const userPrompt = buildRoadmapPrompt({
+      skills: trimmedSkills,
+      targetRole: targetRole || undefined,
+      hoursPerWeek: hoursPerWeek || null,
+      region: genRegion,
+      calibration: calibration(genCv, String(intention ?? '')),
+    })
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',

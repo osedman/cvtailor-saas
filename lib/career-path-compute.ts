@@ -37,6 +37,17 @@ export interface Readiness {
   total: number
   /** target requirements still not evidenced, most-common first */
   missing: string[]
+  /** target requirements already evidenced, most-common first — the "have" side
+   * of the map, so the UI can show the full picture (fixes "55 of 60 — where are
+   * the other items?"). */
+  haveList: string[]
+}
+
+/** One skill the target role's market demands, and whether the candidate's CV
+ * evidences it. The full set is the "60" a user wants to see and click. */
+export interface TargetSkill {
+  skill: string
+  have: boolean
 }
 
 const WEAK = new Set(["partial", "none"])
@@ -145,21 +156,52 @@ export function computeReadiness(
   }
 
   const total = reqs.size
-  if (total === 0) return { pct: 0, have: 0, total: 0, missing: [] }
+  if (total === 0) return { pct: 0, have: 0, total: 0, missing: [], haveList: [] }
 
-  let have = 0
+  const haveItems: Array<{ label: string; count: number }> = []
   const missing: Array<{ label: string; count: number }> = []
   for (const [kw, v] of reqs) {
     const evidenced = STRONG.has(v.best) || closedSkills.some((s) => skillMatches(s, kw))
-    if (evidenced) have += 1
+    if (evidenced) haveItems.push({ label: v.label, count: v.count })
     else missing.push({ label: v.label, count: v.count })
   }
 
+  haveItems.sort((a, b) => b.count - a.count)
   missing.sort((a, b) => b.count - a.count)
   return {
-    pct: Math.round((have / total) * 100),
-    have,
+    pct: Math.round((haveItems.length / total) * 100),
+    have: haveItems.length,
     total,
     missing: missing.map((m) => m.label),
+    haveList: haveItems.map((m) => m.label),
+  }
+}
+
+/**
+ * Readiness against a chosen North Star, driven by the role's demanded skill
+ * set (from AI market research) rather than tailor history. A skill counts as
+ * evidenced if the CV already had it (`have`) OR the user has since closed it on
+ * their path. Same shape as computeReadiness so the UI renders identically.
+ */
+export function readinessFromTargetSkills(
+  target: TargetSkill[],
+  closedSkills: string[],
+): Readiness {
+  const total = target.length
+  if (total === 0) return { pct: 0, have: 0, total: 0, missing: [], haveList: [] }
+
+  const haveList: string[] = []
+  const missing: string[] = []
+  for (const t of target) {
+    const evidenced = t.have || closedSkills.some((s) => skillMatches(s, t.skill))
+    if (evidenced) haveList.push(t.skill)
+    else missing.push(t.skill)
+  }
+  return {
+    pct: Math.round((haveList.length / total) * 100),
+    have: haveList.length,
+    total,
+    missing,
+    haveList,
   }
 }

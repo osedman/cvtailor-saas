@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 
@@ -30,6 +31,13 @@ const PRESETS: Record<string, Rule[]> = {
     { key: 'ai:min', limit: 20,  windowSeconds: 60 },
     { key: 'ai:day', limit: 250, windowSeconds: DAY },
   ],
+  // Unauthenticated sign-in email sends (magic link / OTP). Keyed per email
+  // and per IP by the caller — stops the endpoint being used to email-bomb an
+  // address or drain the Resend quota.
+  auth: [
+    { key: 'auth:min', limit: 3,  windowSeconds: 60 },
+    { key: 'auth:day', limit: 15, windowSeconds: DAY },
+  ],
 }
 
 export type RateLimitPreset = keyof typeof PRESETS
@@ -53,6 +61,13 @@ async function consume(userId: string, rule: Rule): Promise<{ allowed: boolean; 
     console.error('[rate-limit] error:', e)
     return { allowed: true, resetSeconds: 0 } // fail-open
   }
+}
+
+/** Deterministic UUID from an arbitrary seed (email, IP…) so anonymous
+ * callers can share the same fixed-window counters. No FK on rate_limits. */
+export function anonRateLimitId(seed: string): string {
+  const h = createHash('sha256').update(seed.trim().toLowerCase()).digest('hex')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`
 }
 
 /**

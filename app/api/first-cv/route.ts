@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { cleanString, isEvidenceCategory, type CvEvidenceItem } from "@/lib/first-cv"
 import { sanitizeDeep } from "@/lib/sanitize"
+import { errMessage } from "@/lib/err"
 
 export const maxDuration = 300
 
@@ -50,7 +51,7 @@ export async function GET() {
     if (cvRes.error) throw cvRes.error
     return NextResponse.json({ evidence: evidenceRes.data ?? [], cv: cvRes.data ?? null })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 })
+    return NextResponse.json({ error: errMessage(error) }, { status: 500 })
   }
 }
 
@@ -135,7 +136,7 @@ ${evidenceText}`
     return NextResponse.json({ error: "Unknown action." }, { status: 400 })
   } catch (error) {
     const status = (error as { status?: number })?.status === 429 ? 429 : 500
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status })
+    return NextResponse.json({ error: errMessage(error) }, { status })
   }
 }
 
@@ -154,6 +155,6 @@ export async function PATCH(req: NextRequest) {
     if (error) throw error
     return NextResponse.json({ evidence: data })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 })
+    return NextResponse.json({ error: errMessage(error) }, { status: 500 })
   }
 }
