@@ -5,6 +5,7 @@ import {
   deriveTargetRole,
   rankGapsByUnlock,
   computeReadiness,
+  readinessFromTargetSkills,
   type HistoryEntry,
   type TrackerJob,
 } from "@/lib/career-path-compute"
@@ -106,6 +107,37 @@ describe("computeReadiness", () => {
   })
 
   it("returns zero when there is no relevant history", () => {
-    expect(computeReadiness("Data Lead", [], [])).toEqual({ pct: 0, have: 0, total: 0, missing: [] })
+    expect(computeReadiness("Data Lead", [], [])).toEqual({ pct: 0, have: 0, total: 0, missing: [], haveList: [] })
+  })
+})
+
+describe("readinessFromTargetSkills", () => {
+  const t = (skill: string, have: boolean) => ({ skill, have })
+
+  it("splits the role's skill set into have and missing", () => {
+    const r = readinessFromTargetSkills([t("SQL", true), t("Python", false), t("Stakeholder management", true)], [])
+    expect(r.total).toBe(3)
+    expect(r.have).toBe(2)
+    expect(r.pct).toBe(67)
+    expect(r.haveList).toEqual(["SQL", "Stakeholder management"])
+    expect(r.missing).toEqual(["Python"])
+  })
+
+  it("counts a path-closed skill as evidenced (fuzzy match)", () => {
+    const r = readinessFromTargetSkills([t("Python", false), t("dbt", false)], ["python"])
+    expect(r.have).toBe(1)
+    expect(r.haveList).toEqual(["Python"])
+    expect(r.missing).toEqual(["dbt"])
+    expect(r.pct).toBe(50)
+  })
+
+  it("returns zero for an empty target set", () => {
+    expect(readinessFromTargetSkills([], ["sql"])).toEqual({ pct: 0, have: 0, total: 0, missing: [], haveList: [] })
+  })
+
+  it("have + missing always cover the full set — nothing hidden", () => {
+    const skills = [t("A", true), t("B", false), t("C", false), t("D", true), t("E", false)]
+    const r = readinessFromTargetSkills(skills, [])
+    expect(r.haveList.length + r.missing.length).toBe(skills.length)
   })
 })

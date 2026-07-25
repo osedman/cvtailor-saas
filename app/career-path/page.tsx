@@ -13,6 +13,10 @@ const ACCENT = "#dc4f33"
 const INK = "#1e1813"
 
 interface Milestone { role: string; reachedAt: string }
+interface TargetSkill { skill: string; have: boolean; importance?: "core" | "common" | "edge" }
+interface CvFinding { label: string; detail: string }
+interface CvFindings { headline: string; strengths: CvFinding[]; gaps: CvFinding[] }
+interface TargetSuggestion { role: string; whyYou: string }
 interface Roadmap {
   id: string
   target_role: string
@@ -21,8 +25,10 @@ interface Roadmap {
   milestones: Milestone[]
   intention: string
   items: CareerRoadmapItem[]
+  target_skills: TargetSkill[] | null
+  findings: CvFindings | null
 }
-interface Readiness { pct: number; have: number; total: number; missing: string[] }
+interface Readiness { pct: number; have: number; total: number; missing: string[]; haveList?: string[] }
 interface RankedGap { skill: string; unlockCount: number; sourceJobs: string[] }
 interface PathData { roadmap: Roadmap | null; derivedTarget: string; readiness: Readiness; rankedGaps: RankedGap[]; arcAmbition: string }
 
@@ -372,6 +378,223 @@ function SeededStart({ seedTarget, seedSkills, seedIntention, onGenerated }: { s
   )
 }
 
+/**
+ * The CV-first North Star journey: scan the CV (strengths first, then honest
+ * gaps), choose a 1-2 year target role, then Tailr researches what that role's
+ * market demands and shows the transparent gap map. Replaces the blank form as
+ * the way in.
+ */
+function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: { cachedFindings: CvFindings | null; seedIntention: string; onBuilt: () => Promise<void>; onCancel?: () => void }) {
+  const [stage, setStage] = useState<"intro" | "scanning" | "findings" | "choosing" | "building">(cachedFindings ? "findings" : "intro")
+  const [findings, setFindings] = useState<CvFindings | null>(cachedFindings)
+  const [suggestions, setSuggestions] = useState<TargetSuggestion[] | null>(null)
+  const [customRole, setCustomRole] = useState("")
+  const [buildingRole, setBuildingRole] = useState("")
+
+  const scan = async () => {
+    setStage("scanning")
+    try {
+      const data = await readJson<{ findings: CvFindings }>(await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "scan-cv" }) }))
+      setFindings(data.findings)
+      setStage("findings")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't read your CV.")
+      setStage("intro")
+    }
+  }
+
+  const toChooser = async () => {
+    setStage("choosing")
+    if (suggestions) return
+    try {
+      const data = await readJson<{ targets: TargetSuggestion[] }>(await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "suggest-targets", intention: seedIntention }) }))
+      setSuggestions(data.targets)
+    } catch {
+      setSuggestions([]) // chooser still works via the free-text field
+    }
+  }
+
+  const build = async (role: string) => {
+    const r = role.trim()
+    if (!r) { toast.error("Type or pick a role first."); return }
+    setBuildingRole(r)
+    setStage("building")
+    try {
+      await readJson(await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "set-target", role: r }) }))
+      await onBuilt()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't build your path.")
+      setStage("choosing")
+    }
+  }
+
+  if (stage === "intro") {
+    return (
+      <div className="max-w-xl mx-auto py-16 px-4 text-center">
+        <div className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-6 shadow-sm" style={{ background: "#fff7f4", color: ACCENT }}>
+          <FileSearch className="w-7 h-7" />
+        </div>
+        <h1 className="text-[27px] font-extrabold tracking-tight text-[#1e1813]">Let&apos;s see where you stand</h1>
+        <p className="mt-3 text-[14.5px] text-gray-500 leading-relaxed max-w-md mx-auto">
+          Tailr reads your CV like a career coach — what makes you strong, where the honest gaps are — then helps you pick a North Star role and shows exactly what&apos;s between you and it.
+        </p>
+        <button onClick={scan} className="mt-8 inline-flex items-center justify-center gap-2 px-8 py-3.5 text-[15px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]" style={{ background: ACCENT }}>
+          <Sparkles className="w-4 h-4" />Scan my CV
+        </button>
+        {onCancel && <p className="mt-4"><button onClick={onCancel} className="text-[13px] text-gray-400 hover:text-gray-600">Keep my current path</button></p>}
+      </div>
+    )
+  }
+
+  if (stage === "scanning") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-28">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+        <p className="text-sm text-gray-400">Reading your CV the way a coach would…</p>
+      </div>
+    )
+  }
+
+  if (stage === "findings" && findings) {
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-4">
+        <p className="text-[12px] font-semibold uppercase tracking-widest" style={{ color: ACCENT }}>Your CV, read honestly</p>
+        <h1 className="mt-2 text-[22px] font-extrabold tracking-tight text-[#1e1813] leading-snug">{findings.headline}</h1>
+
+        <div className="mt-7">
+          <div className="flex items-center gap-2 mb-3">
+            <Check className="w-4 h-4 text-green-600" />
+            <h2 className="text-sm font-semibold text-[#1e1813]">What makes you strong</h2>
+          </div>
+          <div className="space-y-2.5">
+            {findings.strengths.map((s, i) => (
+              <div key={i} className="rounded-xl border border-[#d7ecd9] bg-white p-3.5">
+                <p className="text-[13.5px] font-bold text-[#1e1813]">{s.label}</p>
+                <p className="mt-0.5 text-[12.5px] text-gray-500 leading-relaxed">{s.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Flag className="w-4 h-4" style={{ color: ACCENT }} />
+            <h2 className="text-sm font-semibold text-[#1e1813]">Where to grow next</h2>
+          </div>
+          <div className="space-y-2.5">
+            {findings.gaps.map((g, i) => (
+              <div key={i} className="rounded-xl border border-[#eee6da] bg-white p-3.5">
+                <p className="text-[13.5px] font-bold text-[#1e1813]">{g.label}</p>
+                <p className="mt-0.5 text-[12.5px] text-gray-500 leading-relaxed">{g.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <button onClick={toChooser} className="mt-8 w-full inline-flex items-center justify-center gap-2 py-3.5 text-[15px] font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]" style={{ background: ACCENT }}>
+          Choose my North Star <ArrowRight className="w-4 h-4" />
+        </button>
+        <p className="mt-2.5 text-center text-[12px] text-gray-400">Next: pick the role you&apos;re aiming at in the next 1–2 years.</p>
+      </div>
+    )
+  }
+
+  if (stage === "choosing") {
+    return (
+      <div className="max-w-xl mx-auto py-12 px-4">
+        <p className="text-[12px] font-semibold uppercase tracking-widest" style={{ color: ACCENT }}>Your North Star</p>
+        <h1 className="mt-2 text-[24px] font-extrabold tracking-tight text-[#1e1813]">Where are you heading?</h1>
+        <p className="mt-2 text-[14px] text-gray-500 leading-relaxed">Pick the role you want in the next 1–2 years. Tailr will research what it really demands in the market and show you the honest distance.</p>
+
+        {suggestions === null ? (
+          <div className="mt-8 flex items-center gap-3 text-gray-400"><Loader2 className="w-4 h-4 animate-spin" /><span className="text-[13px]">Finding roles that fit your CV…</span></div>
+        ) : (
+          <div className="mt-6 space-y-2.5">
+            {suggestions.map((t, i) => (
+              <button key={i} onClick={() => build(t.role)}
+                className="w-full text-left rounded-xl border border-[#eee6da] bg-white p-4 transition-all hover:border-[#dc4f33] hover:shadow-[0_4px_18px_rgba(30,24,19,0.06)] group">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[14.5px] font-bold text-[#1e1813]">{t.role}</p>
+                  <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-[#dc4f33] transition-colors flex-shrink-0" />
+                </div>
+                <p className="mt-1 text-[12.5px] text-gray-500 leading-relaxed">{t.whyYou}</p>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-6">
+          <label className="block text-[13px] font-semibold text-[#1e1813] mb-1.5">Or search your own</label>
+          <div className="flex gap-2">
+            <input value={customRole} onChange={(e) => setCustomRole(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") build(customRole) }}
+              placeholder="e.g. Product Manager, Data Engineer…"
+              className="flex-1 px-3.5 py-2.5 text-[14px] border border-gray-200 rounded-lg outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300" />
+            <button onClick={() => build(customRole)} className="px-4 py-2.5 text-[14px] font-semibold text-white rounded-lg" style={{ background: ACCENT }}>Go</button>
+          </div>
+        </div>
+        {onCancel && <p className="mt-5 text-center"><button onClick={onCancel} className="text-[13px] text-gray-400 hover:text-gray-600">Keep my current path</button></p>}
+      </div>
+    )
+  }
+
+  // building
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 py-28 px-4 text-center">
+      <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+      <p className="text-sm font-semibold text-[#1e1813]">Researching what {buildingRole} roles really ask for…</p>
+      <p className="text-[13px] text-gray-400 max-w-sm">Tailr is reading real job postings, comparing them against your CV, and finding free UK resources for every gap. Takes a minute or two.</p>
+    </div>
+  )
+}
+
+/** The transparent gap map: every skill the North Star's market asks for,
+ * split into what the CV already evidences and what's still to close. This is
+ * the "show me the 60" answer — nothing hidden behind a number. */
+function GapMap({ targetSkills, targetRole }: { targetSkills: TargetSkill[]; targetRole: string }) {
+  const [open, setOpen] = useState(false)
+  const have = targetSkills.filter((s) => s.have)
+  const missing = targetSkills.filter((s) => !s.have)
+  return (
+    <div className="mt-5 rounded-2xl bg-white p-5">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between gap-3 text-left">
+        <div>
+          <p className="text-sm font-semibold text-[#1e1813]">What {targetRole} roles ask for</p>
+          <p className="text-[12px] text-gray-400 mt-0.5">You have {have.length} of {targetSkills.length} — every one listed, nothing hidden</p>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mt-4 space-y-4">
+          {have.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600 mb-2">Already evidenced in your CV · {have.length}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {have.map((s, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 text-[12px] font-medium text-green-800 bg-[#eafaf0] border border-[#d7ecd9] rounded-full px-2.5 py-1">
+                    <Check className="w-3 h-3" strokeWidth={2.5} />{s.skill}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {missing.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide mb-2" style={{ color: ACCENT }}>Still to close · {missing.length}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {missing.map((s, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 text-[12px] font-medium text-[#1e1813] bg-[#fff7f4] border border-[#f5d9d0] rounded-full px-2.5 py-1">
+                    {s.skill}{s.importance === "core" && <span className="text-[9px] font-bold uppercase" style={{ color: ACCENT }}>core</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Modal({ icon: Icon, title, subtitle, children, onClose }: { icon: typeof PartyPopper; title: string; subtitle: string; children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(30,24,19,0.5)" }}>
@@ -511,7 +734,7 @@ function IntentionLine({ value, onSave }: { value: string; onSave: (v: string) =
   )
 }
 
-function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<void> }) {
+function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: () => Promise<void>; onChangeTarget: () => void }) {
   const roadmap = data.roadmap!
   const [updating, setUpdating] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
@@ -561,9 +784,14 @@ function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<vo
           <p className="text-[12px] font-semibold uppercase tracking-widest" style={{ color: ACCENT }}>Your career path</p>
           <h1 className="mt-1 text-[24px] font-extrabold tracking-tight text-[#1e1813]">The road ahead</h1>
         </div>
-        <button onClick={() => setConfirmRebuild(true)} className="text-[13px] font-medium text-gray-500 hover:text-[#1e1813] border border-gray-200 hover:border-gray-300 rounded-lg px-3.5 py-2 transition-colors">
-          Rebuild path
-        </button>
+        <div className="flex gap-2">
+          <button onClick={onChangeTarget} className="text-[13px] font-medium text-gray-500 hover:text-[#1e1813] border border-gray-200 hover:border-gray-300 rounded-lg px-3.5 py-2 transition-colors">
+            Change North Star
+          </button>
+          <button onClick={() => setConfirmRebuild(true)} className="text-[13px] font-medium text-gray-500 hover:text-[#1e1813] border border-gray-200 hover:border-gray-300 rounded-lg px-3.5 py-2 transition-colors">
+            Rebuild path
+          </button>
+        </div>
       </div>
 
       <IntentionLine value={roadmap.intention} onSave={async (v) => {
@@ -572,6 +800,10 @@ function LivingPath({ data, reload }: { data: PathData; reload: () => Promise<vo
       }} />
 
       <JourneyLine roadmap={roadmap} readiness={data.readiness} derivedTarget={data.derivedTarget} />
+
+      {(roadmap.target_skills?.length ?? 0) > 0 && (
+        <GapMap targetSkills={roadmap.target_skills!} targetRole={roadmap.target_role || data.derivedTarget || "your target"} />
+      )}
 
       <ActionsBar
         onGotJob={() => setModal("gotjob")}
@@ -634,6 +866,7 @@ function CareerPathContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [data, setData] = useState<PathData | null | undefined>(undefined) // undefined = loading
+  const [changingTarget, setChangingTarget] = useState(false)
 
   useEffect(() => { if (!authLoading && !user) router.push("/tailor") }, [authLoading, user, router])
 
@@ -650,6 +883,8 @@ function CareerPathContent() {
   }
 
   const prefillSkills = (searchParams.get("skills") ?? "").split(",").map((s) => s.trim()).filter(Boolean)
+  const savedFindings = data?.roadmap?.findings ?? null
+  const cachedFindings = savedFindings?.strengths?.length ? savedFindings : null
 
   return (
     <div className="min-h-screen bg-[#f9f6f0]">
@@ -667,14 +902,29 @@ function CareerPathContent() {
           <ArrowRight className="h-5 w-5 shrink-0 text-[#dc4f33]" />
         </Link>
       </div>
-      {data && data.roadmap ? (
-        <LivingPath data={data} reload={load} />
-      ) : (
+      {changingTarget ? (
+        <NorthStarJourney
+          cachedFindings={cachedFindings}
+          seedIntention={data?.roadmap?.intention || data?.arcAmbition || ""}
+          onBuilt={async () => { await load(); setChangingTarget(false) }}
+          onCancel={data?.roadmap ? () => setChangingTarget(false) : undefined}
+        />
+      ) : data && data.roadmap ? (
+        <LivingPath data={data} reload={load} onChangeTarget={() => setChangingTarget(true)} />
+      ) : prefillSkills.length > 0 ? (
+        // Came from a tailor run with specific gaps — keep the seeded quick-start.
         <SeededStart
           seedTarget={data?.derivedTarget ?? ""}
           seedSkills={prefillSkills}
           seedIntention={data?.arcAmbition ?? ""}
           onGenerated={() => load()}
+        />
+      ) : (
+        // Fresh start: the CV-first North Star journey.
+        <NorthStarJourney
+          cachedFindings={null}
+          seedIntention={data?.arcAmbition ?? ""}
+          onBuilt={() => load()}
         />
       )}
     </div>

@@ -381,7 +381,7 @@ export const CAREER_ROADMAP_TOOL: Anthropic.Tool = {
                 },
                 required: ["title", "url", "source"],
               },
-              description: "2-3 REAL, FREE, reputable resources found via web search. Prefer freeCodeCamp, MIT OpenCourseWare, Khan Academy, official framework/language docs, Coursera/edX audit-mode courses, or well-known official YouTube channels. Never invent a URL or resource — only include ones actually found via search.",
+              description: "2-3 REAL, FREE, reputable resources found via web search, favouring providers relevant to the candidate's region (see the prompt). Never invent a URL or resource — only include ones actually found via search.",
             },
             projectBrief: { type: "string", description: "A concrete, scoped project idea (2-3 sentences) the candidate could build to demonstrate this skill" },
             cvPhrasing: { type: "string", description: "A single suggested CV bullet point they could add once they have completed the project, written in the same evidence-based style as the rest of Tailr" },
@@ -392,6 +392,155 @@ export const CAREER_ROADMAP_TOOL: Anthropic.Tool = {
       },
     },
     required: ["items"],
+  },
+}
+
+// ── Region-aware resource sourcing ────────────────────────────────────────
+// The candidate's country grounds which learning providers we prefer, so a UK
+// user isn't steered to US-only courses. Threaded into every roadmap/upskill
+// generation prompt via buildRoadmapPrompt().
+
+/** ISO-3166 alpha-2 region hints → the providers to favour for that market. */
+const REGION_PROVIDERS: Record<string, { name: string; providers: string }> = {
+  GB: {
+    name: "the UK",
+    providers:
+      "UK-relevant free providers first — OpenLearn / The Open University, FutureLearn (audit/free), the National Careers Service (nationalcareers.service.gov.uk), gov.uk apprenticeship & skills resources, BBC Bitesize/Skills, and reputable UK university OCW — alongside globally free staples (freeCodeCamp, official framework/language docs, Khan Academy, well-known official YouTube channels). Prefer courses with UK spelling, UK qualifications (e.g. NVQ/BTEC/degree apprenticeships) and UK availability. Avoid US-only paid platforms.",
+  },
+}
+const DEFAULT_PROVIDERS =
+  "reputable free providers — freeCodeCamp, MIT OpenCourseWare, Khan Academy, official framework/language docs, Coursera/edX audit-mode courses, or well-known official YouTube channels.";
+
+/** Build the shared roadmap/upskill generation prompt, grounded in the
+ * candidate's region so course suggestions suit their market. Single source of
+ * truth for career-path AND upskill so the two never drift. */
+export function buildRoadmapPrompt(opts: {
+  skills: string[]
+  targetRole?: string
+  hoursPerWeek?: number | null
+  region?: string | null      // ISO alpha-2, e.g. "GB"
+  calibration?: string        // CV + intention grounding, prepended by caller
+  intro?: string              // optional override of the first sentence
+}): string {
+  const region = (opts.region || "GB").toUpperCase()
+  const r = REGION_PROVIDERS[region]
+  const where = r ? r.name : "their country"
+  const providers = r ? r.providers : DEFAULT_PROVIDERS
+  const intro =
+    opts.intro ??
+    `You are helping a job seeker in ${where} close specific skill gaps that keep showing up across their job applications.`
+  const time = opts.hoursPerWeek ? `\nTime available: ${opts.hoursPerWeek} hours/week` : ""
+  const target = opts.targetRole ? `\nTarget role: ${opts.targetRole}` : ""
+  return `${intro} For EACH skill listed below, search the web and find 2-3 REAL, FREE, reputable learning resources. ${providers} Only include resources you actually find via search — never invent a URL or a course that may not exist. For each skill also suggest one concrete, scoped project the candidate could build in their spare time to demonstrate it, and a single CV bullet point they could add once they have completed it.${target}${time}
+
+Skills to address, most important first:
+${opts.skills.map((s, i) => `${i + 1}. ${s}`).join("\n")}${opts.calibration ?? ""}`
+}
+
+// ── CV findings (career-coach analysis) ───────────────────────────────────
+// The climactic "scan your CV" moment: name strengths FIRST, then gaps, in the
+// Tailr evidence-based voice. No web search — reads the CV only.
+
+export interface CvFinding { label: string; detail: string }
+export interface CvFindings {
+  headline: string          // one warm, specific sentence, e.g. "You're a strong delivery lead with…"
+  strengths: CvFinding[]     // 3-4, evidence-backed, named first
+  gaps: CvFinding[]          // 3-4, honest but constructive
+}
+
+export const CV_FINDINGS_TOOL: Anthropic.Tool = {
+  name: "submit_cv_findings",
+  description: "Submit a career-coach reading of the candidate's CV: their standout strengths (first) and their development gaps. Use ONLY what the CV supports — never invent experience.",
+  input_schema: {
+    type: "object",
+    properties: {
+      headline: { type: "string", description: "One warm, specific sentence summarising who this candidate is right now, grounded in the CV." },
+      strengths: {
+        type: "array",
+        description: "3-4 genuine strengths, most impressive first. Evidence-backed from the CV.",
+        items: {
+          type: "object",
+          properties: {
+            label: { type: "string", description: "The strength, a few words e.g. 'Stakeholder leadership'" },
+            detail: { type: "string", description: "One sentence of evidence from the CV for it" },
+          },
+          required: ["label", "detail"],
+        },
+      },
+      gaps: {
+        type: "array",
+        description: "3-4 honest development gaps for where this person is heading. Constructive, specific.",
+        items: {
+          type: "object",
+          properties: {
+            label: { type: "string", description: "The gap, a few words e.g. 'Formal data modelling'" },
+            detail: { type: "string", description: "One sentence on why it matters / what's missing" },
+          },
+          required: ["label", "detail"],
+        },
+      },
+    },
+    required: ["headline", "strengths", "gaps"],
+  },
+}
+
+// ── North Star suggestions ────────────────────────────────────────────────
+// From the CV + stated ambition, propose target roles the candidate could aim
+// at. No web search. The user can also type/search their own.
+
+export interface TargetSuggestion { role: string; whyYou: string }
+
+export const SUGGEST_TARGETS_TOOL: Anthropic.Tool = {
+  name: "submit_target_suggestions",
+  description: "Suggest 3-4 realistic 1-2 year target roles ('North Stars') for this candidate based on their CV and stated ambition. Grounded, not aspirational fantasy.",
+  input_schema: {
+    type: "object",
+    properties: {
+      targets: {
+        type: "array",
+        description: "3-4 target roles, best-fit first.",
+        items: {
+          type: "object",
+          properties: {
+            role: { type: "string", description: "A concrete job title, e.g. 'Senior Business Analyst', 'Delivery Manager'" },
+            whyYou: { type: "string", description: "One sentence on why this fits their trajectory and strengths" },
+          },
+          required: ["role", "whyYou"],
+        },
+      },
+    },
+    required: ["targets"],
+  },
+}
+
+// ── Role market skills (the "60") ─────────────────────────────────────────
+// For a chosen North Star, the skills that role's market demands, each judged
+// against the candidate's CV (have/missing). Drives the readiness % and the
+// transparent gap map. Uses web search to ground demand in the real market.
+
+export interface RoleSkillJudged { skill: string; have: boolean; importance: "core" | "common" | "edge" }
+
+export const ROLE_SKILLS_TOOL: Anthropic.Tool = {
+  name: "submit_role_skills",
+  description: "Submit the skills the target role's market demands, each judged against the candidate's CV. Cover the role comprehensively (the full picture the user wants to see), not just gaps.",
+  input_schema: {
+    type: "object",
+    properties: {
+      skills: {
+        type: "array",
+        description: "8-14 skills/requirements this role's market asks for, core ones first. Include ones the candidate already has AND ones they lack.",
+        items: {
+          type: "object",
+          properties: {
+            skill: { type: "string", description: "The skill or requirement, concise" },
+            have: { type: "boolean", description: "true if the candidate's CV already gives clear evidence of it" },
+            importance: { type: "string", enum: ["core", "common", "edge"], description: "how central it is to the role" },
+          },
+          required: ["skill", "have", "importance"],
+        },
+      },
+    },
+    required: ["skills"],
   },
 }
 

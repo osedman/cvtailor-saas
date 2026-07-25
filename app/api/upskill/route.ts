@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { anthropic, CAREER_ROADMAP_TOOL, type CareerRoadmapItem } from '@/lib/anthropic'
+import { anthropic, CAREER_ROADMAP_TOOL, buildRoadmapPrompt, type CareerRoadmapItem } from '@/lib/anthropic'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
 
 export const maxDuration = 300
 
-const PROMPT = `You are helping a candidate close the specific gaps flagged when they tailored their CV to ONE job, so they can raise their match for that exact role. For EACH skill/requirement listed below, search the web and find 2-3 REAL, FREE, reputable learning resources (prefer freeCodeCamp, MIT OpenCourseWare, Khan Academy, official framework/language documentation, Coursera or edX audit-mode courses, or well-known official YouTube channels). Only include resources you actually find via search — never invent a URL or a course that may not exist. For each skill also suggest one concrete, scoped project the candidate could build to demonstrate it, and a single CV bullet point they could add once completed. Keep everything tightly relevant to the target role.`
+/** The user's market, grounding region-aware course sourcing. Defaults to GB. */
+async function loadRegion(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): Promise<string> {
+  try {
+    const { data } = await supabase.from('profiles').select('country').eq('id', userId).maybeSingle()
+    return (data?.country as string | undefined)?.trim() || 'GB'
+  } catch { return 'GB' }
+}
 
 // POST — generate an upskill plan for a tailor run's gaps and store it on the run.
 export async function POST(req: NextRequest) {
@@ -27,12 +33,13 @@ export async function POST(req: NextRequest) {
     }
     const gaps = skills.slice(0, 6).map((s: unknown) => String(s).trim().slice(0, 80)).filter(Boolean)
 
-    const userPrompt = `${PROMPT}
-
-Target role: ${jobTitle ? String(jobTitle).slice(0, 120) : 'unspecified'}
-
-Gaps to close for THIS job, most important first:
-${gaps.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')}`
+    const region = await loadRegion(supabase, user.id)
+    const userPrompt = buildRoadmapPrompt({
+      skills: gaps,
+      targetRole: jobTitle ? String(jobTitle).slice(0, 120) : undefined,
+      region,
+      intro: 'You are helping a candidate close the specific gaps flagged when they tailored their CV to ONE job, so they can raise their match for that exact role. Keep everything tightly relevant to the target role.',
+    })
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
