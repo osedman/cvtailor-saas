@@ -179,10 +179,11 @@
 }
 
 /* ── North Star design system (career-path) ──────────────────────────────
-   Tokens + type classes from the design_handoff_north_star bundle.
-   Namespaced ns- / --ns-* so they can't collide with shadcn variables.
-   Display face: Fraunces (via next/font, exposed as --font-fraunces on the
-   page wrapper). Body: the app's established Geist. Mono: Geist Mono. */
+   Structure follows the design_handoff_north_star bundle; typography and
+   controls are translated into Tailr's own voice: Geist extrabold display
+   with tight tracking, Geist Mono for verbatim CV evidence, coral uppercase
+   eyebrows, rounded-xl controls. Namespaced ns- / --ns-* so nothing collides
+   with shadcn variables. */
 .ns {
   --ns-ink: #1e1813;
   --ns-ink-70: rgba(30, 24, 19, 0.7);
@@ -195,36 +196,32 @@
   --ns-tint-1: #fff7f4;
   --ns-tint-2: #f5d9d0;
   --ns-cream: #f9f6f0;
-  --ns-paper: #fdfcf9;
-  --ns-border: #e8e2d6;
+  --ns-paper: #fffdfa;
+  --ns-border: #eee6da;
   --ns-border-strong: #d9d1bf;
-  --ns-shadow-soft: 0 1px 0 rgba(30,24,19,0.03), 0 12px 40px -20px rgba(30,24,19,0.12);
   color: var(--ns-ink);
   background: var(--ns-cream);
 }
+/* Display voice = the app's own: extrabold, tight, confident. */
 .ns .t-display {
-  font-family: var(--font-fraunces), Georgia, serif;
-  font-weight: 400;
-  line-height: 1.02;
-  letter-spacing: -0.02em;
-  font-variation-settings: "opsz" 96;
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
 }
 .ns .t-title {
-  font-family: var(--font-fraunces), Georgia, serif;
-  font-weight: 400;
-  line-height: 1.08;
-  letter-spacing: -0.015em;
-  font-variation-settings: "opsz" 48;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
+/* Verbatim CV evidence — machine-quoted, so it speaks in mono like the CV
+   paste box does. This replaces the handoff's serif italic. */
 .ns .t-quote {
-  font-family: var(--font-fraunces), Georgia, serif;
-  font-style: italic;
-  font-size: 15px;
-  line-height: 1.5;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
   color: var(--ns-ink-70);
-  font-variation-settings: "opsz" 20;
 }
-.ns .t-lede { font-size: 15px; line-height: 1.5; color: var(--ns-ink-70); }
+.ns .t-lede { font-size: 15px; line-height: 1.55; color: var(--ns-ink-70); }
 .ns .t-body { font-size: 14px; line-height: 1.55; }
 .ns .t-small { font-size: 12.5px; line-height: 1.5; color: var(--ns-ink-55); }
 .ns .t-mono {
@@ -233,18 +230,21 @@
   letter-spacing: 0.02em;
   color: var(--ns-ink-55);
 }
+/* Eyebrows are coral — the app's own section-label pattern. */
 .ns .t-eyebrow {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ns-ink-55);
+  color: var(--ns-coral);
 }
+.ns .t-eyebrow-quiet { color: var(--ns-ink-55); font-weight: 600; }
 .ns .ns-chip {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: 13px; font-weight: 500;
   padding: 8px 14px; border-radius: 999px;
   line-height: 1; white-space: nowrap;
+  transition: transform 120ms ease, box-shadow 120ms ease;
 }
 .ns .ns-chip-have {
   background: var(--ns-tint-1);
@@ -256,17 +256,48 @@
   color: var(--ns-ink);
   border: 1px dashed var(--ns-ink-40);
 }
+/* Controls match the app: rounded-xl, semibold. */
 .ns .ns-btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  border-radius: 999px; padding: 12px 22px;
-  font-size: 14px; font-weight: 500; line-height: 1;
-  cursor: pointer; transition: all 120ms ease;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border-radius: 12px; padding: 12px 20px;
+  font-size: 14px; font-weight: 600; line-height: 1;
+  cursor: pointer; transition: all 140ms ease;
   border: 1px solid transparent;
 }
 .ns .ns-btn:disabled { opacity: 0.6; cursor: default; }
-.ns .ns-btn-primary { background: var(--ns-coral); color: var(--ns-paper); }
-.ns .ns-btn-primary:hover { background: var(--ns-coral-deep); }
-.ns .ns-btn-secondary { background: transparent; color: var(--ns-ink); border-color: var(--ns-ink-15); }
-.ns .ns-btn-secondary:hover { border-color: var(--ns-ink); }
-.ns .ns-btn-ghost { background: transparent; color: var(--ns-ink-70); padding: 12px 12px; }
+.ns .ns-btn:active { transform: scale(0.98); }
+.ns .ns-btn-primary { background: var(--ns-coral); color: #fff; box-shadow: 0 1px 2px rgba(30,24,19,0.08); }
+.ns .ns-btn-primary:hover { background: var(--ns-coral-deep); box-shadow: 0 4px 14px rgba(220,79,51,0.25); }
+.ns .ns-btn-secondary { background: #fff; color: var(--ns-ink); border-color: var(--ns-border); }
+.ns .ns-btn-secondary:hover { border-color: var(--ns-ink-40); box-shadow: 0 2px 10px rgba(30,24,19,0.06); }
+.ns .ns-btn-ghost { background: transparent; color: var(--ns-ink-70); padding: 12px 10px; }
 .ns .ns-btn-ghost:hover { color: var(--ns-ink); }
+/* Role cards lift gently on hover. */
+.ns .ns-card {
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.ns .ns-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(30,24,19,0.08);
+  border-color: var(--ns-coral) !important;
+}
+/* The stitched thread draws itself in. */
+.ns .ns-stitch {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: ns-stitch-draw 1.1s ease-out forwards;
+}
+@keyframes ns-stitch-draw { to { stroke-dashoffset: 0; } }
+/* Agenda rows and findings fade up on load, staggered via --ns-i. */
+.ns .ns-rise {
+  opacity: 0;
+  transform: translateY(6px);
+  animation: ns-rise 0.45s ease-out forwards;
+  animation-delay: calc(var(--ns-i, 0) * 70ms);
+}
+@keyframes ns-rise { to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .ns .ns-stitch { animation: none; stroke-dashoffset: 0; }
+  .ns .ns-rise { animation: none; opacity: 1; transform: none; }
+  .ns .ns-card, .ns .ns-btn, .ns .ns-chip { transition: none; }
+}

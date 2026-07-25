@@ -488,7 +488,7 @@ export const CV_FINDINGS_TOOL: Anthropic.Tool = {
 // From the CV + stated ambition, propose target roles the candidate could aim
 // at. No web search. The user can also type/search their own.
 
-export interface TargetSuggestion { role: string; whyYou: string }
+export interface TargetSuggestion { role: string; whyYou: string; fit: number }
 
 export const SUGGEST_TARGETS_TOOL: Anthropic.Tool = {
   name: "submit_target_suggestions",
@@ -504,8 +504,9 @@ export const SUGGEST_TARGETS_TOOL: Anthropic.Tool = {
           properties: {
             role: { type: "string", description: "A concrete job title, e.g. 'Senior Business Analyst', 'Delivery Manager'" },
             whyYou: { type: "string", description: "One sentence on why this fits their trajectory and strengths" },
+            fit: { type: "integer", description: "Honest CV-fit estimate 40-95: how much of this role's typical requirements their CV already evidences. Differentiate between suggestions; never all the same number." },
           },
-          required: ["role", "whyYou"],
+          required: ["role", "whyYou", "fit"],
         },
       },
     },

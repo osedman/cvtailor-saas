@@ -16,7 +16,7 @@ interface Milestone { role: string; reachedAt: string }
 interface TargetSkill { skill: string; have: boolean; importance?: "core" | "common" | "edge" }
 interface CvFinding { label: string; detail: string }
 interface CvFindings { headline: string; strengths: CvFinding[]; gaps: CvFinding[] }
-interface TargetSuggestion { role: string; whyYou: string }
+interface TargetSuggestion { role: string; whyYou: string; fit?: number }
 interface Roadmap {
   id: string
   target_role: string
@@ -80,7 +80,7 @@ function ThreadMeter({ pct }: { pct: number }) {
   return (
     <svg width="100%" viewBox={`0 0 ${W} 22`} style={{ display: "block", overflow: "visible" }}>
       <line x1="0" y1="12" x2={W} y2="12" stroke="var(--ns-ink-15)" strokeWidth="1" strokeDasharray="1 4" />
-      {d && <path d={d} stroke="var(--ns-coral)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />}
+      {d && <path d={d} className="ns-stitch" stroke="var(--ns-coral)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />}
       <circle cx={filled} cy="12" r="3.5" fill="var(--ns-coral)" />
       <circle cx={filled} cy="12" r="6" fill="none" stroke="var(--ns-coral)" strokeOpacity="0.25" strokeWidth="1" />
     </svg>
@@ -230,7 +230,7 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
         <main className="max-w-[1120px] mx-auto px-6 sm:px-12 py-16 pb-24">
           <div style={{ maxWidth: 720 }}>
             <div className="t-eyebrow" style={{ marginBottom: 14 }}>Step 1 · CV scan</div>
-            <h1 className="t-display text-[40px] sm:text-[56px]" style={{ margin: "0 0 18px" }}>
+            <h1 className="t-display text-[32px] sm:text-[44px]" style={{ margin: "0 0 18px" }}>
               Let&apos;s see where you stand.
             </h1>
             <p className="t-lede" style={{ maxWidth: 620 }}>
@@ -268,7 +268,7 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
         <main className="max-w-[1120px] mx-auto px-6 sm:px-12 py-10 pb-24">
           <div style={{ marginBottom: 40, maxWidth: 720 }}>
             <div className="t-eyebrow" style={{ marginBottom: 14 }}>Step 1 · CV scan</div>
-            <h1 className="t-display text-[40px] sm:text-[56px]" style={{ margin: "0 0 18px" }}>What your CV actually shows.</h1>
+            <h1 className="t-display text-[32px] sm:text-[44px]" style={{ margin: "0 0 18px" }}>What your CV actually shows.</h1>
             <p className="t-lede" style={{ maxWidth: 620 }}>{findings.headline}</p>
           </div>
 
@@ -280,7 +280,7 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
               </div>
               <div className="flex flex-col" style={{ gap: 22 }}>
                 {findings.strengths.map((f, i) => (
-                  <div key={i}>
+                  <div key={i} className="ns-rise" style={{ "--ns-i": i } as React.CSSProperties}>
                     <div className="flex items-start" style={{ gap: 12, marginBottom: 10 }}>
                       <span style={{ marginTop: 8, width: 6, height: 6, borderRadius: "50%", background: "var(--ns-coral)", flexShrink: 0 }} />
                       <h3 style={{ fontSize: 15.5, fontWeight: 500, margin: 0, lineHeight: 1.35 }}>{f.label}</h3>
@@ -300,7 +300,7 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
               </div>
               <div className="flex flex-col" style={{ gap: 22 }}>
                 {findings.gaps.map((g, i) => (
-                  <div key={i}>
+                  <div key={i} className="ns-rise" style={{ "--ns-i": i + 1 } as React.CSSProperties}>
                     <div className="flex items-start" style={{ gap: 12, marginBottom: 10 }}>
                       <span style={{ marginTop: 8, width: 6, height: 6, borderRadius: "50%", background: "transparent", border: "1px solid var(--ns-ink-40)", flexShrink: 0 }} />
                       <h3 style={{ fontSize: 15.5, fontWeight: 500, margin: 0, lineHeight: 1.35 }}>{g.label}</h3>
@@ -333,7 +333,7 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
         <main className="max-w-[1120px] mx-auto px-6 sm:px-12 py-10 pb-24">
           <div style={{ marginBottom: 40, maxWidth: 720 }}>
             <div className="t-eyebrow" style={{ marginBottom: 14 }}>Step 2 · Choose your North Star</div>
-            <h1 className="t-display text-[40px] sm:text-[56px]" style={{ margin: "0 0 18px" }}>Where you could realistically be in 1&ndash;2 years.</h1>
+            <h1 className="t-display text-[32px] sm:text-[44px]" style={{ margin: "0 0 18px" }}>Where you could realistically be in 1&ndash;2 years.</h1>
             <p className="t-lede" style={{ maxWidth: 620 }}>Targets grounded in what your CV already shows, best fit first. Not sure? You can search for your own role instead.</p>
           </div>
 
@@ -344,16 +344,26 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
           ) : (
             <div className="flex flex-col" style={{ gap: 14, marginBottom: 24 }}>
               {suggestions.map((t, i) => (
-                <button key={i} onClick={() => build(t.role)} className="text-left group transition-all"
-                  style={{ padding: "22px 26px", background: "var(--ns-paper)", border: i === 0 ? "1.5px solid var(--ns-coral)" : "1px solid var(--ns-border)", borderRadius: 12 }}>
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <span className="t-title" style={{ fontSize: 22 }}>{t.role}</span>
-                      {i === 0 && <span className="t-mono" style={{ fontSize: 10, color: "var(--ns-coral-deep)", padding: "3px 8px", background: "var(--ns-tint-1)", border: "1px solid var(--ns-tint-2)", borderRadius: 4, letterSpacing: "0.08em" }}>BEST FIT</span>}
+                <button key={i} onClick={() => build(t.role)} className="ns-card ns-rise text-left"
+                  style={{ "--ns-i": i, padding: "22px 26px", background: "var(--ns-paper)", border: i === 0 ? "1.5px solid var(--ns-coral)" : "1px solid var(--ns-border)", borderRadius: 14 } as React.CSSProperties}>
+                  <div className="flex items-start justify-between gap-6">
+                    <div style={{ flex: 1 }}>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="t-title" style={{ fontSize: 20 }}>{t.role}</span>
+                        {i === 0 && <span className="t-eyebrow" style={{ fontSize: 10, padding: "3px 8px", background: "var(--ns-tint-1)", border: "1px solid var(--ns-tint-2)", borderRadius: 6 }}>Best fit</span>}
+                      </div>
+                      <p className="t-body" style={{ color: "var(--ns-ink-70)", margin: "8px 0 0", maxWidth: 560 }}>{t.whyYou}</p>
                     </div>
-                    <ArrowRight className="w-4 h-4 transition-colors" style={{ color: "var(--ns-ink-40)" }} />
+                    {typeof t.fit === "number" && (
+                      <div style={{ flexShrink: 0, textAlign: "right", minWidth: 84 }}>
+                        <div className="t-mono" style={{ fontSize: 10, letterSpacing: "0.08em", marginBottom: 2 }}>CV FIT</div>
+                        <div className="t-display" style={{ fontSize: 30, color: i === 0 ? "var(--ns-coral)" : "var(--ns-ink)" }}>{t.fit}<span style={{ fontSize: 14 }}>%</span></div>
+                        <div style={{ marginTop: 6, height: 3, background: "var(--ns-ink-08)", borderRadius: 2 }}>
+                          <div style={{ width: `${t.fit}%`, height: "100%", background: "var(--ns-coral)", borderRadius: 2 }} />
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <p className="t-body" style={{ color: "var(--ns-ink-70)", margin: "8px 0 0", maxWidth: 560 }}>{t.whyYou}</p>
                 </button>
               ))}
             </div>
@@ -381,7 +391,7 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
       <Breadcrumb step="C" />
       <main className="max-w-[1120px] mx-auto px-6 sm:px-12 py-10 pb-24">
         <div className="t-eyebrow" style={{ marginBottom: 14 }}>Step 3 · Your North Star</div>
-        <h1 className="t-display text-[36px] sm:text-[48px]" style={{ margin: "0 0 18px", maxWidth: 720 }}>
+        <h1 className="t-display text-[30px] sm:text-[40px]" style={{ margin: "0 0 18px", maxWidth: 720 }}>
           Researching what {buildingRole} roles actually ask for.
         </h1>
         <p className="t-lede" style={{ maxWidth: 560 }}>
@@ -623,7 +633,7 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
         <div className="flex flex-col lg:flex-row lg:items-end justify-between" style={{ gap: 40, marginBottom: 48 }}>
           <div style={{ maxWidth: 640 }}>
             <div className="t-eyebrow" style={{ marginBottom: 14 }}>Your path</div>
-            <h1 className="t-display text-[38px] sm:text-[56px]" style={{ margin: "0 0 14px" }}>
+            <h1 className="t-display text-[32px] sm:text-[44px]" style={{ margin: "0 0 14px" }}>
               Stitching toward {target}.
             </h1>
             <p className="t-lede" style={{ maxWidth: 560, margin: 0 }}>
@@ -665,7 +675,7 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
               const isLast = i === agenda.length - 1
               const gap = gapBySkill.get(row.item.skill.toLowerCase())
               return (
-                <div key={row.item.skill}>
+                <div key={row.item.skill} className="ns-rise" style={{ "--ns-i": i } as React.CSSProperties}>
                   {isFirstOfGroup && <div className="t-eyebrow" style={{ margin: "8px 0 12px", paddingLeft: 48 }}>{row.when}</div>}
                   <div className="grid" style={{ gridTemplateColumns: "48px 1fr", opacity: row.kind === "later" ? 0.75 : 1 }}>
                     {/* Thread column */}

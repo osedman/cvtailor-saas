@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono, Fraunces } from 'next/font/google'
+import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from 'sonner'
 import { AuthProvider } from '@/components/auth/auth-provider'
@@ -8,8 +8,6 @@ import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 const _geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
-// Editorial display face for the North Star career path (design handoff).
-const _fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", style: ["normal", "italic"], axes: ["opsz"] });
 
 export const metadata: Metadata = {
   title: 'Tailr — Tailor Your CV to Any Job',
@@ -31,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="bg-white">
-      <body className={`font-sans antialiased bg-white text-[#1e1813] ${_geist.variable} ${_geistMono.variable} ${_fraunces.variable}`}>
+      <body className={`font-sans antialiased bg-white text-[#1e1813] ${_geist.variable} ${_geistMono.variable}`}>
         <AuthProvider>
           {children}
           <Onboarding />

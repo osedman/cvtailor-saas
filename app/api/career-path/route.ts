@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
         max_tokens: 700,
         tools: [SUGGEST_TARGETS_TOOL],
         tool_choice: { type: 'tool', name: 'submit_target_suggestions' },
-        messages: [{ role: 'user', content: `Suggest 3-4 realistic 1-2 year target roles ("North Stars") for this candidate, grounded in their CV${steer ? ` and their stated goal: "${steer.slice(0, 300)}"` : ''}. Best-fit first, with one sentence each on why it fits them.${cv ? `\n\nCV:\n${cv}` : '\n\n(No CV available — suggest broadly sensible starting roles and say they can search their own.)'}` }],
+        messages: [{ role: 'user', content: `Suggest 3-4 realistic 1-2 year target roles ("North Stars") for this candidate, grounded in their CV${steer ? ` and their stated goal: "${steer.slice(0, 300)}"` : ''}. Best-fit first, with one sentence each on why it fits them and an honest, differentiated CV-fit percentage per role.${cv ? `\n\nCV:\n${cv}` : '\n\n(No CV available — suggest broadly sensible starting roles and say they can search their own.)'}` }],
       })
       const tu = msg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_target_suggestions')
       if (!tu || tu.type !== 'tool_use') throw new Error('Could not suggest roles. Please try again.')
