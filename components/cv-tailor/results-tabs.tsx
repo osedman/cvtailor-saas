@@ -1,50 +1,172 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles, ThumbsUp, ThumbsDown, Building2, FileText, GitCompare, Mail, MessagesSquare, ListChecks, Pencil, GraduationCap, CircleDot, ArrowRight, ExternalLink, RotateCcw, type LucideIcon } from "lucide-react"
+import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles, ThumbsUp, ThumbsDown, Building2, FileText, GitCompare, Mail, MessagesSquare, ListChecks, Pencil, GraduationCap, CircleDot, ArrowRight, ExternalLink, RotateCcw, LayoutTemplate, ChevronDown, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import type { TailorResult, InterviewPrepResult, PitchesResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 import { downloadWordDoc } from "@/lib/word"
+import { getTemplate, px, TEMPLATE_LIST, type CvTemplateId } from "@/lib/cv-templates"
+import { useCvTemplate } from "@/hooks/use-cv-template"
 import { InterviewPrep } from "./interview-prep"
 import { InterviewPitches } from "./interview-pitches"
 
-/** Renders plain-text CV with visual hierarchy: bold section headers, indented bullets */
-function FormattedCV({ text }: { text: string }) {
+/**
+ * Renders a plain-text CV in the chosen template.
+ *
+ * Styling comes from the same token set the Word export uses (lib/cv-templates),
+ * with points converted to px — so this is a true preview of the downloaded
+ * file, not a lookalike. Line classification mirrors lib/word.ts.
+ */
+function FormattedCV({ text, template }: { text: string; template?: CvTemplateId }) {
+  const t = getTemplate(template)
   const lines = (text ?? "").split("\n")
+
+  // Header block ends at the first section heading, as in the Word builder
+  let firstSection = lines.findIndex(
+    (l, i) => i > 0 && /^[A-Z][A-Z\s&/,'()-]+$/.test(l.trim()) && l.trim().length >= 3
+  )
+  if (firstSection === -1) firstSection = 0
+
   return (
-    <div className="font-mono text-sm text-[#1e1813] leading-relaxed space-y-0.5">
+    <div style={{ fontFamily: t.fontStack, color: t.bodyText.color }}>
       {lines.map((line, i) => {
         const trimmed = line.trim()
-        if (!trimmed) return <div key={i} className="h-3" />
+        if (!trimmed) return <div key={i} style={{ height: px(5) }} />
 
-        // ALL-CAPS lines or lines ending with colon → section heading
-        const isHeading = /^[A-Z][A-Z\s&/,]+$/.test(trimmed) || /^[A-Z][A-Z\s&/,]+(:|–)/.test(trimmed)
-        // Bullet lines
+        const isHeading = /^[A-Z][A-Z\s&/,'()-]+$/.test(trimmed) && trimmed.length >= 3
         const isBullet = /^[•\-\*·]/.test(trimmed)
-        // Name line (first non-empty line) — larger
-        const isFirst = lines.slice(0, i).every(l => !l.trim()) && i < 5
+        const isRole = (/\b(19|20)\d{2}\b|Present/i.test(trimmed)) && trimmed.length < 130
+        const isFirst = lines.slice(0, i).every((l) => !l.trim()) && i < 5
 
+        // ── Header block ──
         if (isFirst && !isBullet) {
-          return <p key={i} className="text-base font-bold text-[#1e1813] tracking-tight">{trimmed}</p>
-        }
-        if (isHeading) {
-          return <p key={i} className="text-sm font-bold uppercase tracking-widest text-[#dc4f33] pt-5 pb-1.5 mb-1 border-b-2 border-[#dc4f33]/30">{trimmed}</p>
-        }
-        if (isBullet) {
           return (
-            <p key={i} className="pl-4 text-gray-700">
-              <span className="text-[#dc4f33] mr-2">•</span>
-              {trimmed.replace(/^[•\-\*·]\s*/, "")}
+            <p key={i} style={{
+              fontSize: px(t.name_.sizePt), fontWeight: 700, color: t.name_.color,
+              letterSpacing: px(t.name_.letterSpacingPt), textAlign: t.name_.align,
+              margin: `0 0 ${px(2)} 0`,
+            }}>
+              {t.name_.uppercase ? trimmed.toUpperCase() : trimmed}
             </p>
           )
         }
-        // Role/company line — slightly bolder
-        if (/\d{4}/.test(trimmed) && trimmed.length < 120) {
-          return <p key={i} className="font-medium text-[#1e1813]">{trimmed}</p>
+        if (firstSection > 0 && i < firstSection) {
+          return (
+            <p key={i} style={{
+              fontSize: px(t.contact.sizePt), color: t.contact.color,
+              textAlign: t.contact.align, margin: `0 0 ${px(3)} 0`,
+            }}>{trimmed}</p>
+          )
         }
-        return <p key={i} className="text-gray-700">{line}</p>
+
+        if (isHeading) {
+          return (
+            <p key={i} style={{
+              fontSize: px(t.heading.sizePt), fontWeight: 700, color: t.heading.color,
+              textTransform: t.heading.uppercase ? "uppercase" : "none",
+              letterSpacing: px(t.heading.letterSpacingPt),
+              borderBottom: t.heading.rule ? `1px solid ${t.heading.color}` : undefined,
+              paddingBottom: t.heading.rule ? px(2) : undefined,
+              margin: `${px(t.heading.marginTopPt)} 0 ${px(6)} 0`,
+            }}>{trimmed}</p>
+          )
+        }
+
+        if (isBullet) {
+          return (
+            <p key={i} style={{
+              fontSize: px(t.bodyText.sizePt), color: t.bodyText.color,
+              lineHeight: t.bodyText.lineHeight,
+              margin: `0 0 ${px(3)} ${px(14)}`, textIndent: `-${px(9)}`,
+            }}>
+              <span style={{ color: t.accent }}>{t.bulletChar}</span>
+              {"  "}{trimmed.replace(/^[•\-\*·]\s*/, "")}
+            </p>
+          )
+        }
+
+        if (isRole) {
+          return (
+            <p key={i} style={{
+              fontSize: px(t.role.sizePt), fontWeight: 700, color: t.role.color,
+              margin: `${px(7)} 0 ${px(1)} 0`,
+            }}>{trimmed}</p>
+          )
+        }
+
+        const prev = lines[i - 1]?.trim() ?? ""
+        const prevIsRole = (/\b(19|20)\d{2}\b|Present/i.test(prev)) && prev.length < 130
+        if (trimmed.length < 90 && prevIsRole) {
+          return (
+            <p key={i} style={{
+              fontSize: px(t.company.sizePt), color: t.company.color,
+              fontStyle: t.company.italic ? "italic" : "normal",
+              margin: `0 0 ${px(4)} 0`,
+            }}>{trimmed}</p>
+          )
+        }
+
+        return (
+          <p key={i} style={{
+            fontSize: px(t.bodyText.sizePt), color: t.bodyText.color,
+            lineHeight: t.bodyText.lineHeight, margin: `0 0 ${px(4)} 0`,
+          }}>{trimmed}</p>
+        )
       })}
+    </div>
+  )
+}
+
+/** Template chooser — restyles the preview and the download together */
+function TemplatePicker({
+  value, onChange,
+}: { value: CvTemplateId; onChange: (id: CvTemplateId) => void }) {
+  const [open, setOpen] = useState(false)
+  const active = getTemplate(value)
+
+  return (
+    <div className="mb-4">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1e1813] transition-colors"
+        aria-expanded={open}
+      >
+        <LayoutTemplate className="w-4 h-4" />
+        Template: <span className="font-medium text-[#1e1813]">{active.name}</span>
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {TEMPLATE_LIST.map((tpl) => {
+            const selected = tpl.id === value
+            return (
+              <button
+                key={tpl.id}
+                onClick={() => { onChange(tpl.id); setOpen(false) }}
+                title={tpl.blurb}
+                className={`text-left rounded-xl border p-3 transition-all ${
+                  selected
+                    ? "border-[#dc4f33] bg-[#fff7f4] ring-1 ring-[#dc4f33]/30"
+                    : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className="text-[13px] font-bold text-[#1e1813] truncate"
+                    style={{ fontFamily: tpl.fontStack }}
+                  >
+                    {tpl.name}
+                  </span>
+                  {selected && <Check className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#dc4f33" }} />}
+                </div>
+                <p className="mt-0.5 text-[11px] text-gray-400 leading-snug">{tpl.bestFor}</p>
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -329,6 +451,9 @@ export function ResultsTabs({
   const [editing, setEditing] = useState<"cv" | "letter" | null>(null)
   const [draft, setDraft] = useState("")
   const [savingEdit, setSavingEdit] = useState(false)
+  // Template preference is read here rather than drilled from each page, so the
+  // tailor page and the history view can never disagree about it.
+  const { template, setTemplate } = useCvTemplate()
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 })
   const tabRefs = useRef<Map<TabName, HTMLButtonElement>>(new Map())
 
@@ -358,7 +483,7 @@ export function ResultsTabs({
     URL.revokeObjectURL(url)
   }
 
-  const handleDownloadWord = () => downloadWordDoc(results.tailoredCV)
+  const handleDownloadWord = () => downloadWordDoc(results.tailoredCV, "tailored-cv.doc", template)
 
   const startEdit = (which: "cv" | "letter", text: string) => {
     // The draft survives tab switches, so the other tab's Edit button is still
@@ -547,7 +672,8 @@ export function ResultsTabs({
                 {copied ? <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5" />Copied</span> : "Copy"}
               </button>
             </div>
-            <FormattedCV text={results.tailoredCV} />
+            <TemplatePicker value={template} onChange={setTemplate} />
+            <FormattedCV text={results.tailoredCV} template={template} />
             {results.tailoredCVOriginal && results.tailoredCVOriginal !== results.tailoredCV && (
               <p className="mt-4 inline-flex items-center gap-1.5 text-[11px] text-gray-400">
                 <Pencil className="w-3 h-3" />
@@ -588,7 +714,7 @@ export function ResultsTabs({
                 <h3 className="text-xs font-semibold text-gray-500">Original</h3>
               </div>
               <div className="p-5 max-h-[70vh] overflow-y-auto">
-                <FormattedCV text={originalCV} />
+                <FormattedCV text={originalCV} template={template} />
               </div>
             </div>
             <div className="bg-white rounded-lg border border-[#ffd8cd] shadow-sm overflow-hidden">
@@ -596,7 +722,7 @@ export function ResultsTabs({
                 <h3 className="text-xs font-semibold text-[#dc4f33]">Tailored</h3>
               </div>
               <div className="p-5 max-h-[70vh] overflow-y-auto">
-                <FormattedCV text={results.tailoredCV} />
+                <FormattedCV text={results.tailoredCV} template={template} />
               </div>
             </div>
           </div>

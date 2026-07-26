@@ -8,6 +8,8 @@ import {
   AlertCircle, CheckCircle, Clock, RefreshCw, Kanban, Plus, Download,
 } from "lucide-react"
 import { downloadWordDoc } from "@/lib/word"
+import { useCvTemplate } from "@/hooks/use-cv-template"
+import type { CvTemplateId } from "@/lib/cv-templates"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
@@ -93,12 +95,14 @@ function HistoryCard({
   onSelect,
   onDelete,
   deleting,
+  template,
 }: {
   item: HistoryItem
   selected: boolean
   onSelect: () => void
   onDelete: (e: React.MouseEvent) => void
   deleting: boolean
+  template: CvTemplateId
 }) {
   const atsPass = item.result?.atsNotes?.status === "pass"
   const changesCount = item.result?.keyChanges?.length ?? 0
@@ -176,7 +180,7 @@ function HistoryCard({
         </span>
         <div className="flex items-center gap-1">
           <button
-            onClick={(e) => { e.stopPropagation(); downloadWordDoc(item.result?.tailoredCV ?? "", wordFilename(item)) }}
+            onClick={(e) => { e.stopPropagation(); downloadWordDoc(item.result?.tailoredCV ?? "", wordFilename(item), template) }}
             className="p-1.5 rounded-lg text-gray-300 hover:text-[#dc4f33] hover:bg-[#ffeae4] transition-colors"
             title="Download tailored CV as Word"
           >
@@ -253,6 +257,9 @@ export default function HistoryPage() {
   const [prepQuestions, setPrepQuestions] = useState<InterviewPrepResult["interviewQuestions"] | null>(null)
   const [loadingPrep, setLoadingPrep] = useState(false)
   const [loadingUpskill, setLoadingUpskill] = useState(false)
+  // Same preference the results panel picker writes — so the download buttons
+  // outside the tabs use the template the user actually chose.
+  const { template } = useCvTemplate()
 
   const selectedItem = history.find(h => h.id === selectedId) ?? null
 
@@ -552,6 +559,7 @@ export default function HistoryPage() {
                   onSelect={() => setSelectedId(item.id)}
                   onDelete={(e) => handleDelete(item.id, e)}
                   deleting={deletingId === item.id}
+                  template={template}
                 />
               ))}
             </div>
@@ -600,7 +608,7 @@ export default function HistoryPage() {
                   {/* Actions */}
                   <div className="flex-shrink-0 flex items-center gap-2">
                     <button
-                      onClick={() => downloadWordDoc(selectedItem.result?.tailoredCV ?? "", wordFilename(selectedItem))}
+                      onClick={() => downloadWordDoc(selectedItem.result?.tailoredCV ?? "", wordFilename(selectedItem), template)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1e1813] bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-colors"
                       title="Download tailored CV as Word"
                     >

@@ -191,3 +191,45 @@ with what's stored. Runs with no `historyId` (unsaved) still edit fine —
 session-only.
 
 _Last updated: 26 July 2026_
+
+---
+
+## 🎨 Feature: CV templates — six styles, live preview (26 July 2026)
+
+**Idea:** one house style doesn't fit a law CV and a design CV. Users pick a
+template, see the real thing on screen, and download exactly that.
+
+**Grounded in current guidance, not taste** (Microsoft Create, Indeed, ResuFit,
+resume.io, Jan 2026):
+- **Layout never varies.** Every template is single-column, no tables, no text
+  boxes, no sidebars — multi-column is the single biggest cause of ATS parsing
+  failures. Templates differ in typography and rules ONLY. A unit test enforces
+  this: no `<table>`, no `column-count`, no flex/grid in any output.
+- Only ATS-safe, near-universally installed faces: Calibri, Cambria, Garamond,
+  Georgia, Helvetica/Arial. Every stack ends in a generic family because
+  Helvetica ships on macOS but not Windows and the .doc usually opens on Windows.
+- Body text never below 10pt (also unit-tested).
+
+**The six:** Modern Clean (default, unchanged from before so nobody's existing
+output shifts) · Classic Serif (Cambria, centred, law/government/education) ·
+Executive Garamond (narrower face, fits a long career without shrinking type) ·
+Editorial Georgia (screen-first serif, comms/marketing) · Minimal Sans
+(Helvetica, no colour or rules, design/tech) · ATS Plain (Arial, deliberately
+unstyled, for ruthless filters).
+
+**One token set, two renderers.** `lib/cv-templates.ts` holds points-based tokens
+consumed by BOTH the Word builder and the on-screen preview (px = pt × 4/3), so
+the preview is the download rather than a lookalike — they cannot drift.
+
+**Persistence:** `profiles.cv_template` (migration 015), free text not an enum —
+template ids are a product concern that will churn faster than the schema should.
+Unknown/NULL degrades to the default via `toTemplateId`, so retiring a template
+can never break a user's results view. `useCvTemplate` is local-first:
+localStorage paints instantly (a CV re-skinning itself a beat after render looks
+broken), then the server value corrects it. Signed-out users get a working
+picker that simply doesn't persist.
+
+**Migration 015 required** before the preference persists; without it the picker
+still works per-device via localStorage.
+
+_Last updated: 26 July 2026_
