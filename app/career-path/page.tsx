@@ -746,7 +746,6 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
 
   return (
     <>
-      <Breadcrumb step="D" />
       <main className="max-w-[1120px] mx-auto px-6 sm:px-12 py-10 pb-24">
         {/* Header — North Star pinned */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between" style={{ gap: 40, marginBottom: 48 }}>
