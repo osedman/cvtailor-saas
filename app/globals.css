@@ -333,3 +333,57 @@
   .ns-scrim, .ns-modal { animation: none; }
   .ns .ns-chip-action:hover { transform: none; }
 }
+
+/* ── Emotional moments ───────────────────────────────────────────────────
+   Arousal from aspiration and pride, never anxiety: nothing here punishes,
+   everything here celebrates work already done. */
+
+/* Findings reveal — a deliberate beat per line, so being seen lands. */
+.ns .ns-reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: ns-rise 0.5s ease-out forwards;
+  animation-delay: calc(var(--ns-i, 0) * 260ms);
+}
+
+/* Readiness gain: the number people worked weeks for. */
+.ns .ns-delta {
+  display: inline-block;
+  animation: ns-delta-float 2.6s ease-out forwards;
+  color: var(--ns-coral);
+  font-weight: 700;
+}
+@keyframes ns-delta-float {
+  0% { opacity: 0; transform: translateY(6px); }
+  15% { opacity: 1; transform: translateY(0); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+.ns .ns-pulse { animation: ns-pulse 1.4s ease-out; }
+@keyframes ns-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(220, 79, 51, 0.35); }
+  100% { box-shadow: 0 0 0 22px rgba(220, 79, 51, 0); }
+}
+
+/* "I got the job" — the payoff the whole product exists for. */
+.ns-celebrate {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; overflow-y: auto;
+  background: var(--ns-cream, #f9f6f0);
+  animation: ns-fade 240ms ease-out;
+}
+.ns-celebrate-inner { animation: ns-pop 520ms cubic-bezier(0.2, 0.9, 0.3, 1); }
+@keyframes ns-pop { from { opacity: 0; transform: translateY(14px) scale(0.97); } }
+.ns .ns-stat-rise {
+  opacity: 0;
+  animation: ns-rise 0.5s ease-out forwards;
+  animation-delay: calc(var(--ns-i, 0) * 140ms + 240ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ns .ns-reveal, .ns .ns-stat-rise { animation: none; opacity: 1; transform: none; }
+  .ns .ns-delta { animation: none; }
+  .ns .ns-pulse { animation: none; }
+  .ns-celebrate, .ns-celebrate-inner { animation: none; }
+}

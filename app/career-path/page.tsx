@@ -53,6 +53,41 @@ async function readJson<T>(res: Response): Promise<T> {
 
 const STATUS_CYCLE: Record<CareerItemStatus, CareerItemStatus> = { todo: "in_progress", in_progress: "done", done: "todo" }
 
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
+    setReduced(mq.matches)
+    const h = () => setReduced(mq.matches)
+    mq.addEventListener("change", h)
+    return () => mq.removeEventListener("change", h)
+  }, [])
+  return reduced
+}
+
+/** Eases from the previously shown value to the new one — so a readiness gain
+ * is something you watch happen, not a number that was already different. */
+function useAnimatedNumber(value: number, durationMs = 900) {
+  const [shown, setShown] = useState(value)
+  const fromRef = useRef(value)
+  const reduced = usePrefersReducedMotion()
+  useEffect(() => {
+    const from = fromRef.current
+    if (reduced || from === value) { fromRef.current = value; setShown(value); return }
+    let raf = 0
+    const start = performance.now()
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / durationMs)
+      setShown(Math.round(from + (value - from) * (1 - Math.pow(1 - t, 3))))
+      if (t < 1) raf = requestAnimationFrame(tick)
+      else fromRef.current = value
+    }
+    raf = requestAnimationFrame(tick)
+    return () => { cancelAnimationFrame(raf); fromRef.current = value }
+  }, [value, durationMs, reduced])
+  return shown
+}
+
 function Breadcrumb({ step }: { step: "A" | "B" | "C" | "D" }) {
   const steps = [
     { key: "A", label: "CV scan" },
@@ -370,7 +405,7 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
               </div>
               <div className="flex flex-col" style={{ gap: 22 }}>
                 {findings.strengths.map((f, i) => (
-                  <div key={i} className="ns-rise" style={{ "--ns-i": i } as React.CSSProperties}>
+                  <div key={i} className="ns-reveal" style={{ "--ns-i": i } as React.CSSProperties}>
                     <div className="flex items-start" style={{ gap: 12, marginBottom: 10 }}>
                       <span style={{ marginTop: 8, width: 6, height: 6, borderRadius: "50%", background: "var(--ns-coral)", flexShrink: 0 }} />
                       <h3 style={{ fontSize: 15.5, fontWeight: 500, margin: 0, lineHeight: 1.35 }}>{f.label}</h3>
@@ -390,7 +425,7 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
               </div>
               <div className="flex flex-col" style={{ gap: 22 }}>
                 {findings.gaps.map((g, i) => (
-                  <div key={i} className="ns-rise" style={{ "--ns-i": i + 1 } as React.CSSProperties}>
+                  <div key={i} className="ns-reveal" style={{ "--ns-i": findings.strengths.length + i } as React.CSSProperties}>
                     <div className="flex items-start" style={{ gap: 12, marginBottom: 10 }}>
                       <span style={{ marginTop: 8, width: 6, height: 6, borderRadius: "50%", background: "transparent", border: "1px solid var(--ns-ink-40)", flexShrink: 0 }} />
                       <h3 style={{ fontSize: 15.5, fontWeight: 500, margin: 0, lineHeight: 1.35 }}>{g.label}</h3>
@@ -581,7 +616,77 @@ function Modal({ icon: Icon, title, subtitle, children, onClose }: { icon: typeo
   )
 }
 
-function GotJobModal({ currentTarget, onClose, onDone }: { currentTarget: string; onClose: () => void; onDone: () => void }) {
+/**
+ * The payoff the whole product exists for. Not a toast — a full-screen replay
+ * of what they actually did: the rungs reached, the skills closed, the work
+ * verified. This is the screen people screenshot.
+ */
+function ArcCelebration({ role, items, milestones, onClose, onNext }: {
+  role: string
+  items: CareerRoadmapItem[]
+  milestones: Milestone[]
+  onClose: () => void
+  onNext: () => void
+}) {
+  const closed = items.filter((i) => i.status === "done")
+  const verified = items.filter((i) => i.evidence?.verdict === "pass")
+  const from = milestones.length > 0 ? milestones[0].role : null
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+
+  const stats = [
+    { value: String(closed.length), label: closed.length === 1 ? "skill closed" : "skills closed" },
+    ...(verified.length > 0 ? [{ value: String(verified.length), label: "verified with evidence" }] : []),
+    ...(milestones.length > 0 ? [{ value: String(milestones.length + 1), label: "roles on your arc" }] : []),
+  ]
+
+  return (
+    <div className="ns ns-celebrate" role="dialog" aria-modal="true" aria-label={`You got the job: ${role}`}>
+      <div className="ns-celebrate-inner" style={{ maxWidth: 620, width: "100%", textAlign: "center" }}>
+        <div className="t-eyebrow" style={{ marginBottom: 16 }}>You got the job</div>
+        <h1 className="t-display text-[38px] sm:text-[56px]" style={{ margin: "0 0 18px" }}>{role}.</h1>
+        <p className="t-lede" style={{ maxWidth: 460, margin: "0 auto" }}>
+          {from
+            ? <>You started this arc as {from}. You finish it here — and none of it was luck.</>
+            : <>You set the target, closed the gaps, and proved the work. None of it was luck.</>}
+        </p>
+
+        <div className="flex flex-wrap justify-center" style={{ gap: 40, margin: "40px 0" }}>
+          {stats.map((st, i) => (
+            <div key={st.label} className="ns-stat-rise" style={{ "--ns-i": i } as React.CSSProperties}>
+              <div className="t-display" style={{ fontSize: 44, color: "var(--ns-coral)" }}>{st.value}</div>
+              <div className="t-small" style={{ marginTop: 4 }}>{st.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {closed.length > 0 && (
+          <div className="ns-stat-rise" style={{ "--ns-i": stats.length, marginBottom: 36 } as React.CSSProperties}>
+            <div className="t-eyebrow" style={{ fontSize: 10, marginBottom: 12 }}>What you closed to get here</div>
+            <div className="flex flex-wrap justify-center" style={{ gap: 8 }}>
+              {closed.map((i) => (
+                <span key={i.skill} className="ns-chip ns-chip-have">
+                  <Check className="w-3 h-3" strokeWidth={2.5} />{i.skill}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-wrap justify-center" style={{ gap: 12 }}>
+          <button onClick={onNext} className="ns-btn ns-btn-primary">Set my next North Star <ArrowRight className="w-4 h-4" /></button>
+          <button onClick={onClose} className="ns-btn ns-btn-secondary">Just enjoy this for now</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GotJobModal({ currentTarget, onClose, onDone }: { currentTarget: string; onClose: () => void; onDone: (role: string) => void }) {
   const [role, setRole] = useState(currentTarget)
   const [next, setNext] = useState("")
   const [loading, setLoading] = useState(false)
@@ -591,8 +696,7 @@ function GotJobModal({ currentTarget, onClose, onDone }: { currentTarget: string
     try {
       const res = await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "got-job", role, nextTarget: next }) })
       await readJson(res)
-      toast.success(`Congratulations on ${role.trim()}! It's on your path — and your Arc.`)
-      onDone()
+      onDone(role.trim())
     } catch (err) { toast.error(err instanceof Error ? err.message : "Failed to update."); setLoading(false) }
   }
   return (
@@ -710,6 +814,7 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
     }
   }, [reload])
 
+  const [celebration, setCelebration] = useState<{ role: string } | null>(null)
   const [market, setMarket] = useState<MarketSnapshot | null>(null)
   useEffect(() => {
     // Flagged-off by default: the endpoint answers { enabled: false } and we
@@ -753,6 +858,19 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
     .sort((a, b) => (gapBySkill.get(b.skill.toLowerCase())?.unlockCount ?? 0) - (gapBySkill.get(a.skill.toLowerCase())?.unlockCount ?? 0))
   const done = roadmap.items.filter((i) => i.status === "done")
   const pct = data.readiness.pct
+  // A readiness gain is the moment the user worked weeks for — show it moving.
+  const shownPct = useAnimatedNumber(pct)
+  const prevPctRef = useRef<number | null>(null)
+  const [gain, setGain] = useState<number | null>(null)
+  useEffect(() => {
+    const prev = prevPctRef.current
+    prevPctRef.current = pct
+    if (prev !== null && pct > prev) {
+      setGain(pct - prev)
+      const t = setTimeout(() => setGain(null), 2800)
+      return () => clearTimeout(t)
+    }
+  }, [pct])
 
   // Agenda rows: This week (active) → Next (first two queued) → Later (rest)
   const agenda: Array<{ item: CareerRoadmapItem; when: string; kind: "active" | "queued" | "later" }> = [
@@ -794,10 +912,13 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
             <div className="flex justify-between items-baseline">
               <span className="t-small">Role readiness now</span>
               <span className="t-mono" style={{ color: "var(--ns-coral-deep)" }}>
-                <span style={{ fontSize: 15 }}>{pct}%</span>{data.readiness.total > 0 ? ` · ${data.readiness.have}/${data.readiness.total}` : ""}
+                {gain !== null && <span className="ns-delta t-mono" style={{ fontSize: 12, marginRight: 6 }}>+{gain}%</span>}
+                <span style={{ fontSize: 15 }}>{shownPct}%</span>{data.readiness.total > 0 ? ` · ${data.readiness.have}/${data.readiness.total}` : ""}
               </span>
             </div>
-            <div style={{ marginTop: 10 }}><ThreadMeter pct={pct} /></div>
+            <div style={{ marginTop: 10, borderRadius: 8 }} className={gain !== null ? "ns-pulse" : undefined}>
+              <ThreadMeter key={pct} pct={pct} />
+            </div>
             {(() => {
               const open = roadmap.items.filter((i) => i.status !== "done").length
               const f = forecastReadyDate(open, roadmap.hours_per_week)
@@ -927,6 +1048,34 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
           </div>
         )}
 
+        {/* Your proof — evidence that passed review. Pride you can point at. */}
+        {(() => {
+          const proven = roadmap.items.filter((i) => i.evidence?.verdict === "pass")
+          if (proven.length === 0) return null
+          return (
+            <section style={{ marginTop: 48 }}>
+              <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, borderBottom: "1px solid var(--ns-border)" }}>
+                <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Your proof</h2>
+                <span className="t-mono">{proven.length} verified</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 12, marginTop: 20 }}>
+                {proven.map((item, i) => (
+                  <div key={item.skill} className="ns-rise" style={{ "--ns-i": i, padding: "16px 18px", background: "var(--ns-paper)", border: "1px solid var(--ns-tint-2)", borderRadius: 12 } as React.CSSProperties}>
+                    <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
+                      <Check className="w-3.5 h-3.5" style={{ color: "var(--ns-coral-deep)" }} strokeWidth={2.5} />
+                      <span className="t-body" style={{ fontWeight: 600 }}>{item.skill}</span>
+                    </div>
+                    {item.evidence?.note && <p className="t-small" style={{ margin: "0 0 8px" }}>{item.evidence.note}</p>}
+                    <p className="t-body" style={{ margin: 0, color: "var(--ns-ink-70)" }}>{item.cvPhrasing}</p>
+                    <button onClick={() => { navigator.clipboard.writeText(item.cvPhrasing); toast.success("CV bullet copied.") }}
+                      className="t-mono" style={{ marginTop: 10, color: "var(--ns-coral-deep)" }}>copy CV bullet</button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )
+        })()}
+
         {/* Skill set vs role (the transparent map) */}
         <SkillSet targetSkills={roadmap.target_skills ?? []} haveList={data.readiness.haveList ?? []} missing={data.readiness.missing} items={roadmap.items} onOpenSkill={(sk) => setSelected(sk)} onAddSkill={addSkill} addingSkill={addingSkill} />
 
@@ -941,7 +1090,20 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
         </div>
 
         {modal === "gotjob" && (
-          <GotJobModal currentTarget={roadmap.target_role || data.derivedTarget} onClose={() => setModal(null)} onDone={() => { setModal(null); reload() }} />
+          <GotJobModal
+            currentTarget={roadmap.target_role || data.derivedTarget}
+            onClose={() => setModal(null)}
+            onDone={(role) => { setModal(null); setCelebration({ role }); reload() }}
+          />
+        )}
+        {celebration && (
+          <ArcCelebration
+            role={celebration.role}
+            items={roadmap.items}
+            milestones={roadmap.milestones ?? []}
+            onClose={() => setCelebration(null)}
+            onNext={() => { setCelebration(null); onChangeTarget() }}
+          />
         )}
         {modal === "project" && (
           <AddProjectModal onClose={() => setModal(null)} onDone={() => setModal(null)} />
