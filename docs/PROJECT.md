@@ -112,4 +112,43 @@ like a delivery estimate. No "overdue" state exists anywhere in the system.
 **Later:** per-skill effort estimates from set-target research (replaces 10h
 heuristic); digest links that one-click start a skill; tracker-date integration.
 
-_Last updated: 25 July 2026_
+
+---
+
+## 💷 Feature: Live job market on the career path — v1 spec (26 July 2026)
+
+**Idea:** readiness stops being an abstract number and starts pricing the path.
+Three surfaces: (a) salary band + live role count on the locked North Star,
+(b) "one skill away" counts — closing skill X opens N more live roles,
+(c) later: clickable live postings with "Tailor for this".
+
+**Data source decision.** Use a jobs **API, not scraping** (LinkedIn/Indeed ToS +
+anti-bot make scraping both unlawful-ish and unreliable; Firecrawl's proper role
+is enriching a single posting a user explicitly opens). Adzuna is the fit for UK:
+`/jobs/gb/search` plus `/jobs/gb/histogram` for the salary distribution, and
+responses carry `salary_min`/`salary_max` + `salary_is_predicted` (predicted
+salaries MUST be labelled, never shown as fact).
+
+**Licensing reality (blocking for GA, not for build):** Adzuna free tier is
+~1,000 calls/month and commercial use beyond a 14-day evaluation needs written
+consent. Action: email Adzuna for a commercial key (we send qualified traffic —
+plausible mutual benefit). Until then the feature ships behind a flag and the
+app degrades to exactly today's behaviour.
+
+**Caching = the whole trick.** Snapshots are keyed on **(role, region), not user** —
+every user aiming at "Product Operations Lead / GB" shares one snapshot,
+refreshed weekly (migration 013 `market_snapshots`). A few hundred calls a month
+serves thousands of users, and the page renders from cache instantly.
+
+**Flag:** `MARKET_INSIGHTS_ENABLED=1` **and** `ADZUNA_APP_ID`/`ADZUNA_APP_KEY`
+present. Any missing → API returns `{ enabled: false }` and the UI renders nothing.
+
+**V1 scope (built 26 Jul 2026):** salary band (25th/median/75th from histogram),
+live role count, top hiring companies, and per-open-skill "opens N more roles"
+counts computed by honest keyword presence across fetched descriptions. Pure
+functions unit-tested; no per-job AI calls.
+
+**Later:** clickable postings + "Tailor for this" deep link; ready-today vs
+at-100% salary comparison; tracker interview dates as real external dates.
+
+_Last updated: 26 July 2026_

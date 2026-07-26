@@ -32,6 +32,11 @@ interface Roadmap {
 interface Readiness { pct: number; have: number; total: number; missing: string[]; haveList?: string[] }
 interface RankedGap { skill: string; unlockCount: number; sourceJobs: string[] }
 interface PathData { roadmap: Roadmap | null; derivedTarget: string; readiness: Readiness; rankedGaps: RankedGap[]; arcAmbition: string }
+interface SalaryBand { p25: number; median: number; p75: number; sampleSize: number }
+interface SkillUnlock { skill: string; roles: number }
+interface MarketSnapshot { role: string; region: string; totalRoles: number; band: SalaryBand | null; topCompanies: string[]; unlocks: SkillUnlock[]; fetchedAt: string }
+
+const gbp = (n: number) => `£${Math.round(n / 1000)}k`
 
 async function readJson<T>(res: Response): Promise<T> {
   const text = await res.text()
@@ -705,6 +710,18 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
     }
   }, [reload])
 
+  const [market, setMarket] = useState<MarketSnapshot | null>(null)
+  useEffect(() => {
+    // Flagged-off by default: the endpoint answers { enabled: false } and we
+    // render nothing, so the path behaves exactly as it does without the key.
+    let cancelled = false
+    fetch("/api/career-path/market")
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled && d?.enabled && d?.snapshot) setMarket(d.snapshot) })
+      .catch(() => { /* market insight is never load-bearing */ })
+    return () => { cancelled = true }
+  }, [])
+
   const [addingSkill, setAddingSkill] = useState<string | null>(null)
   const addSkill = useCallback(async (skill: string) => {
     setAddingSkill(skill)
@@ -812,6 +829,23 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
                 </div>
               )
             })()}
+            {market && (market.band || market.totalRoles > 0) && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--ns-border)" }}>
+                <div className="t-eyebrow" style={{ fontSize: 9.5, marginBottom: 6 }}>Live UK market</div>
+                {market.band && (
+                  <p className="t-body" style={{ margin: 0 }}>
+                    <strong>{gbp(market.band.p25)}–{gbp(market.band.p75)}</strong>
+                    <span className="t-small"> typical · median {gbp(market.band.median)}</span>
+                  </p>
+                )}
+                {market.totalRoles > 0 && (
+                  <p className="t-mono" style={{ margin: "4px 0 0" }}>{market.totalRoles.toLocaleString()} live roles</p>
+                )}
+                {market.topCompanies.length > 0 && (
+                  <p className="t-small" style={{ margin: "4px 0 0", fontSize: 11.5 }}>Hiring now: {market.topCompanies.join(", ")}</p>
+                )}
+              </div>
+            )}
             <button onClick={onChangeTarget} className="ns-btn ns-btn-ghost" style={{ padding: "10px 0 0", fontSize: 12.5 }}>Change North Star</button>
           </div>
         </div>
@@ -851,6 +885,12 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
                             {gap && gap.unlockCount > 0 && (
                               <span className="t-mono" style={{ fontSize: 10 }} title={gap.sourceJobs.join(", ")}>unlocks {gap.unlockCount} saved job{gap.unlockCount === 1 ? "" : "s"}</span>
                             )}
+                            {(() => {
+                              const u = market?.unlocks.find((x) => x.skill === row.item.skill)
+                              return u ? (
+                                <span className="t-mono" style={{ fontSize: 10, color: "var(--ns-coral-deep)" }}>opens {u.roles} live role{u.roles === 1 ? "" : "s"}</span>
+                              ) : null
+                            })()}
                           </div>
                           <p className="t-body" style={{ color: "var(--ns-ink-70)", margin: "0 0 12px", maxWidth: 620 }}>{row.item.whyItMatters}</p>
                           {row.item.resources?.length > 0 && (
