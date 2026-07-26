@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles, ThumbsUp, ThumbsDown, Building2, FileText, GitCompare, Mail, MessagesSquare, ListChecks, Pencil, GraduationCap, CircleDot, ArrowRight, ExternalLink, type LucideIcon } from "lucide-react"
+import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles, ThumbsUp, ThumbsDown, Building2, FileText, GitCompare, Mail, MessagesSquare, ListChecks, Pencil, GraduationCap, CircleDot, ArrowRight, ExternalLink, RotateCcw, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import type { TailorResult, InterviewPrepResult, PitchesResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
@@ -45,6 +45,84 @@ function FormattedCV({ text }: { text: string }) {
         }
         return <p key={i} className="text-gray-700">{line}</p>
       })}
+    </div>
+  )
+}
+
+/**
+ * Plain-text editor for a generated output (CV or cover letter).
+ *
+ * Deliberately a raw textarea rather than a rich editor: everything downstream
+ * — the Word/txt download, ATS keyword checking, tracker sync — consumes plain
+ * text, so anything richer would have to be flattened straight back out again.
+ */
+function OutputEditor({
+  value,
+  onChange,
+  onSave,
+  onCancel,
+  saving,
+  revertTo,
+  onRevert,
+  minHeight = "50vh",
+  label,
+}: {
+  value: string
+  onChange: (v: string) => void
+  onSave: () => void
+  onCancel: () => void
+  saving: boolean
+  revertTo?: string | null
+  onRevert?: () => void
+  minHeight?: string
+  label: string
+}) {
+  const dirty = true // the parent only mounts this while editing
+  return (
+    <div>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { e.preventDefault(); onCancel() }
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onSave() }
+        }}
+        aria-label={label}
+        spellCheck
+        autoFocus
+        className="w-full font-mono text-sm leading-relaxed text-[#1e1813] bg-white border border-[#f0d9d2] rounded-lg p-4 resize-y focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/30"
+        style={{ minHeight }}
+      />
+      <div className="mt-3 flex items-center gap-3 flex-wrap">
+        <button
+          onClick={onSave}
+          disabled={saving || !value.trim()}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] disabled:opacity-60 transition-colors"
+        >
+          {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : <><Check className="w-4 h-4" />Save changes</>}
+        </button>
+        <button
+          onClick={onCancel}
+          disabled={saving}
+          className="px-3 py-2 text-sm text-gray-500 hover:text-[#1e1813] transition-colors"
+        >
+          Cancel
+        </button>
+        {revertTo && revertTo !== value && onRevert && (
+          <button
+            onClick={onRevert}
+            disabled={saving}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-[#dc4f33] transition-colors"
+            title="Restore the original AI-generated version"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Revert to AI version
+          </button>
+        )}
+        {dirty && (
+          <span className="ml-auto text-[11px] text-gray-400">⌘↵ to save · Esc to cancel</span>
+        )}
+      </div>
     </div>
   )
 }
@@ -174,6 +252,10 @@ interface ResultsTabsProps {
   loadingUpskill?: boolean
   onGenerateUpskill?: () => void
   onUpdateUpskillItem?: (skill: string, status: CareerItemStatus) => void
+  /** Enables hand-editing of the tailored CV. Resolves once the edit is saved. */
+  onSaveTailoredCV?: (text: string) => Promise<void>
+  /** Enables hand-editing of the cover letter. */
+  onSaveCoverLetter?: (text: string) => Promise<void>
   /** Enhanced (gated) workspace styling */
   enhanced?: boolean
 }
@@ -226,6 +308,8 @@ export function ResultsTabs({
   loadingUpskill = false,
   onGenerateUpskill,
   onUpdateUpskillItem,
+  onSaveTailoredCV,
+  onSaveCoverLetter,
   enhanced = false,
 }: ResultsTabsProps) {
   // Interview Prep only appears where a generator is wired up (the tailor page).
@@ -240,6 +324,11 @@ export function ResultsTabs({
   })
   const [activeTab, setActiveTab] = useState<TabName>("Tailored CV")
   const [copied, setCopied] = useState(false)
+  // Hand-editing. One editor open at a time; the draft lives up here so
+  // switching tabs mid-edit doesn't throw the user's work away.
+  const [editing, setEditing] = useState<"cv" | "letter" | null>(null)
+  const [draft, setDraft] = useState("")
+  const [savingEdit, setSavingEdit] = useState(false)
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 })
   const tabRefs = useRef<Map<TabName, HTMLButtonElement>>(new Map())
 
@@ -270,6 +359,44 @@ export function ResultsTabs({
   }
 
   const handleDownloadWord = () => downloadWordDoc(results.tailoredCV)
+
+  const startEdit = (which: "cv" | "letter", text: string) => {
+    // The draft survives tab switches, so the other tab's Edit button is still
+    // reachable mid-edit. Opening it would silently bin the unsaved draft.
+    if (editing && editing !== which) {
+      toast.error(`Save or cancel your ${editing === "cv" ? "CV" : "cover letter"} edit first`)
+      return
+    }
+    setEditing(which)
+    setDraft(text)
+  }
+
+  const saveEdit = async () => {
+    const which = editing
+    const save = which === "cv" ? onSaveTailoredCV : which === "letter" ? onSaveCoverLetter : null
+    if (!save) return
+    setSavingEdit(true)
+    try {
+      await save(draft)
+      setEditing(null)
+      toast.success(which === "cv" ? "CV updated" : "Cover letter updated")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save your changes")
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  /** Small "Edit" affordance shown beside Copy on editable outputs */
+  const editButton = (which: "cv" | "letter", text: string) => (
+    <button
+      onClick={() => startEdit(which, text)}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 transition-all duration-150"
+    >
+      <Pencil className="w-3.5 h-3.5" />
+      Edit
+    </button>
+  )
 
   return (
     <div className="animate-slide-up relative z-10 bg-white">
@@ -312,8 +439,20 @@ export function ResultsTabs({
         {activeTab === "Cover Letter" && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
             {coverLetter ? (
+              editing === "letter" ? (
+                <OutputEditor
+                  label="Edit your cover letter"
+                  value={draft}
+                  onChange={setDraft}
+                  onSave={saveEdit}
+                  onCancel={() => setEditing(null)}
+                  saving={savingEdit}
+                  minHeight="40vh"
+                />
+              ) : (
               <>
                 <div className="flex justify-end gap-3 mb-4">
+                  {onSaveCoverLetter && editButton("letter", coverLetter)}
                   <button
                     onClick={async () => {
                       await navigator.clipboard.writeText(coverLetter)
@@ -331,6 +470,7 @@ export function ResultsTabs({
                   {coverLetter}
                 </div>
               </>
+              )
             ) : (
               <div className="flex flex-col items-center justify-center py-10 gap-4">
                 <p className="text-sm text-gray-500">Generate a tailored cover letter based on your CV and this role.</p>
@@ -382,7 +522,22 @@ export function ResultsTabs({
 
         {activeTab === "Tailored CV" && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+            {editing === "cv" ? (
+              <OutputEditor
+                label="Edit your tailored CV"
+                value={draft}
+                onChange={setDraft}
+                onSave={saveEdit}
+                onCancel={() => setEditing(null)}
+                saving={savingEdit}
+                revertTo={results.tailoredCVOriginal ?? null}
+                onRevert={() => setDraft(results.tailoredCVOriginal ?? draft)}
+                minHeight="55vh"
+              />
+            ) : (
+            <>
             <div className="flex justify-end gap-3 mb-4">
+              {onSaveTailoredCV && editButton("cv", results.tailoredCV)}
               <button
                 onClick={handleCopy}
                 className={`px-3 py-1.5 text-sm rounded-lg transition-all duration-150 ${
@@ -393,6 +548,12 @@ export function ResultsTabs({
               </button>
             </div>
             <FormattedCV text={results.tailoredCV} />
+            {results.tailoredCVOriginal && results.tailoredCVOriginal !== results.tailoredCV && (
+              <p className="mt-4 inline-flex items-center gap-1.5 text-[11px] text-gray-400">
+                <Pencil className="w-3 h-3" />
+                Edited by you — downloads and copies use your version.
+              </p>
+            )}
             <div className="mt-6 flex items-center gap-5">
               <button
                 onClick={handleDownloadWord}
@@ -409,6 +570,8 @@ export function ResultsTabs({
                 Download as .txt
               </button>
             </div>
+            </>
+            )}
 
             {historyId && (
               <div className="mt-6 pt-4 border-t border-gray-100">

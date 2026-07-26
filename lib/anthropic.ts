@@ -67,6 +67,8 @@ export interface TailorResult {
   keywordCoverage?: { present: string[]; missing: string[] }
   roleFamily?: string
   seniority?: string
+  /** The untouched AI output, kept from the first hand-edit so it can be restored */
+  tailoredCVOriginal?: string
 }
 
 // Extended results generated on-demand

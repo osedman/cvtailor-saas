@@ -26,6 +26,7 @@ interface HistoryItem {
   result: TailorResult
   original_cv?: string
   upskill?: CareerRoadmapItem[]
+  cover_letter?: string | null
 }
 
 // ── helpers ────────────────────────────────────────────────────────────
@@ -255,10 +256,13 @@ export default function HistoryPage() {
 
   const selectedItem = history.find(h => h.id === selectedId) ?? null
 
-  // Reset generated artefacts when switching items
+  // Reset generated artefacts when switching items. The cover letter is stored
+  // on the run, so seed it from the row rather than making the user regenerate.
   useEffect(() => {
-    setCoverLetter(null)
+    const row = history.find(h => h.id === selectedId)
+    setCoverLetter(row?.cover_letter || null)
     setPrepQuestions(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
   // Inputs for re-generation: the stored original CV and the full JD
@@ -279,12 +283,56 @@ export default function HistoryPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed")
       setCoverLetter(data.coverLetter)
+      // Store it on the run so it's there next time (best-effort)
+      if (selectedId) {
+        const id = selectedId
+        fetch(`/api/history/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ coverLetter: data.coverLetter }),
+        }).catch(() => {})
+        setHistory((prev) => prev.map((h) => h.id === id ? { ...h, cover_letter: data.coverLetter } : h))
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate cover letter.")
     } finally {
       setLoadingCoverLetter(false)
     }
-  }, [canGenerate, genCv, genJd])
+  }, [canGenerate, genCv, genJd, selectedId])
+
+  /** Persist a hand-edit, then apply it locally (see the tailor page for why). */
+  const patchRun = useCallback(async (body: Record<string, unknown>) => {
+    if (!selectedId) return
+    const res = await fetch(`/api/history/${selectedId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || "Could not save your changes")
+  }, [selectedId])
+
+  const handleSaveTailoredCV = useCallback(async (text: string) => {
+    if (!selectedId) return
+    const id = selectedId
+    await patchRun({ tailoredCV: text })
+    setHistory((prev) => prev.map((h) => h.id === id ? {
+      ...h,
+      result: {
+        ...h.result,
+        tailoredCVOriginal: h.result.tailoredCVOriginal ?? h.result.tailoredCV,
+        tailoredCV: text,
+      },
+    } : h))
+  }, [patchRun, selectedId])
+
+  const handleSaveCoverLetter = useCallback(async (text: string) => {
+    if (!selectedId) return
+    const id = selectedId
+    await patchRun({ coverLetter: text, edited: true })
+    setCoverLetter(text)
+    setHistory((prev) => prev.map((h) => h.id === id ? { ...h, cover_letter: text } : h))
+  }, [patchRun, selectedId])
 
   const handleGenerateUpskill = useCallback(async () => {
     if (!selectedItem) return
@@ -589,6 +637,8 @@ export default function HistoryPage() {
                     loadingUpskill={loadingUpskill}
                     onGenerateUpskill={handleGenerateUpskill}
                     onUpdateUpskillItem={handleUpdateUpskillItem}
+                    onSaveTailoredCV={handleSaveTailoredCV}
+                    onSaveCoverLetter={handleSaveCoverLetter}
                   />
                 </div>
               </div>

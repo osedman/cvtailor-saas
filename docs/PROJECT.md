@@ -152,3 +152,42 @@ functions unit-tested; no per-job AI calls.
 at-100% salary comparison; tracker interview dates as real external dates.
 
 _Last updated: 26 July 2026_
+
+---
+
+## ✏️ Feature: Editable output — tailored CV + cover letter (26 July 2026)
+
+**Idea:** the model's output is a draft, not a verdict. Users know their own
+history better than the pipeline does, so let them fix a wording, drop a bullet,
+or reword a claim without leaving Tailr and without re-running a tailor.
+
+**Scope shipped:** inline plain-text editing of (a) the Tailored CV and (b) the
+Cover Letter, on both the tailor page and the History detail view. Edits persist
+to `tailor_history`. Deliberately NOT editable: Key Changes / Gaps / ATS Notes —
+those are analysis of the run, not the artefact the user sends out.
+
+**Storage decision.** The edited CV is written back into the existing `result`
+jsonb (`result.tailoredCV`) rather than a parallel column, so every existing
+reader — history list, Word/.txt download, tracker sync — picks up the edit with
+zero changes. The AI's untouched version is preserved once, on the first edit,
+under `result.tailoredCVOriginal`, which powers "Revert to AI version".
+
+The cover letter previously had **no persistence at all** (generated client-side,
+lost on reload), so migration 014 gives it a `cover_letter` column. It's now
+saved on generation as well as on edit, and rehydrates when you reopen a run.
+`edited_at` records hand-edits only, not generations.
+
+**Migration 014 (`014_editable_output.sql`) is required** — until it's applied,
+saving an edit fails (both paths write `edited_at`). Idempotent, additive, no
+backfill needed.
+
+**Editor is a raw textarea, on purpose.** Everything downstream — Word/.txt
+export, ATS keyword checking, tracker sync — consumes plain text, so a rich
+editor would only be flattened back out again. ⌘↵ saves, Esc cancels.
+
+**Save ordering:** persist first, then apply locally. A failed save leaves the
+editor open with the user's draft intact, and what's on screen never disagrees
+with what's stored. Runs with no `historyId` (unsaved) still edit fine —
+session-only.
+
+_Last updated: 26 July 2026_

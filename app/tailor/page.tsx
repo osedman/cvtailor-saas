@@ -195,12 +195,51 @@ export default function CVTailorPage() {
       const data = await readJson<CoverLetterResult>(res)
       setCoverLetter(data.coverLetter)
       markOnboardingStep("cover")
+      // Persist it against the run so it survives a reload and can be edited
+      // later from History. Best-effort — a failure here shouldn't block the
+      // letter the user is already looking at.
+      if (historyId) {
+        fetch(`/api/history/${historyId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ coverLetter: data.coverLetter }),
+        }).catch(() => {})
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate cover letter.")
     } finally {
       setLoadingCoverLetter(false)
     }
-  }, [cvText, jobDescription])
+  }, [cvText, jobDescription, historyId])
+
+  /**
+   * Hand-edits to the generated output. Persisted first, then applied locally —
+   * so if the save fails the editor stays open with the user's draft intact and
+   * what's on screen still matches what's stored.
+   */
+  const patchRun = useCallback(async (body: Record<string, unknown>) => {
+    if (!historyId) return   // unsaved run — edit lives in this session only
+    const res = await fetch(`/api/history/${historyId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    await readJson(res)
+  }, [historyId])
+
+  const handleSaveTailoredCV = useCallback(async (text: string) => {
+    await patchRun({ tailoredCV: text })
+    setResults((prev) => prev ? {
+      ...prev,
+      tailoredCVOriginal: prev.tailoredCVOriginal ?? prev.tailoredCV,
+      tailoredCV: text,
+    } : prev)
+  }, [patchRun])
+
+  const handleSaveCoverLetter = useCallback(async (text: string) => {
+    await patchRun({ coverLetter: text, edited: true })
+    setCoverLetter(text)
+  }, [patchRun])
 
   const handleGeneratePitches = useCallback(async () => {
     setLoadingPitches(true)
@@ -301,7 +340,7 @@ export default function CVTailorPage() {
 
   const handleRestoreHistory = useCallback((item: HistoryItem) => {
     setResults(item.result)
-    setCoverLetter(null)
+    setCoverLetter(item.cover_letter || null)
     setPitches(null)
     setPrepQuestions(null)
     setCompanyAnalysis(null)
@@ -402,6 +441,8 @@ export default function CVTailorPage() {
                   loadingUpskill={loadingUpskill}
                   onGenerateUpskill={handleGenerateUpskill}
                   onUpdateUpskillItem={handleUpdateUpskillItem}
+                  onSaveTailoredCV={handleSaveTailoredCV}
+                  onSaveCoverLetter={handleSaveCoverLetter}
                 />
                 {user && <CareerSyncPanel key={historyId ?? "sync"} results={results} />}
               </div>

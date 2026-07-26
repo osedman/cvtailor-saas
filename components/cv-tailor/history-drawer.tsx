@@ -16,6 +16,7 @@ export interface HistoryItem {
   match_score: number
   result: TailorResult
   upskill?: CareerRoadmapItem[]
+  cover_letter?: string | null
 }
 
 interface HistoryDrawerProps {
