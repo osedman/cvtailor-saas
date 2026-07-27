@@ -357,6 +357,9 @@ export interface CareerRoadmapItem {
   touchedAt?: string
   /** Set when the skill was closed (or attempted) with uploaded evidence. */
   evidence?: SkillEvidence
+  /** Honest estimate of focused hours to reach demonstrable competence.
+   *  Drives the quick-win / core split — see splitByEffort. */
+  effortHours?: number
 }
 
 export interface SkillEvidence {
@@ -399,8 +402,9 @@ export const CAREER_ROADMAP_TOOL: Anthropic.Tool = {
             },
             projectBrief: { type: "string", description: "A concrete, scoped project idea (2-3 sentences) the candidate could build to demonstrate this skill" },
             cvPhrasing: { type: "string", description: "A single suggested CV bullet point they could add once they have completed the project, written in the same evidence-based style as the rest of Tailr" },
+            effortHours: { type: "number", description: "Honest estimate of FOCUSED hours for this specific candidate to reach demonstrable competence AND produce the project artifact. Judge it against their real background: something adjacent to what they already do may be 3-5 hours; a genuinely new discipline, a certification or a multi-week course is 20+. Do not flatter the estimate to make a skill look easy." },
           },
-          required: ["skill", "whyItMatters", "resources", "projectBrief", "cvPhrasing"],
+          required: ["skill", "whyItMatters", "resources", "projectBrief", "cvPhrasing", "effortHours"],
         },
         description: "One entry per skill gap provided, ranked most important first. Maximum 5 items.",
       },
@@ -445,7 +449,7 @@ export function buildRoadmapPrompt(opts: {
     `You are helping a job seeker in ${where} close specific skill gaps that keep showing up across their job applications.`
   const time = opts.hoursPerWeek ? `\nTime available: ${opts.hoursPerWeek} hours/week` : ""
   const target = opts.targetRole ? `\nTarget role: ${opts.targetRole}` : ""
-  return `${intro} For EACH skill listed below, search the web and find 2-3 REAL, FREE, reputable learning resources. ${providers} Only include resources you actually find via search — never invent a URL or a course that may not exist. For each skill also suggest one concrete, scoped project the candidate could build in their spare time to demonstrate it, and a single CV bullet point they could add once they have completed it.${target}${time}
+  return `${intro} For EACH skill listed below, search the web and find 2-3 REAL, FREE, reputable learning resources. ${providers} Only include resources you actually find via search — never invent a URL or a course that may not exist. For each skill also suggest one concrete, scoped project the candidate could build in their spare time to demonstrate it, and a single CV bullet point they could add once they have completed it. For each skill also give effortHours — an honest estimate of the focused hours THIS candidate needs to reach demonstrable competence and produce the artifact, judged against the background shown in their CV. Be truthful rather than encouraging: under-estimating turns a multi-week course into a false promise.${target}${time}
 
 Skills to address, most important first:
 ${opts.skills.map((s, i) => `${i + 1}. ${s}`).join("\n")}${opts.calibration ?? ""}`

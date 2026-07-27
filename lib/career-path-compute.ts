@@ -244,3 +244,38 @@ export function daysSinceLastStitch(
   if (times.length === 0) return null
   return Math.max(0, Math.floor((now.getTime() - Math.max(...times)) / 86_400_000))
 }
+
+// ── Quick wins vs core path ───────────────────────────────────────────────
+
+/** A skill closable in about a week of spare time counts as a quick win. */
+export const QUICK_WIN_MAX_HOURS = 5
+
+/**
+ * Split generated skills into what can be auto-captured and what has to be
+ * offered.
+ *
+ * A quick win is small enough to finish in roughly a week of spare evenings, so
+ * adding it to the user's list costs them nothing and needs no permission. A
+ * course, a certification or a multi-week project is a real commitment: it is
+ * returned as a candidate for the user to accept onto their path, never written
+ * silently. That distinction is what stops the quick lane filling with
+ * "learn Kubernetes" and keeps the promise of the section honest.
+ *
+ * Items with no usable estimate are treated as candidates, not quick wins —
+ * when in doubt, ask rather than assume.
+ */
+export function splitByEffort<T extends { effortHours?: number }>(
+  items: T[],
+  maxQuickHours: number = QUICK_WIN_MAX_HOURS,
+): { quick: T[]; candidates: T[] } {
+  const quick: T[] = []
+  const candidates: T[] = []
+  for (const item of items) {
+    const hours = typeof item.effortHours === "number" && Number.isFinite(item.effortHours)
+      ? item.effortHours
+      : null
+    if (hours !== null && hours > 0 && hours <= maxQuickHours) quick.push(item)
+    else candidates.push(item)
+  }
+  return { quick, candidates }
+}

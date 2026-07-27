@@ -6,6 +6,7 @@ import {
   rankGapsByUnlock,
   computeReadiness,
   readinessFromTargetSkills,
+  splitByEffort,
   forecastReadyDate,
   daysSinceLastStitch,
   type HistoryEntry,
@@ -176,5 +177,48 @@ describe("daysSinceLastStitch", () => {
 
   it("returns null when nothing has ever been touched", () => {
     expect(daysSinceLastStitch([{}, {}], now)).toBeNull()
+  })
+})
+
+describe("splitByEffort", () => {
+  const item = (skill: string, effortHours?: number) => ({ skill, effortHours })
+
+  it("captures small skills and defers larger ones", () => {
+    const { quick, candidates } = splitByEffort([
+      item("Stakeholder mapping", 3),
+      item("AWS Solutions Architect cert", 40),
+      item("Pivot tables", 5),
+      item("Kubernetes", 25),
+    ])
+    expect(quick.map((i) => i.skill)).toEqual(["Stakeholder mapping", "Pivot tables"])
+    expect(candidates.map((i) => i.skill)).toEqual(["AWS Solutions Architect cert", "Kubernetes"])
+  })
+
+  it("treats the threshold as inclusive", () => {
+    expect(splitByEffort([item("a", 5)]).quick).toHaveLength(1)
+    expect(splitByEffort([item("a", 5.1)]).candidates).toHaveLength(1)
+  })
+
+  // When in doubt, ask. A missing or nonsense estimate must never let a
+  // multi-week commitment slip silently onto someone's list.
+  it("defers anything without a usable estimate", () => {
+    const { quick, candidates } = splitByEffort([
+      item("no estimate"),
+      item("zero", 0),
+      item("negative", -3),
+      item("nonsense", Number.NaN),
+      item("infinite", Number.POSITIVE_INFINITY),
+    ])
+    expect(quick).toHaveLength(0)
+    expect(candidates).toHaveLength(5)
+  })
+
+  it("honours a custom threshold", () => {
+    const { quick } = splitByEffort([item("a", 8)], 10)
+    expect(quick).toHaveLength(1)
+  })
+
+  it("returns empty lists for empty input", () => {
+    expect(splitByEffort([])).toEqual({ quick: [], candidates: [] })
   })
 })
