@@ -15,7 +15,6 @@ export interface HistoryItem {
   job_snippet: string
   match_score: number
   result: TailorResult
-  upskill?: CareerRoadmapItem[]
   cover_letter?: string | null
 }
 
