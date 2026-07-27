@@ -12,11 +12,16 @@
 
 import { useRef, useState } from "react"
 import { toast } from "sonner"
-import { AlertCircle, ArrowRight, BadgeCheck, Check, CircleDot, ExternalLink, Loader2, Plus, Sparkles, Upload, Zap } from "lucide-react"
+import { AlertCircle, ArrowRight, BadgeCheck, Check, ChevronDown, CircleDot, ExternalLink, Loader2, Plus, Sparkles, Upload, Zap } from "lucide-react"
 import type { CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 import { promotionEligible } from "@/lib/career-path-compute"
 
 const ACCENT = "#dc4f33"
+
+/** Shared visible focus treatment. :focus-visible so the ring appears for
+ *  keyboard users without flashing on every mouse click. */
+const FOCUS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#dc4f33]/50 focus-visible:ring-offset-1"
 
 /** Item shape returned by /api/upskill and /api/career-path (store fields included) */
 export interface QuickWinItem extends CareerRoadmapItem {
@@ -45,6 +50,7 @@ export function QuickWinCard({
   onVerified,
   onPromoted,
   busy = false,
+  compact = false,
 }: {
   item: QuickWinItem
   onCycle: (skill: string, status: CareerItemStatus) => void
@@ -53,6 +59,13 @@ export function QuickWinCard({
   /** Called after the user moves this skill onto their core path */
   onPromoted?: (skill: string) => void
   busy?: boolean
+  /**
+   * Collapsed row instead of a full card. Used on the career path, where these
+   * are a list you return to and scannability beats detail — four expanded
+   * cards is a wall of text you cannot read at a glance. The tailor-results
+   * strip stays expanded: there, the detail IS the pitch.
+   */
+  compact?: boolean
 }) {
   const isDone = item.status === "done"
   const isActive = item.status === "in_progress"
@@ -60,6 +73,7 @@ export function QuickWinCard({
   const hours = item.effortEstimateHours ?? item.effortHours
   const [verifying, setVerifying] = useState(false)
   const [promoting, setPromoting] = useState(false)
+  const [open, setOpen] = useState(!compact)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Promotion is offered, never automatic: 3+ runs surfacing the same skill is
@@ -107,41 +121,82 @@ export function QuickWinCard({
       if (fileRef.current) fileRef.current.value = ""
     }
   }
+  // A heading inside a <button> is invalid; in compact mode the row IS the
+  // control, so the skill renders as a span. Expanded cards keep h3 (the
+  // section owns h2 — h4 would skip a level).
+  const HeaderTag = (compact ? "button" : "div") as "button" | "div"
+  const TitleTag = (compact ? "span" : "h3") as "span" | "h3"
+
+  const shell = compact
+    ? { borderRadius: 12, border: "1px solid var(--ns-border)", background: "var(--ns-paper)", padding: "12px 14px" }
+    : { borderRadius: 16, border: "1px solid var(--ns-border)", background: "#fff", padding: 16 }
+
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-4">
+    <div style={shell}>
       <div className="flex items-start gap-3">
         <button
           onClick={() => onCycle(item.skill, STATUS_NEXT[item.status])}
           disabled={busy}
-          className="flex-shrink-0 w-7 h-7 mt-0.5 rounded-full flex items-center justify-center transition-all active:scale-90 disabled:opacity-60"
+          // 28px dot, but the button itself is padded out to a 44px tap target
+          // (WCAG 2.5.5) — the visual size and the hit area are not the same thing.
+          className={`flex-shrink-0 flex items-center justify-center -m-2 p-2 rounded-full transition-transform active:scale-90 disabled:opacity-60 ${FOCUS}`}
+          style={{ touchAction: "manipulation" }}
+          aria-label={isDone ? `Mark ${item.skill} as to do` : isActive ? `Mark ${item.skill} as done` : `Start ${item.skill}`}
+        >
+        <span
+          className="w-7 h-7 rounded-full flex items-center justify-center"
           style={isDone ? { background: "#16a34a" } : isActive ? { background: ACCENT } : { background: "#fff", border: `1.5px dashed ${ACCENT}66` }}
-          title={isDone ? "Mark as to do" : isActive ? "Mark as done" : "Start this skill"}
         >
           {busy
             ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: isDone || isActive ? "#fff" : ACCENT }} />
             : isDone ? <Check className="w-3.5 h-3.5 text-white" strokeWidth={2.75} />
             : isActive ? <CircleDot className="w-3.5 h-3.5 text-white" />
             : <ArrowRight className="w-3 h-3" style={{ color: ACCENT }} />}
+        </span>
         </button>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h4 className={`text-[15px] font-bold ${isDone ? "text-gray-400 line-through" : "text-[#1e1813]"}`}>{item.skill}</h4>
+          <HeaderTag
+            {...(compact
+              ? { type: "button" as const, onClick: () => setOpen((v) => !v), "aria-expanded": open,
+                  className: `w-full flex items-center gap-2 flex-wrap text-left rounded ${FOCUS}` }
+              : { className: "flex items-center gap-2 flex-wrap" })}
+          >
+            <TitleTag className={`text-[15px] font-bold break-words min-w-0 ${isDone ? "text-[color:var(--ns-ink-40)] line-through" : "text-[#1e1813]"}`}>{item.skill}</TitleTag>
             {typeof hours === "number" && hours > 0 && (
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-[#fff7f4] text-[#dc4f33]">
-                <Zap className="w-2.5 h-2.5" />~{Math.round(hours)}h
+                <Zap aria-hidden="true" className="w-2.5 h-2.5" />~{Math.round(hours)}h
               </span>
             )}
             {(item.surfacedCount ?? 1) > 1 && (
-              <span className="text-[10px] font-medium text-gray-400">seen in {item.surfacedCount} applications</span>
+              <span className="text-[10px] font-medium tabular-nums" style={{ color: "var(--ns-ink-70)" }}>seen in {item.surfacedCount} applications</span>
             )}
-          </div>
+            {offerPromotion && !open && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                style={{ background: "var(--ns-tint-1)", color: "var(--ns-coral-deep)", border: "1px solid var(--ns-tint-2)" }}>
+                worth promoting
+              </span>
+            )}
+            {isProven && !open && (
+              <BadgeCheck className="w-3.5 h-3.5" style={{ color: "#16a34a" }} />
+            )}
+            {compact && (
+              <ChevronDown
+                aria-hidden="true"
+                className={`w-3.5 h-3.5 ml-auto flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+                style={{ color: "var(--ns-ink-40)" }}
+              />
+            )}
+          </HeaderTag>
+          {(!compact || open) && (<>
           {item.whyItMatters && <p className="mt-1 text-[13px] text-gray-600 leading-relaxed">{item.whyItMatters}</p>}
           {item.resources?.length > 0 && (
             <div className="mt-2.5 flex flex-wrap gap-2">
               {item.resources.map((r, i) => (
                 <a key={i} href={r.url} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-600 hover:text-[#dc4f33] bg-gray-50 hover:bg-[#ffeae4] border border-gray-100 rounded-lg px-2.5 py-1.5 transition-colors">
-                  <ExternalLink className="w-3 h-3" />{r.title} <span className="text-gray-400">· {r.source}</span>
+                  className={`inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-600 hover:text-[#dc4f33] bg-gray-50 hover:bg-[#ffeae4] border border-gray-100 rounded-lg px-2.5 py-1.5 transition-colors ${FOCUS}`}>
+                  <ExternalLink aria-hidden="true" className="w-3 h-3" />{r.title}{" "}
+                  <span style={{ color: "var(--ns-ink-70)" }}>· {r.source}</span>
+                  <span className="sr-only"> (opens in a new tab)</span>
                 </a>
               ))}
             </div>
@@ -168,9 +223,9 @@ export function QuickWinCard({
               <button
                 onClick={promote}
                 disabled={promoting}
-                className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#dc4f33] bg-white border border-[#f5d9d0] rounded-lg px-2.5 py-1.5 hover:bg-[#ffeae4] transition-colors disabled:opacity-60"
+                className={`inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#dc4f33] bg-white border border-[#f5d9d0] rounded-lg px-2.5 py-1.5 hover:bg-[#ffeae4] transition-colors disabled:opacity-60 ${FOCUS}`}
               >
-                {promoting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
+                {promoting ? <Loader2 aria-hidden="true" className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight aria-hidden="true" className="w-3.5 h-3.5" />}
                 Make it part of my path
               </button>
             </div>
@@ -178,24 +233,25 @@ export function QuickWinCard({
           {isDone && (
             isProven ? (
               <p className="mt-2.5 inline-flex items-center gap-1.5 text-[12px] font-medium text-green-600">
-                <BadgeCheck className="w-3.5 h-3.5" />
+                <BadgeCheck aria-hidden="true" className="w-3.5 h-3.5" />
                 Verified — this counts in your next tailor
               </p>
             ) : (
               <div className="mt-2.5">
-                <input ref={fileRef} type="file" accept=".pdf,.docx,.txt" className="hidden"
+                <input ref={fileRef} type="file" accept=".pdf,.docx,.txt" className="hidden" aria-label={`Upload evidence for ${item.skill}`}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadEvidence(f) }} />
                 <button
                   onClick={() => fileRef.current?.click()}
                   disabled={verifying}
-                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-500 hover:text-[#dc4f33] border border-gray-200 hover:border-[#f5d9d0] rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-60"
+                  className={`inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-500 hover:text-[#dc4f33] border border-gray-200 hover:border-[#f5d9d0] rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-60 ${FOCUS}`}
                 >
-                  {verifying ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Reviewing…</> : <><Upload className="w-3.5 h-3.5" />Verify with evidence</>}
+                  {verifying ? <><Loader2 aria-hidden="true" className="w-3.5 h-3.5 animate-spin" />Reviewing…</> : <><Upload aria-hidden="true" className="w-3.5 h-3.5" />Verify with evidence</>}
                 </button>
-                <p className="mt-1.5 text-[11px] text-gray-400">Upload the project or certificate — verified skills are the ones that lift your future match scores.</p>
+                <p className="mt-1.5 text-[11px]" style={{ color: "var(--ns-ink-70)" }}>Upload the project or certificate — verified skills are the ones that lift your future match scores.</p>
               </div>
             )
           )}
+          </>)}
         </div>
       </div>
     </div>
@@ -369,14 +425,14 @@ export function QuickWinsStrip({
                     disabled={accepting === item.skill}
                     className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#dc4f33] border border-[#f5d9d0] bg-white rounded-lg px-3 py-2 hover:bg-[#fff7f4] transition-colors disabled:opacity-60"
                   >
-                    {accepting === item.skill ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                    {accepting === item.skill ? <Loader2 aria-hidden="true" className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                     Add to my path
                   </button>
                 </div>
               </div>
             )
           })}
-          <p className="text-[11px] text-gray-400">These are bigger than a week's work, so they only join your path if you say so.</p>
+          <p className="text-[11px]" style={{ color: "var(--ns-ink-70)" }}>These are bigger than a week&rsquo;s work, so they only join your path if you say so.</p>
         </div>
       )}
 
@@ -398,21 +454,76 @@ export function QuickWinsSection({
 }) {
   const { cycle, busySkill } = useCycle(() => onChanged())
   if (items.length === 0) return null
-  const done = items.filter((i) => i.status === "done").length
+
+  // Split rather than stack. A flat list of identical cards gives a 2-hour
+  // task the same weight as a 3x-surfaced one and buries what is still open
+  // under what is finished.
+  const open = items.filter((i) => i.status !== "done")
+  const closed = items.filter((i) => i.status === "done")
+  const totalHours = open.reduce((sum, i) => sum + (i.effortEstimateHours ?? i.effortHours ?? 0), 0)
 
   return (
     <section style={{ marginTop: 48 }}>
       <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, borderBottom: "1px solid var(--ns-border)" }}>
         <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Quick wins</h2>
-        <span className="t-mono">{done} of {items.length} closed</span>
+        <span className="t-mono tabular-nums">{closed.length} of {items.length} closed</span>
       </div>
-      <p className="t-small" style={{ margin: "10px 0 0" }}>
-        Small gaps your job applications keep surfacing — each closable in about a week. They sit beside your main path and never move its forecast.
-      </p>
-      <div className="space-y-3" style={{ marginTop: 20 }}>
-        {items.map((item) => (
-          <QuickWinCard key={item.skill} item={item} onCycle={cycle} busy={busySkill === item.skill} onVerified={() => onChanged()} onPromoted={() => onChanged()} />
-        ))}
+
+      {/* One tinted block, so the whole group reads as a distinct thing sitting
+          BESIDE the path rather than more of the path. */}
+      <div style={{
+        marginTop: 20,
+        background: "var(--ns-tint-1)",
+        border: "1px solid var(--ns-tint-2)",
+        borderRadius: 16,
+        padding: "18px 18px 20px",
+      }}>
+        <p className="t-small" style={{ margin: "0 0 4px" }}>
+          Small gaps your applications keep surfacing — each closable in about a week.
+          They sit beside your main path and never move its forecast.
+        </p>
+        {open.length > 0 && totalHours > 0 && (
+          <p className="t-mono" style={{ margin: "0 0 16px", color: "var(--ns-coral-deep)" }}>
+            {open.length} open · roughly {Math.round(totalHours)}h of work left
+          </p>
+        )}
+
+        {open.length > 0 && (
+          <div className="space-y-2">
+            {open.map((item) => (
+              <QuickWinCard
+                key={item.skill}
+                item={item}
+                onCycle={cycle}
+                busy={busySkill === item.skill}
+                compact
+                onVerified={() => onChanged()}
+                onPromoted={() => onChanged()}
+              />
+            ))}
+          </div>
+        )}
+
+        {closed.length > 0 && (
+          <details style={{ marginTop: open.length > 0 ? 18 : 0 }}>
+            <summary className="t-mono" style={{ cursor: "pointer", color: "var(--ns-ink-55)" }}>
+              {closed.length} closed
+            </summary>
+            <div className="space-y-2" style={{ marginTop: 12 }}>
+              {closed.map((item) => (
+                <QuickWinCard
+                  key={item.skill}
+                  item={item}
+                  onCycle={cycle}
+                  busy={busySkill === item.skill}
+                  compact
+                  onVerified={() => onChanged()}
+                  onPromoted={() => onChanged()}
+                />
+              ))}
+            </div>
+          </details>
+        )}
       </div>
     </section>
   )
