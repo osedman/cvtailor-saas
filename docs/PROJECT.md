@@ -286,8 +286,20 @@ banner: "You closed X — this job went 61% → 68%." Quick-win cards gained
 verification is reachable at the moment of closing — addressing the Phase 0
 finding that evidence uploads were ~never used.
 
-**Still open:** Phase 6 (promotion at surfaced_count ≥ 3, 30-day expiry),
-dropping `tailor_history.upskill` + migration 009 file, dropping
-`career_roadmaps.items` once proven.
+**Promotion + expiry (Phase 6, 27 Jul):** a quick win OFFERS promotion to the
+core path when surfaced by 3+ applications (a pattern, not a one-off job) or
+closed with passed evidence (proven investment) — `promotionEligible`, unit
+tested. Always an offer, never automatic; provenance survives promotion.
+Untouched quick wins (not done, no activity in 30 days) auto-archive lazily on
+the career-path read — no cron — and un-archive with surfaced_count++ if a
+later run resurfaces the skill. Done items never expire. NOTE one deliberate
+deviation from the plan: rule 2 was "on the North Star role family AND just
+closed", but the North Star's role family isn't stored anywhere and deriving it
+would cost an AI call, so the shipped rule is "closed with passed evidence" —
+a stronger signal, and safe because it only gates an offer.
+
+**Still open:** dropping `tailor_history.upskill` + migration 009 file, dropping
+`career_roadmaps.items` once proven; prod port needs 016 (table+backfill at
+cutover) before this code.
 
 _Last updated: 27 July 2026_

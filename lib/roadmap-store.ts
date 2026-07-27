@@ -230,3 +230,38 @@ export async function loadProvenSkills(db: Db, userId: string, limit = 8): Promi
   if (error) throw error
   return (data ?? []).map(rowToItem).filter((i) => i.evidence?.verdict === 'pass')
 }
+
+/**
+ * Promote a quick win onto the core path — always the user's click, never
+ * automatic. Provenance survives promotion (source_run_id stays), so the item
+ * can still say "this came from your Smart application" from the main path.
+ */
+export async function promoteToCore(db: Db, userId: string, skill: string): Promise<StoredRoadmapItem[]> {
+  const { error } = await db
+    .from('career_roadmap_items')
+    .update({ horizon: 'core', archived_at: null, updated_at: new Date().toISOString() })
+    .eq('user_id', userId).eq('horizon', 'quick').ilike('skill', likePattern(skill))
+  if (error) throw error
+  return loadItems(db, userId)
+}
+
+/**
+ * Archive quick wins untouched for `days` (default 30). Lazy, run at read time
+ * from the career-path GET — no cron to keep alive. Done items are never
+ * expired: they are achievements (and, when proven, evidence-edge inputs), not
+ * stale to-dos. A later run surfacing the same skill un-archives it via
+ * addItems, so expiry is always reversible by reality.
+ */
+export async function expireStaleQuickWins(db: Db, userId: string, days = 30): Promise<void> {
+  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString()
+  const { error } = await db
+    .from('career_roadmap_items')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('horizon', 'quick')
+    .neq('status', 'done')
+    .is('archived_at', null)
+    .lt('created_at', cutoff)
+    .or(`touched_at.is.null,touched_at.lt.${cutoff}`)
+  if (error) throw error
+}

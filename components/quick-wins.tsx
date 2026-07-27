@@ -14,11 +14,13 @@ import { useRef, useState } from "react"
 import { toast } from "sonner"
 import { AlertCircle, ArrowRight, BadgeCheck, Check, CircleDot, ExternalLink, Loader2, Plus, Sparkles, Upload, Zap } from "lucide-react"
 import type { CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
+import { promotionEligible } from "@/lib/career-path-compute"
 
 const ACCENT = "#dc4f33"
 
 /** Item shape returned by /api/upskill and /api/career-path (store fields included) */
 export interface QuickWinItem extends CareerRoadmapItem {
+  horizon?: "quick" | "core"
   sourceRunId?: string | null
   effortEstimateHours?: number | null
   surfacedCount?: number
@@ -41,12 +43,15 @@ export function QuickWinCard({
   item,
   onCycle,
   onVerified,
+  onPromoted,
   busy = false,
 }: {
   item: QuickWinItem
   onCycle: (skill: string, status: CareerItemStatus) => void
   /** Called after a passed evidence review, with the evidence-grounded CV line */
   onVerified?: (skill: string, cvPhrasing?: string) => void
+  /** Called after the user moves this skill onto their core path */
+  onPromoted?: (skill: string) => void
   busy?: boolean
 }) {
   const isDone = item.status === "done"
@@ -54,7 +59,30 @@ export function QuickWinCard({
   const isProven = item.evidence?.verdict === "pass"
   const hours = item.effortEstimateHours ?? item.effortHours
   const [verifying, setVerifying] = useState(false)
+  const [promoting, setPromoting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Promotion is offered, never automatic: 3+ runs surfacing the same skill is
+  // a pattern in what the user applies for; an evidence-backed close is proven
+  // investment. Either earns the question — only their click moves it.
+  const offerPromotion = !!onPromoted && promotionEligible(item)
+
+  const promote = async () => {
+    setPromoting(true)
+    try {
+      await readJson(await fetch("/api/upskill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "promote", skill: item.skill }),
+      }))
+      toast.success(`${item.skill} is now part of your main path`)
+      onPromoted?.(item.skill)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not move that skill.")
+    } finally {
+      setPromoting(false)
+    }
+  }
 
   // Same reviewer the career path uses — the evidence route reads both
   // horizons, so a quick win earns "proven" exactly the way a core skill does.
@@ -128,6 +156,23 @@ export function QuickWinCard({
             <div className="mt-2.5 rounded-xl border border-green-100 bg-green-50/60 p-3">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600 mb-1">Add to your CV</p>
               <p className="text-[12.5px] text-[#1e1813] leading-relaxed">{item.cvPhrasing}</p>
+            </div>
+          )}
+          {offerPromotion && (
+            <div className="mt-2.5 flex items-center gap-2 flex-wrap rounded-xl border border-[#f5d9d0] bg-[#fff7f4] px-3 py-2.5">
+              <p className="flex-1 min-w-[200px] text-[12px] text-[#1e1813] leading-snug">
+                {(item.surfacedCount ?? 1) >= 3
+                  ? <>This keeps coming up — <span className="font-semibold">{item.surfacedCount} applications</span> have asked for it.</>
+                  : <>You proved this one. Want it on your main path?</>}
+              </p>
+              <button
+                onClick={promote}
+                disabled={promoting}
+                className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#dc4f33] bg-white border border-[#f5d9d0] rounded-lg px-2.5 py-1.5 hover:bg-[#ffeae4] transition-colors disabled:opacity-60"
+              >
+                {promoting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
+                Make it part of my path
+              </button>
             </div>
           )}
           {isDone && (
@@ -289,6 +334,7 @@ export function QuickWinsStrip({
               item={item}
               onCycle={cycle}
               busy={busySkill === item.skill}
+              onPromoted={(skill) => setCaptured((prev) => prev ? prev.filter((p) => p.skill !== skill) : prev)}
               onVerified={(skill, cvPhrasing) => setCaptured((prev) => prev
                 ? prev.map((p) => p.skill === skill
                     ? { ...p, evidence: { fileName: "", judgedAt: new Date().toISOString(), verdict: "pass", quality: 3, note: "" }, cvPhrasing: cvPhrasing || p.cvPhrasing }
@@ -365,7 +411,7 @@ export function QuickWinsSection({
       </p>
       <div className="space-y-3" style={{ marginTop: 20 }}>
         {items.map((item) => (
-          <QuickWinCard key={item.skill} item={item} onCycle={cycle} busy={busySkill === item.skill} onVerified={() => onChanged()} />
+          <QuickWinCard key={item.skill} item={item} onCycle={cycle} busy={busySkill === item.skill} onVerified={() => onChanged()} onPromoted={() => onChanged()} />
         ))}
       </div>
     </section>

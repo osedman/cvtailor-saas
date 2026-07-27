@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { splitByEffort } from '@/lib/career-path-compute'
-import { addItems, setItemStatus, loadItems, type StoredRoadmapItem } from '@/lib/roadmap-store'
+import { addItems, setItemStatus, loadItems, promoteToCore, type StoredRoadmapItem } from '@/lib/roadmap-store'
 
 export const maxDuration = 300
 
@@ -60,6 +60,14 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
     const body = await req.json()
+
+    // ── Promote an existing quick win onto the core path (user's click) ──
+    if (body?.mode === 'promote') {
+      const skill = String(body.skill ?? '').trim().slice(0, 80)
+      if (!skill) return NextResponse.json({ error: 'A skill is required' }, { status: 400 })
+      const items = await promoteToCore(supabase, user.id, skill)
+      return NextResponse.json({ items })
+    }
 
     // ── Accept a larger skill onto the core path (explicit user consent) ──
     if (body?.mode === 'accept') {

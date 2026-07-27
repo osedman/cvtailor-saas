@@ -279,3 +279,26 @@ export function splitByEffort<T extends { effortHours?: number }>(
   }
   return { quick, candidates }
 }
+
+/** A skill this many runs keep surfacing is a pattern, not a one-off job. */
+export const PROMOTION_SURFACE_COUNT = 3
+
+/**
+ * Should a quick win be OFFERED promotion onto the core path?
+ *
+ * Two honest signals, per the Quick Wins plan: the same skill surfaced by 3+
+ * separate applications (a pattern in what the user is applying for), or the
+ * user closed it with passed evidence (proven investment). Either way this
+ * gates an offer, never an automatic move — the core path stays deliberately
+ * chosen.
+ */
+export function promotionEligible(item: {
+  horizon?: string
+  status?: string
+  surfacedCount?: number
+  evidence?: { verdict?: string }
+}): boolean {
+  if (item.horizon !== "quick") return false
+  if ((item.surfacedCount ?? 1) >= PROMOTION_SURFACE_COUNT) return true
+  return item.status === "done" && item.evidence?.verdict === "pass"
+}

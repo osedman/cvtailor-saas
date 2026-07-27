@@ -13,7 +13,7 @@ import { sanitizeDeep } from '@/lib/sanitize'
 import { errMessage } from '@/lib/err'
 import {
   loadItems, replaceItems, addItems, setItemStatus, removeSkill as storeRemoveSkill,
-  type StoredRoadmapItem,
+  expireStaleQuickWins, type StoredRoadmapItem,
 } from '@/lib/roadmap-store'
 
 export const maxDuration = 300
@@ -124,6 +124,10 @@ export async function GET() {
     // Quick wins ride alongside the roadmap, never inside it: roadmap.items is
     // core-only by contract (readiness and the forecast are computed from it),
     // so run-surfaced items get their own field and their own section in the UI.
+    // Expiry is lazy, here at the read: untouched quick wins archive after 30
+    // days so the section never becomes a graveyard — the standard failure
+    // mode for lists like this. Best-effort; never blocks the path.
+    try { await expireStaleQuickWins(supabase, user.id) } catch { /* non-fatal */ }
     const quickWins = await loadItems(supabase, user.id, { horizon: 'quick' })
 
     return NextResponse.json({ roadmap, derivedTarget, readiness, rankedGaps, arcAmbition, quickWins })
