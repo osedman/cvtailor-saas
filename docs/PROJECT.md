@@ -233,3 +233,48 @@ picker that simply doesn't persist.
 still works per-device via localStorage.
 
 _Last updated: 26 July 2026_
+
+---
+
+## ⚡ Feature: Quick wins — Upskill merged into the career path (27 July 2026)
+
+**Problem:** Upskill wrote a per-run plan to `tailor_history.upskill` that nothing
+else read — closing a skill there ticked a box on one history row and changed
+nothing (no evidence edge, no forecast, no digest). Two parallel skill lists, one
+inert. Migration 009 never went to prod, so prod never saw the tab.
+
+**Decision (per the Quick Wins plan + Phase 0 findings):** one store, two horizons.
+Items normalised out of `career_roadmaps.items` (jsonb array, one row per user)
+into `career_roadmap_items` (migration 016) — real rows with `horizon`
+(`quick`/`core`), `source`, `source_run_id` FK, `role_family_at_capture`,
+`surfaced_count`, `archived_at`. Dedupe on skill is a DB unique index, not app
+code. `career_roadmaps` keeps its per-user fields; its `items` column is left in
+place untouched for rollback, to be dropped in a later migration.
+
+**Horizon rules by consumer** — the pollution-prevention core of the design:
+path/readiness/forecast/market read `core` only; evidence review and the tailor
+evidence edge read both. Quick wins can never move the North Star's numbers.
+
+**Capture (Phase 3):** the generator now estimates `effortHours` per skill
+(honest, CV-calibrated, "do not flatter"). `splitByEffort`: ≤5h auto-captures as
+`quick`; anything bigger — or with NO usable estimate — comes back as a candidate
+needing explicit "Add to my path". That rule keeps "learn Kubernetes" out of the
+quick lane. `/api/upskill` rewritten as this endpoint; PATCH cycles status in the
+shared store, so closing a skill anywhere closes it everywhere.
+
+**Surfaces (Phase 4):** `components/quick-wins.tsx` — one card, two placements:
+"Close these gaps" strip in the tailor Gaps tab (replaces the Upskill tab), and a
+"Quick wins" section on the career path above the skill map. Same write path.
+GET /api/career-path now returns `quickWins` alongside the roadmap.
+
+**Sequencing constraint for prod:** the wired code reads `career_roadmap_items`
+— prod MUST get migration 016 (table + backfill) before this code deploys, or
+the career path 500s for all users. Staging had 016 applied first; backfill
+verified exact (4/4 items, order + content match).
+
+**Still open:** Phase 5 (evidence-gated closes feed requirementsCoverage + match
+delta display), Phase 6 (promotion at surfaced_count ≥ 3, 30-day expiry),
+dropping `tailor_history.upskill` + migration 009 file, dropping
+`career_roadmaps.items` once proven.
+
+_Last updated: 27 July 2026_

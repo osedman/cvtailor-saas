@@ -6,6 +6,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { ArrowLeft, Sparkles, Loader2, ExternalLink, Check, CircleDot, Target, ArrowRight, Flag, MapPin, PartyPopper, FolderPlus, FileSearch, Plus, X, ChevronDown, TrendingUp, Database, Code2, Cloud, BarChart3, Users, Wrench, Palette, Presentation, BookOpen, Zap } from "lucide-react"
 import { Header } from "@/components/cv-tailor/header"
+import { QuickWinsSection } from "@/components/quick-wins"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 import { forecastReadyDate, daysSinceLastStitch } from "@/lib/career-path-compute"
@@ -31,7 +32,8 @@ interface Roadmap {
 }
 interface Readiness { pct: number; have: number; total: number; missing: string[]; haveList?: string[] }
 interface RankedGap { skill: string; unlockCount: number; sourceJobs: string[] }
-interface PathData { roadmap: Roadmap | null; derivedTarget: string; readiness: Readiness; rankedGaps: RankedGap[]; arcAmbition: string }
+interface QuickWinItem extends CareerRoadmapItem { sourceRunId?: string | null; effortEstimateHours?: number | null; surfacedCount?: number }
+interface PathData { roadmap: Roadmap | null; derivedTarget: string; readiness: Readiness; rankedGaps: RankedGap[]; arcAmbition: string; quickWins?: QuickWinItem[] }
 interface SalaryBand { p25: number; median: number; p75: number; sampleSize: number }
 interface SkillUnlock { skill: string; roles: number }
 interface MarketSnapshot { role: string; region: string; totalRoles: number; band: SalaryBand | null; topCompanies: string[]; unlocks: SkillUnlock[]; fetchedAt: string }
@@ -1075,6 +1077,9 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
             </section>
           )
         })()}
+
+        {/* Quick wins — run-surfaced, sit beside the path, never move its forecast */}
+        <QuickWinsSection items={data.quickWins ?? []} onChanged={() => { void reload() }} />
 
         {/* Skill set vs role (the transparent map) */}
         <SkillSet targetSkills={roadmap.target_skills ?? []} haveList={data.readiness.haveList ?? []} missing={data.readiness.missing} items={roadmap.items} onOpenSkill={(sk) => setSelected(sk)} onAddSkill={addSkill} addingSkill={addingSkill} />

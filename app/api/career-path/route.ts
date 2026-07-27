@@ -121,7 +121,12 @@ export async function GET() {
 
     const arcAmbition = ((arcRes.data?.sections as { story?: { ambition?: string } } | null)?.story?.ambition ?? '').trim()
 
-    return NextResponse.json({ roadmap, derivedTarget, readiness, rankedGaps, arcAmbition })
+    // Quick wins ride alongside the roadmap, never inside it: roadmap.items is
+    // core-only by contract (readiness and the forecast are computed from it),
+    // so run-surfaced items get their own field and their own section in the UI.
+    const quickWins = await loadItems(supabase, user.id, { horizon: 'quick' })
+
+    return NextResponse.json({ roadmap, derivedTarget, readiness, rankedGaps, arcAmbition, quickWins })
   } catch (err) {
     const msg = errMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })

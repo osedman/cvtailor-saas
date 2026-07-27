@@ -8,6 +8,7 @@ import type { TailorResult, InterviewPrepResult, PitchesResult, CareerRoadmapIte
 import { downloadWordDoc } from "@/lib/word"
 import { getTemplate, px, TEMPLATE_LIST, type CvTemplateId } from "@/lib/cv-templates"
 import { useCvTemplate } from "@/hooks/use-cv-template"
+import { QuickWinsStrip } from "@/components/quick-wins"
 import { InterviewPrep } from "./interview-prep"
 import { InterviewPitches } from "./interview-pitches"
 
@@ -478,6 +479,15 @@ export function ResultsTabs({
 
   const handleDownloadWord = () => downloadWordDoc(results.tailoredCV, "tailored-cv.doc", template)
 
+  // Gaps this run flagged, as concrete skills: prefer the JD's exact keywords,
+  // fall back to the requirement text. Feeds the quick-wins strip.
+  const weakSkills = Array.from(new Set(
+    (results.requirementsCoverage ?? [])
+      .filter((r) => r.strength === "partial" || r.strength === "none")
+      .flatMap((r) => (r.keywords && r.keywords.length ? r.keywords : [r.requirement]))
+      .map((s) => s.trim()).filter(Boolean)
+  )).slice(0, 6)
+
   const startEdit = (which: "cv" | "letter", text: string) => {
     // The draft survives tab switches, so the other tab's Edit button is still
     // reachable mid-edit. Opening it would silently bin the unsaved draft.
@@ -838,6 +848,17 @@ export function ResultsTabs({
                   <span className="text-sm text-gray-600">{gap}</span>
                 </div>
               ))}
+            </div>
+
+            {/* Close these gaps — quick wins land on the career path, right at
+                the moment the gaps are freshest. Replaces the old Upskill tab,
+                whose plan lived on the run where nothing else could see it. */}
+            <div className="pt-2">
+              <QuickWinsStrip
+                historyId={historyId}
+                weakSkills={weakSkills}
+                jobTitle={results.jobTitle}
+              />
             </div>
           </div>
         )}
