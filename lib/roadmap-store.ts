@@ -30,6 +30,13 @@ export interface RoadmapItemMeta {
 
 export type StoredRoadmapItem = CareerRoadmapItem & Partial<RoadmapItemMeta>
 
+/**
+ * Escape LIKE wildcards before using a skill name as an ilike pattern.
+ * Without this a skill containing % or _ ("100% test coverage") would match
+ * other rows — ilike treats them as wildcards, not literals.
+ */
+const likePattern = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`)
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type DbRow = Record<string, any>
 type Db = SupabaseClient<any, any, any>
@@ -142,7 +149,7 @@ export async function addItems(
           archived_at: null,
           updated_at: new Date().toISOString(),
         })
-        .eq('user_id', userId).ilike('skill', item.skill)
+        .eq('user_id', userId).ilike('skill', likePattern(item.skill))
       if (error) throw error
     } else {
       const { error } = await db
@@ -163,7 +170,7 @@ export async function setItemStatus(
   const { error } = await db
     .from('career_roadmap_items')
     .update({ status, touched_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq('user_id', userId).ilike('skill', skill)
+    .eq('user_id', userId).ilike('skill', likePattern(skill))
   if (error) throw error
   return loadItems(db, userId)
 }
@@ -177,14 +184,27 @@ export async function setItemEvidence(
   if (status) { patch.status = status; patch.touched_at = new Date().toISOString() }
   if (typeof cvPhrasing === 'string' && cvPhrasing) patch.cv_phrasing = cvPhrasing
   const { error } = await db
-    .from('career_roadmap_items').update(patch).eq('user_id', userId).ilike('skill', skill)
+    .from('career_roadmap_items').update(patch).eq('user_id', userId).ilike('skill', likePattern(skill))
+  if (error) throw error
+  return loadItems(db, userId)
+}
+
+/** Replace a skill's project brief — used when a failed evidence review
+ *  suggests a better-sized project to try instead. */
+export async function setItemProjectBrief(
+  db: Db, userId: string, skill: string, projectBrief: string,
+): Promise<StoredRoadmapItem[]> {
+  const { error } = await db
+    .from('career_roadmap_items')
+    .update({ project_brief: projectBrief, updated_at: new Date().toISOString() })
+    .eq('user_id', userId).ilike('skill', likePattern(skill))
   if (error) throw error
   return loadItems(db, userId)
 }
 
 export async function removeSkill(db: Db, userId: string, skill: string): Promise<StoredRoadmapItem[]> {
   const { error } = await db
-    .from('career_roadmap_items').delete().eq('user_id', userId).ilike('skill', skill)
+    .from('career_roadmap_items').delete().eq('user_id', userId).ilike('skill', likePattern(skill))
   if (error) throw error
   return loadItems(db, userId)
 }

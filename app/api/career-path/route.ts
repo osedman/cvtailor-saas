@@ -11,10 +11,33 @@ import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { errMessage } from '@/lib/err'
+import {
+  loadItems, replaceItems, addItems, setItemStatus, removeSkill as storeRemoveSkill,
+  type StoredRoadmapItem,
+} from '@/lib/roadmap-store'
 
 export const maxDuration = 300
 
-const ROADMAP_COLS = 'id, created_at, updated_at, target_role, hours_per_week, current_title, milestones, intention, items, target_skills, findings'
+const ROADMAP_COLS = 'id, created_at, updated_at, target_role, hours_per_week, current_title, milestones, intention, target_skills, findings'
+
+/**
+ * Attach items from career_roadmap_items to a roadmap row.
+ *
+ * Items no longer live on the row (migration 016), but every client reads
+ * `roadmap.items`, so the API contract is preserved here rather than in the UI.
+ * Core-only by default: quick wins are surfaced separately and must never
+ * silently join the North Star path or its forecast.
+ */
+async function withItems<T extends object>(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  row: T | null,
+  horizon: 'core' | 'quick' | undefined = 'core',
+): Promise<(T & { items: StoredRoadmapItem[] }) | null> {
+  if (!row) return null
+  const items = await loadItems(supabase, userId, { horizon })
+  return { ...row, items }
+}
 
 /** The user's market, grounding region-aware course sourcing. Defaults to GB. */
 async function loadRegion(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): Promise<string> {
@@ -66,7 +89,7 @@ export async function GET() {
     ])
     if (roadmapRes.error) throw roadmapRes.error
 
-    const roadmap = roadmapRes.data ?? null
+    const roadmap = await withItems(supabase, user.id, roadmapRes.data ?? null)
 
     const history: HistoryEntry[] = (histRes.data ?? []).map((r) => ({
       historyId: r.id as string,
@@ -83,6 +106,7 @@ export async function GET() {
 
     const derivedTarget = deriveTargetRole(history)
     const items = (roadmap?.items as CareerRoadmapItem[] | undefined) ?? []
+    // NB: core-only, per withItems — quick wins never move the readiness number.
     const closedSkills = items.filter((i) => i.status === 'done').map((i) => i.skill)
     const openSkills = items.filter((i) => i.status !== 'done').map((i) => i.skill)
     const target = ((roadmap?.target_role as string) || derivedTarget || '').trim()
@@ -127,7 +151,7 @@ export async function POST(req: NextRequest) {
         .upsert({ user_id: user.id, hours_per_week: Math.round(hours), updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
         .select(ROADMAP_COLS).single()
       if (error) throw error
-      return NextResponse.json({ roadmap: saved })
+      return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
     }
 
     // Set/update the stated intention (goal) on its own.
@@ -138,7 +162,7 @@ export async function POST(req: NextRequest) {
         .upsert({ user_id: user.id, intention: value, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
         .select(ROADMAP_COLS).single()
       if (error) throw error
-      return NextResponse.json({ roadmap: saved })
+      return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
     }
 
     // ── Stage 1 of the North Star journey: scan the CV → career-coach findings.
@@ -233,14 +257,21 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const clean = sanitizeDeep({ target_role: role, target_skills: roleSkills, items })
-      const { data: saved, error } = await supabase
+      const clean = sanitizeDeep({ target_role: role, target_skills: roleSkills })
+      const { data: savedRow, error } = await supabase
         .from('career_roadmaps')
         .upsert({ user_id: user.id, ...clean, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
         .select(ROADMAP_COLS).single()
       if (error) throw error
+      // Replaces the core plan only, so locking a new North Star can never wipe
+      // quick wins the user is part-way through.
+      const savedItems = await replaceItems(
+        supabase, user.id, savedRow.id as string,
+        sanitizeDeep(items) as StoredRoadmapItem[], 'core',
+      )
+      const saved = { ...savedRow, items: savedItems }
 
-      const closed = (saved.items as CareerRoadmapItem[]).filter((i) => i.status === 'done').map((i) => i.skill)
+      const closed = savedItems.filter((i) => i.status === 'done').map((i) => i.skill)
       const readiness = readinessFromTargetSkills(roleSkills as TargetSkill[], closed)
       return NextResponse.json({ roadmap: saved, readiness })
     }
@@ -250,17 +281,17 @@ export async function POST(req: NextRequest) {
       const skill = String(body.skill ?? '').trim()
       if (!skill) return NextResponse.json({ error: 'A skill is required' }, { status: 400 })
       const { data: existing, error: fErr } = await supabase
-        .from('career_roadmaps').select('items, removed_skills').eq('user_id', user.id).maybeSingle()
+        .from('career_roadmaps').select('removed_skills').eq('user_id', user.id).maybeSingle()
       if (fErr) throw fErr
       if (!existing) return NextResponse.json({ error: 'No path found' }, { status: 404 })
-      const items = ((existing.items as CareerRoadmapItem[]) ?? []).filter((i) => i.skill.toLowerCase() !== skill.toLowerCase())
+      await storeRemoveSkill(supabase, user.id, skill)
       const removed = Array.from(new Set([...(((existing.removed_skills as string[]) ?? [])), skill.toLowerCase()])).slice(-100)
       const { data: saved, error } = await supabase
         .from('career_roadmaps')
-        .update({ items, removed_skills: removed, updated_at: new Date().toISOString() })
+        .update({ removed_skills: removed, updated_at: new Date().toISOString() })
         .eq('user_id', user.id).select(ROADMAP_COLS).single()
       if (error) throw error
-      return NextResponse.json({ roadmap: saved })
+      return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
     }
 
     // ── Stage 3: living-path update actions ───────────────────────────────
@@ -275,7 +306,7 @@ export async function POST(req: NextRequest) {
 
       const { data: existing } = await supabase
         .from('career_roadmaps')
-        .select('target_role, hours_per_week, current_title, milestones, items')
+        .select('target_role, hours_per_week, current_title, milestones')
         .eq('user_id', user.id).maybeSingle()
 
       const priorMilestones = Array.isArray(existing?.milestones) ? existing!.milestones as Array<{ role: string; reachedAt: string }> : []
@@ -289,7 +320,6 @@ export async function POST(req: NextRequest) {
           hours_per_week: existing?.hours_per_week ?? null,
           current_title: reachedRole,
           milestones,
-          items: existing?.items ?? [],
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' })
         .select(ROADMAP_COLS).single()
@@ -360,9 +390,9 @@ export async function POST(req: NextRequest) {
 
       const { data: existing } = await supabase
         .from('career_roadmaps')
-        .select('target_role, hours_per_week, intention, items, removed_skills')
+        .select('target_role, hours_per_week, intention, removed_skills')
         .eq('user_id', user.id).maybeSingle()
-      const existingItems = (existing?.items as CareerRoadmapItem[] | undefined) ?? []
+      const existingItems = await loadItems(supabase, user.id)
       const existingSkills = existingItems.map((i) => i.skill)
       const removedForJd = ((existing?.removed_skills as string[] | undefined) ?? [])
       const jdCv = await loadCandidateCv(supabase, user.id)
@@ -410,17 +440,9 @@ export async function POST(req: NextRequest) {
       const newItems = ((gtu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const }))
       if (newItems.length === 0) return NextResponse.json({ added: 0, message: 'Nothing new to add.' })
 
-      const merged = sanitizeDeep([...existingItems, ...newItems])
-      const { error } = await supabase
-        .from('career_roadmaps')
-        .upsert({
-          user_id: user.id,
-          target_role: existing?.target_role ?? '',
-          hours_per_week: existing?.hours_per_week ?? null,
-          items: merged,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' })
-      if (error) throw error
+      // addItems dedupes on skill: a skill already on the path has its
+      // surfaced_count incremented rather than being duplicated.
+      await addItems(supabase, user.id, null, sanitizeDeep(newItems) as StoredRoadmapItem[])
 
       return NextResponse.json({ added: newItems.length })
     }
@@ -434,12 +456,12 @@ export async function POST(req: NextRequest) {
 
       const { data: existing, error: fetchErr } = await supabase
         .from('career_roadmaps')
-        .select('id, target_role, hours_per_week, intention, items')
+        .select('id, target_role, hours_per_week, intention')
         .eq('user_id', user.id)
         .maybeSingle()
       if (fetchErr) throw fetchErr
 
-      const items = (existing?.items as CareerRoadmapItem[] | undefined) ?? []
+      const items = await loadItems(supabase, user.id, { includeArchived: true })
       if (items.some((i) => i.skill.toLowerCase() === skill.toLowerCase())) {
         return NextResponse.json({ error: 'That skill is already on your career path.' }, { status: 409 })
       }
@@ -471,8 +493,6 @@ export async function POST(req: NextRequest) {
       const newItem = (Array.isArray(raw.items) ? raw.items : [])[0]
       if (!newItem) throw new Error('Could not build that skill entry. Please try again.')
 
-      const merged = sanitizeDeep([...items, { ...newItem, status: 'todo' as const }])
-
       const { data: saved, error } = await supabase
         .from('career_roadmaps')
         .upsert(
@@ -480,7 +500,6 @@ export async function POST(req: NextRequest) {
             user_id: user.id,
             target_role: existing?.target_role ?? '',
             hours_per_week: existing?.hours_per_week ?? null,
-            items: merged,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'user_id' },
@@ -488,7 +507,11 @@ export async function POST(req: NextRequest) {
         .select(ROADMAP_COLS)
         .single()
       if (error) throw error
-      return NextResponse.json({ roadmap: saved })
+      await addItems(
+        supabase, user.id, saved.id as string,
+        sanitizeDeep([{ ...newItem, status: 'todo' as const }]) as StoredRoadmapItem[],
+      )
+      return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
     }
 
     if (!Array.isArray(skills) || skills.length === 0) {
@@ -528,7 +551,7 @@ export async function POST(req: NextRequest) {
     }))
     if (items.length === 0) throw new Error('The roadmap came back empty. Please try again.')
 
-    const clean = sanitizeDeep({ target_role: targetRole || '', hours_per_week: hoursPerWeek || null, intention: String(intention ?? ''), items })
+    const clean = sanitizeDeep({ target_role: targetRole || '', hours_per_week: hoursPerWeek || null, intention: String(intention ?? '') })
 
     const { data: saved, error } = await supabase
       .from('career_roadmaps')
@@ -537,7 +560,11 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (error) throw error
-    return NextResponse.json({ roadmap: saved })
+    await replaceItems(
+      supabase, user.id, saved.id as string,
+      sanitizeDeep(items) as StoredRoadmapItem[], 'core',
+    )
+    return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
   } catch (err) {
     const msg = errMessage(err)
     const status = (err as { status?: number })?.status
@@ -561,25 +588,23 @@ export async function PATCH(req: NextRequest) {
 
     const { data: row, error: fetchErr } = await supabase
       .from('career_roadmaps')
-      .select('items')
+      .select('id')
       .eq('user_id', user.id)
       .maybeSingle()
     if (fetchErr) throw fetchErr
     if (!row) return NextResponse.json({ error: 'No roadmap found' }, { status: 404 })
 
-    const items = (row.items as CareerRoadmapItem[]).map((item) =>
-      item.skill === skill ? { ...item, status, touchedAt: new Date().toISOString() } : item
-    )
+    await setItemStatus(supabase, user.id, skill, status)
 
     const { data: saved, error } = await supabase
       .from('career_roadmaps')
-      .update({ items, updated_at: new Date().toISOString() })
+      .update({ updated_at: new Date().toISOString() })
       .eq('user_id', user.id)
       .select(ROADMAP_COLS)
       .single()
 
     if (error) throw error
-    return NextResponse.json({ roadmap: saved })
+    return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
   } catch (err) {
     const msg = errMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })

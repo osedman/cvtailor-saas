@@ -5,6 +5,7 @@ import { sendEmail } from "@/lib/email"
 import { errMessage } from "@/lib/err"
 import { forecastReadyDate, daysSinceLastStitch, readinessFromTargetSkills, type TargetSkill } from "@/lib/career-path-compute"
 import type { CareerRoadmapItem } from "@/lib/anthropic"
+import { loadItems } from "@/lib/roadmap-store"
 
 export const maxDuration = 300
 
@@ -32,14 +33,16 @@ export async function GET(req: NextRequest) {
     const admin = createAdminClient()
     const { data: roadmaps, error } = await admin
       .from("career_roadmaps")
-      .select("user_id, target_role, hours_per_week, items, target_skills")
+      .select("user_id, target_role, hours_per_week, target_skills")
       .not("target_role", "is", null)
     if (error) throw error
 
     let sent = 0
     const skipped: string[] = []
     for (const rm of roadmaps ?? []) {
-      const items = (rm.items as CareerRoadmapItem[]) ?? []
+      // Core only: the forecast this digest reports is the North Star forecast,
+      // and it must agree with what the career-path page shows.
+      const items = await loadItems(admin, rm.user_id as string, { horizon: "core" })
       const open = items.filter((i) => i.status !== "done")
       if (items.length === 0) { skipped.push("no-items"); continue }
 

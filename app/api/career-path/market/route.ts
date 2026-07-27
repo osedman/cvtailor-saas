@@ -6,6 +6,7 @@ import {
   type MarketJob, type SalaryBand,
 } from "@/lib/job-market"
 import type { CareerRoadmapItem } from "@/lib/anthropic"
+import { loadItems } from "@/lib/roadmap-store"
 
 export const maxDuration = 60
 
@@ -27,11 +28,14 @@ export async function GET() {
     if (!isMarketEnabled()) return NextResponse.json({ enabled: false })
 
     const { data: rm } = await supabase
-      .from("career_roadmaps").select("target_role, items").eq("user_id", user.id).maybeSingle()
+      .from("career_roadmaps").select("target_role").eq("user_id", user.id).maybeSingle()
     const role = ((rm?.target_role as string) ?? "").trim()
     if (!role) return NextResponse.json({ enabled: true, snapshot: null })
 
-    const items = (rm?.items as CareerRoadmapItem[]) ?? []
+    // Core only. "Closing X opens N roles" is a statement about the North Star;
+    // letting run-surfaced quick wins in would make the number swing with
+    // whatever job the user last tailored for.
+    const items = await loadItems(supabase, user.id, { horizon: "core" })
     const openSkills = items.filter((i) => i.status !== "done").map((i) => i.skill)
 
     const { data: prof } = await supabase.from("profiles").select("country").eq("id", user.id).maybeSingle()

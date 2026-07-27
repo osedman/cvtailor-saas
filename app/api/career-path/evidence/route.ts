@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { anthropic, EVIDENCE_REVIEW_TOOL, type CareerRoadmapItem, type SkillEvidence } from "@/lib/anthropic"
 import { createClient } from "@/lib/supabase/server"
+import { loadItems, setItemEvidence, setItemProjectBrief } from "@/lib/roadmap-store"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { sanitizeDeep } from "@/lib/sanitize"
 import { errMessage } from "@/lib/err"
@@ -39,9 +40,11 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: row, error: fetchErr } = await supabase
-      .from("career_roadmaps").select("id, target_role, items").eq("user_id", user.id).maybeSingle()
+      .from("career_roadmaps").select("id, target_role").eq("user_id", user.id).maybeSingle()
     if (fetchErr) throw fetchErr
-    const items = (row?.items as CareerRoadmapItem[]) ?? []
+    // Both horizons: a quick win closed with real evidence is as genuine as a
+    // core one, and must be judgeable the same way.
+    const items = await loadItems(supabase, user.id)
     const item = items.find((i) => i.skill.toLowerCase() === skill.toLowerCase())
     if (!row || !item) return NextResponse.json({ error: "That skill isn't on your path." }, { status: 404 })
 
@@ -84,29 +87,22 @@ ${rawText}`,
     }
 
     if (!dryRun) {
-      const updated = items.map((i) => {
-        if (i.skill !== item.skill) return i
-        if (passed) {
-          return {
-            ...i,
-            status: "done" as const,
-            touchedAt: new Date().toISOString(),
-            cvPhrasing: (review.cvPhrasing || i.cvPhrasing).slice(0, 400),
-            evidence,
-          }
-        }
-        return {
-          ...i,
-          touchedAt: new Date().toISOString(),
-          projectBrief: (review.suggestedProject || i.projectBrief).slice(0, 800),
-          evidence,
-        }
-      })
-      const { error: upErr } = await supabase
-        .from("career_roadmaps")
-        .update({ items: sanitizeDeep(updated), updated_at: new Date().toISOString() })
-        .eq("id", row.id)
-      if (upErr) throw upErr
+      // One row update instead of rewriting the whole array.
+      if (passed) {
+        await setItemEvidence(
+          supabase, user.id, item.skill,
+          sanitizeDeep(evidence), "done",
+          (review.cvPhrasing || item.cvPhrasing).slice(0, 400),
+        )
+      } else {
+        await setItemEvidence(supabase, user.id, item.skill, sanitizeDeep(evidence))
+        await setItemProjectBrief(
+          supabase, user.id, item.skill,
+          (review.suggestedProject || item.projectBrief).slice(0, 800),
+        )
+      }
+      await supabase.from("career_roadmaps")
+        .update({ updated_at: new Date().toISOString() }).eq("id", row.id)
     }
 
     return NextResponse.json({

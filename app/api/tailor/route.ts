@@ -5,6 +5,7 @@ import {
   type ExtractResult, type RequirementMapping, type RoleFamily,
 } from '@/lib/anthropic'
 import { createClient } from '@/lib/supabase/server'
+import { loadItems } from '@/lib/roadmap-store'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { checkRateLimit } from '@/lib/rate-limit'
 
@@ -205,10 +206,11 @@ export async function POST(req: NextRequest) {
     // the money path is never broken by it.
     let evidenceBlock = ''
     try {
-      const { data: rm } = await supabase.from('career_roadmaps').select('items').eq('user_id', user.id).maybeSingle()
-      const done = (((rm?.items ?? []) as Array<{ skill?: string; cvPhrasing?: string; status?: string }>)
-        .filter((i) => i.status === 'done'))
-        .slice(0, 8)
+      // Behaviour deliberately unchanged by the items move: still every closed
+      // skill, not only evidence-backed ones. Tightening that to evidence-gated
+      // is Phase 5 and is a real behaviour change, so it lands on its own.
+      const allItems = await loadItems(supabase, user.id)
+      const done = allItems.filter((i) => i.status === 'done').slice(0, 8)
       if (done.length > 0) {
         evidenceBlock = '[CANDIDATE UPDATE - skills the candidate has since developed via their learning path. Treat these as genuine and weave them in ONLY where the job calls for them. Never fabricate beyond what is listed here.]\n' +
           done.map((i) => `- ${String(i.skill ?? '').slice(0, 80)}: ${String(i.cvPhrasing ?? '').slice(0, 200)}`).join('\n')
