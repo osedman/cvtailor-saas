@@ -93,6 +93,7 @@ export default function CVTailorPage() {
   const [companyAnalysis, setCompanyAnalysis] = useState<string | null>(null)
   const [loadingCompany, setLoadingCompany] = useState(false)
   const [historyId, setHistoryId] = useState<string | null>(null)
+  const [scoreDelta, setScoreDelta] = useState<{ from: number; to: number; skills: string[] } | null>(null)
   const [tailoredFromCv, setTailoredFromCv] = useState<string | null>(null)
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
 
@@ -117,6 +118,7 @@ export default function CVTailorPage() {
     setPrepQuestions(null)
     setCompanyAnalysis(null)
     setHistoryId(null)
+    setScoreDelta(null)
     setProgressStep(0)
     setLoadingStatus("Analysing job requirements…")
 
@@ -136,7 +138,7 @@ export default function CVTailorPage() {
       const ac = new AbortController()
       const timer = setTimeout(() => ac.abort(), 290_000)
 
-      let data: { result?: TailorResult; historyId?: string | null; compressed?: boolean; cached?: boolean; error?: string }
+      let data: { result?: TailorResult; historyId?: string | null; compressed?: boolean; cached?: boolean; scoreDelta?: { from: number; to: number; skills: string[] } | null; error?: string }
       try {
         const res = await fetch("/api/tailor", {
           method: "POST",
@@ -158,6 +160,7 @@ export default function CVTailorPage() {
 
       setResults(data.result)
       setHistoryId(data.historyId ?? null)
+      setScoreDelta(data.scoreDelta ?? null)
       setTailoredFromCv(cvText)
       markOnboardingStep("tailor")
 
@@ -340,7 +343,10 @@ export default function CVTailorPage() {
         {/* Match score (shown once results are ready) */}
         {results && (
           enhanced
-            ? <div className="pt-2 pb-4"><MatchScoreBar score={results.matchScore} /></div>
+            ? <div className="pt-2 pb-4">
+                {scoreDelta && <ScoreDeltaBanner delta={scoreDelta} />}
+                <MatchScoreBar score={results.matchScore} />
+              </div>
             : <div className="py-4 flex justify-center"><MatchScoreBadge score={results.matchScore} /></div>
         )}
 
@@ -440,6 +446,26 @@ function NextStepNudge({
       <button onClick={onDismiss} className="p-1 -mr-1 rounded text-gray-300 hover:text-gray-500 hover:bg-black/5 transition-colors" aria-label="Dismiss tip">
         <X className="w-3.5 h-3.5" />
       </button>
+    </div>
+  )
+}
+
+/**
+ * The §4.3 payoff line: proof the close-a-gap loop moves the number. Shown only
+ * when this exact job was tailored before, proven skills were woven in, and the
+ * score actually rose — so it never fires as empty encouragement.
+ */
+function ScoreDeltaBanner({ delta }: { delta: { from: number; to: number; skills: string[] } }) {
+  const skills = delta.skills.join(", ")
+  return (
+    <div className="mb-3 flex items-center gap-3 bg-[#eefaf3] border border-[#bfe8d2] rounded-2xl px-5 py-3.5">
+      <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[#1d9e75] text-white flex items-center justify-center text-[13px] font-extrabold">
+        +{delta.to - delta.from}
+      </span>
+      <p className="text-[13.5px] text-[#1e1813] leading-snug">
+        You closed <span className="font-semibold">{skills}</span> — this job went{" "}
+        <span className="font-semibold">{delta.from}% → {delta.to}%</span>. That's your work showing up.
+      </p>
     </div>
   )
 }

@@ -10,9 +10,9 @@
  * is no second copy to drift.
  */
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { toast } from "sonner"
-import { AlertCircle, ArrowRight, Check, CircleDot, ExternalLink, Loader2, Plus, Sparkles, Zap } from "lucide-react"
+import { AlertCircle, ArrowRight, BadgeCheck, Check, CircleDot, ExternalLink, Loader2, Plus, Sparkles, Upload, Zap } from "lucide-react"
 import type { CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 
 const ACCENT = "#dc4f33"
@@ -40,15 +40,45 @@ async function readJson<T>(res: Response): Promise<T> {
 export function QuickWinCard({
   item,
   onCycle,
+  onVerified,
   busy = false,
 }: {
   item: QuickWinItem
   onCycle: (skill: string, status: CareerItemStatus) => void
+  /** Called after a passed evidence review, with the evidence-grounded CV line */
+  onVerified?: (skill: string, cvPhrasing?: string) => void
   busy?: boolean
 }) {
   const isDone = item.status === "done"
   const isActive = item.status === "in_progress"
+  const isProven = item.evidence?.verdict === "pass"
   const hours = item.effortEstimateHours ?? item.effortHours
+  const [verifying, setVerifying] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  // Same reviewer the career path uses — the evidence route reads both
+  // horizons, so a quick win earns "proven" exactly the way a core skill does.
+  const uploadEvidence = async (file: File) => {
+    setVerifying(true)
+    try {
+      const body = new FormData()
+      body.set("file", file)
+      body.set("skill", item.skill)
+      const data = await readJson<{ passed: boolean; feedback?: string; cvPhrasing?: string }>(
+        await fetch("/api/career-path/evidence", { method: "POST", body }))
+      if (data.passed) {
+        toast.success(`${item.skill} verified — it now counts in your next tailor`)
+        onVerified?.(item.skill, data.cvPhrasing)
+      } else {
+        toast.info(data.feedback || "Not quite there yet — check the suggested project and try again.", { duration: 8000 })
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not review that file.")
+    } finally {
+      setVerifying(false)
+      if (fileRef.current) fileRef.current.value = ""
+    }
+  }
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-4">
       <div className="flex items-start gap-3">
@@ -100,6 +130,27 @@ export function QuickWinCard({
               <p className="text-[12.5px] text-[#1e1813] leading-relaxed">{item.cvPhrasing}</p>
             </div>
           )}
+          {isDone && (
+            isProven ? (
+              <p className="mt-2.5 inline-flex items-center gap-1.5 text-[12px] font-medium text-green-600">
+                <BadgeCheck className="w-3.5 h-3.5" />
+                Verified — this counts in your next tailor
+              </p>
+            ) : (
+              <div className="mt-2.5">
+                <input ref={fileRef} type="file" accept=".pdf,.docx,.txt" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadEvidence(f) }} />
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  disabled={verifying}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-500 hover:text-[#dc4f33] border border-gray-200 hover:border-[#f5d9d0] rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-60"
+                >
+                  {verifying ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Reviewing…</> : <><Upload className="w-3.5 h-3.5" />Verify with evidence</>}
+                </button>
+                <p className="mt-1.5 text-[11px] text-gray-400">Upload the project or certificate — verified skills are the ones that lift your future match scores.</p>
+              </div>
+            )
+          )}
         </div>
       </div>
     </div>
@@ -118,7 +169,7 @@ function useCycle(onItems: (items: QuickWinItem[]) => void) {
         body: JSON.stringify({ skill, status }),
       }))
       onItems(data.items)
-      if (status === "done") toast.success("Closed — this now counts on your career path")
+      if (status === "done") toast.success("Closed. Verify it with evidence to make it count in your next tailor.")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update.")
     } finally {
@@ -233,7 +284,17 @@ export function QuickWinsStrip({
             Quick wins — on your career path now
           </p>
           {captured.map((item) => (
-            <QuickWinCard key={item.skill} item={item} onCycle={cycle} busy={busySkill === item.skill} />
+            <QuickWinCard
+              key={item.skill}
+              item={item}
+              onCycle={cycle}
+              busy={busySkill === item.skill}
+              onVerified={(skill, cvPhrasing) => setCaptured((prev) => prev
+                ? prev.map((p) => p.skill === skill
+                    ? { ...p, evidence: { fileName: "", judgedAt: new Date().toISOString(), verdict: "pass", quality: 3, note: "" }, cvPhrasing: cvPhrasing || p.cvPhrasing }
+                    : p)
+                : prev)}
+            />
           ))}
         </div>
       )}
@@ -304,7 +365,7 @@ export function QuickWinsSection({
       </p>
       <div className="space-y-3" style={{ marginTop: 20 }}>
         {items.map((item) => (
-          <QuickWinCard key={item.skill} item={item} onCycle={cycle} busy={busySkill === item.skill} />
+          <QuickWinCard key={item.skill} item={item} onCycle={cycle} busy={busySkill === item.skill} onVerified={() => onChanged()} />
         ))}
       </div>
     </section>

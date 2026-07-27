@@ -272,8 +272,21 @@ GET /api/career-path now returns `quickWins` alongside the roadmap.
 the career path 500s for all users. Staging had 016 applied first; backfill
 verified exact (4/4 items, order + content match).
 
-**Still open:** Phase 5 (evidence-gated closes feed requirementsCoverage + match
-delta display), Phase 6 (promotion at surfaced_count ≥ 3, 30-day expiry),
+**The loop (Phase 5, 27 Jul):** the tailor evidence edge is now evidence-gated —
+only skills closed with a PASSED evidence review are woven into future CVs
+(loadProvenSkills). A self-ticked "done" shows done in the UI but never adds a
+CV line and never lifts the match; without that gate the feature is keyword
+stuffing with better fonts. Because the evidence block is part of the tailor
+cache hash, an unverified close re-serves the cached run (score provably
+unmoved) while a verified close forces a fresh run — the acceptance test holds
+by construction. When a re-run of the same JD scores higher with proven skills
+in play, the response carries scoreDelta and the tailor page shows the payoff
+banner: "You closed X — this job went 61% → 68%." Quick-win cards gained
+"Verify with evidence" (same reviewer route as the path, both horizons), so
+verification is reachable at the moment of closing — addressing the Phase 0
+finding that evidence uploads were ~never used.
+
+**Still open:** Phase 6 (promotion at surfaced_count ≥ 3, 30-day expiry),
 dropping `tailor_history.upskill` + migration 009 file, dropping
 `career_roadmaps.items` once proven.
 
