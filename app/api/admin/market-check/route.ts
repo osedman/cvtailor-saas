@@ -31,6 +31,12 @@ export async function GET() {
     reedKeyHasQuotes: key.startsWith('"') || key.startsWith("'"),
     killSwitchValue: process.env.MARKET_INSIGHTS_ENABLED ?? '(unset)',
     isMarketEnabled: isMarketEnabled(),
+    // NAMES ONLY, no values. When one of a pair of variables arrives and the
+    // other doesn't, a typo in the name is the usual cause — this makes it
+    // visible instead of guessable.
+    matchingEnvNames: Object.keys(process.env)
+      .filter((k) => /reed|market/i.test(k))
+      .sort(),
   }
 
   // Probe Reed directly so we separate "our config" from "their API".
