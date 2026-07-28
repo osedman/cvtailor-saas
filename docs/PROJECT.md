@@ -124,6 +124,50 @@ empty `market_snapshots` table gave it away.
 
 _Recorded 28 July 2026._
 
+---
+
+## 🎯 Feature: Core = the North Star only; JD skills live in Upskill (28 July 2026)
+
+**Decision (Ose):** every skill Tailr researches for the chosen North Star role
+is **core**. Every skill arriving from a job description is **upskill**, and
+stays there — there is no promotion onto core, because core is the role you
+chose to aim at and a single application does not get to change that.
+
+**The bug this fixed.** `add-skill-for-jd` called `addItems()` without a
+horizon, and the column defaults to `'core'` — so JD-derived skills were
+silently joining the North Star path and inflating its readiness. Nothing
+errored; the numbers were quietly wrong. Both DBs were checked before shipping:
+no real rows were affected, so migration 018's repair clause is preventative.
+A second instance of the same family: `/api/upskill` accept-mode explicitly
+wrote `'core'`.
+
+**Why the value was renamed.** `'quick'` described SIZE (a small auto-captured
+win). The distinction users care about is ORIGIN. Effort still decides
+auto-capture vs explicit accept — it just no longer names the horizon.
+
+**`add-skill` now takes an explicit `origin`.** One endpoint serves two callers:
+the career path's own skill map (a real North Star skill → core) and the tailor
+results panel (`origin:"jd"` → upskill). Inferring server-side is how core got
+polluted in the first place.
+
+**Removed:** `promoteToCore`, `promotionEligible`, and the promotion UI. The
+`promote` endpoint answers 410 rather than silently ignoring a stale client.
+
+**Design:** done in Figma first per the rule in `CLAUDE.md` —
+https://www.figma.com/design/PyzSuQcvilrl80EjFrUP73
+
+**Guard:** `lib/__tests__/horizon-assignment.test.ts` fails the build if
+anything pairs `horizon: 'core'` with `source: 'tailor_run'`, if `add-skill`
+reverts to inferring origin, or if promotion returns. The DB constraint is now
+`horizon in ('upskill','core')`, so `'quick'` cannot be written at all.
+
+**Shipped:** staging `27e0ed3`, prod `17dbe2b`. Migration 018 applied to BOTH
+databases before the code deployed. Verified on staging with real data:
+5 core (all `north_star`) / 1 upskill (`tailor_run`), zero JD-in-core
+violations; Ose confirmed the user flow end to end.
+
+_Last updated: 28 July 2026_
+
 ## 🔧 In progress / open PRs
 
 | Item | Type | PR | Notes |
