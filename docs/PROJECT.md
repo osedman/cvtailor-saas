@@ -27,7 +27,7 @@ Requested in the 27 Jul sync: every feature, one line, where it actually is.
 | CV templates ×6 + live preview | Staging | Done, needs migration 015 at port | ✅ demoed well | **Port to prod** |
 | Quick Wins (Upskill merged, evidence gate, promotion/expiry) | Staging | Done, needs migration 016 **before** code | Not yet | **Port to prod** |
 | North Star career path (journey, readiness, forecast) | Staging | Done | 🔶 demoed 27 Jul, real E2E still owed | Refine per sync feedback |
-| Live job market (Adzuna, flagged off) | Staging | Built | ❌ blocked on Adzuna commercial key | Chase key; keep flagged |
+| Live job market (Reed.co.uk, flagged off) | Staging | Built (`0cd9f67` swapped Adzuna→Reed 28 Jul) | ❌ needs REED_API_KEY (free, instant at reed.co.uk/developers) + MARKET_INSIGHTS_ENABLED=1 in Vercel | **Ose: register + set env vars** |
 | Pace forecast + weekly digest | Staging | Done | Not yet | Port with career path |
 | Career Arc | Staging | Done | Not yet | Hold — not in sync priorities |
 | Font/design-system consistency | Staging (this commit) | **Fixed + guardrail test** | Pending Oje re-check | Verify on staging |
@@ -53,7 +53,7 @@ North Star in one cut, backfill at cutover.
 | # | Ticket | Type | Priority | Notes |
 |---|---|---|---|---|
 | S1 | Font consistency across CV output, tooltips, career path, edit view | Bug | High | **Done on staging 28 Jul** — editor now typeset in the selected template's face; paste boxes + tracker + `.t-quote` in brand sans; `typography-consistency.test.ts` fails the build on new unapproved mono |
-| S2 | Salary + specific job details in role search / recommendations | Feature | Med | Depends on Adzuna key (see Live job market); predicted salaries must stay labelled |
+| S2 | Salary + specific job details in role search / recommendations | Feature | Med | Provider swapped to Reed.co.uk 28 Jul (`0cd9f67`) — salaries are employer-posted so no "predicted" caveat needed. Unblocks when REED_API_KEY is set |
 | S3 | Loading tooltip during live job research | UX | Low | Brand-consistent loading state on role search |
 | S4 | Core vs non-core skill categorisation + explanatory tooltips | Feature | Med | Career path UI restructure agreed in sync |
 | S5 | Missing skills coloured red in gap map | UX | Low | Pairs with S4 |
