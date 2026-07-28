@@ -7,7 +7,6 @@ import {
   computeReadiness,
   readinessFromTargetSkills,
   splitByEffort,
-  promotionEligible,
   forecastReadyDate,
   daysSinceLastStitch,
   type HistoryEntry,
@@ -224,22 +223,3 @@ describe("splitByEffort", () => {
   })
 })
 
-describe("promotionEligible", () => {
-  it("offers promotion once a skill is surfaced by 3+ runs", () => {
-    expect(promotionEligible({ horizon: "quick", surfacedCount: 3 })).toBe(true)
-    expect(promotionEligible({ horizon: "quick", surfacedCount: 2 })).toBe(false)
-  })
-
-  it("offers promotion on an evidence-backed close", () => {
-    expect(promotionEligible({ horizon: "quick", status: "done", evidence: { verdict: "pass" } })).toBe(true)
-    // A bare tick is not proven investment
-    expect(promotionEligible({ horizon: "quick", status: "done" })).toBe(false)
-    // A failed review is not either
-    expect(promotionEligible({ horizon: "quick", status: "done", evidence: { verdict: "not_yet" } })).toBe(false)
-  })
-
-  it("never fires for core items — they are already on the path", () => {
-    expect(promotionEligible({ horizon: "core", surfacedCount: 9, status: "done", evidence: { verdict: "pass" } })).toBe(false)
-    expect(promotionEligible({ surfacedCount: 9 })).toBe(false)
-  })
-})

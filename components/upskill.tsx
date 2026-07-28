@@ -14,7 +14,6 @@ import { useRef, useState } from "react"
 import { toast } from "sonner"
 import { AlertCircle, ArrowRight, BadgeCheck, Check, ChevronDown, CircleDot, ExternalLink, Loader2, Plus, Sparkles, Upload, Zap } from "lucide-react"
 import type { CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
-import { promotionEligible } from "@/lib/career-path-compute"
 import { useCareerBeta } from "@/hooks/use-career-beta"
 
 const ACCENT = "#dc4f33"
@@ -25,7 +24,7 @@ const FOCUS =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#dc4f33]/50 focus-visible:ring-offset-1"
 
 /** Item shape returned by /api/upskill and /api/career-path (store fields included) */
-export interface QuickWinItem extends CareerRoadmapItem {
+export interface UpskillItem extends CareerRoadmapItem {
   horizon?: "quick" | "core"
   sourceRunId?: string | null
   effortEstimateHours?: number | null
@@ -49,16 +48,14 @@ export function QuickWinCard({
   item,
   onCycle,
   onVerified,
-  onPromoted,
   busy = false,
   compact = false,
 }: {
-  item: QuickWinItem
+  item: UpskillItem
   onCycle: (skill: string, status: CareerItemStatus) => void
   /** Called after a passed evidence review, with the evidence-grounded CV line */
   onVerified?: (skill: string, cvPhrasing?: string) => void
   /** Called after the user moves this skill onto their core path */
-  onPromoted?: (skill: string) => void
   busy?: boolean
   /**
    * Collapsed row instead of a full card. Used on the career path, where these
@@ -73,31 +70,13 @@ export function QuickWinCard({
   const isProven = item.evidence?.verdict === "pass"
   const hours = item.effortEstimateHours ?? item.effortHours
   const [verifying, setVerifying] = useState(false)
-  const [promoting, setPromoting] = useState(false)
   const [open, setOpen] = useState(!compact)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Promotion is offered, never automatic: 3+ runs surfacing the same skill is
   // a pattern in what the user applies for; an evidence-backed close is proven
   // investment. Either earns the question — only their click moves it.
-  const offerPromotion = !!onPromoted && promotionEligible(item)
 
-  const promote = async () => {
-    setPromoting(true)
-    try {
-      await readJson(await fetch("/api/upskill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "promote", skill: item.skill }),
-      }))
-      toast.success(`${item.skill} is now part of your main path`)
-      onPromoted?.(item.skill)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not move that skill.")
-    } finally {
-      setPromoting(false)
-    }
-  }
 
   // Same reviewer the career path uses — the evidence route reads both
   // horizons, so a quick win earns "proven" exactly the way a core skill does.
@@ -171,12 +150,6 @@ export function QuickWinCard({
             {(item.surfacedCount ?? 1) > 1 && (
               <span className="text-[10px] font-medium tabular-nums" style={{ color: "var(--ns-ink-70)" }}>seen in {item.surfacedCount} applications</span>
             )}
-            {offerPromotion && !open && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                style={{ background: "var(--ns-tint-1)", color: "var(--ns-coral-deep)", border: "1px solid var(--ns-tint-2)" }}>
-                worth promoting
-              </span>
-            )}
             {isProven && !open && (
               <BadgeCheck className="w-3.5 h-3.5" style={{ color: "#16a34a" }} />
             )}
@@ -214,23 +187,6 @@ export function QuickWinCard({
               <p className="text-[12.5px] text-[#1e1813] leading-relaxed">{item.cvPhrasing}</p>
             </div>
           )}
-          {offerPromotion && (
-            <div className="mt-2.5 flex items-center gap-2 flex-wrap rounded-xl border border-[#f5d9d0] bg-[#fff7f4] px-3 py-2.5">
-              <p className="flex-1 min-w-[200px] text-[12px] text-[#1e1813] leading-snug">
-                {(item.surfacedCount ?? 1) >= 3
-                  ? <>This keeps coming up — <span className="font-semibold">{item.surfacedCount} applications</span> have asked for it.</>
-                  : <>You proved this one. Want it on your main path?</>}
-              </p>
-              <button
-                onClick={promote}
-                disabled={promoting}
-                className={`inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#dc4f33] bg-white border border-[#f5d9d0] rounded-lg px-2.5 py-1.5 hover:bg-[#ffeae4] transition-colors disabled:opacity-60 ${FOCUS}`}
-              >
-                {promoting ? <Loader2 aria-hidden="true" className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight aria-hidden="true" className="w-3.5 h-3.5" />}
-                Make it part of my path
-              </button>
-            </div>
-          )}
           {isDone && (
             isProven ? (
               <p className="mt-2.5 inline-flex items-center gap-1.5 text-[12px] font-medium text-green-600">
@@ -260,12 +216,12 @@ export function QuickWinCard({
 }
 
 /** Shared status-cycle handler: one PATCH, optimistic-free (list is server truth) */
-function useCycle(onItems: (items: QuickWinItem[]) => void) {
+function useCycle(onItems: (items: UpskillItem[]) => void) {
   const [busySkill, setBusySkill] = useState<string | null>(null)
   const cycle = async (skill: string, status: CareerItemStatus) => {
     setBusySkill(skill)
     try {
-      const data = await readJson<{ items: QuickWinItem[] }>(await fetch("/api/upskill", {
+      const data = await readJson<{ items: UpskillItem[] }>(await fetch("/api/upskill", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ skill, status }),
@@ -283,7 +239,7 @@ function useCycle(onItems: (items: QuickWinItem[]) => void) {
 
 // ── Tailor results: "Close these gaps" strip ────────────────────────────────
 
-export function QuickWinsStrip({
+export function UpskillStrip({
   historyId,
   weakSkills,
   jobTitle,
@@ -294,8 +250,8 @@ export function QuickWinsStrip({
 }) {
   const careerBeta = useCareerBeta()
   const [loading, setLoading] = useState(false)
-  const [captured, setCaptured] = useState<QuickWinItem[] | null>(null)
-  const [candidates, setCandidates] = useState<QuickWinItem[]>([])
+  const [captured, setCaptured] = useState<UpskillItem[] | null>(null)
+  const [candidates, setCandidates] = useState<UpskillItem[]>([])
   const [accepting, setAccepting] = useState<string | null>(null)
   const { cycle, busySkill } = useCycle((items) => {
     // The PATCH returns every item; keep only the ones this strip captured
@@ -316,7 +272,7 @@ export function QuickWinsStrip({
   const generate = async () => {
     setLoading(true)
     try {
-      const data = await readJson<{ captured: QuickWinItem[]; candidates: QuickWinItem[] }>(
+      const data = await readJson<{ captured: UpskillItem[]; candidates: UpskillItem[] }>(
         await fetch("/api/upskill", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -325,7 +281,7 @@ export function QuickWinsStrip({
       setCaptured(data.captured)
       setCandidates(data.candidates)
       if (data.captured.length > 0) {
-        toast.success(`${data.captured.length} quick win${data.captured.length === 1 ? "" : "s"} added to your career path`)
+        toast.success(`${data.captured.length} skill${data.captured.length === 1 ? "" : "s"} added to Upskill`)
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to build your plan.")
@@ -334,7 +290,7 @@ export function QuickWinsStrip({
     }
   }
 
-  const accept = async (item: QuickWinItem) => {
+  const accept = async (item: UpskillItem) => {
     setAccepting(item.skill)
     try {
       await readJson(await fetch("/api/upskill", {
@@ -356,7 +312,7 @@ export function QuickWinsStrip({
       <div className="space-y-5">
         <div className="rounded-xl border border-[#f5d9d0] bg-[#fff7f4] p-4">
           <p className="text-[13.5px] leading-relaxed text-[#1e1813]">
-            <span className="font-semibold">Close the gaps for this job.</span> Small ones land on your career path as quick wins — free resources, a project to prove each skill, and the exact CV line. Closing one raises your match here and everywhere else.
+            <span className="font-semibold">Close the gaps for this job.</span> Small ones land in your Upskill list — free resources, a project to prove each skill, and the exact CV line. Closing one raises your match here and everywhere else.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -386,7 +342,7 @@ export function QuickWinsStrip({
       {captured.length > 0 && (
         <div className="space-y-3">
           <p className="text-[12px] font-semibold uppercase tracking-wide text-gray-400">
-            Quick wins — on your career path now
+            Upskill — on your career path now
           </p>
           {captured.map((item) => (
             <QuickWinCard
@@ -394,7 +350,6 @@ export function QuickWinsStrip({
               item={item}
               onCycle={cycle}
               busy={busySkill === item.skill}
-              onPromoted={(skill) => setCaptured((prev) => prev ? prev.filter((p) => p.skill !== skill) : prev)}
               onVerified={(skill, cvPhrasing) => setCaptured((prev) => prev
                 ? prev.map((p) => p.skill === skill
                     ? { ...p, evidence: { fileName: "", judgedAt: new Date().toISOString(), verdict: "pass", quality: 3, note: "" }, cvPhrasing: cvPhrasing || p.cvPhrasing }
@@ -449,11 +404,11 @@ export function QuickWinsStrip({
 
 // ── Career path: "Quick wins" section ───────────────────────────────────────
 
-export function QuickWinsSection({
+export function UpskillSection({
   items,
   onChanged,
 }: {
-  items: QuickWinItem[]
+  items: UpskillItem[]
   onChanged: () => void
 }) {
   const { cycle, busySkill } = useCycle(() => onChanged())
@@ -469,7 +424,7 @@ export function QuickWinsSection({
   return (
     <section style={{ marginTop: 48 }}>
       <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, borderBottom: "1px solid var(--ns-border)" }}>
-        <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Quick wins<span style={{ color: "var(--ns-coral)" }}>.</span></h2>
+        <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Upskill<span style={{ color: "var(--ns-coral)" }}>.</span></h2>
         <span className="t-mono tabular-nums">{closed.length} of {items.length} closed</span>
       </div>
 
@@ -482,9 +437,11 @@ export function QuickWinsSection({
         borderRadius: 16,
         padding: "18px 18px 20px",
       }}>
+        {/* The contract, stated plainly. Core is the North Star and nothing
+            else; these came from individual job descriptions and stay here. */}
         <p className="t-small" style={{ margin: "0 0 4px" }}>
-          Small gaps your applications keep surfacing — each closable in about a week.
-          They sit beside your main path and never move its forecast.
+          Skills individual jobs asked for. They never move your North Star readiness —
+          close one and it counts toward that job, not the role you&rsquo;re aiming at.
         </p>
         {open.length > 0 && totalHours > 0 && (
           <p className="t-mono" style={{ margin: "0 0 16px", color: "var(--ns-coral-deep)" }}>
@@ -502,7 +459,6 @@ export function QuickWinsSection({
                 busy={busySkill === item.skill}
                 compact
                 onVerified={() => onChanged()}
-                onPromoted={() => onChanged()}
               />
             ))}
           </div>
@@ -522,7 +478,6 @@ export function QuickWinsSection({
                   busy={busySkill === item.skill}
                   compact
                   onVerified={() => onChanged()}
-                  onPromoted={() => onChanged()}
                 />
               ))}
             </div>
