@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isCareerPathBeta, BETA_LOCKED } from '@/lib/feature-gate'
 import { anthropic, CAREER_ROADMAP_TOOL, buildRoadmapPrompt, type CareerRoadmapItem, type CareerItemStatus } from '@/lib/anthropic'
-import { validateItemResources } from '@/lib/course-validation'
+import {
+  catalogAwareRoadmapTools,
+  courseCatalogPrompt,
+  finalizeRoadmapResources,
+  loadCourseCatalogContext,
+} from '@/lib/course-catalog'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
@@ -44,6 +49,9 @@ function coerceItem(raw: unknown): CareerRoadmapItem | null {
   const r = raw as Record<string, unknown>
   const skill = String(r.skill ?? '').trim().slice(0, 80)
   if (!skill) return null
+  const effort = typeof r.effortHours === 'number' && Number.isFinite(r.effortHours)
+    ? Math.max(1, Math.min(500, Math.round(r.effortHours)))
+    : undefined
   return {
     skill,
     whyItMatters: String(r.whyItMatters ?? '').slice(0, 400),
@@ -51,7 +59,7 @@ function coerceItem(raw: unknown): CareerRoadmapItem | null {
     projectBrief: String(r.projectBrief ?? '').slice(0, 800),
     cvPhrasing: String(r.cvPhrasing ?? '').slice(0, 400),
     status: 'todo',
-    effortHours: typeof r.effortHours === 'number' ? r.effortHours : undefined,
+    effortHours: effort,
   }
 }
 
@@ -82,10 +90,19 @@ export async function POST(req: NextRequest) {
     if (body?.mode === 'accept') {
       const item = coerceItem(body.item)
       if (!item) return NextResponse.json({ error: 'That skill could not be read.' }, { status: 400 })
+      const region = await loadRegion(supabase, user.id)
+      const [validatedItem] = await finalizeRoadmapResources(supabase, [item], {
+        region,
+        allowFallback: false,
+        queueFallbacks: false,
+      })
+      if (!validatedItem) {
+        return NextResponse.json({ error: 'That skill could not be validated.' }, { status: 400 })
+      }
       const roadmapId = await loadRoadmapId(supabase, user.id)
       const items = await addItems(
         supabase, user.id, roadmapId,
-        [sanitizeDeep({ ...item, horizon: 'upskill', source: 'tailor_run' }) as StoredRoadmapItem],
+        [sanitizeDeep({ ...validatedItem, horizon: 'upskill', source: 'tailor_run' }) as StoredRoadmapItem],
       )
       return NextResponse.json({ items })
     }
@@ -110,28 +127,33 @@ export async function POST(req: NextRequest) {
     const roleFamily = ((run?.result as { roleFamily?: string } | null)?.roleFamily ?? '').slice(0, 40) || null
 
     const region = await loadRegion(supabase, user.id)
+    const catalogContext = await loadCourseCatalogContext(supabase, gaps, {
+      region,
+      freeOnly: true,
+      maxDurationMinutes: 600,
+    })
     const userPrompt = buildRoadmapPrompt({
       skills: gaps,
       targetRole: jobTitle ? String(jobTitle).slice(0, 120) : undefined,
       region,
+      catalogPrompt: courseCatalogPrompt(catalogContext),
       intro: 'You are helping a candidate close the specific gaps flagged when they tailored their CV to ONE job, so they can raise their match for that exact role. Keep everything tightly relevant to the target role.',
     })
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 3000,
-      tools: [
-        { type: 'web_search_20250305', name: 'web_search', max_uses: 6 } as never,
-        CAREER_ROADMAP_TOOL,
-      ],
+      tools: catalogAwareRoadmapTools(catalogContext, CAREER_ROADMAP_TOOL, 6) as never,
       messages: [{ role: 'user', content: userPrompt }],
     })
 
     const toolUse = message.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_roadmap')
     if (!toolUse || toolUse.type !== 'tool_use') throw new Error('No suggestions generated. Please try again.')
-    const generated = await validateItemResources(
+    const generated = await finalizeRoadmapResources(
+      supabase,
       (((toolUse.input as { items?: CareerRoadmapItem[] }).items) ?? [])
-        .map((it) => ({ ...it, status: 'todo' as const }))
+        .map((it) => ({ ...it, status: 'todo' as const })),
+      { region, context: catalogContext },
     )
     if (generated.length === 0) throw new Error('The suggestions came back empty. Please try again.')
 
