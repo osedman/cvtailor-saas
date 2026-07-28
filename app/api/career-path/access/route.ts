@@ -12,7 +12,7 @@ export async function GET() {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    return NextResponse.json({ beta: isCareerPathBeta(user?.email) })
+    return NextResponse.json({ beta: await isCareerPathBeta(user?.email) })
   } catch {
     return NextResponse.json({ beta: false })
   }

@@ -108,10 +108,11 @@ export function topCompanies(jobs: MarketJob[], limit = 4): string[] {
 }
 
 export function isMarketEnabled(): boolean {
-  return (
-    process.env.MARKET_INSIGHTS_ENABLED === "1" &&
-    !!process.env.REED_API_KEY
-  )
+  // On whenever the Reed key exists — the key IS the opt-in, so enabling a
+  // new environment is one env var, not two. MARKET_INSIGHTS_ENABLED=0
+  // remains as an explicit kill switch.
+  if (process.env.MARKET_INSIGHTS_ENABLED === "0") return false
+  return !!process.env.REED_API_KEY
 }
 
 /** True while a cached snapshot is still fresh (7 days). */

@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
-    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
+    if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
     if (!isMarketEnabled()) return NextResponse.json({ enabled: false })
 
     const body = await req.json().catch(() => ({}))
@@ -91,7 +91,7 @@ export async function GET() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
-    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
+    if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
     if (!isMarketEnabled()) return NextResponse.json({ enabled: false })
 
     const { data: rm } = await supabase
