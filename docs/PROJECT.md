@@ -9,6 +9,61 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 
 ---
 
+## 📊 Feature status audit — 28 July 2026 (input to next sprint)
+
+Requested in the 27 Jul sync: every feature, one line, where it actually is.
+"Validated" means a real user (not us) used it and it did its job.
+
+| Feature | Where | Status | Validated? | Priority next sprint |
+|---|---|---|---|---|
+| Tailor pipeline (2-pass, compression, cache) | **Prod** | Done | ✅ real users | Maintain |
+| Match score + gaps / ATS / JD coverage | **Prod** | Done | ✅ confirmed good in sync | Maintain |
+| Job fetch from any URL | **Prod** | Done | ✅ works; wording says LinkedIn/Indeed only | Small copy fix |
+| Cover letter | **Prod** | Done | Partial | Maintain |
+| Interview prep, tracker, history | **Prod** | Done | Partial | Maintain |
+| Magic-link auth + rate limiting + RLS | **Prod** | Done | ✅ | Maintain |
+| Evidence-first First CV builder | **Prod** | Done | 🔶 Oje testing parser with varied files | Await Oje's findings |
+| Editable output (CV + letter) | Staging | Done, needs migration 014 at port | ✅ praised in sync | **Port to prod** |
+| CV templates ×6 + live preview | Staging | Done, needs migration 015 at port | ✅ demoed well | **Port to prod** |
+| Quick Wins (Upskill merged, evidence gate, promotion/expiry) | Staging | Done, needs migration 016 **before** code | Not yet | **Port to prod** |
+| North Star career path (journey, readiness, forecast) | Staging | Done | 🔶 demoed 27 Jul, real E2E still owed | Refine per sync feedback |
+| Live job market (Adzuna, flagged off) | Staging | Built | ❌ blocked on Adzuna commercial key | Chase key; keep flagged |
+| Pace forecast + weekly digest | Staging | Done | Not yet | Port with career path |
+| Career Arc | Staging | Done | Not yet | Hold — not in sync priorities |
+| Font/design-system consistency | Staging (this commit) | **Fixed + guardrail test** | Pending Oje re-check | Verify on staging |
+| Admin dashboard: north star + activation funnel | Staging (this commit) | **Done** | — | Use it to pick next month's work |
+| Sentry activation | — | Inert, needs DSN | — | Low |
+| Free-tier quota enforcement | — | Not started | — | Med (needs Stripe) |
+| Recruitment platform prototype | Separate | Ideation only | — | **Paused pending Y's feedback** — by decision |
+
+**Standing rule:** gap referencing and all generated CV text are governed by
+[docs/EVIDENCE-RULE.md](EVIDENCE-RULE.md) — *Tailr reframes evidence; it never
+manufactures it. Empty beats invented.* (Decided 28 Jul.)
+
+**Descoped / retired:** Upskill tab (merged into Quick Wins) · migration 009 ·
+university-course links in roadmaps (27 Jul decision: short/free/practical
+sources instead).
+
+**Prod port order when approved:** migrations 014 + 015 + 016 (016 strictly
+before its code) → editable output + templates + quick wins + career path
+North Star in one cut, backfill at cutover.
+
+## 🎫 Tickets from the 27 Jul sync (backlog until prioritised)
+
+| # | Ticket | Type | Priority | Notes |
+|---|---|---|---|---|
+| S1 | Font consistency across CV output, tooltips, career path, edit view | Bug | High | **Done on staging 28 Jul** — editor now typeset in the selected template's face; paste boxes + tracker + `.t-quote` in brand sans; `typography-consistency.test.ts` fails the build on new unapproved mono |
+| S2 | Salary + specific job details in role search / recommendations | Feature | Med | Depends on Adzuna key (see Live job market); predicted salaries must stay labelled |
+| S3 | Loading tooltip during live job research | UX | Low | Brand-consistent loading state on role search |
+| S4 | Core vs non-core skill categorisation + explanatory tooltips | Feature | Med | Career path UI restructure agreed in sync |
+| S5 | Missing skills coloured red in gap map | UX | Low | Pairs with S4 |
+| S6 | "Next"/"Later" clarity — sequence not priority | UX | Low | Copy/tooltip fix |
+| S7 | Career path performance/speed | Perf | Med | Measure before optimising |
+| S8 | Job-fetch wording: "paste any URL", not LinkedIn/Indeed | Copy | Low | Raised twice now |
+| S9 | Udemy/short-course sourcing for roadmap resources | Feature | Med | **Check Udemy API/affiliate ToS before any scraping ticket exists** |
+
+---
+
 ## ✅ Shipped
 
 | Item | Type | PR | Notes |
