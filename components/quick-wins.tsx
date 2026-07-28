@@ -465,7 +465,7 @@ export function QuickWinsSection({
   return (
     <section style={{ marginTop: 48 }}>
       <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, borderBottom: "1px solid var(--ns-border)" }}>
-        <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Quick wins</h2>
+        <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Quick wins<span style={{ color: "var(--ns-coral)" }}>.</span></h2>
         <span className="t-mono tabular-nums">{closed.length} of {items.length} closed</span>
       </div>
 

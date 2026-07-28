@@ -409,7 +409,7 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
                 {findings.strengths.map((f, i) => (
                   <div key={i} className="ns-reveal" style={{ "--ns-i": i } as React.CSSProperties}>
                     <div className="flex items-start" style={{ gap: 12, marginBottom: 10 }}>
-                      <span style={{ marginTop: 8, width: 6, height: 6, borderRadius: "50%", background: "var(--ns-coral)", flexShrink: 0 }} />
+                      <span style={{ marginTop: 7, width: 8, height: 8, borderRadius: "50%", background: "var(--ns-coral)", flexShrink: 0 }} />
                       <h3 style={{ fontSize: 15.5, fontWeight: 500, margin: 0, lineHeight: 1.35 }}>{f.label}</h3>
                     </div>
                     <div style={{ paddingLeft: 18, borderLeft: "1px solid var(--ns-tint-2)", marginLeft: 3 }}>
@@ -422,14 +422,18 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
 
             <section>
               <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, marginBottom: 22, borderBottom: "1px solid var(--ns-border)" }}>
-                <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Development gaps</h2>
+                <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Development gaps<span style={{ color: "var(--ns-coral)" }}>.</span></h2>
                 <span className="t-mono">{String(findings.gaps.length).padStart(2, "0")}</span>
               </div>
               <div className="flex flex-col" style={{ gap: 22 }}>
                 {findings.gaps.map((g, i) => (
                   <div key={i} className="ns-reveal" style={{ "--ns-i": findings.strengths.length + i } as React.CSSProperties}>
                     <div className="flex items-start" style={{ gap: 12, marginBottom: 10 }}>
-                      <span style={{ marginTop: 8, width: 6, height: 6, borderRadius: "50%", background: "transparent", border: "1px solid var(--ns-ink-40)", flexShrink: 0 }} />
+                      {/* Hollow coral ring: same hue as a strength's filled dot, so the
+                          pair reads as one system — closed vs still open — rather than
+                          a live marker next to a greyed-out one. (27 Jul sync: missing
+                          skills read in the brand red, not faded.) */}
+                      <span style={{ marginTop: 7, width: 8, height: 8, borderRadius: "50%", background: "transparent", border: "1.5px solid var(--ns-coral)", flexShrink: 0 }} />
                       <h3 style={{ fontSize: 15.5, fontWeight: 500, margin: 0, lineHeight: 1.35 }}>{g.label}</h3>
                     </div>
                     <div style={{ paddingLeft: 18, borderLeft: "1px dashed var(--ns-ink-15)", marginLeft: 3 }}>
@@ -551,13 +555,15 @@ function SkillSet({ targetSkills, haveList, missing, items, onOpenSkill, onAddSk
   return (
     <section style={{ marginTop: 48 }}>
       <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, borderBottom: "1px solid var(--ns-border)" }}>
-        <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Your skill set against the role</h2>
+        <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Your skill set against the role<span style={{ color: "var(--ns-coral)" }}>.</span></h2>
         <span className="t-mono">{have.length + miss.length} skills researched</span>
       </div>
 
       <div style={{ marginTop: 24 }}>
         <div className="flex items-baseline gap-3" style={{ marginBottom: 12 }}>
-          <span className="t-title" style={{ fontSize: 18, color: "var(--ns-coral-deep)" }}>Have</span>
+          {/* 27 Jul sync: MISSING is the coral one — the gap is what asks for
+              attention, not the things already in hand. */}
+          <span className="t-title" style={{ fontSize: 18 }}>Have</span>
           <span className="t-mono">{String(have.length).padStart(2, "0")}</span>
           <span style={{ flex: 1, height: 1, background: "var(--ns-border)" }} />
         </div>
@@ -571,7 +577,7 @@ function SkillSet({ targetSkills, haveList, missing, items, onOpenSkill, onAddSk
       {miss.length > 0 && (
         <div style={{ marginTop: 28 }}>
           <div className="flex items-baseline gap-3" style={{ marginBottom: 6 }}>
-            <span className="t-title" style={{ fontSize: 18 }}>Missing</span>
+            <span className="t-title" style={{ fontSize: 18, color: "var(--ns-coral-deep)" }}>Missing</span>
             <span className="t-mono">{String(miss.length).padStart(2, "0")}</span>
             <span style={{ flex: 1, height: 1, background: "var(--ns-border)" }} />
           </div>
@@ -1057,7 +1063,7 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
           return (
             <section style={{ marginTop: 48 }}>
               <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, borderBottom: "1px solid var(--ns-border)" }}>
-                <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Your proof</h2>
+                <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Your proof<span style={{ color: "var(--ns-coral)" }}>.</span></h2>
                 <span className="t-mono">{proven.length} verified</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 12, marginTop: 20 }}>

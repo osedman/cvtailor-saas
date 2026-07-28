@@ -215,14 +215,12 @@
 }
 /* Verbatim CV evidence. Previously mono, on the reasoning that it matched the
    CV paste box — but the paste box is now the brand sans too, and users read
-   the mono as "robotic" and off-brand. It stays visually distinct as quoted
-   material through the left rule and inset, not through a second typeface. */
+   the mono as "robotic" and off-brand. The quoted-material feel comes from the
+   ruled container each caller already wraps it in, not a second typeface. */
 .ns .t-quote {
   font-size: 13px;
   line-height: 1.6;
   color: var(--ns-ink-70);
-  border-left: 2px solid var(--ns-line, rgba(30, 24, 19, 0.12));
-  padding-left: 10px;
 }
 .ns .t-lede { font-size: 15px; line-height: 1.55; color: var(--ns-ink-70); }
 .ns .t-body { font-size: 14px; line-height: 1.55; }
@@ -249,15 +247,19 @@
   line-height: 1; white-space: nowrap;
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
+/* Skills in hand are settled — quiet ink on paper. Coral is reserved for
+   what still asks for attention. */
 .ns .ns-chip-have {
+  background: #fdfcf9;
+  color: var(--ns-ink);
+  border: 1px solid var(--ns-border);
+}
+/* Missing skills speak in the brand coral (27 Jul sync), dashed because
+   they're open, not failed. */
+.ns .ns-chip-missing {
   background: var(--ns-tint-1);
   color: var(--ns-coral-deep);
-  border: 1px solid var(--ns-tint-2);
-}
-.ns .ns-chip-missing {
-  background: transparent;
-  color: var(--ns-ink);
-  border: 1px dashed var(--ns-ink-40);
+  border: 1px dashed var(--ns-coral);
 }
 /* Controls match the app: rounded-xl, semibold. */
 .ns .ns-btn {
