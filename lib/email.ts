@@ -70,3 +70,47 @@ export function welcomeEmailHtml(): string {
 <p style="font-size:12px;color:#a8a29e;margin:28px 0 0;line-height:1.5;">You are receiving this because you signed up for Tailr at ${marketingHost}. Reply with the word UNSUBSCRIBE and we will remove you.</p>
 </div></body></html>`
 }
+
+/**
+ * Win-back email for people who signed up but never tailored a CV.
+ *
+ * Written from what the data actually says (28 Jul 2026): of 16 never-tailored
+ * users, only 3 have a login event and none returned twice. They did not try
+ * Tailr and find it wanting — they never had a first session. So this is a
+ * nudge past that, not a feature pitch: three steps, one action, and a real
+ * question at the end, because with a list this small the replies are worth
+ * more than the clicks.
+ *
+ * Brand voice, matching welcomeEmailHtml(): "we", signed by the team, dash-free
+ * prose. Never Ose's first person.
+ */
+export function winBackEmailHtml(walkthroughUrl: string): string {
+  const tailorUrl = appPath("/tailor")
+  const marketingHost = getMarketingOrigin().replace(/^https?:\/\//, "")
+  const step = (n: string, title: string, body: string) =>
+    `<tr><td style="padding:15px 0;border-top:1px solid #eceae6;">
+<table role="presentation" cellpadding="0" cellspacing="0"><tr>
+<td valign="top" width="40"><div style="width:26px;height:26px;border-radius:13px;background:#dc4f33;color:#ffffff;font-size:13px;font-weight:700;text-align:center;line-height:26px;">${n}</div></td>
+<td valign="top"><p style="margin:0 0 4px;font-size:16px;font-weight:700;color:#1e1813;">${title}</p>
+<p style="margin:0;font-size:15px;line-height:1.6;color:#3b3b3b;">${body}</p></td>
+</tr></table></td></tr>`
+
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f9f6f0;font-family:'Hanken Grotesk',-apple-system,Segoe UI,Arial,sans-serif;color:#1e1813;">
+<div style="max-width:560px;margin:0 auto;padding:32px 20px;">
+<div style="font-size:22px;font-weight:800;letter-spacing:-0.5px;color:#1e1813;">tailr<span style="color:#dc4f33;">.</span></div>
+<h1 style="font-size:26px;line-height:1.25;font-weight:800;letter-spacing:-0.5px;margin:24px 0 8px;">Your CV is still generic</h1>
+<p style="font-size:16px;line-height:1.6;color:#595959;margin:0 0 20px;">You signed up for Tailr but have not tailored a CV yet. It takes about 30 seconds, and it is the difference between an application that gets skimmed and one that gets read.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+${step("1", "Paste the job", "Any job URL from any board, or paste the description straight in.")}
+${step("2", "Add your CV once", "One upload. Tailr reads it and remembers, so you never do this again.")}
+${step("3", "Get the tailored version", "Rewritten for that job, with a match score you can audit line by line, and an honest list of the gaps.")}
+</table>
+<div style="text-align:center;margin:28px 0 16px;"><a href="${tailorUrl}" style="display:inline-block;background:#dc4f33;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:13px 28px;border-radius:10px;">Tailor your first CV &rarr;</a></div>
+<p style="text-align:center;margin:0 0 26px;"><a href="${walkthroughUrl}" style="color:#dc4f33;text-decoration:none;font-size:14px;font-weight:600;">Or see the 60 second walkthrough first &rarr;</a></p>
+<p style="font-size:15px;line-height:1.6;color:#595959;margin:0 0 20px;">Nothing gets invented, by the way. Tailr reframes what you have actually done, and where the evidence is not there it says so rather than writing a claim you would have to defend in an interview.</p>
+<p style="font-size:15px;line-height:1.6;color:#595959;margin:0 0 24px;">Everything is free while we are in beta. If something stopped you last time, just reply and tell us what it was. We read every one.</p>
+<p style="font-size:15px;color:#1e1813;margin:0;">&mdash; The Tailr team</p>
+<p style="font-size:12px;color:#a8a29e;margin:28px 0 0;line-height:1.5;">You are receiving this because you signed up for Tailr at ${marketingHost}. Reply with the word UNSUBSCRIBE and we will remove you.</p>
+</div></body></html>`
+}
