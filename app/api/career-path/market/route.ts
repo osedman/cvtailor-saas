@@ -14,7 +14,7 @@ export const maxDuration = 60
  * Live market insight for the user's locked North Star: salary band, live role
  * count, and "close this skill → N more roles open".
  *
- * Flagged off by default (MARKET_INSIGHTS_ENABLED + Adzuna keys). When off, or
+ * Flagged off by default (MARKET_INSIGHTS_ENABLED + REED_API_KEY). When off, or
  * when upstream fails, this returns `{ enabled: false }` and the UI renders
  * nothing — the career path behaves exactly as it does today.
  *

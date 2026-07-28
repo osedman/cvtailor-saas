@@ -6,8 +6,9 @@
  * - Snapshots are cached by (role, region), never per user — every user aiming
  *   at the same role shares one weekly-refreshed row, so a handful of API calls
  *   a month serves everyone.
- * - Adzuna marks estimated salaries with `salary_is_predicted`; those are
- *   excluded from the band so we never present a guess as a fact.
+ * - Provider is Reed.co.uk's free jobseeker API (swapped from Adzuna 28 Jul
+ *   2026 — Adzuna's commercial-consent requirement blocked GA). Reed salaries
+ *   are employer-posted, so no predicted-salary filtering is needed.
  * - "Opens N more roles" is honest keyword presence across real descriptions,
  *   not an AI judgement — cheap, explainable, and reproducible.
  */
@@ -109,8 +110,7 @@ export function topCompanies(jobs: MarketJob[], limit = 4): string[] {
 export function isMarketEnabled(): boolean {
   return (
     process.env.MARKET_INSIGHTS_ENABLED === "1" &&
-    !!process.env.ADZUNA_APP_ID &&
-    !!process.env.ADZUNA_APP_KEY
+    !!process.env.REED_API_KEY
   )
 }
 
@@ -121,15 +121,20 @@ export function isFresh(fetchedAt: string, now: Date = new Date(), days = 7): bo
   return now.getTime() - t < days * 86_400_000
 }
 
-interface AdzunaResult {
-  title?: string
-  description?: string
-  redirect_url?: string
-  salary_min?: number
-  salary_max?: number
-  salary_is_predicted?: string | number
-  company?: { display_name?: string }
-  location?: { display_name?: string }
+/** Reed jobseeker API result — https://www.reed.co.uk/developers/Jobseeker.
+ * Salaries are employer-posted (no "predicted" flag to filter, unlike Adzuna);
+ * yearly* fields normalise hourly/daily rates to annual. */
+interface ReedResult {
+  jobId?: number
+  jobTitle?: string
+  jobDescription?: string
+  jobUrl?: string
+  minimumSalary?: number
+  maximumSalary?: number
+  yearlyMinimumSalary?: number
+  yearlyMaximumSalary?: number
+  employerName?: string
+  locationName?: string
 }
 
 export interface MarketFetch {
@@ -142,38 +147,50 @@ export interface MarketFetch {
   fetchedAt: string
 }
 
-/** Fetch live postings for a role. Returns null when the integration is off or
- * the upstream fails — callers must degrade silently, never block the path. */
+/** Fetch live postings for a role via Reed's jobseeker API. Reed is UK-only,
+ * which matches Tailr's market; non-GB regions return null and the UI renders
+ * nothing, exactly like the disabled state. Returns null when the integration
+ * is off or the upstream fails — callers must degrade silently, never block
+ * the path. */
 export async function fetchMarket(role: string, region: string): Promise<MarketFetch | null> {
   if (!isMarketEnabled()) return null
-  const country = (region || "GB").toLowerCase()
-  const url = new URL(`https://api.adzuna.com/v1/api/jobs/${country}/search/1`)
-  url.searchParams.set("app_id", process.env.ADZUNA_APP_ID!)
-  url.searchParams.set("app_key", process.env.ADZUNA_APP_KEY!)
-  url.searchParams.set("what", role.slice(0, 120))
-  url.searchParams.set("results_per_page", "50")
-  url.searchParams.set("content-type", "application/json")
+  if ((region || "GB").toUpperCase() !== "GB") return null
+  const url = new URL("https://www.reed.co.uk/api/1.0/search")
+  url.searchParams.set("keywords", role.slice(0, 120))
+  url.searchParams.set("resultsToTake", "100")
 
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(12_000) })
-    if (!res.ok) return null
-    const data = (await res.json()) as { count?: number; results?: AdzunaResult[] }
-    const jobs: MarketJob[] = (data.results ?? []).map((r) => ({
-      title: (r.title ?? "").slice(0, 160),
-      company: (r.company?.display_name ?? "").slice(0, 80),
-      location: (r.location?.display_name ?? "").slice(0, 80),
-      // Predicted salaries are excluded from the band — never present a guess as fact.
-      salaryMin: String(r.salary_is_predicted) === "1" ? null : (r.salary_min ?? null),
-      salaryMax: String(r.salary_is_predicted) === "1" ? null : (r.salary_max ?? null),
-      url: r.redirect_url ?? "",
-      description: (r.description ?? "").slice(0, 2000),
-    }))
-    const salaries = jobs.flatMap((j) => {
-      if (j.salaryMin && j.salaryMax) return [(j.salaryMin + j.salaryMax) / 2]
-      return j.salaryMin ? [j.salaryMin] : j.salaryMax ? [j.salaryMax] : []
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(12_000),
+      // Reed auths with the API key as the Basic username, empty password.
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${process.env.REED_API_KEY}:`).toString("base64")}`,
+      },
     })
+    if (!res.ok) return null
+    const data = (await res.json()) as { totalResults?: number; results?: ReedResult[] }
+    const jobs: MarketJob[] = (data.results ?? []).map((r) => ({
+      title: (r.jobTitle ?? "").slice(0, 160),
+      company: (r.employerName ?? "").slice(0, 80),
+      location: (r.locationName ?? "").slice(0, 80),
+      // Prefer the yearly-normalised fields so an hourly rate never lands in
+      // an annual band; fall back to the raw fields (annual for most listings).
+      salaryMin: r.yearlyMinimumSalary ?? r.minimumSalary ?? null,
+      salaryMax: r.yearlyMaximumSalary ?? r.maximumSalary ?? null,
+      url: r.jobUrl ?? "",
+      description: (r.jobDescription ?? "").slice(0, 2000),
+    }))
+    const salaries = jobs
+      .flatMap((j) => {
+        if (j.salaryMin && j.salaryMax) return [(j.salaryMin + j.salaryMax) / 2]
+        return j.salaryMin ? [j.salaryMin] : j.salaryMax ? [j.salaryMax] : []
+      })
+      // When Reed's yearly-normalised fields are absent the raw figure can be
+      // an hourly or daily rate; a £15 or £450 "salary" would wreck an annual
+      // band, so anything implausibly small for a yearly wage is dropped.
+      .filter((s) => s >= 5_000)
     return {
-      totalRoles: data.count ?? jobs.length,
+      totalRoles: data.totalResults ?? jobs.length,
       band: salaryBand(salaries),
       topCompanies: topCompanies(jobs),
       jobs,
