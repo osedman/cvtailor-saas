@@ -47,7 +47,7 @@ function WelcomeModal({ onClose }: { onClose: () => void }) {
         <ol className="mt-4 space-y-2.5">
           {[
             ["Drop in your CV", "Upload a PDF or DOCX, or paste it"],
-            ["Paste the job", "Or drop a LinkedIn or Indeed link"],
+            ["Paste the job", "Or drop any job URL to auto-fill"],
             ["Hit Tailor", "Get an evidence-checked rewrite and match score"],
           ].map(([t, d], i) => (
             <li key={i} className="flex items-start gap-3">
