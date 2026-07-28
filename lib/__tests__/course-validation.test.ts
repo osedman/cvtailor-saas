@@ -35,6 +35,7 @@ describe('isAllowedResourceUrl', () => {
     expect(isAllowedResourceUrl('not a url')).toBe(false)
     expect(isAllowedResourceUrl('javascript:alert(1)')).toBe(false)
     expect(isAllowedResourceUrl('ftp://udemy.com/x')).toBe(false)
+    expect(isAllowedResourceUrl('http://youtube.com/watch?v=x')).toBe(false)
     expect(isAllowedResourceUrl('')).toBe(false)
   })
 })

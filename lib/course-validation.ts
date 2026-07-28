@@ -13,6 +13,8 @@
  * testable without fetch.
  */
 import { ALLOWED_COURSE_DOMAINS } from '@/lib/course-sources/registry'
+import { lookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
 
 export interface ValidatableResource {
   title: string
@@ -28,7 +30,7 @@ export function isAllowedResourceUrl(url: string): boolean {
   let host: string
   try {
     const u = new URL(url)
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false
+    if (u.protocol !== 'https:') return false
     host = u.hostname.toLowerCase()
   } catch {
     return false
@@ -58,28 +60,69 @@ export function filterAllowedResources<T extends ValidatableResource>(
  * more than a false positive here — the allowlist has already done the trust
  * work. So: only a clean 404/410 or a network failure counts as dead.
  */
+function isPrivateIp(address: string): boolean {
+  if (isIP(address) === 4) {
+    const [a, b] = address.split('.').map(Number)
+    return (
+      a === 10 ||
+      a === 127 ||
+      a === 0 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168)
+    )
+  }
+  if (isIP(address) === 6) {
+    const value = address.toLowerCase()
+    return value === '::1' || value === '::' || value.startsWith('fc') ||
+      value.startsWith('fd') || value.startsWith('fe8') || value.startsWith('fe9') ||
+      value.startsWith('fea') || value.startsWith('feb')
+  }
+  return true
+}
+
+async function hasOnlyPublicAddresses(hostname: string): Promise<boolean> {
+  if (hostname === 'localhost' || isIP(hostname)) return false
+  try {
+    const addresses = await lookup(hostname, { all: true, verbatim: true })
+    return addresses.length > 0 && addresses.every(({ address }) => !isPrivateIp(address))
+  } catch {
+    return false
+  }
+}
+
 export async function isUrlAlive(
   url: string,
-  timeoutMs = 4000
+  timeoutMs = 4000,
 ): Promise<boolean> {
   try {
-    const res = await fetch(url, {
-      method: 'HEAD',
-      redirect: 'follow',
-      signal: AbortSignal.timeout(timeoutMs),
-    })
-    return res.status !== 404 && res.status !== 410
+    let current = new URL(url)
+    for (let redirects = 0; redirects <= 3; redirects += 1) {
+      if (!isAllowedResourceUrl(current.toString())) return false
+      if (!await hasOnlyPublicAddresses(current.hostname)) return false
+      const res = await fetch(current, {
+        method: 'HEAD',
+        redirect: 'manual',
+        signal: AbortSignal.timeout(timeoutMs),
+      })
+      if (res.status >= 300 && res.status < 400) {
+        const location = res.headers.get('location')
+        if (!location || redirects === 3) return false
+        current = new URL(location, current)
+        continue
+      }
+      return res.status !== 404 && res.status !== 410
+    }
+    return false
   } catch {
     return false
   }
 }
 
 /**
- * The full gate: allowlist first (free), then liveness checks in parallel
- * (bounded — resources per item are already capped at 2-3 by the schema).
- * Network failures of OUR making shouldn't empty a roadmap, so if every
- * liveness check fails (e.g. egress blocked at build time), fall back to the
- * allowlist-filtered set rather than returning nothing.
+ * The full gate: allowlist first, then liveness checks in parallel (bounded —
+ * resources per item are capped at 2-3). A failed check is dropped: the skill
+ * remains on the roadmap, and empty beats persisting an invented/dead URL.
  */
 export async function validateResources<T extends ValidatableResource>(
   resources: T[]
@@ -87,8 +130,7 @@ export async function validateResources<T extends ValidatableResource>(
   const allowed = filterAllowedResources(resources)
   if (allowed.length === 0) return []
   const alive = await Promise.all(allowed.map((r) => isUrlAlive(r.url)))
-  const live = allowed.filter((_, i) => alive[i])
-  return live.length > 0 ? live : allowed
+  return allowed.filter((_, i) => alive[i])
 }
 
 /**

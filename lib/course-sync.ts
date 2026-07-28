@@ -14,7 +14,8 @@ function chunks<T>(values: T[], size: number): T[][] {
   return result
 }
 
-export function catalogRow(record: CourseSourceRecord, now: string) {
+export function catalogRow(record: CourseSourceRecord, now: string, syncSource = record.discoveredVia) {
+  const providerVerified = record.providerPayload?.verifiedByProvider === true
   return {
     provider: record.provider,
     external_id: record.externalId,
@@ -28,10 +29,11 @@ export function catalogRow(record: CourseSourceRecord, now: string) {
     regions: record.regions.slice(0, 20),
     access_type: record.accessType,
     quality_score: record.qualityScore,
-    status: 'active',
+    sync_source: syncSource,
+    status: providerVerified ? 'active' : 'review',
     search_text: searchTextFor(record),
     provider_payload: record.providerPayload ?? {},
-    last_verified_at: now,
+    last_verified_at: providerVerified ? now : null,
     updated_at: now,
   }
 }
@@ -79,6 +81,7 @@ export async function syncCourseCatalog(
   let upserted = 0
   let candidateCount = 0
   let stale = 0
+  const runIds = new Map<string, string>()
 
   for (const collection of collections) {
     const valid = collection.records.filter((record) =>
@@ -98,9 +101,13 @@ export async function syncCourseCatalog(
         .single()
       if (runError) throw runError
       runId = run.id as string
+      runIds.set(collection.source, runId)
 
       try {
-        for (const batch of chunks(trusted.map((record) => catalogRow(record, now)), UPSERT_BATCH_SIZE)) {
+        for (const batch of chunks(
+          trusted.map((record) => catalogRow(record, now, collection.source)),
+          UPSERT_BATCH_SIZE,
+        )) {
           const { error } = await admin
             .from('course_catalog')
             .upsert(batch, { onConflict: 'provider,external_id' })
@@ -111,12 +118,12 @@ export async function syncCourseCatalog(
         for (const batch of chunks(candidates.map((record) => candidateRow(record, now)), UPSERT_BATCH_SIZE)) {
           const { error } = await admin
             .from('course_candidates')
-            .upsert(batch, { onConflict: 'canonical_url' })
+            .upsert(batch, { onConflict: 'canonical_url', ignoreDuplicates: true })
           if (error) throw error
           candidateCount += batch.length
         }
 
-        await admin.from('course_sync_runs').update({
+        const { error: finishError } = await admin.from('course_sync_runs').update({
           status: collection.error ? 'partial' : 'succeeded',
           finished_at: new Date().toISOString(),
           discovered_count: valid.length,
@@ -124,13 +131,17 @@ export async function syncCourseCatalog(
           candidate_count: candidates.length,
           error: collection.error,
         }).eq('id', runId)
+        if (finishError) throw finishError
       } catch (error) {
-        await admin.from('course_sync_runs').update({
+        const { error: failureUpdateError } = await admin.from('course_sync_runs').update({
           status: 'failed',
           finished_at: new Date().toISOString(),
           discovered_count: valid.length,
           error: error instanceof Error ? error.message.slice(0, 1_000) : String(error).slice(0, 1_000),
         }).eq('id', runId)
+        if (failureUpdateError) {
+          console.error('[course-sync] could not mark run failed:', failureUpdateError.message)
+        }
         throw error
       }
     } else {
@@ -142,8 +153,8 @@ export async function syncCourseCatalog(
   if (!dryRun) {
     const { data: verifyRows, error } = await admin
       .from('course_catalog')
-      .select('id, canonical_url')
-      .eq('status', 'active')
+      .select('id, sync_source, canonical_url')
+      .in('status', ['active', 'review', 'stale'])
       .order('last_verified_at', { ascending: true, nullsFirst: true })
       .limit(VERIFY_BATCH_SIZE)
     if (error) throw error
@@ -157,17 +168,38 @@ export async function syncCourseCatalog(
     if (liveIds.length > 0) {
       const { error: liveError } = await admin
         .from('course_catalog')
-        .update({ last_verified_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .update({
+          status: 'active',
+          last_verified_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
         .in('id', liveIds)
       if (liveError) throw liveError
     }
     if (staleIds.length > 0) {
       const { error: staleError } = await admin
         .from('course_catalog')
-        .update({ status: 'stale', updated_at: new Date().toISOString() })
+        .update({
+          status: 'stale',
+          last_verified_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
         .in('id', staleIds)
       if (staleError) throw staleError
       stale = staleIds.length
+    }
+
+    const staleBySource = new Map<string, number>()
+    for (const result of checked.filter((row) => !row.alive)) {
+      const source = (verifyRows ?? []).find((row) => row.id === result.id)?.sync_source as string | undefined
+      if (source) staleBySource.set(source, (staleBySource.get(source) ?? 0) + 1)
+    }
+    for (const [source, runId] of runIds) {
+      const { error: countError } = await admin
+        .from('course_sync_runs')
+        .update({ stale_count: staleBySource.get(source) ?? 0 })
+        .eq('id', runId)
+      if (countError) throw countError
     }
   }
 
