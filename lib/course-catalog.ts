@@ -110,6 +110,7 @@ export function rankCourses(
     .filter((entry) => !options.freeOnly || entry.accessType !== 'paid')
     .filter((entry) => entry.regions.length === 0 || entry.regions.includes(region))
     .filter((entry) => !level || entry.level === 'all' || entry.level === level)
+    .filter((entry) => !maxDuration || !entry.durationMinutes || entry.durationMinutes <= maxDuration)
     .map((entry) => {
       const tags = entry.skillTags.map(normalizeSkillTag)
       const title = normalizeSkillTag(entry.title)
@@ -125,9 +126,7 @@ export function rankCourses(
       if (entry.regions.includes(region)) score += 8
       if (entry.accessType === 'free') score += 12
       if (entry.durationMinutes && entry.durationMinutes <= 600) score += 8
-      if (maxDuration && entry.durationMinutes) {
-        score += entry.durationMinutes <= maxDuration ? 15 : -20
-      }
+      if (maxDuration && entry.durationMinutes) score += 15
       return { entry, score }
     })
     .filter(({ score }) => score > 15)
@@ -153,7 +152,10 @@ export async function findCourses(
     .select(SELECT_COLUMNS)
     .eq('status', 'active')
     .overlaps('skill_tags', terms)
-    .limit(50)
+    .order('quality_score', { ascending: false })
+    .order('duration_minutes', { ascending: true, nullsFirst: false })
+    .order('title', { ascending: true })
+    .limit(200)
   if (exactResponse.error) throw exactResponse.error
 
   let rows = (exactResponse.data ?? []) as unknown as CourseCatalogRow[]
@@ -164,7 +166,10 @@ export async function findCourses(
       .select(SELECT_COLUMNS)
       .eq('status', 'active')
       .textSearch('search_text', webQuery, { type: 'websearch', config: 'english' })
-      .limit(50)
+      .order('quality_score', { ascending: false })
+      .order('duration_minutes', { ascending: true, nullsFirst: false })
+      .order('title', { ascending: true })
+      .limit(200)
     if (textResponse.error) throw textResponse.error
     rows = [...rows, ...((textResponse.data ?? []) as unknown as CourseCatalogRow[])]
   }
@@ -239,6 +244,26 @@ export function catalogAwareRoadmapTools<T>(
   ]
 }
 
+function safeCareerResource(raw: unknown): CareerResource | null {
+  if (!raw || typeof raw !== 'object') return null
+  const value = raw as Record<string, unknown>
+  const catalogId = typeof value.catalogId === 'string' ? value.catalogId.trim().slice(0, 100) : ''
+  const title = typeof value.title === 'string' ? value.title.trim().slice(0, 500) : ''
+  const url = typeof value.url === 'string' ? value.url.trim().slice(0, 2_000) : ''
+  const source = typeof value.source === 'string' ? value.source.trim().slice(0, 100) : ''
+  if (!catalogId && (!title || !url || !source)) return null
+  return {
+    ...(catalogId ? { catalogId } : {}),
+    title,
+    url,
+    source,
+    free: typeof value.free === 'boolean' ? value.free : undefined,
+    durationNote: typeof value.durationNote === 'string'
+      ? value.durationNote.trim().slice(0, 100)
+      : undefined,
+  }
+}
+
 async function queueFallbackCandidates(items: CareerRoadmapItem[]): Promise<void> {
   const rows = items.flatMap((item) =>
     item.resources
@@ -261,7 +286,10 @@ async function queueFallbackCandidates(items: CareerRoadmapItem[]): Promise<void
   )
   if (rows.length === 0) return
   try {
-    await createAdminClient().from('course_candidates').upsert(rows, { onConflict: 'canonical_url' })
+    const { error } = await createAdminClient()
+      .from('course_candidates')
+      .upsert(rows, { onConflict: 'canonical_url', ignoreDuplicates: true })
+    if (error) throw error
   } catch (error) {
     console.error('[course-catalog] candidate queue failed:', error instanceof Error ? error.message : String(error))
   }
@@ -274,6 +302,8 @@ export async function finalizeRoadmapResources(
     region?: string | null
     context?: CourseCatalogContext
     minimumCatalogResources?: number
+    allowFallback?: boolean
+    queueFallbacks?: boolean
   } = {},
 ): Promise<CareerRoadmapItem[]> {
   const context = options.context ?? await loadCourseCatalogContext(
@@ -283,10 +313,17 @@ export async function finalizeRoadmapResources(
   )
   const minimum = options.minimumCatalogResources ?? 2
 
-  const finalized = await Promise.all(items.map(async (item) => {
+  const safeItems = items.filter(
+    (item): item is CareerRoadmapItem =>
+      Boolean(item) && typeof item.skill === 'string' && item.skill.trim().length > 0,
+  )
+  const finalized = await Promise.all(safeItems.map(async (item) => {
+    const itemResources = Array.isArray(item.resources)
+      ? item.resources.map(safeCareerResource).filter((resource): resource is CareerResource => Boolean(resource))
+      : []
     const candidates = context.bySkill[normalizeSkillTag(item.skill)] ?? []
     const byId = new Map(candidates.map((entry) => [entry.id, entry]))
-    const selectedIds = item.resources
+    const selectedIds = itemResources
       .map((resource) => resource.catalogId)
       .filter((id): id is string => typeof id === 'string' && byId.has(id))
     const ordered = [
@@ -295,8 +332,10 @@ export async function finalizeRoadmapResources(
     ].slice(0, 3)
     const catalogResources = ordered.map(entryToCareerResource)
 
-    const fallbackInputs = item.resources.filter((resource) => !resource.catalogId)
-    const fallback = catalogResources.length >= minimum
+    const fallbackInputs = options.allowFallback === false
+      ? []
+      : itemResources.filter((resource) => !resource.catalogId)
+    const fallback = catalogResources.length >= minimum || options.allowFallback === false
       ? []
       : await validateResources(fallbackInputs)
     return {
@@ -309,6 +348,6 @@ export async function finalizeRoadmapResources(
     }
   }))
 
-  await queueFallbackCandidates(finalized)
+  if (options.queueFallbacks !== false) await queueFallbackCandidates(finalized)
   return finalized
 }

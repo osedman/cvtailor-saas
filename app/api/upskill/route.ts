@@ -49,6 +49,9 @@ function coerceItem(raw: unknown): CareerRoadmapItem | null {
   const r = raw as Record<string, unknown>
   const skill = String(r.skill ?? '').trim().slice(0, 80)
   if (!skill) return null
+  const effort = typeof r.effortHours === 'number' && Number.isFinite(r.effortHours)
+    ? Math.max(1, Math.min(500, Math.round(r.effortHours)))
+    : undefined
   return {
     skill,
     whyItMatters: String(r.whyItMatters ?? '').slice(0, 400),
@@ -56,7 +59,7 @@ function coerceItem(raw: unknown): CareerRoadmapItem | null {
     projectBrief: String(r.projectBrief ?? '').slice(0, 800),
     cvPhrasing: String(r.cvPhrasing ?? '').slice(0, 400),
     status: 'todo',
-    effortHours: typeof r.effortHours === 'number' ? r.effortHours : undefined,
+    effortHours: effort,
   }
 }
 
@@ -88,7 +91,11 @@ export async function POST(req: NextRequest) {
       const item = coerceItem(body.item)
       if (!item) return NextResponse.json({ error: 'That skill could not be read.' }, { status: 400 })
       const region = await loadRegion(supabase, user.id)
-      const [validatedItem] = await finalizeRoadmapResources(supabase, [item], { region })
+      const [validatedItem] = await finalizeRoadmapResources(supabase, [item], {
+        region,
+        allowFallback: false,
+        queueFallbacks: false,
+      })
       if (!validatedItem) {
         return NextResponse.json({ error: 'That skill could not be validated.' }, { status: 400 })
       }

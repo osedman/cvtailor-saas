@@ -162,6 +162,7 @@ export const youtubeCourseSource: CourseSource = {
           trusted: allowedChannels.has(String(channelId)),
           discoveredVia: 'youtube-data-api',
           providerPayload: {
+            verifiedByProvider: true,
             channelId: typeof channelId === 'string' ? channelId : null,
             channelTitle: typeof item.snippet?.channelTitle === 'string' ? item.snippet.channelTitle : null,
             publishedAt: typeof item.snippet?.publishedAt === 'string' ? item.snippet.publishedAt : null,

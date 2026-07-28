@@ -74,6 +74,7 @@ function normalize(item: LearnItem, kind: string): CourseSourceRecord | null {
     discoveredVia: 'microsoft-learn-catalog',
     providerPayload: {
       kind,
+      verifiedByProvider: true,
       lastModified: typeof item.last_modified === 'string' ? item.last_modified : null,
     },
   }

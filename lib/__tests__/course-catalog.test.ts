@@ -71,6 +71,13 @@ describe('course catalog ranking', () => {
     ], { skill: 'SQL', region: 'GB', freeOnly: true })
     expect(ranked).toEqual([])
   })
+
+  it('treats max duration as a hard limit when duration is known', () => {
+    const ranked = rankCourses([
+      entry({ id: 'long', durationMinutes: 1_200 }),
+    ], { skill: 'SQL', region: 'GB', maxDurationMinutes: 600 })
+    expect(ranked).toEqual([])
+  })
 })
 
 describe('catalog-grounded roadmap resources', () => {

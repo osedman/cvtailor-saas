@@ -47,8 +47,9 @@ describe('curated catalog seed', () => {
       provider: seed.provider,
       external_id: seed.externalId,
       canonical_url: seed.canonicalUrl,
-      status: 'active',
-      last_verified_at: now,
+      sync_source: 'curated',
+      status: 'review',
+      last_verified_at: null,
     })
     expect(candidateRow({ ...seed, trusted: false }, now)).toMatchObject({
       canonical_url: seed.canonicalUrl,

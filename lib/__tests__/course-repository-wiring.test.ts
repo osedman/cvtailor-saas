@@ -23,6 +23,8 @@ describe('course repository wiring', () => {
     )
     expect(acceptBlock).toContain('finalizeRoadmapResources')
     expect(acceptBlock).toContain('validatedItem')
+    expect(acceptBlock).toContain('allowFallback: false')
+    expect(acceptBlock).toContain('queueFallbacks: false')
   })
 
   it('registers a secret-protected weekly sync', () => {

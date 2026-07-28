@@ -24,6 +24,7 @@ create table if not exists public.course_catalog (
                          check (access_type in ('free', 'audit', 'paid')),
   quality_score        numeric(3,2) not null default 0.50
                          check (quality_score >= 0 and quality_score <= 1),
+  sync_source          text not null default 'manual',
   status               text not null default 'active'
                          check (status in ('active', 'review', 'stale')),
   search_text          text not null default '',
@@ -47,20 +48,15 @@ create index if not exists course_catalog_active_quality_idx
 
 alter table public.course_catalog enable row level security;
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_policies
-    where schemaname = 'public'
-      and tablename = 'course_catalog'
-      and policyname = 'Signed-in users can read active course catalog'
-  ) then
-    create policy "Signed-in users can read active course catalog"
-      on public.course_catalog for select
-      to authenticated
-      using (status = 'active');
-  end if;
-end $$;
+revoke all on table public.course_catalog from anon, authenticated;
+grant select on table public.course_catalog to authenticated;
+
+drop policy if exists "Signed-in users can read active course catalog"
+  on public.course_catalog;
+create policy "Signed-in users can read active course catalog"
+  on public.course_catalog for select
+  to authenticated
+  using (status = 'active');
 
 create table if not exists public.course_candidates (
   id                   uuid primary key default gen_random_uuid(),
@@ -83,6 +79,7 @@ create index if not exists course_candidates_status_idx
 
 -- No policies: candidate review is service-role-only.
 alter table public.course_candidates enable row level security;
+revoke all on table public.course_candidates from anon, authenticated;
 
 create table if not exists public.course_sync_runs (
   id                   uuid primary key default gen_random_uuid(),
@@ -103,3 +100,4 @@ create index if not exists course_sync_runs_source_started_idx
 
 -- No policies: sync observability is service-role-only.
 alter table public.course_sync_runs enable row level security;
+revoke all on table public.course_sync_runs from anon, authenticated;
