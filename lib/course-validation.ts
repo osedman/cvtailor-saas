@@ -5,13 +5,14 @@
  * Decided 28 Jul 2026 (strict allowlist, Ose's call, from the 27 Jul sync):
  * roadmap resources come from a short list of accessible, practical platforms
  * — Udemy, YouTube, freeCodeCamp and friends — because users actually finish
- * those. University links and unknown domains are dropped server-side, and a
- * resource whose URL doesn't respond is dropped too. Fewer, trustworthy links
- * beat a longer list with dead ends.
+ * those. Unknown domains are dropped server-side, and a resource whose URL
+ * doesn't respond is dropped too. Fewer, trustworthy links beat a longer list
+ * with dead ends.
  *
  * Pure functions are separated from the network check so the policy is unit
  * testable without fetch.
  */
+import { ALLOWED_COURSE_DOMAINS } from '@/lib/course-sources/registry'
 
 export interface ValidatableResource {
   title: string
@@ -19,28 +20,8 @@ export interface ValidatableResource {
   source: string
 }
 
-/**
- * The allowlist. Domains chosen for the sync's criteria: short, practical,
- * free (or cheap), fast to complete. Subdomains of an entry are allowed
- * (www.youtube.com, m.udemy.com); nothing else is.
- */
-export const ALLOWED_RESOURCE_DOMAINS = [
-  'udemy.com',
-  'youtube.com',
-  'youtu.be',
-  'freecodecamp.org',
-  'khanacademy.org',
-  // Coursera stays ONLY because audit mode is free; the prompt insists on it.
-  'coursera.org',
-  'learn.microsoft.com',
-  'skillshop.exceedlms.com', // Google Skillshop
-  'skillshop.withgoogle.com',
-  'grow.google',
-  'developers.google.com',
-  'aws.amazon.com', // AWS Skill Builder free tier
-  'codecademy.com',
-  'w3schools.com',
-] as const
+/** Kept as a public alias for existing callers and tests. */
+export const ALLOWED_RESOURCE_DOMAINS = ALLOWED_COURSE_DOMAINS
 
 /** True when the URL parses and its host is on (or under) the allowlist. */
 export function isAllowedResourceUrl(url: string): boolean {
