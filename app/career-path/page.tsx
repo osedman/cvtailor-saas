@@ -311,6 +311,7 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
   const [stage, setStage] = useState<"intro" | "scanning" | "findings" | "choosing" | "building">(cachedFindings ? "findings" : "intro")
   const [findings, setFindings] = useState<CvFindings | null>(cachedFindings)
   const [suggestions, setSuggestions] = useState<TargetSuggestion[] | null>(null)
+  const [chooserMarket, setChooserMarket] = useState<Record<string, { band: SalaryBand | null; totalRoles: number }>>({})
   const [customRole, setCustomRole] = useState("")
   const [buildingRole, setBuildingRole] = useState("")
 
@@ -332,9 +333,22 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
     try {
       const data = await readJson<{ targets: TargetSuggestion[] }>(await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "suggest-targets", intention: seedIntention }) }))
       setSuggestions(data.targets)
+      loadChooserMarket(data.targets)
     } catch {
       setSuggestions([]) // chooser still works via the free-text field
     }
+  }
+
+  // Price the choice before it's made: salary band + live role count per
+  // suggested target. Fire-and-forget — cards render immediately and the
+  // market line fades in when (and only when) real data lands.
+  const loadChooserMarket = async (targets: TargetSuggestion[]) => {
+    try {
+      const data = await readJson<{ enabled: boolean; summaries?: Record<string, { band: SalaryBand | null; totalRoles: number }> }>(
+        await fetch("/api/career-path/market", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roles: targets.map((t) => t.role) }) })
+      )
+      if (data.enabled && data.summaries) setChooserMarket(data.summaries)
+    } catch { /* market is garnish — never block the chooser */ }
   }
 
   const build = async (role: string) => {
@@ -488,6 +502,19 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
                         {i === 0 && <span className="t-eyebrow" style={{ fontSize: 10, padding: "3px 8px", background: "var(--ns-tint-1)", border: "1px solid var(--ns-tint-2)", borderRadius: 6 }}>Best fit</span>}
                       </div>
                       <p className="t-body" style={{ color: "var(--ns-ink-70)", margin: "8px 0 0", maxWidth: 560 }}>{t.whyYou}</p>
+                      {(() => {
+                        const m = chooserMarket[t.role]
+                        if (!m) return null
+                        const parts: string[] = []
+                        if (m.band) parts.push(`${gbp(m.band.p25)}–${gbp(m.band.p75)} · median ${gbp(m.band.median)}`)
+                        if (m.totalRoles > 0) parts.push(`${m.totalRoles} live role${m.totalRoles === 1 ? "" : "s"} right now`)
+                        if (parts.length === 0) return null
+                        return (
+                          <p className="t-mono animate-fade-in-up" style={{ margin: "10px 0 0", fontSize: 11.5, color: "var(--ns-coral-deep)" }}>
+                            {parts.join(" · ")}
+                          </p>
+                        )
+                      })()}
                     </div>
                     {typeof t.fit === "number" && (
                       <div style={{ flexShrink: 0, textAlign: "right", minWidth: 84 }}>

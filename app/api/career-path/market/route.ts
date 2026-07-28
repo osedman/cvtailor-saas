@@ -20,6 +20,66 @@ export const maxDuration = 60
  *
  * Snapshots are cached by (role, region), shared across all users.
  */
+/** Get-or-fetch the shared (role, region) snapshot; returns just the summary
+ * fields. Used by the chooser to price candidate roles BEFORE one is locked. */
+async function summarise(
+  admin: ReturnType<typeof createAdminClient>,
+  role: string,
+  region: string,
+): Promise<{ band: SalaryBand | null; totalRoles: number } | null> {
+  const key = normaliseRoleKey(role, region)
+  const { data: cached } = await admin
+    .from("market_snapshots").select("total_roles, band, fetched_at").eq("role_key", key).maybeSingle()
+  if (cached && isFresh(cached.fetched_at as string)) {
+    return { band: (cached.band as SalaryBand | null) ?? null, totalRoles: (cached.total_roles as number) ?? 0 }
+  }
+  const fresh = await fetchMarket(role, region)
+  if (!fresh) return null
+  try {
+    await admin.from("market_snapshots").upsert({
+      role_key: key, role, region,
+      total_roles: fresh.totalRoles, band: fresh.band,
+      top_companies: fresh.topCompanies, jobs: fresh.jobs,
+      fetched_at: fresh.fetchedAt,
+    }, { onConflict: "role_key" })
+  } catch { /* caching is best-effort */ }
+  return { band: fresh.band, totalRoles: fresh.totalRoles }
+}
+
+/**
+ * Batch market summaries for the role CHOOSER — salary band + live role count
+ * per suggested target, so the choice is priced before it's made (the sync's
+ * "role search was missing salary" note, S2). Bounded to 4 roles; each is one
+ * cached weekly snapshot shared across users, so a cold chooser costs at most
+ * 4 upstream calls and a warm one costs none.
+ */
+export async function POST(req: Request) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
+    if (!isMarketEnabled()) return NextResponse.json({ enabled: false })
+
+    const body = await req.json().catch(() => ({}))
+    const roles = (Array.isArray(body?.roles) ? body.roles : [])
+      .map((r: unknown) => String(r ?? "").trim().slice(0, 120))
+      .filter(Boolean)
+      .slice(0, 4)
+    if (roles.length === 0) return NextResponse.json({ enabled: true, summaries: {} })
+
+    const { data: prof } = await supabase.from("profiles").select("country").eq("id", user.id).maybeSingle()
+    const region = ((prof?.country as string) || "GB").toUpperCase()
+
+    const admin = createAdminClient()
+    const results = await Promise.all(roles.map((r: string) => summarise(admin, r, region)))
+    const summaries: Record<string, { band: SalaryBand | null; totalRoles: number }> = {}
+    roles.forEach((r: string, i: number) => { if (results[i]) summaries[r] = results[i]! })
+    return NextResponse.json({ enabled: true, summaries })
+  } catch (err) {
+    return NextResponse.json({ error: errMessage(err) }, { status: 500 })
+  }
+}
+
 export async function GET() {
   try {
     const supabase = await createClient()
