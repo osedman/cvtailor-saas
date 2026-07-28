@@ -112,7 +112,9 @@ export function CareerSyncPanel({ results }: { results: TailorResult }) {
       const res = await fetch("/api/career-path", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "add-skill", skill }),
+        // origin: "jd" — this gap came from tailoring against one job
+        // description, so it belongs in Upskill, never on the North Star path.
+        body: JSON.stringify({ mode: "add-skill", skill, origin: "jd" }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || "Failed to add the skill.")

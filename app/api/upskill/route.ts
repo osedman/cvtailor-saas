@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { splitByEffort } from '@/lib/career-path-compute'
-import { addItems, setItemStatus, loadItems, promoteToCore, type StoredRoadmapItem } from '@/lib/roadmap-store'
+import { addItems, setItemStatus, loadItems, type StoredRoadmapItem } from '@/lib/roadmap-store'
 
 export const maxDuration = 300
 
@@ -64,22 +64,28 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
 
-    // ── Promote an existing quick win onto the core path (user's click) ──
+    // Promotion to the core path was removed (Ose, 28 Jul): core means the
+    // North Star and nothing else, so a JD-derived skill never graduates onto
+    // it. A `promote` request is answered rather than silently ignored, in case
+    // a stale client is still sending one.
     if (body?.mode === 'promote') {
-      const skill = String(body.skill ?? '').trim().slice(0, 80)
-      if (!skill) return NextResponse.json({ error: 'A skill is required' }, { status: 400 })
-      const items = await promoteToCore(supabase, user.id, skill)
-      return NextResponse.json({ items })
+      return NextResponse.json(
+        { error: 'Upskill items stay in Upskill — the core path is the North Star only.' },
+        { status: 410 },
+      )
     }
 
-    // ── Accept a larger skill onto the core path (explicit user consent) ──
+    // ── Accept a larger skill onto the UPSKILL list (explicit user consent) ──
+    // It still needs consent because it is real work, but consenting to a
+    // job-specific skill is not the same as changing the role you are aiming
+    // at — it lands in Upskill, not core.
     if (body?.mode === 'accept') {
       const item = coerceItem(body.item)
       if (!item) return NextResponse.json({ error: 'That skill could not be read.' }, { status: 400 })
       const roadmapId = await loadRoadmapId(supabase, user.id)
       const items = await addItems(
         supabase, user.id, roadmapId,
-        [sanitizeDeep({ ...item, horizon: 'core', source: 'tailor_run' }) as StoredRoadmapItem],
+        [sanitizeDeep({ ...item, horizon: 'upskill', source: 'tailor_run' }) as StoredRoadmapItem],
       )
       return NextResponse.json({ items })
     }
@@ -140,14 +146,14 @@ export async function POST(req: NextRequest) {
         supabase, user.id, roadmapId,
         sanitizeDeep(quick.map((it) => ({
           ...it,
-          horizon: 'quick' as const,
+          horizon: 'upskill' as const,
           source: 'tailor_run' as const,
           sourceRunId: historyId,
           roleFamilyAtCapture: roleFamily,
           effortEstimateHours: it.effortHours ?? null,
         }))) as StoredRoadmapItem[],
       )
-      const all = await loadItems(supabase, user.id, { horizon: 'quick' })
+      const all = await loadItems(supabase, user.id, { horizon: 'upskill' })
       const wanted = new Set(quick.map((q) => q.skill.toLowerCase()))
       captured = all.filter((i) => wanted.has(i.skill.toLowerCase()))
     }

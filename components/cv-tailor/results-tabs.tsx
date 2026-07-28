@@ -8,7 +8,7 @@ import type { TailorResult, InterviewPrepResult, PitchesResult, CareerRoadmapIte
 import { downloadWordDoc } from "@/lib/word"
 import { getTemplate, px, TEMPLATE_LIST, type CvTemplateId } from "@/lib/cv-templates"
 import { useCvTemplate } from "@/hooks/use-cv-template"
-import { QuickWinsStrip } from "@/components/quick-wins"
+import { UpskillStrip } from "@/components/upskill"
 import { InterviewPrep } from "./interview-prep"
 import { InterviewPitches } from "./interview-pitches"
 
@@ -872,7 +872,7 @@ export function ResultsTabs({
                 the moment the gaps are freshest. Replaces the old Upskill tab,
                 whose plan lived on the run where nothing else could see it. */}
             <div className="pt-2">
-              <QuickWinsStrip
+              <UpskillStrip
                 historyId={historyId}
                 weakSkills={weakSkills}
                 jobTitle={results.jobTitle}

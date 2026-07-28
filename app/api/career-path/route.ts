@@ -15,7 +15,7 @@ import { errMessage } from '@/lib/err'
 import { validateItemResources } from '@/lib/course-validation'
 import {
   loadItems, replaceItems, addItems, setItemStatus, removeSkill as storeRemoveSkill,
-  expireStaleQuickWins, type StoredRoadmapItem,
+  expireStaleUpskillItems, type StoredRoadmapItem,
 } from '@/lib/roadmap-store'
 
 export const maxDuration = 300
@@ -34,7 +34,7 @@ async function withItems<T extends object>(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   row: T | null,
-  horizon: 'core' | 'quick' | undefined = 'core',
+  horizon: 'core' | 'upskill' | undefined = 'core',
 ): Promise<(T & { items: StoredRoadmapItem[] }) | null> {
   if (!row) return null
   const items = await loadItems(supabase, userId, { horizon })
@@ -130,10 +130,10 @@ export async function GET() {
     // Expiry is lazy, here at the read: untouched quick wins archive after 30
     // days so the section never becomes a graveyard — the standard failure
     // mode for lists like this. Best-effort; never blocks the path.
-    try { await expireStaleQuickWins(supabase, user.id) } catch { /* non-fatal */ }
-    const quickWins = await loadItems(supabase, user.id, { horizon: 'quick' })
+    try { await expireStaleUpskillItems(supabase, user.id) } catch { /* non-fatal */ }
+    const upskillItems = await loadItems(supabase, user.id, { horizon: 'upskill' })
 
-    return NextResponse.json({ roadmap, derivedTarget, readiness, rankedGaps, arcAmbition, quickWins })
+    return NextResponse.json({ roadmap, derivedTarget, readiness, rankedGaps, arcAmbition, upskillItems })
   } catch (err) {
     const msg = errMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
@@ -459,7 +459,17 @@ export async function POST(req: NextRequest) {
 
       // addItems dedupes on skill: a skill already on the path has its
       // surfaced_count incremented rather than being duplicated.
-      await addItems(supabase, user.id, null, sanitizeDeep(newItems) as StoredRoadmapItem[])
+      //
+      // horizon MUST be explicit. This call used to omit it, and the column
+      // defaults to 'core' — so skills pulled from a job description were
+      // silently joining the North Star path and inflating its readiness.
+      // Anything that comes from a JD is upskill, always.
+      await addItems(
+        supabase, user.id, null,
+        sanitizeDeep(newItems.map((it) => ({
+          ...it, horizon: 'upskill' as const, source: 'tailor_run' as const,
+        }))) as StoredRoadmapItem[],
+      )
 
       return NextResponse.json({ added: newItems.length })
     }
@@ -470,6 +480,13 @@ export async function POST(req: NextRequest) {
     if (body?.mode === 'add-skill') {
       const skill = String(body.skill ?? '').trim().slice(0, 80)
       if (!skill) return NextResponse.json({ error: 'A skill is required' }, { status: 400 })
+      // Two callers, two meanings. The career path's own skill map adds a
+      // MISSING SKILL OF THE NORTH STAR ROLE (core). The tailor results panel
+      // adds a gap a specific job description raised (upskill). The caller has
+      // to say which — inferring it server-side is how core got polluted.
+      const fromJd = body?.origin === 'jd'
+      const addHorizon = fromJd ? ('upskill' as const) : ('core' as const)
+      const addSource = fromJd ? ('tailor_run' as const) : ('north_star' as const)
 
       const { data: existing, error: fetchErr } = await supabase
         .from('career_roadmaps')
@@ -527,7 +544,7 @@ export async function POST(req: NextRequest) {
       if (error) throw error
       await addItems(
         supabase, user.id, saved.id as string,
-        sanitizeDeep([{ ...newItem, status: 'todo' as const }]) as StoredRoadmapItem[],
+        sanitizeDeep([{ ...newItem, status: 'todo' as const, horizon: addHorizon, source: addSource }]) as StoredRoadmapItem[],
       )
       return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
     }
