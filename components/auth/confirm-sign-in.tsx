@@ -10,16 +10,21 @@ interface ConfirmSignInProps {
   code: string | null
   type: EmailOtpType
   next: string
+  /** Product origin from the server so local/preview don't fall back to apex. */
+  appOrigin: string
 }
 
 /**
- * Prefetch-safe magic-link completion for staging (and any host).
- * Uses relative redirects so preview/staging stays on *.vercel.app.
+ * Prefetch-safe magic-link completion.
+ *
+ * Email clients (Gmail, Outlook Safe Links, iOS Mail) often GET the link before
+ * the user taps it. Verifying on that first GET burns the one-time token —
+ * especially common on mobile. We only verify after an explicit button click.
  */
-export function ConfirmSignIn({ tokenHash, code, type, next }: ConfirmSignInProps) {
+export function ConfirmSignIn({ tokenHash, code, type, next, appOrigin }: ConfirmSignInProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const destination = next.startsWith("/") ? next : `/${next}`
+  const destination = `${appOrigin}${next.startsWith("/") ? next : `/${next}`}`
 
   async function completeSignIn() {
     setLoading(true)
@@ -50,6 +55,7 @@ export function ConfirmSignIn({ tokenHash, code, type, next }: ConfirmSignInProp
         return
       }
 
+      // Best-effort: login event + welcome email (never block redirect)
       try {
         await fetch("/api/auth/post-login", { method: "POST" })
       } catch {
@@ -71,7 +77,7 @@ export function ConfirmSignIn({ tokenHash, code, type, next }: ConfirmSignInProp
           This sign-in link is missing or already used. Request a fresh one from Tailr.
         </p>
         <a
-          href="/tailor"
+          href={`${appOrigin}/tailor`}
           className="inline-flex items-center justify-center w-full py-2.5 text-sm font-medium text-white bg-[#dc4f33] rounded-lg hover:bg-[#b3341b] transition-colors"
         >
           Back to Tailr
@@ -108,7 +114,7 @@ export function ConfirmSignIn({ tokenHash, code, type, next }: ConfirmSignInProp
       </button>
 
       {error && (
-        <a href="/tailor" className="block text-xs text-gray-400 hover:text-gray-600">
+        <a href={`${appOrigin}/tailor`} className="block text-xs text-gray-400 hover:text-gray-600">
           Request a new magic link
         </a>
       )}

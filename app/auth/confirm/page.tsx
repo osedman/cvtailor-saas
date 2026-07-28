@@ -1,9 +1,11 @@
 import type { EmailOtpType } from "@supabase/supabase-js"
 import { ConfirmSignIn } from "@/components/auth/confirm-sign-in"
+import { getAppOrigin } from "@/lib/site-url"
 
 /**
- * Magic-link landing page. Does NOT verify on GET — mobile email prefetchers
- * would burn the one-time token before the user taps Continue.
+ * Magic-link landing page. Does NOT verify the token on GET — that would let
+ * mobile email prefetchers burn the one-time link before the user taps it.
+ * Verification happens only after the user clicks Continue.
  */
 export default async function ConfirmPage({
   searchParams,
@@ -25,7 +27,13 @@ export default async function ConfirmPage({
   return (
     <main className="min-h-dvh flex items-center justify-center p-6 bg-gradient-to-b from-[#faf7f4] to-white">
       <div className="w-full max-w-sm">
-        <ConfirmSignIn tokenHash={tokenHash} code={code} type={type} next={next} />
+        <ConfirmSignIn
+          tokenHash={tokenHash}
+          code={code}
+          type={type}
+          next={next}
+          appOrigin={getAppOrigin()}
+        />
       </div>
     </main>
   )

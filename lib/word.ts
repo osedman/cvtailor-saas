@@ -1,16 +1,35 @@
 /**
- * Download plain-text CV content as a Word document (.doc), rendered in
- * whichever template the user picked. All styling comes from the token set in
- * lib/cv-templates — the same one that drives the on-screen preview — so the
- * download can't drift from what the user saw.
+ * Download plain-text CV content as a REAL Word document (.docx), rendered in
+ * whichever template the user picked.
+ *
+ * This file is the reconciliation of two parallel lines of work:
+ *  - main shipped a true .docx via the `docx` package (PR #28) — no more
+ *    "compatibility mode" prompt when the file opens on Windows — but with one
+ *    hardcoded style;
+ *  - staging shipped six templates whose tokens drive BOTH the on-screen
+ *    preview and the download, but rendered as Word-wrapped HTML .doc.
+ * The merge keeps both wins: the .docx builder below consumes the same token
+ * set (lib/cv-templates) as the preview, so what the user sees is what they
+ * download, in a file Word treats as native.
  *
  * Every template is single-column with no tables or text boxes: that layout is
  * the main cause of ATS parsing failures, so it's not something a template is
  * allowed to vary. Templates differ in typography and rules only.
  *
- * Word opens HTML wrapped in a .doc container natively — no library needed.
+ * buildCvHtml (the older HTML rendering) is retained: the unit tests assert
+ * template/ATS constraints against it, and it remains a faithful statement of
+ * how each template styles each line kind.
  */
 
+import {
+  AlignmentType,
+  BorderStyle,
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  convertMillimetersToTwip,
+} from "docx"
 import { getTemplate, type CvTemplate, type CvTemplateId } from "./cv-templates"
 
 const esc = (s: string) =>
@@ -20,6 +39,18 @@ const isSectionHeading = (t: string) => /^[A-Z][A-Z\s&/,'()-]+$/.test(t) && t.le
 const isBullet = (t: string) => /^[•\-\*·]/.test(t)
 // A role/employer line: contains a 4-digit year or "Present", reasonably short
 const isRoleLine = (t: string) => (/\b(19|20)\d{2}\b|Present/i.test(t)) && t.length < 130
+
+/** docx wants RRGGBB without the hash. */
+const hex = (c: string) => c.replace(/^#/, "")
+/** docx TextRun size is half-points. */
+const hp = (pt: number) => Math.round(pt * 2)
+/** docx characterSpacing is twentieths of a point. */
+const cs = (pt: number) => (pt ? Math.round(pt * 20) : undefined)
+/** The template's primary face — the stack's generic tail is a CSS concern. */
+const primaryFont = (stack: string) => stack.split(",")[0].trim().replace(/^['"]|['"]$/g, "")
+
+const align = (a: "left" | "center") =>
+  a === "center" ? AlignmentType.CENTER : AlignmentType.LEFT
 
 /** Build the full Word-compatible HTML document for a plain-text CV */
 export function buildCvHtml(text: string, templateId?: CvTemplateId): string {
@@ -116,16 +147,220 @@ export function buildCvHtml(text: string, templateId?: CvTemplateId): string {
 </body></html>`
 }
 
-export function downloadWordDoc(
-  text: string,
-  filename = "tailored-cv.doc",
-  templateId?: CvTemplateId
-) {
-  const blob = new Blob(["﻿" + buildCvHtml(text, templateId)], { type: "application/msword" })
+/** Parse plain-text CV into docx paragraphs styled by the template's tokens. */
+export function buildCvParagraphs(text: string, templateId?: CvTemplateId): Paragraph[] {
+  const t9e: CvTemplate = getTemplate(templateId)
+  const font = primaryFont(t9e.fontStack)
+
+  const accentBorder = { style: BorderStyle.SINGLE, size: 12, color: hex(t9e.accent), space: 1 }
+  const headingBorder = { style: BorderStyle.SINGLE, size: 8, color: hex(t9e.heading.color), space: 1 }
+  const thinRule = { style: BorderStyle.SINGLE, size: 8, color: "D8D4CD", space: 1 }
+
+  const lines = (text ?? "").split("\n")
+  let firstSection = lines.findIndex(
+    (l, i) => i > 0 && isSectionHeading(l.trim()) && l.trim().length > 0,
+  )
+  if (firstSection === -1) firstSection = 0
+
+  const out: Paragraph[] = []
+  let headerClosed = firstSection === 0
+
+  lines.forEach((line, idx) => {
+    const t = line.trim()
+
+    if (!headerClosed && idx < firstSection) {
+      if (idx === 0 && t) {
+        out.push(
+          new Paragraph({
+            spacing: { after: 40 },
+            alignment: align(t9e.name_.align),
+            children: [
+              new TextRun({
+                text: t9e.name_.uppercase ? t.toUpperCase() : t,
+                bold: true,
+                size: hp(t9e.name_.sizePt),
+                font,
+                color: hex(t9e.name_.color),
+                characterSpacing: cs(t9e.name_.letterSpacingPt),
+              }),
+            ],
+          }),
+        )
+      } else if (t) {
+        out.push(
+          new Paragraph({
+            spacing: { after: 60 },
+            alignment: align(t9e.contact.align),
+            children: [
+              new TextRun({ text: t, size: hp(t9e.contact.sizePt), font, color: hex(t9e.contact.color) }),
+            ],
+          }),
+        )
+      }
+      if (idx === firstSection - 1) {
+        out.push(
+          new Paragraph({
+            // The header rule is a template choice; without one, just breathe.
+            ...(t9e.headerRule ? { border: { bottom: accentBorder } } : {}),
+            spacing: { before: 80, after: 200 },
+            children: [],
+          }),
+        )
+        headerClosed = true
+      }
+      return
+    }
+
+    if (!t) {
+      out.push(new Paragraph({ spacing: { after: 40 }, children: [] }))
+      return
+    }
+
+    if (isSectionHeading(t)) {
+      out.push(
+        new Paragraph({
+          ...(t9e.heading.rule ? { border: { bottom: headingBorder } } : {}),
+          spacing: { before: Math.round(t9e.heading.marginTopPt * 20), after: 120 },
+          children: [
+            new TextRun({
+              text: t9e.heading.uppercase ? t : t.charAt(0) + t.slice(1).toLowerCase(),
+              bold: true,
+              size: hp(t9e.heading.sizePt),
+              font,
+              color: hex(t9e.heading.color),
+              allCaps: t9e.heading.uppercase,
+              characterSpacing: cs(t9e.heading.letterSpacingPt),
+            }),
+          ],
+        }),
+      )
+      return
+    }
+
+    if (isBullet(t)) {
+      out.push(
+        new Paragraph({
+          spacing: { after: 60 },
+          indent: { left: 280, hanging: 180 },
+          children: [
+            new TextRun({
+              text: `${t9e.bulletChar}  ${t.replace(/^[•\-\*·]\s*/, "")}`,
+              size: hp(t9e.bodyText.sizePt),
+              font,
+              color: hex(t9e.bodyText.color),
+            }),
+          ],
+        }),
+      )
+      return
+    }
+
+    if (isRoleLine(t)) {
+      out.push(
+        new Paragraph({
+          spacing: { before: 140, after: 20 },
+          children: [
+            new TextRun({ text: t, bold: true, size: hp(t9e.role.sizePt), font, color: hex(t9e.role.color) }),
+          ],
+        }),
+      )
+      return
+    }
+
+    const prev = lines[idx - 1]?.trim() ?? ""
+    if (t.length < 90 && isRoleLine(prev)) {
+      out.push(
+        new Paragraph({
+          spacing: { after: 80 },
+          children: [
+            new TextRun({
+              text: t,
+              italics: t9e.company.italic,
+              size: hp(t9e.company.sizePt),
+              font,
+              color: hex(t9e.company.color),
+            }),
+          ],
+        }),
+      )
+      return
+    }
+
+    out.push(
+      new Paragraph({
+        spacing: { after: 80 },
+        children: [
+          new TextRun({ text: t, size: hp(t9e.bodyText.sizePt), font, color: hex(t9e.bodyText.color) }),
+        ],
+      }),
+    )
+  })
+
+  out.push(
+    new Paragraph({
+      border: { top: thinRule },
+      spacing: { before: 440 },
+      alignment: AlignmentType.CENTER,
+      children: [
+        new TextRun({ text: "Made with Tailr · gettailr.com", size: 16, font, color: "A8A29E" }),
+      ],
+    }),
+  )
+
+  return out
+}
+
+export function buildCvDocument(text: string, templateId?: CvTemplateId): Document {
+  return new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            margin: {
+              top: convertMillimetersToTwip(20),
+              bottom: convertMillimetersToTwip(20),
+              left: convertMillimetersToTwip(22),
+              right: convertMillimetersToTwip(22),
+            },
+          },
+        },
+        children: buildCvParagraphs(text, templateId),
+      },
+    ],
+  })
+}
+
+function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
+  a.download = filename.endsWith(".docx") ? filename : filename.replace(/\.doc$/i, ".docx")
+  if (!a.download.endsWith(".docx")) a.download = `${a.download}.docx`
   a.href = url
-  a.download = filename
+  a.rel = "noopener"
+  document.body.appendChild(a)
   a.click()
-  URL.revokeObjectURL(url)
+  a.remove()
+  // Revoke after the browser has had time to start the download — immediate
+  // revoke leaves Safari/Firefox with an empty or missing file.
+  window.setTimeout(() => URL.revokeObjectURL(url), 2_000)
+}
+
+/** Build a .docx blob for the given CV text (usable in tests without DOM). */
+export async function buildCvDocxBlob(text: string, templateId?: CvTemplateId): Promise<Blob> {
+  return Packer.toBlob(buildCvDocument(text, templateId))
+}
+
+/**
+ * Download the CV as a real .docx in the given template. Async — callers may
+ * void the promise. Safe no-op when text is empty.
+ */
+export async function downloadWordDoc(
+  text: string,
+  filename = "tailored-cv.docx",
+  templateId?: CvTemplateId,
+): Promise<void> {
+  if (typeof document === "undefined") return
+  if (!(text ?? "").trim()) return
+  const blob = await buildCvDocxBlob(text, templateId)
+  triggerDownload(blob, filename)
 }

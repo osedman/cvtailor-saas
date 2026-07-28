@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { runPostAuth } from '@/lib/post-auth'
 
-/** Best-effort post-login side effects after client-side magic-link / OTP verify. */
+/**
+ * Best-effort post-login side effects after client-side magic-link / OTP verify.
+ * Auth cookies must already be set by the browser client.
+ */
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()

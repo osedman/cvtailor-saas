@@ -8,6 +8,7 @@ import {
   MessageCircleQuestion, Building2, ShieldCheck, Zap, Clock,
   Link2, Download, History,
 } from "lucide-react"
+import { CareerPathDemo } from "@/components/landing/career-path-demo"
 
 const hanken = Hanken_Grotesk({
   subsets: ["latin"],
@@ -518,7 +519,7 @@ function Benefits() {
     { icon: <ShieldCheck className="w-5 h-5" />, t: "Truth-guaranteed", d: "Every claim traces to your original CV. Nothing invented, ever." },
     { icon: <Zap className="w-5 h-5" />, t: "~30 second runs", d: "Two fast passes instead of one slow one. Built for momentum." },
     { icon: <Target className="w-5 h-5" />, t: "Computed match score", d: "Weighted requirement coverage you can audit — not model vibes." },
-    { icon: <Download className="w-5 h-5" />, t: "Word & text export", d: "Download as .doc or .txt, formatted and ATS-safe." },
+    { icon: <Download className="w-5 h-5" />, t: "Word & text export", d: "Download as .docx or .txt, formatted and ATS-safe." },
     { icon: <History className="w-5 h-5" />, t: "Full history", d: "Every tailored version saved with side-by-side comparison." },
     { icon: <Clock className="w-5 h-5" />, t: "Role-aware writing", d: "Engineering, sales, healthcare — bullets follow your field's rules." },
   ]
@@ -663,6 +664,32 @@ function Footer() {
 
 // ── Page ─────────────────────────────────────────────────────────────────
 
+function CareerPathSection() {
+  return (
+    <section id="career-path" className="py-24 px-5 border-y border-[#f0e9dc]" style={{ background: "#fdfaf4" }}>
+      <div className="max-w-6xl mx-auto">
+        <Reveal className="text-center max-w-2xl mx-auto mb-14">
+          <p className={`${jetbrains.className} text-[12px] font-medium uppercase tracking-[0.16em]`} style={{ color: ACCENT }}>New · Career Path</p>
+          <h2 className="mt-4 text-[clamp(30px,4.5vw,44px)] font-extrabold tracking-[-0.025em] leading-tight text-[#1e1813]">
+            Your gaps, turned into a plan
+          </h2>
+          <p className="mt-4 text-lg text-gray-500">
+            Tailr watches every application, spots the skills that keep holding you back, and builds a living path to close them — free resources, a project, and the exact CV line for each. Close one and it lifts your next tailor.
+          </p>
+        </Reveal>
+        <Reveal delay={120}>
+          <CareerPathDemo />
+        </Reveal>
+        <Reveal delay={80} className="mt-12 text-center">
+          <Link href="/tailor" className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl text-white text-[15px] font-semibold transition-all hover:brightness-105 active:scale-[0.98]" style={{ background: ACCENT }}>
+            See your Career Path <ArrowRight className="w-4 h-4" />
+          </Link>
+        </Reveal>
+      </div>
+    </section>
+  )
+}
+
 export default function LandingPage() {
   return (
     <div id="top" className={`${hanken.className} ${hanken.variable} ${jetbrains.variable} bg-white antialiased`} style={{ color: INK }}>
@@ -672,6 +699,7 @@ export default function LandingPage() {
         <Stats />
         <HowItWorks />
         <Modules />
+        <CareerPathSection />
         <Benefits />
         <Beta />
       </main>

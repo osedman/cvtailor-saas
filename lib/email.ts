@@ -1,3 +1,5 @@
+import { appPath, getMarketingOrigin } from '@/lib/site-url'
+
 /**
  * Minimal transactional email sender via Resend's HTTP API (no SDK dependency).
  *
@@ -49,6 +51,8 @@ export async function sendEmail(opts: {
 
 /** Branded welcome email for a new Tailr signup. Dash-free prose, inline styles. */
 export function welcomeEmailHtml(): string {
+  const tailorUrl = appPath("/tailor")
+  const marketingHost = getMarketingOrigin().replace(/^https?:\/\//, "")
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#f9f6f0;font-family:'Hanken Grotesk',-apple-system,Segoe UI,Arial,sans-serif;color:#1e1813;">
 <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
@@ -60,9 +64,9 @@ export function welcomeEmailHtml(): string {
 <tr><td style="padding:14px 0;border-top:1px solid #eceae6;"><p style="margin:0 0 4px;font-size:16px;font-weight:700;color:#dc4f33;">Prep for the interview</p><p style="margin:0;font-size:15px;line-height:1.6;color:#3b3b3b;">Get the questions you are likely to face, with answer frameworks drawn from your own experience, plus one click company research.</p></td></tr>
 <tr><td style="padding:14px 0;border-top:1px solid #eceae6;border-bottom:1px solid #eceae6;"><p style="margin:0 0 4px;font-size:16px;font-weight:700;color:#dc4f33;">Track every application</p><p style="margin:0;font-size:15px;line-height:1.6;color:#3b3b3b;">Keep your search on one board, from saved to applied to interview to offer.</p></td></tr>
 </table>
-<div style="text-align:center;margin:28px 0;"><a href="https://gettailr.com/tailor" style="display:inline-block;background:#dc4f33;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:13px 28px;border-radius:10px;">Tailor your first CV &rarr;</a></div>
+<div style="text-align:center;margin:28px 0;"><a href="${tailorUrl}" style="display:inline-block;background:#dc4f33;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:13px 28px;border-radius:10px;">Tailor your first CV &rarr;</a></div>
 <p style="font-size:15px;line-height:1.6;color:#595959;margin:0 0 24px;">Everything is free while we are in beta. Just reply to this email if you have any questions or feedback, we read every one.</p>
 <p style="font-size:15px;color:#1e1813;margin:0;">&mdash; The Tailr team</p>
-<p style="font-size:12px;color:#a8a29e;margin:28px 0 0;line-height:1.5;">You are receiving this because you signed up for Tailr at gettailr.com. Reply with the word UNSUBSCRIBE and we will remove you.</p>
+<p style="font-size:12px;color:#a8a29e;margin:28px 0 0;line-height:1.5;">You are receiving this because you signed up for Tailr at ${marketingHost}. Reply with the word UNSUBSCRIBE and we will remove you.</p>
 </div></body></html>`
 }

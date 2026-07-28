@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { Sparkles, X, Check, ChevronDown, ChevronUp, ArrowRight, Rocket } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
-import { isAdminEmail } from "@/lib/admin"
 import {
   ONBOARDING_STEPS, isStepDone, onboardingProgress, isOnboardingComplete,
   isOnboardingDismissed, dismissOnboarding, hasSeenWelcome, markWelcomeSeen,
@@ -14,7 +13,7 @@ import {
 const ACCENT = "#dc4f33"
 
 // Only surface onboarding inside the signed-in app, never on marketing/auth.
-const APP_PREFIXES = ["/tailor", "/history", "/tracker"]
+const APP_PREFIXES = ["/tailor", "/history", "/tracker", "/career-path", "/career-arc", "/admin"]
 
 /** Subscribe to the cross-app onboarding change event + storage + focus. */
 function useOnboardingTick() {
@@ -174,9 +173,8 @@ export function Onboarding() {
     setShowWelcome(false)
   }, [])
 
-  // Gated to the admin account for now so it can be reviewed in production
-  // before rolling out to all users.
-  if (!mounted || loading || !user || !inApp || !isAdminEmail(user.email)) return null
+  // Rolled out to all signed-in users (was admin-gated in #9).
+  if (!mounted || loading || !user || !inApp) return null
 
   const complete = isOnboardingComplete()
   const dismissed = isOnboardingDismissed()

@@ -4,8 +4,9 @@ import { useState, useCallback, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { Header } from "@/components/cv-tailor/header"
-import { CareerSignalBanner } from "@/components/cv-tailor/career-signal-banner"
 import { ArcAnnouncement } from "@/components/cv-tailor/arc-announcement"
+import { CareerPathAnnouncement } from "@/components/cv-tailor/career-path-announcement"
+import { CareerSignalBanner } from "@/components/cv-tailor/career-signal-banner"
 import { CareerSyncPanel } from "@/components/cv-tailor/career-sync-panel"
 import { ResizablePanels } from "@/components/cv-tailor/resizable-panels"
 import { TailorButton } from "@/components/cv-tailor/tailor-button"
@@ -17,7 +18,6 @@ import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
 import { HistoryDrawer, type HistoryItem } from "@/components/cv-tailor/history-drawer"
 import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 import { markOnboardingStep, isOnboardingDismissed } from "@/lib/onboarding"
-import { isAdminEmail } from "@/lib/admin"
 import { Lightbulb, X } from "lucide-react"
 
 /**
@@ -98,8 +98,8 @@ export default function CVTailorPage() {
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
 
   // Onboarding guidance (coachmarks, feature strip, post-tailor nudge) —
-  // gated to the admin account for review before a wider rollout.
-  const guideEnabled = isAdminEmail(user?.email) && !isOnboardingDismissed()
+  // rolled out to all signed-in users (was admin-gated in #9).
+  const guideEnabled = !!user && !isOnboardingDismissed()
   const guideStep: "cv" | "job" | "tailor" | null = !guideEnabled
     ? null
     : cvText.length === 0 ? "cv"
@@ -167,6 +167,7 @@ export default function CVTailorPage() {
       if (data.cached) {
         toast.info("Same CV and job as a previous run — showing your existing result.", { duration: 6000 })
       }
+
       if (data.compressed) {
         toast.info("Your CV was quite long, so we removed formatting noise before tailoring. All your experience and content is preserved.", { duration: 8000 })
       }
@@ -324,6 +325,7 @@ export default function CVTailorPage() {
         {user && (
           <div className="pt-4">
             <ArcAnnouncement />
+            <CareerPathAnnouncement />
             <CareerSignalBanner />
           </div>
         )}
