@@ -94,7 +94,14 @@ export default function HowItWorksPage() {
   const s = SLIDES[i]
 
   return (
-    <div className="ns min-h-screen flex flex-col" style={{ background: "var(--ns-cream)", padding: "clamp(20px,4vw,44px)" }}>
+    // A centred column, not a full-bleed flex: at 1900px the content was
+    // hugging the left edge with a void beside it, and vertical centring in a
+    // 100vh column pushed it into a small band with dead space above and below.
+    <div className="ns min-h-screen flex flex-col" style={{
+      background: "var(--ns-cream)",
+      padding: "clamp(20px,4vw,44px) clamp(20px,5vw,48px)",
+      maxWidth: 1080, margin: "0 auto", width: "100%",
+    }}>
       <header className="flex items-center justify-between gap-4">
         <Link href="/" className="text-[20px] font-extrabold tracking-[-0.5px] text-[#1e1813]">
           tailr<span style={{ color: "var(--ns-coral)" }}>.</span>
@@ -115,8 +122,11 @@ export default function HowItWorksPage() {
         ))}
       </div>
 
-      <main className="flex-1 flex items-center" style={{ padding: "clamp(24px,5vh,60px) 0" }}>
-        <div style={{ maxWidth: 660, width: "100%" }} className="ns-reveal" key={i}>
+      {/* Top-aligned with a comfortable lead-in, rather than centred in the
+          viewport — centring made short slides float in the middle of a tall
+          empty screen and made long ones jump position between steps. */}
+      <main className="flex-1" style={{ padding: "clamp(28px,6vh,64px) 0 clamp(24px,4vh,40px)" }}>
+        <div style={{ maxWidth: 680, width: "100%" }} className="ns-reveal" key={i}>
           {s.eyebrow && <div className="t-eyebrow" style={{ marginBottom: 14 }}>{s.eyebrow}</div>}
           {s.step && (
             <div style={{
@@ -139,8 +149,10 @@ export default function HowItWorksPage() {
             </div>
           )}
 
+          {/* Fixed 2-up: auto-fit put three across and orphaned the fourth on
+              its own row. Four items want a square, not a ragged edge. */}
           {s.cards && (
-            <div className="grid gap-3" style={{ marginTop: 22, gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))" }}>
+            <div className="grid gap-3 sm:grid-cols-2" style={{ marginTop: 22 }}>
               {s.cards.map((c) => (
                 <div key={c.title} style={{
                   background: "var(--ns-paper)", border: "1px solid var(--ns-border)",
