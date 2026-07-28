@@ -311,7 +311,7 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
   const [stage, setStage] = useState<"intro" | "scanning" | "findings" | "choosing" | "building">(cachedFindings ? "findings" : "intro")
   const [findings, setFindings] = useState<CvFindings | null>(cachedFindings)
   const [suggestions, setSuggestions] = useState<TargetSuggestion[] | null>(null)
-  const [chooserMarket, setChooserMarket] = useState<Record<string, { band: SalaryBand | null; totalRoles: number }>>({})
+  const [chooserMarket, setChooserMarket] = useState<Record<string, { band: SalaryBand | null; totalRoles: number; topCompanies: string[] }>>({})
   const [customRole, setCustomRole] = useState("")
   const [buildingRole, setBuildingRole] = useState("")
 
@@ -344,7 +344,7 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
   // market line fades in when (and only when) real data lands.
   const loadChooserMarket = async (targets: TargetSuggestion[]) => {
     try {
-      const data = await readJson<{ enabled: boolean; summaries?: Record<string, { band: SalaryBand | null; totalRoles: number }> }>(
+      const data = await readJson<{ enabled: boolean; summaries?: Record<string, { band: SalaryBand | null; totalRoles: number; topCompanies: string[] }> }>(
         await fetch("/api/career-path/market", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roles: targets.map((t) => t.role) }) })
       )
       if (data.enabled && data.summaries) setChooserMarket(data.summaries)
@@ -507,7 +507,15 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
                         if (!m) return null
                         const parts: string[] = []
                         if (m.band) parts.push(`${gbp(m.band.p25)}–${gbp(m.band.p75)} · median ${gbp(m.band.median)}`)
-                        if (m.totalRoles > 0) parts.push(`${m.totalRoles} live role${m.totalRoles === 1 ? "" : "s"} right now`)
+                        // Who's hiring beats how many: named employers are a door,
+                        // a raw count on a niche title reads thin. The +N is open
+                        // ROLES beyond the named employers' two, kept explicit so
+                        // it can't be misread as N more companies.
+                        if (m.topCompanies.length > 0) {
+                          const named = m.topCompanies.slice(0, 2).join(", ")
+                          const extra = m.totalRoles - 2
+                          parts.push(`${named}${extra > 0 ? ` +${extra} open roles` : " hiring now"}`)
+                        }
                         if (parts.length === 0) return null
                         return (
                           <p className="t-mono animate-fade-in-up" style={{ margin: "10px 0 0", fontSize: 11.5, color: "var(--ns-coral-deep)" }}>

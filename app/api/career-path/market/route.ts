@@ -26,12 +26,16 @@ async function summarise(
   admin: ReturnType<typeof createAdminClient>,
   role: string,
   region: string,
-): Promise<{ band: SalaryBand | null; totalRoles: number } | null> {
+): Promise<{ band: SalaryBand | null; totalRoles: number; topCompanies: string[] } | null> {
   const key = normaliseRoleKey(role, region)
   const { data: cached } = await admin
-    .from("market_snapshots").select("total_roles, band, fetched_at").eq("role_key", key).maybeSingle()
+    .from("market_snapshots").select("total_roles, band, top_companies, fetched_at").eq("role_key", key).maybeSingle()
   if (cached && isFresh(cached.fetched_at as string)) {
-    return { band: (cached.band as SalaryBand | null) ?? null, totalRoles: (cached.total_roles as number) ?? 0 }
+    return {
+      band: (cached.band as SalaryBand | null) ?? null,
+      totalRoles: (cached.total_roles as number) ?? 0,
+      topCompanies: (cached.top_companies as string[]) ?? [],
+    }
   }
   const fresh = await fetchMarket(role, region)
   if (!fresh) return null
@@ -43,7 +47,7 @@ async function summarise(
       fetched_at: fresh.fetchedAt,
     }, { onConflict: "role_key" })
   } catch { /* caching is best-effort */ }
-  return { band: fresh.band, totalRoles: fresh.totalRoles }
+  return { band: fresh.band, totalRoles: fresh.totalRoles, topCompanies: fresh.topCompanies }
 }
 
 /**
@@ -72,7 +76,7 @@ export async function POST(req: Request) {
 
     const admin = createAdminClient()
     const results = await Promise.all(roles.map((r: string) => summarise(admin, r, region)))
-    const summaries: Record<string, { band: SalaryBand | null; totalRoles: number }> = {}
+    const summaries: Record<string, { band: SalaryBand | null; totalRoles: number; topCompanies: string[] }> = {}
     roles.forEach((r: string, i: number) => { if (results[i]) summaries[r] = results[i]! })
     return NextResponse.json({ enabled: true, summaries })
   } catch (err) {
