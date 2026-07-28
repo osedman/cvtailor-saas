@@ -308,7 +308,10 @@ function SkillDetailModal({ item, gap, onClose, onCycle, onRemove, onReviewed, u
 }
 
 function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: { cachedFindings: CvFindings | null; seedIntention: string; onBuilt: () => Promise<void> | void; onCancel?: () => void }) {
-  const [stage, setStage] = useState<"intro" | "scanning" | "findings" | "choosing" | "building">(cachedFindings ? "findings" : "intro")
+  // The intro is the front door EVERY time — first visit and "Change North
+  // Star" alike (Ose, 28 Jul). A cached scan doesn't skip the door; it makes
+  // the door instant: Scan my CV with findings on file jumps straight to them.
+  const [stage, setStage] = useState<"intro" | "scanning" | "findings" | "choosing" | "building">("intro")
   const [findings, setFindings] = useState<CvFindings | null>(cachedFindings)
   const [suggestions, setSuggestions] = useState<TargetSuggestion[] | null>(null)
   const [chooserMarket, setChooserMarket] = useState<Record<string, { band: SalaryBand | null; totalRoles: number; topCompanies: string[] }>>({})
@@ -316,6 +319,14 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
   const [buildingRole, setBuildingRole] = useState("")
 
   const scan = async () => {
+    // A scan is already on file (returning user / changing target): show it
+    // instantly rather than re-billing an identical AI pass. "Rescan my CV"
+    // on the findings screen covers a genuinely updated CV.
+    if (findings) { setStage("findings"); return }
+    await rescan()
+  }
+
+  const rescan = async () => {
     setStage("scanning")
     try {
       const data = await readJson<{ findings: CvFindings }>(await fetch("/api/career-path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "scan-cv" }) }))
@@ -465,7 +476,8 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" style={{ marginTop: 56, paddingTop: 28, borderTop: "1px solid var(--ns-border)" }}>
             <p className="t-small" style={{ maxWidth: 460, margin: 0 }}>No web research on this step. Just an honest read of what&apos;s already on your CV.</p>
-            <div className="flex gap-3">
+            <div className="flex gap-3 items-center flex-wrap">
+              <button onClick={rescan} className="ns-btn ns-btn-ghost" style={{ fontSize: 12.5 }}>Rescan my CV</button>
               {onCancel && <button onClick={onCancel} className="ns-btn ns-btn-secondary">Keep my current path</button>}
               <button onClick={toChooser} className="ns-btn ns-btn-primary">Suggest target roles <ArrowRight className="w-3.5 h-3.5" /></button>
             </div>
