@@ -18,7 +18,7 @@ Requested in the 27 Jul sync: every feature, one line, where it actually is.
 |---|---|---|---|---|
 | Tailor pipeline (2-pass, compression, cache) | **Prod** | Done | ✅ real users | Maintain |
 | Match score + gaps / ATS / JD coverage | **Prod** | Done | ✅ confirmed good in sync | Maintain |
-| Job fetch from any URL | **Prod** | Done | ✅ works; wording says LinkedIn/Indeed only | Small copy fix |
+| Job fetch from any URL | **Prod** | Done | ✅ any board + bare-host normalize | Maintain |
 | Cover letter | **Prod** | Done | Partial | Maintain |
 | Interview prep, tracker, history | **Prod** | Done | Partial | Maintain |
 | Magic-link auth + rate limiting + RLS | **Prod** | Done | ✅ | Maintain |
@@ -59,7 +59,7 @@ North Star in one cut, backfill at cutover.
 | S5 | Missing skills coloured red in gap map | UX | Low | Pairs with S4 |
 | S6 | "Next"/"Later" clarity — sequence not priority | UX | Low | Copy/tooltip fix |
 | S7 | Career path performance/speed | Perf | Med | Measure before optimising |
-| S8 | Job-fetch wording: "paste any URL", not LinkedIn/Indeed | Copy | Low | Raised twice now |
+| S8 | Job-fetch wording: "paste any URL", not LinkedIn/Indeed | Copy | Low | **Done 28 Jul** — copy updated across tailor UI, onboarding, marketing; bare hosts (`www.indeed.com/…`) now normalize to `https://` via `lib/job-url.ts` |
 | S9 | Udemy/short-course sourcing for roadmap resources | Feature | Med | **Build half DONE on staging 28 Jul** (`8a8bb65`): generator prefers Udemy → YouTube → freeCodeCamp → vendor training; strict domain allowlist + liveness check gates every resource at all 5 generation sites; resources carry duration + free/paid. Remaining: Udemy Affiliate API integration (needs approved affiliate account — Ose action; scraping ruled out, against ToS) |
 
 ---
