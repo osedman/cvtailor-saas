@@ -92,6 +92,38 @@ North Star in one cut, backfill at cutover.
 | Weekly digest newsletter automation | Chore | — | Scheduled task; drafts HTML + LeanFrame Gmail draft |
 | Mailing list cleanup (test/bounce rows) | Chore | — | Removed 4 junk rows |
 
+---
+
+## ⚠️ Trap: Vercel env vars are scoped, and a missing one looks like success
+
+**Cost: three rounds of "still not working" on 28 Jul 2026.**
+
+The live job market was switched on for staging in the morning by adding
+`REED_API_KEY` in Vercel. That saved into the **Preview** scope only. When the
+career-path era shipped to production the same afternoon, production had
+`MARKET_INSIGHTS_ENABLED` but **no Reed key at all** — so `isMarketEnabled()`
+was false, `fetchMarket()` returned null, and the salary lines silently never
+rendered.
+
+**Why it took three rounds:** `/api/career-path/market` answers
+`200 {enabled:false}` when the integration is off. The runtime logs showed
+`POST /api/career-path/market 200` — indistinguishable from success. Only the
+empty `market_snapshots` table gave it away.
+
+**The rules that follow from it:**
+1. A Vercel env var set while working on staging is **Preview-scoped**. Shipping
+   the feature to production means editing that row to tick **Production**, or
+   adding a second row. Setting it once is not enough.
+2. Never treat a 200 from a route that can return `{enabled:false}` as proof.
+   Verify the *effect* (a row written, a value rendered), not the status code.
+3. `/api/admin/market-check` (admin-only) exists for exactly this: it reports
+   which precondition failed, lists which env var NAMES are actually present
+   (values never returned), and probes Reed both directly and through
+   `fetchMarket`. Reach for it before speculating. The env-name list is what
+   finally settled this one — it showed no `REED_*` variable existed at all.
+
+_Recorded 28 July 2026._
+
 ## 🔧 In progress / open PRs
 
 | Item | Type | PR | Notes |
