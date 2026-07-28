@@ -40,6 +40,14 @@ describe('course repository wiring', () => {
     })
   })
 
+  it('offers a browser-friendly sync only to a signed-in admin', () => {
+    const route = read('app/api/admin/course-sync/route.ts')
+    expect(route).toContain('supabase.auth.getUser()')
+    expect(route).toContain('isAdminEmail(user.email)')
+    expect(route).toContain("searchParams.get('confirm')")
+    expect(route).toContain('createAdminClient()')
+  })
+
   it('ships RLS for the shared catalog and service-only internals', () => {
     const migration = read('supabase/migrations/20260728172335_course_catalog.sql')
     expect(migration).toContain('alter table public.course_catalog enable row level security')
