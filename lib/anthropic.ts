@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { courseProviderPrompt } from '@/lib/course-sources/registry'
 
 export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -341,6 +342,8 @@ export const INTERVIEW_PREP_TOOL: Anthropic.Tool = {
 export type CareerItemStatus = "todo" | "in_progress" | "done"
 
 export interface CareerResource {
+  /** Trusted repository row; canonical metadata is resolved server-side. */
+  catalogId?: string
   title: string
   url: string
   source: string   // e.g. "Udemy", "YouTube", "freeCodeCamp"
@@ -396,6 +399,7 @@ export const CAREER_ROADMAP_TOOL: Anthropic.Tool = {
               items: {
                 type: "object",
                 properties: {
+                  catalogId: { type: "string", description: "When choosing a supplied Tailr catalog record, copy its exact catalogId. Leave absent only for a web-search fallback." },
                   title: { type: "string", description: "The resource's real title" },
                   url: { type: "string", description: "A real, working URL found via search. Never invent a URL." },
                   source: { type: "string", description: "The platform, e.g. Udemy, YouTube, freeCodeCamp, Microsoft Learn" },
@@ -404,7 +408,7 @@ export const CAREER_ROADMAP_TOOL: Anthropic.Tool = {
                 },
                 required: ["title", "url", "source", "free", "durationNote"],
               },
-              description: "2-3 REAL resources found via web search, following the provider preference order in the prompt (Udemy and YouTube first; short, practical, free or cheap; never university courses). Never invent a URL or resource — only include ones actually found via search.",
+              description: "2-3 resources. Choose supplied Tailr catalog IDs first; use a permitted web-search fallback only when the catalog has fewer than two suitable records. Never invent an ID, URL, or resource.",
             },
             projectBrief: { type: "string", description: "A concrete, scoped project idea (2-3 sentences) the candidate could build to demonstrate this skill" },
             cvPhrasing: { type: "string", description: "A single suggested CV bullet point they could add once they have completed the project, written in the same evidence-based style as the rest of Tailr" },
@@ -425,19 +429,8 @@ export const CAREER_ROADMAP_TOOL: Anthropic.Tool = {
 // generation prompt via buildRoadmapPrompt().
 
 /** ISO-3166 alpha-2 region hints → the providers to favour for that market. */
-// 27 Jul 2026 sync decision: short, practical, free/cheap and FAST beats
-// prestigious. Users finish a 2-hour YouTube course; they abandon a
-// 12-week university module. University links were tried and rejected.
-const PREFERRED_PROVIDERS =
-  "STRONGLY prefer, in this order: (1) Udemy courses (short, practical, highly rated), " +
-  "(2) YouTube — complete tutorials or crash courses from well-known channels, " +
-  "(3) freeCodeCamp, (4) Khan Academy, Codecademy or W3Schools, " +
-  "(5) official free vendor training (Microsoft Learn, Google Skillshop, AWS Skill Builder), " +
-  "(6) Coursera ONLY where the course can be audited free. " +
-  "Every resource must be completable in DAYS not months — favour anything under ~10 hours. " +
-  "NEVER suggest university courses, degree modules, OpenCourseWare, FutureLearn/OpenLearn, " +
-  "multi-month programmes, or anything requiring enrolment or an application. " +
-  "Free is best; a low-cost Udemy course is acceptable when it is clearly the strongest option."
+// Generated from the same registry that owns URL policy and ranking.
+const PREFERRED_PROVIDERS = courseProviderPrompt()
 
 const REGION_PROVIDERS: Record<string, { name: string; providers: string }> = {
   GB: {
@@ -457,6 +450,7 @@ export function buildRoadmapPrompt(opts: {
   region?: string | null      // ISO alpha-2, e.g. "GB"
   calibration?: string        // CV + intention grounding, prepended by caller
   intro?: string              // optional override of the first sentence
+  catalogPrompt?: string      // reviewed records loaded by the caller
 }): string {
   const region = (opts.region || "GB").toUpperCase()
   const r = REGION_PROVIDERS[region]
@@ -467,10 +461,10 @@ export function buildRoadmapPrompt(opts: {
     `You are helping a job seeker in ${where} close specific skill gaps that keep showing up across their job applications.`
   const time = opts.hoursPerWeek ? `\nTime available: ${opts.hoursPerWeek} hours/week` : ""
   const target = opts.targetRole ? `\nTarget role: ${opts.targetRole}` : ""
-  return `${intro} For EACH skill listed below, search the web and find 2-3 REAL learning resources. ${providers} Only include resources you actually find via search — never invent a URL or a course that may not exist. For each skill also suggest one concrete, scoped project the candidate could build in their spare time to demonstrate it, and a single CV bullet point they could add once they have completed it. For each skill also give effortHours — an honest estimate of the focused hours THIS candidate needs to reach demonstrable competence and produce the artifact, judged against the background shown in their CV. Be truthful rather than encouraging: under-estimating turns a multi-week course into a false promise.${target}${time}
+  return `${intro} For EACH skill listed below, choose 2-3 REAL learning resources. Use supplied Tailr catalog records first and copy their catalogId exactly. ${providers} Only search when catalog coverage is insufficient, and only include a fallback actually found via search — never invent a URL, ID, or course. For each skill also suggest one concrete, scoped project the candidate could build in their spare time to demonstrate it, and a single CV bullet point they could add once they have completed it. For each skill also give effortHours — an honest estimate of the focused hours THIS candidate needs to reach demonstrable competence and produce the artifact, judged against the background shown in their CV. Be truthful rather than encouraging: under-estimating turns a multi-week course into a false promise.${target}${time}
 
 Skills to address, most important first:
-${opts.skills.map((s, i) => `${i + 1}. ${s}`).join("\n")}${opts.calibration ?? ""}`
+${opts.skills.map((s, i) => `${i + 1}. ${s}`).join("\n")}${opts.catalogPrompt ?? ""}${opts.calibration ?? ""}`
 }
 
 // ── CV findings (career-coach analysis) ───────────────────────────────────

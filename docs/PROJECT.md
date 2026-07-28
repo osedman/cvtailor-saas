@@ -41,8 +41,8 @@ Requested in the 27 Jul sync: every feature, one line, where it actually is.
 manufactures it. Empty beats invented.* (Decided 28 Jul.)
 
 **Descoped / retired:** Upskill tab (merged into Quick Wins) · migration 009 ·
-university-course links in roadmaps (27 Jul decision: short/free/practical
-sources instead).
+long university programmes in roadmaps (focused, free OCW modules may enter
+the reviewed course repository when they meet the same practical duration bar).
 
 **Prod port order when approved:** migrations 014 + 015 + 016 (016 strictly
 before its code) → editable output + templates + quick wins + career path
@@ -60,7 +60,7 @@ North Star in one cut, backfill at cutover.
 | S6 | "Next"/"Later" clarity — sequence not priority | UX | Low | Copy/tooltip fix |
 | S7 | Career path performance/speed | Perf | Med | Measure before optimising |
 | S8 | Job-fetch wording: "paste any URL", not LinkedIn/Indeed | Copy | Low | **Done 28 Jul** — copy updated across tailor UI, onboarding, marketing; bare hosts (`www.indeed.com/…`) now normalize to `https://` via `lib/job-url.ts` |
-| S9 | Udemy/short-course sourcing for roadmap resources | Feature | Med | **Build half DONE on staging 28 Jul** (`8a8bb65`): generator prefers Udemy → YouTube → freeCodeCamp → vendor training; strict domain allowlist + liveness check gates every resource at all 5 generation sites; resources carry duration + free/paid. Remaining: Udemy Affiliate API integration (needs approved affiliate account — Ose action; scraping ruled out, against ToS) |
+| S9 | Tailr Course Repository + Udemy sourcing | Feature | Med | **Repository implementation ready 28 Jul**: global RLS-backed catalogue, reviewed seed, Microsoft Learn + key-gated YouTube adapters, weekly sync/liveness checks, candidate review queue, deterministic skill/region/free ranking, and catalogue IDs resolved server-side across all roadmap/upskill paths. Migration `20260728172335_course_catalog.sql` must run in staging then prod before deploy. Remaining external dependency: Udemy Affiliate API approval; scraping remains ruled out by ToS. |
 
 ---
 

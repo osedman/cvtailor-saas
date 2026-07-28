@@ -15,12 +15,12 @@ describe('isAllowedResourceUrl', () => {
     expect(isAllowedResourceUrl('https://www.freecodecamp.org/learn/sql')).toBe(true)
     expect(isAllowedResourceUrl('https://learn.microsoft.com/en-gb/training/')).toBe(true)
     expect(isAllowedResourceUrl('https://www.coursera.org/learn/python')).toBe(true)
+    expect(isAllowedResourceUrl('https://ocw.mit.edu/courses/6-0001/')).toBe(true)
   })
 
-  it('rejects the university-course pattern the sync retired', () => {
+  it('rejects unknown course providers', () => {
     expect(isAllowedResourceUrl('https://www.open.edu/openlearn/course')).toBe(false)
     expect(isAllowedResourceUrl('https://www.futurelearn.com/courses/x')).toBe(false)
-    expect(isAllowedResourceUrl('https://ocw.mit.edu/courses/6-0001/')).toBe(false)
     expect(isAllowedResourceUrl('https://www.ox.ac.uk/some-module')).toBe(false)
   })
 
@@ -43,7 +43,7 @@ describe('filterAllowedResources', () => {
   it('keeps allowed rows, drops the rest, preserves order', () => {
     const out = filterAllowedResources([
       r('https://www.udemy.com/course/a/'),
-      r('https://ocw.mit.edu/b'),
+      r('https://unknown.example/b'),
       r('https://youtu.be/c'),
     ])
     expect(out.map((x) => x.url)).toEqual([
@@ -65,7 +65,7 @@ describe('filterAllowedResources', () => {
 describe('validateItemResources', () => {
   it('never drops an item, only its junk resources', async () => {
     const items = [
-      { skill: 'SQL', resources: [r('https://ocw.mit.edu/junk')] },
+      { skill: 'SQL', resources: [r('https://unknown.example/junk')] },
       { skill: 'dbt', resources: [] },
     ]
     const out = await validateItemResources(items)
