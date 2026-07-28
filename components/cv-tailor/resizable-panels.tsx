@@ -312,7 +312,7 @@ export function ResizablePanels({
             <textarea
               value={cvText}
               onChange={(e) => setCvText(e.target.value)}
-              className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none font-mono text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300"
+              className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300"
               placeholder="Your CV text…"
             />
           )}
@@ -322,7 +322,7 @@ export function ResizablePanels({
             <textarea
               value={cvText}
               onChange={(e) => setCvText(e.target.value)}
-              className="w-full h-20 px-3 py-2 bg-transparent resize-none focus:outline-none font-mono text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300 border-t border-gray-100"
+              className="w-full h-20 px-3 py-2 bg-transparent resize-none focus:outline-none text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300 border-t border-gray-100"
               placeholder="…or paste your CV text here"
             />
           )}

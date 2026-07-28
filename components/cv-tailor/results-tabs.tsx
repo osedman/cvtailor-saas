@@ -178,6 +178,12 @@ function TemplatePicker({
  * Deliberately a raw textarea rather than a rich editor: everything downstream
  * — the Word/txt download, ATS keyword checking, tracker sync — consumes plain
  * text, so anything richer would have to be flattened straight back out again.
+ *
+ * It is still typeset in the SELECTED TEMPLATE's face and size, not mono. Users
+ * reported the mono default read as "robotic" and made it hard to tell which
+ * part of the document they were editing, because the thing on screen looked
+ * nothing like the thing they downloaded. Plain text underneath, final
+ * appearance on top.
  */
 function OutputEditor({
   value,
@@ -189,6 +195,7 @@ function OutputEditor({
   onRevert,
   minHeight = "50vh",
   label,
+  template,
 }: {
   value: string
   onChange: (v: string) => void
@@ -199,8 +206,11 @@ function OutputEditor({
   onRevert?: () => void
   minHeight?: string
   label: string
+  /** Edit in the face you'll download in — see the note above. */
+  template?: CvTemplateId
 }) {
   const dirty = true // the parent only mounts this while editing
+  const t = getTemplate(template)
   return (
     <div>
       <textarea
@@ -213,8 +223,14 @@ function OutputEditor({
         aria-label={label}
         spellCheck
         autoFocus
-        className="w-full font-mono text-sm leading-relaxed text-[#1e1813] bg-white border border-[#f0d9d2] rounded-lg p-4 resize-y focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/30"
-        style={{ minHeight }}
+        className="w-full bg-white border border-[#f0d9d2] rounded-lg p-4 resize-y focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/30"
+        style={{
+          minHeight,
+          fontFamily: t.fontStack,
+          fontSize: px(t.bodyText.sizePt),
+          lineHeight: t.bodyText.lineHeight,
+          color: t.bodyText.color,
+        }}
       />
       <div className="mt-3 flex items-center gap-3 flex-wrap">
         <button
@@ -576,6 +592,7 @@ export function ResultsTabs({
                   onCancel={() => setEditing(null)}
                   saving={savingEdit}
                   minHeight="40vh"
+                  template={template}
                 />
               ) : (
               <>
@@ -661,6 +678,7 @@ export function ResultsTabs({
                 revertTo={results.tailoredCVOriginal ?? null}
                 onRevert={() => setDraft(results.tailoredCVOriginal ?? draft)}
                 minHeight="55vh"
+                template={template}
               />
             ) : (
             <>

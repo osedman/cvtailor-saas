@@ -213,13 +213,16 @@
   line-height: 1.15;
   letter-spacing: -0.02em;
 }
-/* Verbatim CV evidence — machine-quoted, so it speaks in mono like the CV
-   paste box does. This replaces the handoff's serif italic. */
+/* Verbatim CV evidence. Previously mono, on the reasoning that it matched the
+   CV paste box — but the paste box is now the brand sans too, and users read
+   the mono as "robotic" and off-brand. It stays visually distinct as quoted
+   material through the left rule and inset, not through a second typeface. */
 .ns .t-quote {
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.6;
   color: var(--ns-ink-70);
+  border-left: 2px solid var(--ns-line, rgba(30, 24, 19, 0.12));
+  padding-left: 10px;
 }
 .ns .t-lede { font-size: 15px; line-height: 1.55; color: var(--ns-ink-70); }
 .ns .t-body { font-size: 14px; line-height: 1.55; }

@@ -9,6 +9,10 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-provider"
+import {
+  buildFunnel, activationRate, weeklyActiveTailorers,
+  recentCohortActivation, windowNote, type FunnelStage,
+} from "@/lib/admin-metrics"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -145,6 +149,100 @@ function StatCard({ icon, label, value, sub }: {
   )
 }
 
+// ── North star ─────────────────────────────────────────────────────────
+// One number, deliberately alone above everything else. Activation is the
+// honest headline: it cannot be inflated by traffic, and every roadmap
+// argument reduces to whether the work would move it.
+
+function NorthStar({ rate, activated, total, cohort, wat }: {
+  rate: number
+  activated: number
+  total: number
+  cohort: { rate: number; activated: number; total: number }
+  wat: number
+}) {
+  return (
+    <section className="bg-[#1e1813] rounded-xl p-6 sm:p-7 text-[#f9f6f0]">
+      <div className="flex flex-wrap items-end gap-x-10 gap-y-6">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#dc4f33]">
+            North star · Activation
+          </p>
+          <p className="mt-2 text-5xl font-extrabold tabular-nums leading-none">
+            {rate}<span className="text-3xl">%</span>
+          </p>
+          <p className="mt-2 text-xs text-[#f9f6f0]/60">
+            {activated} of {total} signups have finished a tailored CV
+          </p>
+        </div>
+
+        <div className="h-12 w-px bg-[#f9f6f0]/15 hidden sm:block" />
+
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-[#f9f6f0]/50">
+            Last 30d cohort
+          </p>
+          <p className="mt-1.5 text-2xl font-bold tabular-nums leading-none">
+            {cohort.rate}<span className="text-lg">%</span>
+          </p>
+          <p className="mt-1.5 text-[11px] text-[#f9f6f0]/45">
+            {cohort.activated}/{cohort.total} tailored within 7 days of signing up
+          </p>
+        </div>
+
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-[#f9f6f0]/50">
+            Weekly active
+          </p>
+          <p className="mt-1.5 text-2xl font-bold tabular-nums leading-none">{wat}</p>
+          <p className="mt-1.5 text-[11px] text-[#f9f6f0]/45">
+            produced a CV in the last 7 days
+          </p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ── Activation funnel ──────────────────────────────────────────────────
+
+function Funnel({ stages }: { stages: FunnelStage[] }) {
+  const top = stages[0]?.count || 1
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-baseline justify-between mb-4">
+        <h2 className="text-xs font-semibold text-[#1e1813]">Activation funnel</h2>
+        <span className="text-[10px] text-gray-400">{windowNote}</span>
+      </div>
+      <div className="space-y-2.5">
+        {stages.map((s) => (
+          <div key={s.key} title={s.meaning}>
+            <div className="flex items-baseline justify-between gap-3 mb-1">
+              <span className="text-xs text-[#1e1813]">
+                {s.label}
+                {s.windowed && <span className="text-gray-300 ml-1.5">· 30d</span>}
+              </span>
+              <span className="text-xs text-gray-400 tabular-nums">
+                <span className="font-semibold text-[#1e1813]">{s.count}</span>
+                {s.conversionFromPrev !== null && (
+                  <span className="ml-2">{s.conversionFromPrev}% of previous</span>
+                )}
+              </span>
+            </div>
+            <div className="h-2 bg-[#f3efe7] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#dc4f33] rounded-full transition-all"
+                style={{ width: `${Math.max((s.count / top) * 100, s.count > 0 ? 1.5 : 0)}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1">{s.meaning}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -205,7 +303,24 @@ export default function AdminPage() {
       .sort((a, b) => b.tailors_used - a.tailors_used)
       .slice(0, 5)
 
-    return { loginsPerDay, signupsPerDay, tailorsPerDay, dau: activeIn(1), wau: activeIn(7), mau: activeIn(30), neverTailored, topUsers }
+    // The funnel and its headline. Pure functions in lib/admin-metrics.ts so
+    // the maths is unit tested rather than eyeballed in the browser.
+    const funnel = buildFunnel({
+      users: stats.users,
+      profiles: stats.profiles,
+      runs: stats.tailorRuns,
+      tracked: stats.trackerJobs,
+    })
+    const northStar = activationRate(stats.users, stats.profiles)
+    const cohort = recentCohortActivation(stats.users, stats.tailorRuns, 30)
+    const wat = weeklyActiveTailorers(stats.tailorRuns)
+
+    return {
+      loginsPerDay, signupsPerDay, tailorsPerDay,
+      dau: activeIn(1), wau: activeIn(7), mau: activeIn(30),
+      neverTailored, topUsers,
+      funnel, northStar, cohort, wat,
+    }
   }, [stats])
 
   if (authLoading || loading) {
@@ -258,6 +373,18 @@ export default function AdminPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+
+        {/* ── North star ── */}
+        <NorthStar
+          rate={derived.northStar.rate}
+          activated={derived.northStar.activated}
+          total={derived.northStar.total}
+          cohort={derived.cohort}
+          wat={derived.wat}
+        />
+
+        {/* ── Activation funnel ── */}
+        <Funnel stages={derived.funnel} />
 
         {/* ── Stat cards ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
