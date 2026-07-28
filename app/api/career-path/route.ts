@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isCareerPathBeta, BETA_LOCKED } from '@/lib/feature-gate'
 import {
   anthropic, CAREER_ROADMAP_TOOL, CV_FINDINGS_TOOL, SUGGEST_TARGETS_TOOL, ROLE_SKILLS_TOOL,
   buildRoadmapPrompt, type CareerRoadmapItem, type RequirementMapping, type RoleSkillJudged,
@@ -81,6 +82,7 @@ export async function GET() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
     const [roadmapRes, histRes, trackRes, arcRes] = await Promise.all([
       supabase.from('career_roadmaps').select(ROADMAP_COLS).eq('user_id', user.id).maybeSingle(),
@@ -143,6 +145,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
     const limited = await checkRateLimit(user.id, 'ai')
     if (limited) return limited
@@ -597,6 +600,7 @@ export async function PATCH(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
     const { skill, status } = await req.json()
     if (typeof skill !== 'string' || !['todo', 'in_progress', 'done'].includes(status)) {

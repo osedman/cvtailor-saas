@@ -5,6 +5,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { Check, Copy, Loader2, Plus, Target, ArrowRight, CircleDot, X } from "lucide-react"
 import type { TailorResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
+import { useCareerBeta } from "@/hooks/use-career-beta"
 
 const ACCENT = "#dc4f33"
 const SEEN_GAPS_KEY = "tailr:career-sync:seen-gaps"
@@ -32,6 +33,7 @@ interface Roadmap {
  * "add to career path" for new gaps. No extra AI calls except when adding.
  */
 export function CareerSyncPanel({ results }: { results: TailorResult }) {
+  const careerBeta = useCareerBeta()
   const [roadmap, setRoadmap] = useState<Roadmap | null | undefined>(undefined)
   const [adding, setAdding] = useState<string | null>(null)
   const [marking, setMarking] = useState<string | null>(null)
@@ -151,7 +153,7 @@ export function CareerSyncPanel({ results }: { results: TailorResult }) {
 
   // Nothing to say: still loading, dismissed, or nothing ACTIONABLE — status
   // chips alone aren't worth a popup, only mark-done suggestions or new gaps.
-  if (roadmap === undefined || dismissed) return null
+  if (!careerBeta || roadmap === undefined || dismissed) return null
   const { closing, nowStrong, newGaps } = analysis
   const actionable = nowStrong.length > 0 || newGaps.length > 0
   if (!actionable) return null

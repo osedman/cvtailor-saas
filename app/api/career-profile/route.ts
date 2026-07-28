@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isCareerPathBeta, BETA_LOCKED } from '@/lib/feature-gate'
 import {
   anthropic,
   CAREER_PROFILE_TOOL,
@@ -58,6 +59,7 @@ export async function GET() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
     const { data, error } = await supabase
       .from('career_profiles')
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
     const limited = await checkRateLimit(user.id, 'ai')
     if (limited) return limited
@@ -158,6 +161,7 @@ export async function PATCH(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
     const { sections: patch } = await req.json()
     if (!patch || typeof patch !== 'object') {

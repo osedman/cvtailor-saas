@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isCareerPathBeta, BETA_LOCKED } from '@/lib/feature-gate'
 import { anthropic, CAREER_ROADMAP_TOOL, buildRoadmapPrompt, type CareerRoadmapItem, type CareerItemStatus } from '@/lib/anthropic'
 import { validateItemResources } from '@/lib/course-validation'
 import { createClient } from '@/lib/supabase/server'
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
     const body = await req.json()
 
@@ -171,6 +173,7 @@ export async function PATCH(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
     const { skill, status } = await req.json()
     if (typeof skill !== 'string' || !['todo', 'in_progress', 'done'].includes(status)) {

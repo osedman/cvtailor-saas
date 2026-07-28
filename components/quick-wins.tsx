@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { AlertCircle, ArrowRight, BadgeCheck, Check, ChevronDown, CircleDot, ExternalLink, Loader2, Plus, Sparkles, Upload, Zap } from "lucide-react"
 import type { CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 import { promotionEligible } from "@/lib/career-path-compute"
+import { useCareerBeta } from "@/hooks/use-career-beta"
 
 const ACCENT = "#dc4f33"
 
@@ -291,6 +292,7 @@ export function QuickWinsStrip({
   weakSkills: string[]
   jobTitle?: string
 }) {
+  const careerBeta = useCareerBeta()
   const [loading, setLoading] = useState(false)
   const [captured, setCaptured] = useState<QuickWinItem[] | null>(null)
   const [candidates, setCandidates] = useState<QuickWinItem[]>([])
@@ -302,6 +304,8 @@ export function QuickWinsStrip({
       : prev)
   })
 
+  // Outside the beta the strip would render a CTA that only 403s.
+  if (!careerBeta) return null
   if (weakSkills.length === 0) {
     return <p className="text-[13px] text-gray-500">No gaps flagged on this run — your CV already covers what this job asks for.</p>
   }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { isCareerPathBeta, BETA_LOCKED } from '@/lib/feature-gate'
 import { anthropic, EVIDENCE_REVIEW_TOOL, type CareerRoadmapItem, type SkillEvidence } from "@/lib/anthropic"
 import { createClient } from "@/lib/supabase/server"
 import { loadItems, setItemEvidence, setItemProjectBrief } from "@/lib/roadmap-store"
@@ -23,6 +24,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
+    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
     const limited = await checkRateLimit(user.id, "ai")
     if (limited) return limited

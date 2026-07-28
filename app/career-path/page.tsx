@@ -1182,12 +1182,14 @@ function CareerPathContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [data, setData] = useState<PathData | null | undefined>(undefined) // undefined = loading
+  const [betaLocked, setBetaLocked] = useState(false)
   const [changingTarget, setChangingTarget] = useState(false)
 
   useEffect(() => { if (!authLoading && !user) router.push("/tailor") }, [authLoading, user, router])
 
   const load = useCallback(async () => {
     const res = await fetch("/api/career-path")
+    if (res.status === 403) { setBetaLocked(true); setData(null); return }
     const d = await readJson<PathData>(res)
     setData(d)
   }, [])
@@ -1196,6 +1198,22 @@ function CareerPathContent() {
 
   if (authLoading || !user || data === undefined) {
     return <div className="min-h-screen bg-white flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
+  }
+
+  if (betaLocked) {
+    return (
+      <div className="ns min-h-screen">
+        <Header enhanced />
+        <main className="max-w-[640px] mx-auto px-6 py-24 text-center">
+          <div className="t-eyebrow" style={{ marginBottom: 14 }}>Career path</div>
+          <h1 className="t-display text-[32px]" style={{ margin: "0 0 14px" }}>Almost ready<span style={{ color: "var(--ns-coral)" }}>.</span></h1>
+          <p className="t-lede" style={{ margin: "0 auto 24px", maxWidth: 460 }}>
+            The career path is in a small private beta while we finish it properly. It's coming to everyone soon.
+          </p>
+          <Link href="/tailor" className="ns-btn ns-btn-primary" style={{ display: "inline-flex" }}>Back to tailoring</Link>
+        </main>
+      </div>
+    )
   }
 
   const prefillSkills = (searchParams.get("skills") ?? "").split(",").map((s) => s.trim()).filter(Boolean)
