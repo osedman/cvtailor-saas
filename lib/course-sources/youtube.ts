@@ -1,15 +1,61 @@
 import type { CourseLevel, CourseSource, CourseSourceRecord } from '@/lib/course-sources/types'
 import { normalizeSkillTag, uniqueStrings } from '@/lib/course-sources/types'
 
+/**
+ * Search queries, aimed at who Tailr's users actually are.
+ *
+ * The first pass used generic developer topics — JavaScript, cloud, Python —
+ * and returned 40 videos, none of which helped an RPA business analyst close a
+ * UiPath or requirements gap. Tailr's audience is automation/BA/data, so the
+ * queries are now the skills their job descriptions actually ask for.
+ *
+ * "full course" / "tutorial" wording is deliberate: it biases YouTube toward
+ * complete teaching material and away from vlogs and conference talks, which
+ * was the main junk category in the first run.
+ */
 const DEFAULT_QUERIES = [
-  'SQL full course',
-  'Python full course',
-  'data analysis full course',
-  'project management full course',
-  'stakeholder management course',
+  // Automation / RPA — the North Star for most current users
+  'UiPath full course tutorial',
+  'RPA full course for beginners',
+  'Power Automate full course',
+  'automation anywhere tutorial full course',
+  // Business analysis
+  'business analyst full course',
+  'requirements gathering tutorial business analyst',
+  'BRD FRD documentation tutorial',
+  'process mapping tutorial course',
+  // Data / reporting — the recurring gap across applications
   'Power BI full course',
-  'JavaScript full course',
-  'cloud computing fundamentals course',
+  'SQL full course',
+  'Excel data analysis full course',
+  'data analysis full course',
+  // Delivery and stakeholder skills
+  'stakeholder management course',
+  'project management full course',
+  'agile scrum full course',
+  'change management training course',
+]
+
+/**
+ * Channels whose uploads are genuinely structured courses rather than vlogs,
+ * shorts or conference talks. Reviewed from the first sync's candidate queue
+ * (28 Jul 2026) — IDs taken from the API response, not guessed.
+ *
+ * Being listed here means new uploads skip the review queue, so the bar is
+ * "consistently publishes teaching material", not "one good video".
+ * `YOUTUBE_COURSE_CHANNEL_IDS` still overrides this list entirely.
+ */
+const DEFAULT_TRUSTED_CHANNELS = [
+  'UCWv7vMbMWH4-V0ZXdmDpPBA', // Programming with Mosh
+  'UCkw4JCwteGrDHIsyIIKo4tQ', // edureka!
+  'UCsvqVGtbbyHaMoevxPAq9Fg', // Simplilearn
+  'UCCktnahuRFYIBtNnKT5IYyg', // Intellipaat
+  'UCLLw7jmFsvfIVaUFsLs8mlQ', // Luke Barousse — data analytics
+  'UC8_RSKwbU1OmZWNEoLV1tQg', // Data with Baraa — SQL
+  'UC1bhYMFuSFREIQ5bgclLDkQ', // Adam Finer — Learn BI
+  'UC8uqqZwyoW303ZeWyUiNdMg', // David McLachlan — PM / PMBOK
+  'UCY38RvRIxYODO4penyxUwTg', // Dave Gray — web development
+  'UC4SVo0Ue36XCfOyb5Lh1viQ', // Bro Code — programming fundamentals
 ]
 
 interface SearchItem {
@@ -52,12 +98,15 @@ function configuredQueries(): string[] {
 }
 
 function vettedChannels(): Set<string> {
-  return new Set(
-    (process.env.YOUTUBE_COURSE_CHANNEL_IDS || '')
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean),
-  )
+  const configured = (process.env.YOUTUBE_COURSE_CHANNEL_IDS || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean)
+  // Env var overrides entirely when set; otherwise the reviewed list applies.
+  // Without this fallback the set is empty, every channel is untrusted, and a
+  // sync appears to do nothing — 40 videos went to review that way on the
+  // first run.
+  return new Set(configured.length > 0 ? configured : DEFAULT_TRUSTED_CHANNELS)
 }
 
 async function search(query: string, apiKey: string, region: string): Promise<SearchItem[]> {
