@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic, CAREER_ROADMAP_TOOL, buildRoadmapPrompt, type CareerRoadmapItem, type CareerItemStatus } from '@/lib/anthropic'
+import { validateItemResources } from '@/lib/course-validation'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
@@ -120,8 +121,10 @@ export async function POST(req: NextRequest) {
 
     const toolUse = message.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_roadmap')
     if (!toolUse || toolUse.type !== 'tool_use') throw new Error('No suggestions generated. Please try again.')
-    const generated = (((toolUse.input as { items?: CareerRoadmapItem[] }).items) ?? [])
-      .map((it) => ({ ...it, status: 'todo' as const }))
+    const generated = await validateItemResources(
+      (((toolUse.input as { items?: CareerRoadmapItem[] }).items) ?? [])
+        .map((it) => ({ ...it, status: 'todo' as const }))
+    )
     if (generated.length === 0) throw new Error('The suggestions came back empty. Please try again.')
 
     const { quick, candidates } = splitByEffort(generated)

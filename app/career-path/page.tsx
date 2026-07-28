@@ -225,13 +225,17 @@ function SkillDetailModal({ item, gap, onClose, onCycle, onRemove, onReviewed, u
 
           {item.resources?.length > 0 && (
             <div style={{ marginTop: 20 }}>
-              <div className="t-eyebrow" style={{ fontSize: 10, marginBottom: 10 }}>Free resources</div>
+              <div className="t-eyebrow" style={{ fontSize: 10, marginBottom: 10 }}>Learning resources</div>
               <div className="flex flex-col" style={{ gap: 8 }}>
                 {item.resources.map((r, i) => (
                   <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="ns-resource">
                     <span className="t-body" style={{ fontWeight: 500 }}>{r.title}</span>
                     <span className="flex items-center gap-2 flex-shrink-0">
-                      <span className="t-mono">{r.source}</span>
+                      <span className="t-mono">
+                        {r.source}
+                        {r.durationNote ? ` · ${r.durationNote}` : ""}
+                        {r.free === false ? " · paid" : ""}
+                      </span>
                       <ExternalLink className="w-3.5 h-3.5" style={{ color: "var(--ns-ink-40)" }} />
                     </span>
                   </a>
@@ -1023,7 +1027,7 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
                           </div>
                           <p className="t-body" style={{ color: "var(--ns-ink-70)", margin: "0 0 12px", maxWidth: 620 }}>{row.item.whyItMatters}</p>
                           {row.item.resources?.length > 0 && (
-                            <span className="t-mono">{row.item.resources[0].source} · {row.item.resources.length} free resource{row.item.resources.length === 1 ? "" : "s"}</span>
+                            <span className="t-mono">{row.item.resources[0].source} · {row.item.resources.length} resource{row.item.resources.length === 1 ? "" : "s"}</span>
                           )}
                         </div>
                         <div style={{ paddingTop: 4, flexShrink: 0 }}>

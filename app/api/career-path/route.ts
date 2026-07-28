@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { errMessage } from '@/lib/err'
+import { validateItemResources } from '@/lib/course-validation'
 import {
   loadItems, replaceItems, addItems, setItemStatus, removeSkill as storeRemoveSkill,
   expireStaleQuickWins, type StoredRoadmapItem,
@@ -262,7 +263,9 @@ export async function POST(req: NextRequest) {
         })
         const ptu = planMsg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_roadmap')
         if (ptu && ptu.type === 'tool_use') {
-          items = ((ptu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const }))
+          items = await validateItemResources(
+            ((ptu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const }))
+          )
         }
       }
 
@@ -446,7 +449,9 @@ export async function POST(req: NextRequest) {
       })
       const gtu = genMsg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_roadmap')
       if (!gtu || gtu.type !== 'tool_use') throw new Error('Could not build the new skills. Please try again.')
-      const newItems = ((gtu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const }))
+      const newItems = await validateItemResources(
+        ((gtu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const }))
+      )
       if (newItems.length === 0) return NextResponse.json({ added: 0, message: 'Nothing new to add.' })
 
       // addItems dedupes on skill: a skill already on the path has its
@@ -499,7 +504,8 @@ export async function POST(req: NextRequest) {
         throw new Error('Could not build that skill entry. Please try again.')
       }
       const raw = toolUse.input as { items?: CareerRoadmapItem[] }
-      const newItem = (Array.isArray(raw.items) ? raw.items : [])[0]
+      const validated = await validateItemResources(Array.isArray(raw.items) ? raw.items : [])
+      const newItem = validated[0]
       if (!newItem) throw new Error('Could not build that skill entry. Please try again.')
 
       const { data: saved, error } = await supabase
@@ -554,10 +560,12 @@ export async function POST(req: NextRequest) {
     }
 
     const raw = toolUse.input as { items?: CareerRoadmapItem[] }
-    const items = (Array.isArray(raw.items) ? raw.items : []).map((item) => ({
-      ...item,
-      status: 'todo' as const,
-    }))
+    const items = await validateItemResources(
+      (Array.isArray(raw.items) ? raw.items : []).map((item) => ({
+        ...item,
+        status: 'todo' as const,
+      }))
+    )
     if (items.length === 0) throw new Error('The roadmap came back empty. Please try again.')
 
     const clean = sanitizeDeep({ target_role: targetRole || '', hours_per_week: hoursPerWeek || null, intention: String(intention ?? '') })
