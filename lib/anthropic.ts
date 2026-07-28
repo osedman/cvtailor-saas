@@ -67,6 +67,8 @@ export interface TailorResult {
   keywordCoverage?: { present: string[]; missing: string[] }
   roleFamily?: string
   seniority?: string
+  /** The untouched AI output, kept from the first hand-edit so it can be restored */
+  tailoredCVOriginal?: string
 }
 
 // Extended results generated on-demand
@@ -334,6 +336,276 @@ export const INTERVIEW_PREP_TOOL: Anthropic.Tool = {
   },
 }
 
+// ── Career roadmap (career-memory Phase 2) ───────────────────────────────
+
+export type CareerItemStatus = "todo" | "in_progress" | "done"
+
+export interface CareerResource {
+  title: string
+  url: string
+  source: string   // e.g. "Udemy", "YouTube", "freeCodeCamp"
+  /** True when the resource costs nothing (audit mode counts). */
+  free?: boolean
+  /** Human-sized duration, e.g. "≈4 hours", "6-video series". */
+  durationNote?: string
+}
+
+export interface CareerRoadmapItem {
+  skill: string
+  whyItMatters: string
+  resources: CareerResource[]
+  projectBrief: string
+  cvPhrasing: string
+  status: CareerItemStatus
+  /** ISO timestamp of the last status change — powers "last stitch" momentum. */
+  touchedAt?: string
+  /** Set when the skill was closed (or attempted) with uploaded evidence. */
+  evidence?: SkillEvidence
+  /** Honest estimate of focused hours to reach demonstrable competence.
+   *  Drives the quick-win / core split — see splitByEffort. */
+  effortHours?: number
+}
+
+export interface SkillEvidence {
+  fileName: string
+  judgedAt: string
+  verdict: "pass" | "not_yet"
+  quality: number          // 1-5
+  note: string             // one-line summary of what the evidence showed
+}
+
+export interface CareerRoadmapResult {
+  items: CareerRoadmapItem[]
+}
+
+export const CAREER_ROADMAP_TOOL: Anthropic.Tool = {
+  name: "submit_career_roadmap",
+  description: "Submit a career roadmap: free resources and a project brief for each skill gap.",
+  input_schema: {
+    type: "object",
+    properties: {
+      items: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            skill: { type: "string", description: "The skill or requirement being addressed, matching the input as closely as possible" },
+            whyItMatters: { type: "string", description: "One short sentence on why this skill matters for the target role" },
+            resources: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  title: { type: "string", description: "The resource's real title" },
+                  url: { type: "string", description: "A real, working URL found via search. Never invent a URL." },
+                  source: { type: "string", description: "The platform, e.g. Udemy, YouTube, freeCodeCamp, Microsoft Learn" },
+                  free: { type: "boolean", description: "True when the resource costs nothing (audit mode counts as free)" },
+                  durationNote: { type: "string", description: "How long it realistically takes, e.g. '≈4 hours', '2-hour crash course'. Prefer resources completable in days, not months." },
+                },
+                required: ["title", "url", "source", "free", "durationNote"],
+              },
+              description: "2-3 REAL resources found via web search, following the provider preference order in the prompt (Udemy and YouTube first; short, practical, free or cheap; never university courses). Never invent a URL or resource — only include ones actually found via search.",
+            },
+            projectBrief: { type: "string", description: "A concrete, scoped project idea (2-3 sentences) the candidate could build to demonstrate this skill" },
+            cvPhrasing: { type: "string", description: "A single suggested CV bullet point they could add once they have completed the project, written in the same evidence-based style as the rest of Tailr" },
+            effortHours: { type: "number", description: "Honest estimate of FOCUSED hours for this specific candidate to reach demonstrable competence AND produce the project artifact. Judge it against their real background: something adjacent to what they already do may be 3-5 hours; a genuinely new discipline, a certification or a multi-week course is 20+. Do not flatter the estimate to make a skill look easy." },
+          },
+          required: ["skill", "whyItMatters", "resources", "projectBrief", "cvPhrasing", "effortHours"],
+        },
+        description: "One entry per skill gap provided, ranked most important first. Maximum 5 items.",
+      },
+    },
+    required: ["items"],
+  },
+}
+
+// ── Region-aware resource sourcing ────────────────────────────────────────
+// The candidate's country grounds which learning providers we prefer, so a UK
+// user isn't steered to US-only courses. Threaded into every roadmap/upskill
+// generation prompt via buildRoadmapPrompt().
+
+/** ISO-3166 alpha-2 region hints → the providers to favour for that market. */
+// 27 Jul 2026 sync decision: short, practical, free/cheap and FAST beats
+// prestigious. Users finish a 2-hour YouTube course; they abandon a
+// 12-week university module. University links were tried and rejected.
+const PREFERRED_PROVIDERS =
+  "STRONGLY prefer, in this order: (1) Udemy courses (short, practical, highly rated), " +
+  "(2) YouTube — complete tutorials or crash courses from well-known channels, " +
+  "(3) freeCodeCamp, (4) Khan Academy, Codecademy or W3Schools, " +
+  "(5) official free vendor training (Microsoft Learn, Google Skillshop, AWS Skill Builder), " +
+  "(6) Coursera ONLY where the course can be audited free. " +
+  "Every resource must be completable in DAYS not months — favour anything under ~10 hours. " +
+  "NEVER suggest university courses, degree modules, OpenCourseWare, FutureLearn/OpenLearn, " +
+  "multi-month programmes, or anything requiring enrolment or an application. " +
+  "Free is best; a low-cost Udemy course is acceptable when it is clearly the strongest option."
+
+const REGION_PROVIDERS: Record<string, { name: string; providers: string }> = {
+  GB: {
+    name: "the UK",
+    providers: `${PREFERRED_PROVIDERS} Check the course is available in the UK.`,
+  },
+}
+const DEFAULT_PROVIDERS = PREFERRED_PROVIDERS
+
+/** Build the shared roadmap/upskill generation prompt, grounded in the
+ * candidate's region so course suggestions suit their market. Single source of
+ * truth for career-path AND upskill so the two never drift. */
+export function buildRoadmapPrompt(opts: {
+  skills: string[]
+  targetRole?: string
+  hoursPerWeek?: number | null
+  region?: string | null      // ISO alpha-2, e.g. "GB"
+  calibration?: string        // CV + intention grounding, prepended by caller
+  intro?: string              // optional override of the first sentence
+}): string {
+  const region = (opts.region || "GB").toUpperCase()
+  const r = REGION_PROVIDERS[region]
+  const where = r ? r.name : "their country"
+  const providers = r ? r.providers : DEFAULT_PROVIDERS
+  const intro =
+    opts.intro ??
+    `You are helping a job seeker in ${where} close specific skill gaps that keep showing up across their job applications.`
+  const time = opts.hoursPerWeek ? `\nTime available: ${opts.hoursPerWeek} hours/week` : ""
+  const target = opts.targetRole ? `\nTarget role: ${opts.targetRole}` : ""
+  return `${intro} For EACH skill listed below, search the web and find 2-3 REAL learning resources. ${providers} Only include resources you actually find via search — never invent a URL or a course that may not exist. For each skill also suggest one concrete, scoped project the candidate could build in their spare time to demonstrate it, and a single CV bullet point they could add once they have completed it. For each skill also give effortHours — an honest estimate of the focused hours THIS candidate needs to reach demonstrable competence and produce the artifact, judged against the background shown in their CV. Be truthful rather than encouraging: under-estimating turns a multi-week course into a false promise.${target}${time}
+
+Skills to address, most important first:
+${opts.skills.map((s, i) => `${i + 1}. ${s}`).join("\n")}${opts.calibration ?? ""}`
+}
+
+// ── CV findings (career-coach analysis) ───────────────────────────────────
+// The climactic "scan your CV" moment: name strengths FIRST, then gaps, in the
+// Tailr evidence-based voice. No web search — reads the CV only.
+
+export interface CvFinding { label: string; detail: string }
+export interface CvFindings {
+  headline: string          // one warm, specific sentence, e.g. "You're a strong delivery lead with…"
+  strengths: CvFinding[]     // 3-4, evidence-backed, named first
+  gaps: CvFinding[]          // 3-4, honest but constructive
+}
+
+export const CV_FINDINGS_TOOL: Anthropic.Tool = {
+  name: "submit_cv_findings",
+  description: "Submit a career-coach reading of the candidate's CV: their standout strengths (first) and their development gaps. Use ONLY what the CV supports — never invent experience.",
+  input_schema: {
+    type: "object",
+    properties: {
+      headline: { type: "string", description: "One warm, specific sentence summarising who this candidate is right now, grounded in the CV." },
+      strengths: {
+        type: "array",
+        description: "3-4 genuine strengths, most impressive first. Evidence-backed from the CV.",
+        items: {
+          type: "object",
+          properties: {
+            label: { type: "string", description: "The strength, a few words e.g. 'Stakeholder leadership'" },
+            detail: { type: "string", description: "One sentence of evidence from the CV for it" },
+          },
+          required: ["label", "detail"],
+        },
+      },
+      gaps: {
+        type: "array",
+        description: "3-4 honest development gaps for where this person is heading. Constructive, specific.",
+        items: {
+          type: "object",
+          properties: {
+            label: { type: "string", description: "The gap, a few words e.g. 'Formal data modelling'" },
+            detail: { type: "string", description: "One sentence on why it matters / what's missing" },
+          },
+          required: ["label", "detail"],
+        },
+      },
+    },
+    required: ["headline", "strengths", "gaps"],
+  },
+}
+
+// ── North Star suggestions ────────────────────────────────────────────────
+// From the CV + stated ambition, propose target roles the candidate could aim
+// at. No web search. The user can also type/search their own.
+
+export interface TargetSuggestion { role: string; whyYou: string; fit: number }
+
+export const SUGGEST_TARGETS_TOOL: Anthropic.Tool = {
+  name: "submit_target_suggestions",
+  description: "Suggest 3-4 realistic 1-2 year target roles ('North Stars') for this candidate based on their CV and stated ambition. Grounded, not aspirational fantasy.",
+  input_schema: {
+    type: "object",
+    properties: {
+      targets: {
+        type: "array",
+        description: "3-4 target roles, best-fit first.",
+        items: {
+          type: "object",
+          properties: {
+            role: { type: "string", description: "A concrete job title, e.g. 'Senior Business Analyst', 'Delivery Manager'" },
+            whyYou: { type: "string", description: "One sentence on why this fits their trajectory and strengths" },
+            fit: { type: "integer", description: "Honest CV-fit estimate 40-95: how much of this role's typical requirements their CV already evidences. Differentiate between suggestions; never all the same number." },
+          },
+          required: ["role", "whyYou", "fit"],
+        },
+      },
+    },
+    required: ["targets"],
+  },
+}
+
+// ── Role market skills (the "60") ─────────────────────────────────────────
+// For a chosen North Star, the skills that role's market demands, each judged
+// against the candidate's CV (have/missing). Drives the readiness % and the
+// transparent gap map. Uses web search to ground demand in the real market.
+
+export interface RoleSkillJudged { skill: string; have: boolean; importance: "core" | "common" | "edge" }
+
+export const ROLE_SKILLS_TOOL: Anthropic.Tool = {
+  name: "submit_role_skills",
+  description: "Submit the skills the target role's market demands, each judged against the candidate's CV. Cover the role comprehensively (the full picture the user wants to see), not just gaps.",
+  input_schema: {
+    type: "object",
+    properties: {
+      skills: {
+        type: "array",
+        description: "8-14 skills/requirements this role's market asks for, core ones first. Include ones the candidate already has AND ones they lack.",
+        items: {
+          type: "object",
+          properties: {
+            skill: { type: "string", description: "The skill or requirement, concise" },
+            have: { type: "boolean", description: "true if the candidate's CV already gives clear evidence of it" },
+            importance: { type: "string", enum: ["core", "common", "edge"], description: "how central it is to the role" },
+          },
+          required: ["skill", "have", "importance"],
+        },
+      },
+    },
+    required: ["skills"],
+  },
+}
+
+
+// ── Skill evidence review ─────────────────────────────────────────────────
+// Completion is earned, not clicked: the user uploads the project artifact or
+// course certificate, and the reviewer judges it against the skill's brief.
+// Pass → the skill closes with a CV bullet grounded in the ACTUAL evidence.
+// Not yet → constructive feedback plus a right-sized replacement project.
+
+export const EVIDENCE_REVIEW_TOOL: Anthropic.Tool = {
+  name: "submit_evidence_review",
+  description: "Judge uploaded evidence (project document or course certificate) against the skill and its project brief. Be a fair but honest reviewer: substance over polish, never credit what the document doesn't show.",
+  input_schema: {
+    type: "object",
+    properties: {
+      verdict: { type: "string", enum: ["pass", "not_yet"], description: "pass = the evidence genuinely demonstrates the skill (a completed certificate for the right course/topic, or a project artifact with real substance matching the brief's intent). not_yet = thin, off-topic, incomplete, or clearly not the user's own work." },
+      quality: { type: "integer", description: "1-5. 1 = unrelated/empty, 3 = shows effort but gaps, 5 = strong, specific, would impress a hiring manager. Pass requires 3+." },
+      note: { type: "string", description: "One sentence on what the evidence showed, e.g. 'UiPath Academy certificate, Advanced RPA Developer, completed'." },
+      feedback: { type: "string", description: "2-3 sentences to the candidate. On pass: what makes it strong + one sharpening tip. On not_yet: what's missing, specifically and kindly — never shaming." },
+      cvPhrasing: { type: "string", description: "ONLY on pass: one CV bullet grounded in what the evidence ACTUALLY shows (its real scope, numbers, tools) — not the hypothetical brief." },
+      suggestedProject: { type: "string", description: "ONLY on not_yet: a right-sized replacement or refined project brief (2-3 sentences) the candidate can realistically complete — smaller if the original was too ambitious, sharper if the submission was off-target." },
+    },
+    required: ["verdict", "quality", "note", "feedback"],
+  },
+}
+
+
 // ── Career Arc (career highlight reel) ────────────────────────────────────
 
 export interface CareerProfileIdentity {
@@ -599,64 +871,3 @@ export const CAREER_PROFILE_TOOL: Anthropic.Tool = {
     required: ["identity", "stats", "achievements", "timeline", "organisations", "skills", "growth", "chapters", "story", "projects", "qualities"],
   },
 }
-
-export type CareerItemStatus = "todo" | "in_progress" | "done"
-
-export interface CareerResource {
-  title: string
-  url: string
-  source: string   // e.g. "freeCodeCamp", "MIT OpenCourseWare"
-}
-
-export interface CareerRoadmapItem {
-  skill: string
-  whyItMatters: string
-  resources: CareerResource[]
-  projectBrief: string
-  cvPhrasing: string
-  status: CareerItemStatus
-}
-
-export interface CareerRoadmapResult {
-  items: CareerRoadmapItem[]
-}
-
-export const CAREER_ROADMAP_TOOL: Anthropic.Tool = {
-  name: "submit_career_roadmap",
-  description: "Submit a career roadmap: free resources and a project brief for each skill gap.",
-  input_schema: {
-    type: "object",
-    properties: {
-      items: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            skill: { type: "string", description: "The skill or requirement being addressed, matching the input as closely as possible" },
-            whyItMatters: { type: "string", description: "One short sentence on why this skill matters for the target role" },
-            resources: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  title: { type: "string", description: "The resource's real title" },
-                  url: { type: "string", description: "A real, working URL found via search. Never invent a URL." },
-                  source: { type: "string", description: "The site/platform, e.g. freeCodeCamp, MIT OpenCourseWare, Khan Academy, official docs" },
-                },
-                required: ["title", "url", "source"],
-              },
-              description: "2-3 REAL, FREE, reputable resources found via web search. Prefer freeCodeCamp, MIT OpenCourseWare, Khan Academy, official framework/language docs, Coursera/edX audit-mode courses, or well-known official YouTube channels. Never invent a URL or resource — only include ones actually found via search.",
-            },
-            projectBrief: { type: "string", description: "A concrete, scoped project idea (2-3 sentences) the candidate could build to demonstrate this skill" },
-            cvPhrasing: { type: "string", description: "A single suggested CV bullet point they could add once they have completed the project, written in the same evidence-based style as the rest of Tailr" },
-          },
-          required: ["skill", "whyItMatters", "resources", "projectBrief", "cvPhrasing"],
-        },
-        description: "One entry per skill gap provided, ranked most important first. Maximum 5 items.",
-      },
-    },
-    required: ["items"],
-  },
-}
-
-

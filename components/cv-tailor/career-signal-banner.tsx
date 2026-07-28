@@ -5,6 +5,7 @@ import Link from "next/link"
 import { TrendingUp, X, ArrowRight } from "lucide-react"
 import { computeCareerSignal, type CareerSignal } from "@/lib/career-signal"
 import type { RequirementMapping } from "@/lib/anthropic"
+import { useCareerBeta } from "@/hooks/use-career-beta"
 
 const DISMISSED_KEY = "tailr:career-signal:dismissed"
 
@@ -17,6 +18,7 @@ const DISMISSED_KEY = "tailr:career-signal:dismissed"
 export function CareerSignalBanner() {
   const [signals, setSignals] = useState<CareerSignal[] | null>(null)
   const [dismissed, setDismissed] = useState(true) // default hidden until checked
+  const careerBeta = useCareerBeta()
 
   useEffect(() => {
     try {
@@ -43,7 +45,9 @@ export function CareerSignalBanner() {
     try { localStorage.setItem(DISMISSED_KEY, "1") } catch { /* ignore */ }
   }
 
-  if (dismissed || !signals || signals.length === 0) return null
+  // The banner's only destination is the career path; outside the beta it
+  // would advertise a locked door.
+  if (!careerBeta || dismissed || !signals || signals.length === 0) return null
 
   const [top, ...rest] = signals
   const others = rest.map((s) => s.keyword).join(", ")

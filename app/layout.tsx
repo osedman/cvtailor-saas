@@ -6,8 +6,8 @@ import { AuthProvider } from '@/components/auth/auth-provider'
 import { Onboarding } from '@/components/onboarding/onboarding'
 import './globals.css'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const _geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
+const _geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
   title: 'Tailr — Tailor Your CV to Any Job',
@@ -29,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="bg-white">
-      <body className="font-sans antialiased bg-white text-[#1e1813]">
+      <body className={`font-sans antialiased bg-white text-[#1e1813] ${_geist.variable} ${_geistMono.variable}`}>
         <AuthProvider>
           {children}
           <Onboarding />

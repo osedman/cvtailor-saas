@@ -177,3 +177,218 @@
 .animate-slide-up {
   animation: slide-up 0.5s ease-out forwards;
 }
+
+/* ── North Star design system (career-path) ──────────────────────────────
+   Structure follows the design_handoff_north_star bundle; typography and
+   controls are translated into Tailr's own voice: Geist extrabold display
+   with tight tracking, Geist Mono for verbatim CV evidence, coral uppercase
+   eyebrows, rounded-xl controls. Namespaced ns- / --ns-* so nothing collides
+   with shadcn variables. */
+.ns {
+  --ns-ink: #1e1813;
+  --ns-ink-70: rgba(30, 24, 19, 0.7);
+  --ns-ink-55: rgba(30, 24, 19, 0.55);
+  --ns-ink-40: rgba(30, 24, 19, 0.4);
+  --ns-ink-15: rgba(30, 24, 19, 0.15);
+  --ns-ink-08: rgba(30, 24, 19, 0.08);
+  --ns-coral: #dc4f33;
+  --ns-coral-deep: #b3341b;
+  --ns-tint-1: #fff7f4;
+  --ns-tint-2: #f5d9d0;
+  --ns-cream: #f9f6f0;
+  --ns-paper: #fffdfa;
+  --ns-border: #eee6da;
+  --ns-border-strong: #d9d1bf;
+  color: var(--ns-ink);
+  background: var(--ns-cream);
+}
+/* Display voice = the app's own: extrabold, tight, confident. */
+.ns .t-display {
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+}
+.ns .t-title {
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+/* Verbatim CV evidence. Previously mono, on the reasoning that it matched the
+   CV paste box — but the paste box is now the brand sans too, and users read
+   the mono as "robotic" and off-brand. The quoted-material feel comes from the
+   ruled container each caller already wraps it in, not a second typeface. */
+.ns .t-quote {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ns-ink-70);
+}
+.ns .t-lede { font-size: 15px; line-height: 1.55; color: var(--ns-ink-70); }
+.ns .t-body { font-size: 14px; line-height: 1.55; }
+.ns .t-small { font-size: 12.5px; line-height: 1.5; color: var(--ns-ink-55); }
+.ns .t-mono {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--ns-ink-55);
+}
+/* Eyebrows are coral — the app's own section-label pattern. */
+.ns .t-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ns-coral);
+}
+.ns .t-eyebrow-quiet { color: var(--ns-ink-55); font-weight: 600; }
+.ns .ns-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 500;
+  padding: 8px 14px; border-radius: 999px;
+  line-height: 1; white-space: nowrap;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+/* Skills in hand are settled — quiet ink on paper. Coral is reserved for
+   what still asks for attention. */
+.ns .ns-chip-have {
+  background: #fdfcf9;
+  color: var(--ns-ink);
+  border: 1px solid var(--ns-border);
+}
+/* Missing skills speak in the brand coral (27 Jul sync), dashed because
+   they're open, not failed. */
+.ns .ns-chip-missing {
+  background: var(--ns-tint-1);
+  color: var(--ns-coral-deep);
+  border: 1px dashed var(--ns-coral);
+}
+/* Controls match the app: rounded-xl, semibold. */
+.ns .ns-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border-radius: 12px; padding: 12px 20px;
+  font-size: 14px; font-weight: 600; line-height: 1;
+  cursor: pointer; transition: all 140ms ease;
+  border: 1px solid transparent;
+}
+.ns .ns-btn:disabled { opacity: 0.6; cursor: default; }
+.ns .ns-btn:active { transform: scale(0.98); }
+.ns .ns-btn-primary { background: var(--ns-coral); color: #fff; box-shadow: 0 1px 2px rgba(30,24,19,0.08); }
+.ns .ns-btn-primary:hover { background: var(--ns-coral-deep); box-shadow: 0 4px 14px rgba(220,79,51,0.25); }
+.ns .ns-btn-secondary { background: #fff; color: var(--ns-ink); border-color: var(--ns-border); }
+.ns .ns-btn-secondary:hover { border-color: var(--ns-ink-40); box-shadow: 0 2px 10px rgba(30,24,19,0.06); }
+.ns .ns-btn-ghost { background: transparent; color: var(--ns-ink-70); padding: 12px 10px; }
+.ns .ns-btn-ghost:hover { color: var(--ns-ink); }
+/* Role cards lift gently on hover. */
+.ns .ns-card {
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.ns .ns-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(30,24,19,0.08);
+  border-color: var(--ns-coral) !important;
+}
+/* The stitched thread draws itself in. */
+.ns .ns-stitch {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: ns-stitch-draw 1.1s ease-out forwards;
+}
+@keyframes ns-stitch-draw { to { stroke-dashoffset: 0; } }
+/* Agenda rows and findings fade up on load, staggered via --ns-i. */
+.ns .ns-rise {
+  opacity: 0;
+  transform: translateY(6px);
+  animation: ns-rise 0.45s ease-out forwards;
+  animation-delay: calc(var(--ns-i, 0) * 70ms);
+}
+@keyframes ns-rise { to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .ns .ns-stitch { animation: none; stroke-dashoffset: 0; }
+  .ns .ns-rise { animation: none; opacity: 1; transform: none; }
+  .ns .ns-card, .ns .ns-btn, .ns .ns-chip { transition: none; }
+}
+
+/* North Star modal + interactive chips */
+.ns-scrim {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  background: rgba(30, 24, 19, 0.5);
+  animation: ns-fade 160ms ease-out;
+}
+.ns-modal {
+  width: 100%; max-width: 560px;
+  background: var(--ns-paper);
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgba(30, 24, 19, 0.28);
+  animation: ns-modal-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes ns-fade { from { opacity: 0; } }
+@keyframes ns-modal-in { from { opacity: 0; transform: translateY(10px) scale(0.97); } }
+.ns .ns-chip-action { cursor: pointer; }
+.ns .ns-chip-action:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(30,24,19,0.1); border-style: solid; border-color: var(--ns-coral); }
+.ns .ns-resource {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 44px; padding: 10px 14px;
+  border: 1px solid var(--ns-border); border-radius: 10px;
+  transition: border-color 140ms ease, background 140ms ease;
+  text-decoration: none; color: var(--ns-ink);
+}
+.ns .ns-resource:hover { border-color: var(--ns-coral); background: var(--ns-tint-1); }
+@media (prefers-reduced-motion: reduce) {
+  .ns-scrim, .ns-modal { animation: none; }
+  .ns .ns-chip-action:hover { transform: none; }
+}
+
+/* ── Emotional moments ───────────────────────────────────────────────────
+   Arousal from aspiration and pride, never anxiety: nothing here punishes,
+   everything here celebrates work already done. */
+
+/* Findings reveal — a deliberate beat per line, so being seen lands. */
+.ns .ns-reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: ns-rise 0.5s ease-out forwards;
+  animation-delay: calc(var(--ns-i, 0) * 260ms);
+}
+
+/* Readiness gain: the number people worked weeks for. */
+.ns .ns-delta {
+  display: inline-block;
+  animation: ns-delta-float 2.6s ease-out forwards;
+  color: var(--ns-coral);
+  font-weight: 700;
+}
+@keyframes ns-delta-float {
+  0% { opacity: 0; transform: translateY(6px); }
+  15% { opacity: 1; transform: translateY(0); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+.ns .ns-pulse { animation: ns-pulse 1.4s ease-out; }
+@keyframes ns-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(220, 79, 51, 0.35); }
+  100% { box-shadow: 0 0 0 22px rgba(220, 79, 51, 0); }
+}
+
+/* "I got the job" — the payoff the whole product exists for. */
+.ns-celebrate {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; overflow-y: auto;
+  background: var(--ns-cream, #f9f6f0);
+  animation: ns-fade 240ms ease-out;
+}
+.ns-celebrate-inner { animation: ns-pop 520ms cubic-bezier(0.2, 0.9, 0.3, 1); }
+@keyframes ns-pop { from { opacity: 0; transform: translateY(14px) scale(0.97); } }
+.ns .ns-stat-rise {
+  opacity: 0;
+  animation: ns-rise 0.5s ease-out forwards;
+  animation-delay: calc(var(--ns-i, 0) * 140ms + 240ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ns .ns-reveal, .ns .ns-stat-rise { animation: none; opacity: 1; transform: none; }
+  .ns .ns-delta { animation: none; }
+  .ns .ns-pulse { animation: none; }
+  .ns-celebrate, .ns-celebrate-inner { animation: none; }
+}

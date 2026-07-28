@@ -37,20 +37,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function signInWithEmail(email: string) {
-    // Prefer the configured product origin so magic links always land on
-    // app.gettailr.com/auth/confirm — even if the user opened Sign in from a
-    // preview URL or a host that later redirects.
-    const appOrigin =
-      (typeof process !== "undefined" && process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")) ||
-      (typeof window !== "undefined" ? window.location.origin : "")
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        // token_hash verification route (stateless, works cross-device).
-        emailRedirectTo: `${appOrigin}/auth/confirm`,
-      },
-    })
-    return { error: error?.message ?? null }
+    // Deliver via /api/auth/request-otp (Resend) — staging Supabase SMTP still
+    // uses Resend's test From and returns "Error sending magic link email".
+    try {
+      const res = await fetch("/api/auth/request-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+      const body = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) {
+        return { error: body.error || "Error sending magic link email" }
+      }
+      return { error: null }
+    } catch {
+      return { error: "Error sending magic link email" }
+    }
   }
 
   async function signOut() {

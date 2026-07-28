@@ -217,7 +217,7 @@ function AddJobModal({
               value={form.tailored_cv}
               onChange={e => setForm(f => ({ ...f, tailored_cv: e.target.value }))}
               rows={4}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/20 resize-none font-mono"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/20 resize-none leading-relaxed"
               placeholder="Paste your tailored CV for this role…"
             />
           </div>
@@ -457,7 +457,7 @@ function JobDetailSheet({
                 value={local.tailored_cv}
                 onChange={e => patch({ tailored_cv: e.target.value })}
                 rows={24}
-                className="w-full text-sm font-mono border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#dc4f33] resize-none leading-relaxed"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#dc4f33] resize-none leading-relaxed"
                 placeholder="Paste your tailored CV for this role…"
               />
             </div>

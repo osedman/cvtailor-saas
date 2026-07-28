@@ -5,9 +5,9 @@ import { appPath, getMarketingOrigin } from '@/lib/site-url'
  *
  * Configure with env vars:
  *   RESEND_API_KEY   — required to actually send; if absent, send() is a no-op
- *   WELCOME_FROM     — From header, e.g. "Tailr <ose@lean-frame.com>"
- *                      (defaults to Resend's shared test sender until a domain
- *                      is verified)
+ *   WELCOME_FROM     — From header, e.g. "Tailr <hello@gettailr.com>"
+ *                      (defaults to verified gettailr.com sender; Resend's
+ *                      onboarding@resend.dev only delivers to the account owner)
  *
  * Returns { sent: boolean, skipped?, error? } and never throws, so callers can
  * fire-and-forget without risking the request they are attached to.
@@ -21,7 +21,7 @@ export async function sendEmail(opts: {
   const key = process.env.RESEND_API_KEY
   if (!key) return { sent: false, skipped: "RESEND_API_KEY not set" }
 
-  const from = process.env.WELCOME_FROM || "Tailr <onboarding@resend.dev>"
+  const from = process.env.WELCOME_FROM || "Tailr <hello@gettailr.com>"
 
   try {
     const res = await fetch("https://api.resend.com/emails", {

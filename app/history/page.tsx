@@ -8,11 +8,13 @@ import {
   AlertCircle, CheckCircle, Clock, RefreshCw, Kanban, Plus, Download,
 } from "lucide-react"
 import { downloadWordDoc } from "@/lib/word"
+import { useCvTemplate } from "@/hooks/use-cv-template"
+import type { CvTemplateId } from "@/lib/cv-templates"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
 import { JobTrackerBoard } from "@/components/tracker/job-tracker-board"
-import type { TailorResult, InterviewPrepResult } from "@/lib/anthropic"
+import type { TailorResult, InterviewPrepResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 
 interface HistoryItem {
   id: string
@@ -25,6 +27,7 @@ interface HistoryItem {
   match_score: number
   result: TailorResult
   original_cv?: string
+  cover_letter?: string | null
 }
 
 // ── helpers ────────────────────────────────────────────────────────────
@@ -91,12 +94,14 @@ function HistoryCard({
   onSelect,
   onDelete,
   deleting,
+  template,
 }: {
   item: HistoryItem
   selected: boolean
   onSelect: () => void
   onDelete: (e: React.MouseEvent) => void
   deleting: boolean
+  template: CvTemplateId
 }) {
   const atsPass = item.result?.atsNotes?.status === "pass"
   const changesCount = item.result?.keyChanges?.length ?? 0
@@ -174,7 +179,7 @@ function HistoryCard({
         </span>
         <div className="flex items-center gap-1">
           <button
-            onClick={(e) => { e.stopPropagation(); downloadWordDoc(item.result?.tailoredCV ?? "", wordFilename(item)) }}
+            onClick={(e) => { e.stopPropagation(); downloadWordDoc(item.result?.tailoredCV ?? "", wordFilename(item), template) }}
             className="p-1.5 rounded-lg text-gray-300 hover:text-[#dc4f33] hover:bg-[#ffeae4] transition-colors"
             title="Download tailored CV as Word"
           >
@@ -250,13 +255,19 @@ export default function HistoryPage() {
   const [loadingCoverLetter, setLoadingCoverLetter] = useState(false)
   const [prepQuestions, setPrepQuestions] = useState<InterviewPrepResult["interviewQuestions"] | null>(null)
   const [loadingPrep, setLoadingPrep] = useState(false)
+  // Same preference the results panel picker writes — so the download buttons
+  // outside the tabs use the template the user actually chose.
+  const { template } = useCvTemplate()
 
   const selectedItem = history.find(h => h.id === selectedId) ?? null
 
-  // Reset generated artefacts when switching items
+  // Reset generated artefacts when switching items. The cover letter is stored
+  // on the run, so seed it from the row rather than making the user regenerate.
   useEffect(() => {
-    setCoverLetter(null)
+    const row = history.find(h => h.id === selectedId)
+    setCoverLetter(row?.cover_letter || null)
     setPrepQuestions(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
   // Inputs for re-generation: the stored original CV and the full JD
@@ -277,12 +288,58 @@ export default function HistoryPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed")
       setCoverLetter(data.coverLetter)
+      // Store it on the run so it's there next time (best-effort)
+      if (selectedId) {
+        const id = selectedId
+        fetch(`/api/history/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ coverLetter: data.coverLetter }),
+        }).catch(() => {})
+        setHistory((prev) => prev.map((h) => h.id === id ? { ...h, cover_letter: data.coverLetter } : h))
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate cover letter.")
     } finally {
       setLoadingCoverLetter(false)
     }
-  }, [canGenerate, genCv, genJd])
+  }, [canGenerate, genCv, genJd, selectedId])
+
+  /** Persist a hand-edit, then apply it locally (see the tailor page for why). */
+  const patchRun = useCallback(async (body: Record<string, unknown>) => {
+    if (!selectedId) return
+    const res = await fetch(`/api/history/${selectedId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || "Could not save your changes")
+  }, [selectedId])
+
+  const handleSaveTailoredCV = useCallback(async (text: string) => {
+    if (!selectedId) return
+    const id = selectedId
+    await patchRun({ tailoredCV: text })
+    setHistory((prev) => prev.map((h) => h.id === id ? {
+      ...h,
+      result: {
+        ...h.result,
+        tailoredCVOriginal: h.result.tailoredCVOriginal ?? h.result.tailoredCV,
+        tailoredCV: text,
+      },
+    } : h))
+  }, [patchRun, selectedId])
+
+  const handleSaveCoverLetter = useCallback(async (text: string) => {
+    if (!selectedId) return
+    const id = selectedId
+    await patchRun({ coverLetter: text, edited: true })
+    setCoverLetter(text)
+    setHistory((prev) => prev.map((h) => h.id === id ? { ...h, cover_letter: text } : h))
+  }, [patchRun, selectedId])
+
+
 
   const handleGeneratePrep = useCallback(async () => {
     if (!canGenerate) { toast.error("This run predates stored job details, so regeneration isn't available."); return }
@@ -460,6 +517,7 @@ export default function HistoryPage() {
                   onSelect={() => setSelectedId(item.id)}
                   onDelete={(e) => handleDelete(item.id, e)}
                   deleting={deletingId === item.id}
+                  template={template}
                 />
               ))}
             </div>
@@ -508,7 +566,7 @@ export default function HistoryPage() {
                   {/* Actions */}
                   <div className="flex-shrink-0 flex items-center gap-2">
                     <button
-                      onClick={() => downloadWordDoc(selectedItem.result?.tailoredCV ?? "", wordFilename(selectedItem))}
+                      onClick={() => downloadWordDoc(selectedItem.result?.tailoredCV ?? "", wordFilename(selectedItem), template)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1e1813] bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-colors"
                       title="Download tailored CV as Word"
                     >
@@ -540,6 +598,9 @@ export default function HistoryPage() {
                     loadingPrep={loadingPrep}
                     onGeneratePrep={handleGeneratePrep}
                     originalCV={selectedItem.original_cv || null}
+                    historyId={selectedItem.id}
+                    onSaveTailoredCV={handleSaveTailoredCV}
+                    onSaveCoverLetter={handleSaveCoverLetter}
                   />
                 </div>
               </div>

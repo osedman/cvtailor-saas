@@ -9,6 +9,61 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 
 ---
 
+## 📊 Feature status audit — 28 July 2026 (input to next sprint)
+
+Requested in the 27 Jul sync: every feature, one line, where it actually is.
+"Validated" means a real user (not us) used it and it did its job.
+
+| Feature | Where | Status | Validated? | Priority next sprint |
+|---|---|---|---|---|
+| Tailor pipeline (2-pass, compression, cache) | **Prod** | Done | ✅ real users | Maintain |
+| Match score + gaps / ATS / JD coverage | **Prod** | Done | ✅ confirmed good in sync | Maintain |
+| Job fetch from any URL | **Prod** | Done | ✅ works; wording says LinkedIn/Indeed only | Small copy fix |
+| Cover letter | **Prod** | Done | Partial | Maintain |
+| Interview prep, tracker, history | **Prod** | Done | Partial | Maintain |
+| Magic-link auth + rate limiting + RLS | **Prod** | Done | ✅ | Maintain |
+| Evidence-first First CV builder | **Prod** | Done | 🔶 Oje testing parser with varied files | Await Oje's findings |
+| Editable output (CV + letter) | Staging | Done, needs migration 014 at port | ✅ praised in sync | **Port to prod** |
+| CV templates ×6 + live preview | Staging | Done, needs migration 015 at port | ✅ demoed well | **Port to prod** |
+| Quick Wins (Upskill merged, evidence gate, promotion/expiry) | Staging | Done, needs migration 016 **before** code | Not yet | **Port to prod** |
+| North Star career path (journey, readiness, forecast) | Staging | Done | 🔶 demoed 27 Jul, real E2E still owed | Refine per sync feedback |
+| Live job market (Reed.co.uk, flagged off) | Staging | Built (`0cd9f67` swapped Adzuna→Reed 28 Jul) | ❌ needs REED_API_KEY (free, instant at reed.co.uk/developers) + MARKET_INSIGHTS_ENABLED=1 in Vercel | **Ose: register + set env vars** |
+| Pace forecast + weekly digest | Staging | Done | Not yet | Port with career path |
+| Career Arc | Staging | Done | Not yet | Hold — not in sync priorities |
+| Font/design-system consistency | Staging (this commit) | **Fixed + guardrail test** | Pending Oje re-check | Verify on staging |
+| Admin dashboard: north star + activation funnel | Staging (this commit) | **Done** | — | Use it to pick next month's work |
+| Sentry activation | — | Inert, needs DSN | — | Low |
+| Free-tier quota enforcement | — | Not started | — | Med (needs Stripe) |
+| Recruitment platform prototype | Separate | Ideation only | — | **Paused pending Y's feedback** — by decision |
+
+**Standing rule:** gap referencing and all generated CV text are governed by
+[docs/EVIDENCE-RULE.md](EVIDENCE-RULE.md) — *Tailr reframes evidence; it never
+manufactures it. Empty beats invented.* (Decided 28 Jul.)
+
+**Descoped / retired:** Upskill tab (merged into Quick Wins) · migration 009 ·
+university-course links in roadmaps (27 Jul decision: short/free/practical
+sources instead).
+
+**Prod port order when approved:** migrations 014 + 015 + 016 (016 strictly
+before its code) → editable output + templates + quick wins + career path
+North Star in one cut, backfill at cutover.
+
+## 🎫 Tickets from the 27 Jul sync (backlog until prioritised)
+
+| # | Ticket | Type | Priority | Notes |
+|---|---|---|---|---|
+| S1 | Font consistency across CV output, tooltips, career path, edit view | Bug | High | **Done on staging 28 Jul** — editor now typeset in the selected template's face; paste boxes + tracker + `.t-quote` in brand sans; `typography-consistency.test.ts` fails the build on new unapproved mono |
+| S2 | Salary + specific job details in role search / recommendations | Feature | Med | Provider swapped to Reed.co.uk 28 Jul (`0cd9f67`) — salaries are employer-posted so no "predicted" caveat needed. Unblocks when REED_API_KEY is set |
+| S3 | Loading tooltip during live job research | UX | Low | Brand-consistent loading state on role search |
+| S4 | Core vs non-core skill categorisation + explanatory tooltips | Feature | Med | Career path UI restructure agreed in sync |
+| S5 | Missing skills coloured red in gap map | UX | Low | Pairs with S4 |
+| S6 | "Next"/"Later" clarity — sequence not priority | UX | Low | Copy/tooltip fix |
+| S7 | Career path performance/speed | Perf | Med | Measure before optimising |
+| S8 | Job-fetch wording: "paste any URL", not LinkedIn/Indeed | Copy | Low | Raised twice now |
+| S9 | Udemy/short-course sourcing for roadmap resources | Feature | Med | **Build half DONE on staging 28 Jul** (`8a8bb65`): generator prefers Udemy → YouTube → freeCodeCamp → vendor training; strict domain allowlist + liveness check gates every resource at all 5 generation sites; resources carry duration + free/paid. Remaining: Udemy Affiliate API integration (needs approved affiliate account — Ose action; scraping ruled out, against ToS) |
+
+---
+
 ## ✅ Shipped
 
 | Item | Type | PR | Notes |
@@ -20,38 +75,35 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | Prominent coral CV section headings + company-analyser source fix | Fix | [#5](https://github.com/osedman/cvtailor-saas/pull/5) | Faint headings; company now from JD only |
 | Enhanced workspace UI (gated) | Feature | [#7](https://github.com/osedman/cvtailor-saas/pull/7) | Oat canvas, cards, score bar, tab icons |
 | Enhanced workspace UI rolled out to all users | Feature | [#8](https://github.com/osedman/cvtailor-saas/pull/8) | Flag flipped on |
-| Richer onboarding guidance (coachmarks, feature strip, nudge, 7-step checklist) | Feature | [#9](https://github.com/osedman/cvtailor-saas/pull/9) | Gated to admin, then rolled out via #25 |
+| Richer onboarding guidance (coachmarks, feature strip, nudge, 7-step checklist) | Feature | [#9](https://github.com/osedman/cvtailor-saas/pull/9) | Gated to admin |
 | Per-user rate limiting on AI endpoints | Feature | [#10](https://github.com/osedman/cvtailor-saas/pull/10) | Postgres counters; migration applied |
 | Unit tests + GitHub Actions CI | Chore | [#11](https://github.com/osedman/cvtailor-saas/pull/11) | 20 Vitest tests on sanitiser + scoring |
 | CI hardening: `pnpm build` in the workflow | Chore | [#16](https://github.com/osedman/cvtailor-saas/pull/16) | Catches typecheck/build errors on PRs, not just after merge |
 | Sentry error tracking (`@sentry/nextjs`) | Feature | [#17](https://github.com/osedman/cvtailor-saas/pull/17) | Native instrumentation, no next.config wrapper. Inert until DSN set |
 | Staging environment (isolated Supabase + branch-scoped Vercel env) | Chore | [#18](https://github.com/osedman/cvtailor-saas/pull/18) | Dedicated tailr-staging Supabase project; verified end-to-end (sign-in landed in staging DB, not prod) |
-| Fix schema.sql drift (missing job_description + full_name) | Bug | [#21](https://github.com/osedman/cvtailor-saas/pull/21) | schema.sql was missing columns production actually has, causing silent history-save failures on staging |
 | Landing page accessibility (reduced motion, contrast, focus rings) | Fix | [#13](https://github.com/osedman/cvtailor-saas/pull/13) | WCAG contrast + prefers-reduced-motion |
 | Build-break hotfix (vitest.config type error) | Bug | [#14](https://github.com/osedman/cvtailor-saas/pull/14) | Broke production build; `singleFork` invalid |
 | Privacy policy page (`/privacy`) + footer link | Feature | [#15](https://github.com/osedman/cvtailor-saas/pull/15) | UK/EU GDPR, grounded in real data practices |
 | Welcome email + mailing list | Feature | — | Resend; one-time welcome; `mailing_list` table |
 | PDF upload fix (unpdf + DOMMatrix polyfill) | Bug | — | Production 500 on PDF parse |
 | Word CV download template + "Made with Tailr" footer | Feature | — | Modern Clean template |
-| Word download: real .docx (was HTML-as-.doc) | Bug | [#28](https://github.com/osedman/cvtailor-saas/pull/28) | HTML renamed to .doc opened as plain text / looked corrupt for many users; now OOXML via `docx` |
-| Magic-link errors swallowed by www redirect | Bug | [#29](https://github.com/osedman/cvtailor-saas/pull/29) | After domain split, failed `/auth/confirm` → `app/?error=…` was 308'd to www with query stripped; users saw a blank homepage and re-requested links. Also: persist sessions with `.gettailr.com` cookies; click-to-confirm + OTP so mobile email prefetchers don't burn the one-time link |
 | Weekly digest newsletter automation | Chore | — | Scheduled task; drafts HTML + LeanFrame Gmail draft |
 | Mailing list cleanup (test/bounce rows) | Chore | — | Removed 4 junk rows |
-| AI endpoint timeout fix (`maxDuration` 60→300 + client abort 290s) | Bug | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | 60s FUNCTION_INVOCATION_TIMEOUT on real tailor runs |
-| CV/JD auto-compression (Haiku Pass 0, limits 30k/20k) | Bug | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Replaces the hard 400 wall; supersedes PR #6. LengthBar warnings in panel footers |
-| Identical re-run cache (input_hash, migration 006) | Bug | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Same CV+JD no longer re-rolls a different match score. Run migration 006 on production Supabase |
-| Interview Prep follow-up card alignment | Fix | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Line-height/styling matched to question cards |
-| Company Analysis floating bullet-dot parser fix | Fix | [#22](https://github.com/osedman/cvtailor-saas/pull/22) | Wrapped/split bullets now group into one block |
-| Career Arc: private CV highlight reel (`/career-arc`) | Feature | [#23](https://github.com/osedman/cvtailor-saas/pull/23) | Guided intake (4 personalised skippable questions), art-directed card reveal, document frame. Migration 005 required on production Supabase. Follow-up: re-add inline editing (dropped in v2 redesign) |
-| Career Arc in-app launch announcement | Chore | [#24](https://github.com/osedman/cvtailor-saas/pull/24) | Dismissible ink banner on /tailor; auto-hides once an arc exists. Launch email sent to mailing list 6 Jul |
-| Richer onboarding guidance rolled out to all users | Feature | [#25](https://github.com/osedman/cvtailor-saas/pull/25) | Flag flipped: removed `isAdminEmail` gates in onboarding + tailor coachmarks |
-| www + app domain split | Chore | [#25](https://github.com/osedman/cvtailor-saas/pull/25) [#26](https://github.com/osedman/cvtailor-saas/pull/26) | `www.gettailr.com` marketing, `app.gettailr.com` product. Domains on Vercel; `DOMAIN_SPLIT_ENABLED=true`; apex redirects live. #26 folded redirects into `proxy.ts` (Next 16). Supabase Site URL + redirect URLs updated. Optional later: Framer/Webflow for www |
 
 ## 🔧 In progress / open PRs
 
 | Item | Type | PR | Notes |
 |------|------|----|-------|
-| Career-signal banner (career-memory Phase 1) | Feature | [#19](https://github.com/osedman/cvtailor-saas/pull/19) | Mines tailor_history for recurring weak-evidence keywords; merged to staging, awaiting review before prod |
+| Long-CV handling (Pass 0 compression, higher limits) | Feature | [#6](https://github.com/osedman/cvtailor-saas/pull/6) | Adds a Haiku pre-compress pass; awaiting review |
+| Career-memory Phase 1: pattern-spotting banner | Feature | [#19](https://github.com/osedman/cvtailor-saas/pull/19) | `staging` only, not merged. Client-side aggregation of weak-evidence keywords across tailor history (`lib/career-signal.ts`), dismissible banner on `/tailor` |
+| Career-memory Phase 2/3: generated roadmap + checklist | Feature | — | `staging` only, not merged. New `/career-path` page + `/api/career-path` route: Sonnet + web search finds free resources per skill gap, project brief, CV phrasing; progress checklist persisted in `career_roadmaps` table (migration 004). Entry point is the Phase 1 banner's "See your career path" link |
+| Schema drift fix (`tailor_history.job_description`, `profiles.full_name`) | Bug | — | `staging` DB was missing columns production actually has, discovered while testing career-memory. `schema.sql` corrected + migration 003 added |
+| `/api/tailor` and `/api/career-path` timeout fix (`maxDuration` 60→300) | Bug | — | `staging` only, not merged. See "Bug: AI endpoints timing out at 60s" below |
+| CV/job description too long — automatic compression | Bug | [#6](https://github.com/osedman/cvtailor-saas/pull/6) | Fixed on `staging`: PR #6's CV pre-compression ported (Haiku Pass 0, >12k chars, 30k cap) plus new JD compression (>6k chars, 20k cap, strips EEO/benefits boilerplate), run in parallel. LengthBar warnings in both panel footers. PR #6 itself now superseded — close when staging merges |
+| Inconsistent match scores on identical re-runs — input-hash cache | Bug | — | `staging` only. Same CV+JD produced different scores each run (non-deterministic extraction pass). Migration 006 adds `tailor_history.input_hash`; identical re-runs now return the stored result instantly (checked before rate limit, zero API cost) with a toast |
+| Living skills profile: roadmap updates through the tailor flow | Feature | — | `staging` only, not merged. CareerSyncPanel under tailor results compares each run's evidence against the roadmap: one-click 'mark done' when a roadmap skill shows strong evidence, status chips for gaps already on the path, copy-CV-bullet for done skills, one-click 'add to career path' for new gaps (single-skill AI generation, `add-skill` mode on /api/career-path) |
+| Living Career Path (career-path rework) | Feature | — | `staging` only, all 4 stages. Reworks the generate-once roadmap into a living path: continuous journey line (milestones -> you-are-here -> target readiness ring), compute layer (`lib/career-path-compute.ts`: unlock-ranking + readiness from `tailor_history`+`job_tracker`, migration 007 adds `current_title`+`milestones`), intake form killed/seeded, rebuild confirm dialog; update actions (I-got-the-job, add-project, add-skill-for-JD) that also write to the Arc; and a money-path-safe feedback edge in `/api/tailor` (closed path skills become evidence, no-op when empty). Owed before prod: 1 real end-to-end generation test + independent money-path verification of the feedback edge |
+| Career Arc: private CV highlight-reel page | Feature | — | `staging` only, not merged. New `/career-arc` page + `/api/career-profile` route: Sonnet extraction (no web search, pure CV extraction, explicitly told never to invent facts) into timeline/skills/growth/projects/inferred qualities, all click-to-edit inline. Auto-generates from the user's most recent `tailor_history.original_cv`; paste-box fallback if none exists. `career_profiles` table (migration 005) has a `source` column left room for an aggregated (multi-tailor) generator later. Needs migration 005 run manually in `tailr-staging` SQL Editor before testing |
 
 ## 📋 Backlog (suggested, not started)
 
@@ -65,11 +117,244 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
 | Design pass: Tracker / History pages | Enhancement | Low | Still original styling, pre-enhanced-workspace |
 | Design pass: results-content cards | Enhancement | Low | Tab bar redesigned; inner content not |
 | Social proof / testimonials on landing | Enhancement | Low | Recommended by design audit; needs real users |
-| Reviews: collect in-app user reviews/ratings | Feature | Med | Prompt at high-satisfaction moments (strong tailor result, arc built); feeds the landing testimonials item |
 | Terms of Service page | Chore | Low | Companion to the privacy policy |
 | Dedicated privacy@ contact address | Chore | Low | Swap into the privacy policy once set up |
 | `tsconfig.tsbuildinfo` gitignore tidy | Chore | Low | Build artifact tracked in git |
 
 ---
 
-_Last updated: 13 July 2026_
+## 🐛 Bug: AI endpoints timing out at 60s (`staging`, fixed 2 July 2026)
+
+**Symptom:** `/api/tailor` and (by the same root cause) `/api/career-path` returned HTTP 504 with `X-Vercel-Error: FUNCTION_INVOCATION_TIMEOUT` on real requests, confirmed both in the browser DevTools Network tab and in Vercel runtime logs ("Vercel Runtime Timeout Error: Task timed out after 60 seconds"). Discovered while testing the career-memory feature end-to-end on staging.
+
+**Root cause:** both routes had `export const maxDuration = 60`, and both do genuinely slow work:
+- `/api/tailor` runs a sequential two-pass AI pipeline (Haiku extract → Sonnet rewrite, `max_tokens: 5000` on the rewrite) that can exceed 60s on larger CVs/job descriptions.
+- `/api/career-path` runs a single Sonnet call with up to 8 web searches plus tool-use generation — arguably even more likely to exceed 60s.
+
+Ruled out first: the database/auth/RLS layer. Generated a real Supabase session via the Admin API and performed the exact authenticated insert the app makes — it succeeded immediately, isolating the problem to function execution time, not data access.
+
+**Fix:** raised `maxDuration` from `60` to `300` on both `app/api/tailor/route.ts` and `app/api/career-path/route.ts`, and raised the matching client-side `AbortController` timeout in `app/tailor/page.tsx` from `70_000`ms to `290_000`ms (kept slightly below the server-side budget so the server error surfaces before the client aborts). `300` was chosen as an empirical test of what the account's Vercel plan tier actually permits, since Vercel's docs didn't give a definitive per-tier ceiling — the original `60` exactly matching the observed timeout confirmed the plan does honor at least that value.
+
+**Status:** pushed to `staging` only, verified via a local build (tarball of `staging` + these three files + `pnpm build`). Not yet merged to `main` per standing instruction not to merge career-memory work until the user has fully tested it. Still needs: a real (non-seeded) end-to-end test of career-path roadmap generation on staging to confirm 300s actually resolves the timeout.
+
+---
+
+
+---
+
+## 🧭 Feature: Pace forecast + weekly digest (career path) — spec agreed 25 July 2026
+
+**Principle (Ose's call): no deadlines, no shame ledger.** A user-set due date is a
+commitment; missing it produces shame and app-avoidance. Instead the date is an
+**output, not an input** — a forecast computed from pace that only ever *shifts*,
+like a delivery estimate. No "overdue" state exists anywhere in the system.
+
+**V1 scope (shipped to staging 25 Jul 2026):**
+1. **Pace forecast** — `forecastReadyDate(openSkills, hoursPerWeek)` (pure fn,
+   ~10h/skill heuristic v1): North Star pin shows "At ~N hrs/week · ready by
+   {Month}". Pace editable inline (1/3/5/10 hrs) → `mode: set-pace`.
+2. **Momentum, not deadlines** — items stamp `touchedAt` on every status change;
+   pin shows "Last stitch: N days ago". The thread is continuity, not calendar.
+3. **Weekly digest email** — Vercel cron (Mon 09:00 UTC) → `/api/path-digest`
+   (Bearer CRON_SECRET). One email/week max: readiness now + forecast month +
+   in-progress skills + one next action. Tone rules: always lead with the win;
+   absence is never named; worst case is an offer to re-plan ("December drifted —
+   re-plan at 1 hr/week?"). Unsubscribe = one click, HMAC-signed link, no login
+   (`profiles.path_digest_opt_out`, migration 012).
+4. **Real external dates only** (job-tracker interviews/deadlines) may appear as
+   hard dates later — they're not self-judgment. Not in v1.
+
+**Later:** per-skill effort estimates from set-target research (replaces 10h
+heuristic); digest links that one-click start a skill; tracker-date integration.
+
+
+---
+
+## 💷 Feature: Live job market on the career path — v1 spec (26 July 2026)
+
+**Idea:** readiness stops being an abstract number and starts pricing the path.
+Three surfaces: (a) salary band + live role count on the locked North Star,
+(b) "one skill away" counts — closing skill X opens N more live roles,
+(c) later: clickable live postings with "Tailor for this".
+
+**Data source decision.** Use a jobs **API, not scraping** (LinkedIn/Indeed ToS +
+anti-bot make scraping both unlawful-ish and unreliable; Firecrawl's proper role
+is enriching a single posting a user explicitly opens). Adzuna is the fit for UK:
+`/jobs/gb/search` plus `/jobs/gb/histogram` for the salary distribution, and
+responses carry `salary_min`/`salary_max` + `salary_is_predicted` (predicted
+salaries MUST be labelled, never shown as fact).
+
+**Licensing reality (blocking for GA, not for build):** Adzuna free tier is
+~1,000 calls/month and commercial use beyond a 14-day evaluation needs written
+consent. Action: email Adzuna for a commercial key (we send qualified traffic —
+plausible mutual benefit). Until then the feature ships behind a flag and the
+app degrades to exactly today's behaviour.
+
+**Caching = the whole trick.** Snapshots are keyed on **(role, region), not user** —
+every user aiming at "Product Operations Lead / GB" shares one snapshot,
+refreshed weekly (migration 013 `market_snapshots`). A few hundred calls a month
+serves thousands of users, and the page renders from cache instantly.
+
+**Flag:** `MARKET_INSIGHTS_ENABLED=1` **and** `ADZUNA_APP_ID`/`ADZUNA_APP_KEY`
+present. Any missing → API returns `{ enabled: false }` and the UI renders nothing.
+
+**V1 scope (built 26 Jul 2026):** salary band (25th/median/75th from histogram),
+live role count, top hiring companies, and per-open-skill "opens N more roles"
+counts computed by honest keyword presence across fetched descriptions. Pure
+functions unit-tested; no per-job AI calls.
+
+**Later:** clickable postings + "Tailor for this" deep link; ready-today vs
+at-100% salary comparison; tracker interview dates as real external dates.
+
+_Last updated: 26 July 2026_
+
+---
+
+## ✏️ Feature: Editable output — tailored CV + cover letter (26 July 2026)
+
+**Idea:** the model's output is a draft, not a verdict. Users know their own
+history better than the pipeline does, so let them fix a wording, drop a bullet,
+or reword a claim without leaving Tailr and without re-running a tailor.
+
+**Scope shipped:** inline plain-text editing of (a) the Tailored CV and (b) the
+Cover Letter, on both the tailor page and the History detail view. Edits persist
+to `tailor_history`. Deliberately NOT editable: Key Changes / Gaps / ATS Notes —
+those are analysis of the run, not the artefact the user sends out.
+
+**Storage decision.** The edited CV is written back into the existing `result`
+jsonb (`result.tailoredCV`) rather than a parallel column, so every existing
+reader — history list, Word/.txt download, tracker sync — picks up the edit with
+zero changes. The AI's untouched version is preserved once, on the first edit,
+under `result.tailoredCVOriginal`, which powers "Revert to AI version".
+
+The cover letter previously had **no persistence at all** (generated client-side,
+lost on reload), so migration 014 gives it a `cover_letter` column. It's now
+saved on generation as well as on edit, and rehydrates when you reopen a run.
+`edited_at` records hand-edits only, not generations.
+
+**Migration 014 (`014_editable_output.sql`) is required** — until it's applied,
+saving an edit fails (both paths write `edited_at`). Idempotent, additive, no
+backfill needed.
+
+**Editor is a raw textarea, on purpose.** Everything downstream — Word/.txt
+export, ATS keyword checking, tracker sync — consumes plain text, so a rich
+editor would only be flattened back out again. ⌘↵ saves, Esc cancels.
+
+**Save ordering:** persist first, then apply locally. A failed save leaves the
+editor open with the user's draft intact, and what's on screen never disagrees
+with what's stored. Runs with no `historyId` (unsaved) still edit fine —
+session-only.
+
+_Last updated: 26 July 2026_
+
+---
+
+## 🎨 Feature: CV templates — six styles, live preview (26 July 2026)
+
+**Idea:** one house style doesn't fit a law CV and a design CV. Users pick a
+template, see the real thing on screen, and download exactly that.
+
+**Grounded in current guidance, not taste** (Microsoft Create, Indeed, ResuFit,
+resume.io, Jan 2026):
+- **Layout never varies.** Every template is single-column, no tables, no text
+  boxes, no sidebars — multi-column is the single biggest cause of ATS parsing
+  failures. Templates differ in typography and rules ONLY. A unit test enforces
+  this: no `<table>`, no `column-count`, no flex/grid in any output.
+- Only ATS-safe, near-universally installed faces: Calibri, Cambria, Garamond,
+  Georgia, Helvetica/Arial. Every stack ends in a generic family because
+  Helvetica ships on macOS but not Windows and the .doc usually opens on Windows.
+- Body text never below 10pt (also unit-tested).
+
+**The six:** Modern Clean (default, unchanged from before so nobody's existing
+output shifts) · Classic Serif (Cambria, centred, law/government/education) ·
+Executive Garamond (narrower face, fits a long career without shrinking type) ·
+Editorial Georgia (screen-first serif, comms/marketing) · Minimal Sans
+(Helvetica, no colour or rules, design/tech) · ATS Plain (Arial, deliberately
+unstyled, for ruthless filters).
+
+**One token set, two renderers.** `lib/cv-templates.ts` holds points-based tokens
+consumed by BOTH the Word builder and the on-screen preview (px = pt × 4/3), so
+the preview is the download rather than a lookalike — they cannot drift.
+
+**Persistence:** `profiles.cv_template` (migration 015), free text not an enum —
+template ids are a product concern that will churn faster than the schema should.
+Unknown/NULL degrades to the default via `toTemplateId`, so retiring a template
+can never break a user's results view. `useCvTemplate` is local-first:
+localStorage paints instantly (a CV re-skinning itself a beat after render looks
+broken), then the server value corrects it. Signed-out users get a working
+picker that simply doesn't persist.
+
+**Migration 015 required** before the preference persists; without it the picker
+still works per-device via localStorage.
+
+_Last updated: 26 July 2026_
+
+---
+
+## ⚡ Feature: Quick wins — Upskill merged into the career path (27 July 2026)
+
+**Problem:** Upskill wrote a per-run plan to `tailor_history.upskill` that nothing
+else read — closing a skill there ticked a box on one history row and changed
+nothing (no evidence edge, no forecast, no digest). Two parallel skill lists, one
+inert. Migration 009 never went to prod, so prod never saw the tab.
+
+**Decision (per the Quick Wins plan + Phase 0 findings):** one store, two horizons.
+Items normalised out of `career_roadmaps.items` (jsonb array, one row per user)
+into `career_roadmap_items` (migration 016) — real rows with `horizon`
+(`quick`/`core`), `source`, `source_run_id` FK, `role_family_at_capture`,
+`surfaced_count`, `archived_at`. Dedupe on skill is a DB unique index, not app
+code. `career_roadmaps` keeps its per-user fields; its `items` column is left in
+place untouched for rollback, to be dropped in a later migration.
+
+**Horizon rules by consumer** — the pollution-prevention core of the design:
+path/readiness/forecast/market read `core` only; evidence review and the tailor
+evidence edge read both. Quick wins can never move the North Star's numbers.
+
+**Capture (Phase 3):** the generator now estimates `effortHours` per skill
+(honest, CV-calibrated, "do not flatter"). `splitByEffort`: ≤5h auto-captures as
+`quick`; anything bigger — or with NO usable estimate — comes back as a candidate
+needing explicit "Add to my path". That rule keeps "learn Kubernetes" out of the
+quick lane. `/api/upskill` rewritten as this endpoint; PATCH cycles status in the
+shared store, so closing a skill anywhere closes it everywhere.
+
+**Surfaces (Phase 4):** `components/quick-wins.tsx` — one card, two placements:
+"Close these gaps" strip in the tailor Gaps tab (replaces the Upskill tab), and a
+"Quick wins" section on the career path above the skill map. Same write path.
+GET /api/career-path now returns `quickWins` alongside the roadmap.
+
+**Sequencing constraint for prod:** the wired code reads `career_roadmap_items`
+— prod MUST get migration 016 (table + backfill) before this code deploys, or
+the career path 500s for all users. Staging had 016 applied first; backfill
+verified exact (4/4 items, order + content match).
+
+**The loop (Phase 5, 27 Jul):** the tailor evidence edge is now evidence-gated —
+only skills closed with a PASSED evidence review are woven into future CVs
+(loadProvenSkills). A self-ticked "done" shows done in the UI but never adds a
+CV line and never lifts the match; without that gate the feature is keyword
+stuffing with better fonts. Because the evidence block is part of the tailor
+cache hash, an unverified close re-serves the cached run (score provably
+unmoved) while a verified close forces a fresh run — the acceptance test holds
+by construction. When a re-run of the same JD scores higher with proven skills
+in play, the response carries scoreDelta and the tailor page shows the payoff
+banner: "You closed X — this job went 61% → 68%." Quick-win cards gained
+"Verify with evidence" (same reviewer route as the path, both horizons), so
+verification is reachable at the moment of closing — addressing the Phase 0
+finding that evidence uploads were ~never used.
+
+**Promotion + expiry (Phase 6, 27 Jul):** a quick win OFFERS promotion to the
+core path when surfaced by 3+ applications (a pattern, not a one-off job) or
+closed with passed evidence (proven investment) — `promotionEligible`, unit
+tested. Always an offer, never automatic; provenance survives promotion.
+Untouched quick wins (not done, no activity in 30 days) auto-archive lazily on
+the career-path read — no cron — and un-archive with surfaced_count++ if a
+later run resurfaces the skill. Done items never expire. NOTE one deliberate
+deviation from the plan: rule 2 was "on the North Star role family AND just
+closed", but the North Star's role family isn't stored anywhere and deriving it
+would cost an AI call, so the shipped rule is "closed with passed evidence" —
+a stronger signal, and safe because it only gates an offer.
+
+**Still open:** dropping `tailor_history.upskill` + migration 009 file, dropping
+`career_roadmaps.items` once proven; prod port needs 016 (table+backfill at
+cutover) before this code.
+
+_Last updated: 27 July 2026_

@@ -5,6 +5,7 @@ import {
   type ExtractResult, type RequirementMapping, type RoleFamily,
 } from '@/lib/anthropic'
 import { createClient } from '@/lib/supabase/server'
+import { loadProvenSkills } from '@/lib/roadmap-store'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { checkRateLimit } from '@/lib/rate-limit'
 
@@ -204,11 +205,15 @@ export async function POST(req: NextRequest) {
     // honestly worked in. Best-effort + no-op (and hash-neutral) when empty, so
     // the money path is never broken by it.
     let evidenceBlock = ''
+    let provenSkillNames: string[] = []
     try {
-      const { data: rm } = await supabase.from('career_roadmaps').select('items').eq('user_id', user.id).maybeSingle()
-      const done = (((rm?.items ?? []) as Array<{ skill?: string; cvPhrasing?: string; status?: string }>)
-        .filter((i) => i.status === 'done'))
-        .slice(0, 8)
+      // Evidence-gated (§4.2, non-negotiable): only skills closed WITH a passed
+      // evidence review may be woven into a CV. A self-ticked "done" shows as
+      // done in the UI but never adds a line here and never lifts the match —
+      // without this gate the feature is keyword stuffing with better fonts,
+      // which is the exact failure mode Tailr exists to prevent.
+      const done = await loadProvenSkills(supabase, user.id, 8)
+      provenSkillNames = done.map((i) => i.skill)
       if (done.length > 0) {
         evidenceBlock = '[CANDIDATE UPDATE - skills the candidate has since developed via their learning path. Treat these as genuine and weave them in ONLY where the job calls for them. Never fabricate beyond what is listed here.]\n' +
           done.map((i) => `- ${String(i.skill ?? '').slice(0, 80)}: ${String(i.cvPhrasing ?? '').slice(0, 200)}`).join('\n')
@@ -302,6 +307,28 @@ export async function POST(req: NextRequest) {
       seniority: extract.seniority,
     })
 
+    // §4.3: the proof the loop works. If this exact job was tailored before
+    // and the score rose while proven skills were in play, name the change —
+    // without this the mechanism is invisible and the section reads as a
+    // to-do list. Best-effort: a lookup failure must never break tailoring.
+    let scoreDelta: { from: number; to: number; skills: string[] } | null = null
+    try {
+      if (provenSkillNames.length > 0) {
+        const { data: prior } = await supabase
+          .from('tailor_history')
+          .select('match_score')
+          .eq('user_id', user.id)
+          .eq('job_description', jobDescription)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        const prev = typeof prior?.match_score === 'number' ? prior.match_score : null
+        if (prev !== null && result.matchScore > prev) {
+          scoreDelta = { from: prev, to: result.matchScore, skills: provenSkillNames.slice(0, 3) }
+        }
+      }
+    } catch { /* the delta is a nice-to-have, never a dependency */ }
+
     // 6. Track usage (fire-and-forget) + save to history (blocking — we need
     // the row id back so the client can attach feedback to this run)
     const jobSnippet = jobDescription.trim().slice(0, 200)
@@ -331,7 +358,7 @@ export async function POST(req: NextRequest) {
       console.error('[tailor] history save failed:', e)
     }
 
-    return NextResponse.json({ result, historyId, compressed })
+    return NextResponse.json({ result, historyId, compressed, scoreDelta })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     const status = (err as { status?: number })?.status

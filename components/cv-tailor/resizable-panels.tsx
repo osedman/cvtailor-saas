@@ -284,6 +284,7 @@ export function ResizablePanels({
               <p className="text-sm">Reading your CV…</p>
             </div>
           ) : !cvText ? (
+            <>
             <label
               htmlFor={fileInputId}
               className={`flex-1 flex flex-col items-center justify-center gap-3 cursor-pointer m-2 rounded-lg border-2 border-dashed transition-all duration-150 group ${
@@ -303,11 +304,15 @@ export function ResizablePanels({
               </div>
               <p className="text-xs text-gray-300">or paste your CV text below</p>
             </label>
+            <a href="/career-path/first-cv" className="block text-center text-xs text-gray-400 pb-2.5 -mt-0.5 hover:text-[#dc4f33] transition-colors">
+              No CV yet? <span className="font-semibold text-[#dc4f33]">Build one from projects, certificates and experience</span>
+            </a>
+            </>
           ) : (
             <textarea
               value={cvText}
               onChange={(e) => setCvText(e.target.value)}
-              className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none font-mono text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300"
+              className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300"
               placeholder="Your CV text…"
             />
           )}
@@ -317,7 +322,7 @@ export function ResizablePanels({
             <textarea
               value={cvText}
               onChange={(e) => setCvText(e.target.value)}
-              className="w-full h-20 px-3 py-2 bg-transparent resize-none focus:outline-none font-mono text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300 border-t border-gray-100"
+              className="w-full h-20 px-3 py-2 bg-transparent resize-none focus:outline-none text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300 border-t border-gray-100"
               placeholder="…or paste your CV text here"
             />
           )}

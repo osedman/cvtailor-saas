@@ -16,7 +16,7 @@ import { SignInModal } from "@/components/auth/sign-in-modal"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
 import { HistoryDrawer, type HistoryItem } from "@/components/cv-tailor/history-drawer"
-import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult } from "@/lib/anthropic"
+import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 import { markOnboardingStep, isOnboardingDismissed } from "@/lib/onboarding"
 import { Lightbulb, X } from "lucide-react"
 
@@ -93,6 +93,7 @@ export default function CVTailorPage() {
   const [companyAnalysis, setCompanyAnalysis] = useState<string | null>(null)
   const [loadingCompany, setLoadingCompany] = useState(false)
   const [historyId, setHistoryId] = useState<string | null>(null)
+  const [scoreDelta, setScoreDelta] = useState<{ from: number; to: number; skills: string[] } | null>(null)
   const [tailoredFromCv, setTailoredFromCv] = useState<string | null>(null)
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
 
@@ -117,6 +118,7 @@ export default function CVTailorPage() {
     setPrepQuestions(null)
     setCompanyAnalysis(null)
     setHistoryId(null)
+    setScoreDelta(null)
     setProgressStep(0)
     setLoadingStatus("Analysing job requirements…")
 
@@ -136,7 +138,7 @@ export default function CVTailorPage() {
       const ac = new AbortController()
       const timer = setTimeout(() => ac.abort(), 290_000)
 
-      let data: { result?: TailorResult; historyId?: string | null; compressed?: boolean; cached?: boolean; error?: string }
+      let data: { result?: TailorResult; historyId?: string | null; compressed?: boolean; cached?: boolean; scoreDelta?: { from: number; to: number; skills: string[] } | null; error?: string }
       try {
         const res = await fetch("/api/tailor", {
           method: "POST",
@@ -158,6 +160,7 @@ export default function CVTailorPage() {
 
       setResults(data.result)
       setHistoryId(data.historyId ?? null)
+      setScoreDelta(data.scoreDelta ?? null)
       setTailoredFromCv(cvText)
       markOnboardingStep("tailor")
 
@@ -193,12 +196,51 @@ export default function CVTailorPage() {
       const data = await readJson<CoverLetterResult>(res)
       setCoverLetter(data.coverLetter)
       markOnboardingStep("cover")
+      // Persist it against the run so it survives a reload and can be edited
+      // later from History. Best-effort — a failure here shouldn't block the
+      // letter the user is already looking at.
+      if (historyId) {
+        fetch(`/api/history/${historyId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ coverLetter: data.coverLetter }),
+        }).catch(() => {})
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate cover letter.")
     } finally {
       setLoadingCoverLetter(false)
     }
-  }, [cvText, jobDescription])
+  }, [cvText, jobDescription, historyId])
+
+  /**
+   * Hand-edits to the generated output. Persisted first, then applied locally —
+   * so if the save fails the editor stays open with the user's draft intact and
+   * what's on screen still matches what's stored.
+   */
+  const patchRun = useCallback(async (body: Record<string, unknown>) => {
+    if (!historyId) return   // unsaved run — edit lives in this session only
+    const res = await fetch(`/api/history/${historyId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    await readJson(res)
+  }, [historyId])
+
+  const handleSaveTailoredCV = useCallback(async (text: string) => {
+    await patchRun({ tailoredCV: text })
+    setResults((prev) => prev ? {
+      ...prev,
+      tailoredCVOriginal: prev.tailoredCVOriginal ?? prev.tailoredCV,
+      tailoredCV: text,
+    } : prev)
+  }, [patchRun])
+
+  const handleSaveCoverLetter = useCallback(async (text: string) => {
+    await patchRun({ coverLetter: text, edited: true })
+    setCoverLetter(text)
+  }, [patchRun])
 
   const handleGeneratePitches = useCallback(async () => {
     setLoadingPitches(true)
@@ -258,9 +300,11 @@ export default function CVTailorPage() {
     }
   }, [results, jobDescription])
 
+
+
   const handleRestoreHistory = useCallback((item: HistoryItem) => {
     setResults(item.result)
-    setCoverLetter(null)
+    setCoverLetter(item.cover_letter || null)
     setPitches(null)
     setPrepQuestions(null)
     setCompanyAnalysis(null)
@@ -301,7 +345,10 @@ export default function CVTailorPage() {
         {/* Match score (shown once results are ready) */}
         {results && (
           enhanced
-            ? <div className="pt-2 pb-4"><MatchScoreBar score={results.matchScore} /></div>
+            ? <div className="pt-2 pb-4">
+                {scoreDelta && <ScoreDeltaBanner delta={scoreDelta} />}
+                <MatchScoreBar score={results.matchScore} />
+              </div>
             : <div className="py-4 flex justify-center"><MatchScoreBadge score={results.matchScore} /></div>
         )}
 
@@ -357,6 +404,8 @@ export default function CVTailorPage() {
                   loadingCompany={loadingCompany}
                   onGenerateCompany={handleGenerateCompany}
                   historyId={historyId}
+                  onSaveTailoredCV={handleSaveTailoredCV}
+                  onSaveCoverLetter={handleSaveCoverLetter}
                 />
                 {user && <CareerSyncPanel key={historyId ?? "sync"} results={results} />}
               </div>
@@ -399,6 +448,26 @@ function NextStepNudge({
       <button onClick={onDismiss} className="p-1 -mr-1 rounded text-gray-300 hover:text-gray-500 hover:bg-black/5 transition-colors" aria-label="Dismiss tip">
         <X className="w-3.5 h-3.5" />
       </button>
+    </div>
+  )
+}
+
+/**
+ * The §4.3 payoff line: proof the close-a-gap loop moves the number. Shown only
+ * when this exact job was tailored before, proven skills were woven in, and the
+ * score actually rose — so it never fires as empty encouragement.
+ */
+function ScoreDeltaBanner({ delta }: { delta: { from: number; to: number; skills: string[] } }) {
+  const skills = delta.skills.join(", ")
+  return (
+    <div className="mb-3 flex items-center gap-3 bg-[#eefaf3] border border-[#bfe8d2] rounded-2xl px-5 py-3.5">
+      <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[#1d9e75] text-white flex items-center justify-center text-[13px] font-extrabold">
+        +{delta.to - delta.from}
+      </span>
+      <p className="text-[13.5px] text-[#1e1813] leading-snug">
+        You closed <span className="font-semibold">{skills}</span> — this job went{" "}
+        <span className="font-semibold">{delta.from}% → {delta.to}%</span>. That's your work showing up.
+      </p>
     </div>
   )
 }

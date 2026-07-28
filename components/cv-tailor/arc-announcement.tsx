@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { TrendingUp, X, ArrowRight } from "lucide-react"
+import { useCareerBeta } from "@/hooks/use-career-beta"
 
 const DISMISSED_KEY = "tailr:arc-announcement:dismissed"
 
@@ -12,6 +13,7 @@ const DISMISSED_KEY = "tailr:arc-announcement:dismissed"
  */
 export function ArcAnnouncement() {
   const [visible, setVisible] = useState(false)
+  const careerBeta = useCareerBeta()
 
   useEffect(() => {
     try {
@@ -34,7 +36,7 @@ export function ArcAnnouncement() {
     try { localStorage.setItem(DISMISSED_KEY, "1") } catch { /* ignore */ }
   }
 
-  if (!visible) return null
+  if (!visible || !careerBeta) return null
 
   return (
     <div className="relative mb-4 flex items-center gap-3 rounded-xl px-4 py-3 overflow-hidden" style={{ background: "#1e1813" }}>

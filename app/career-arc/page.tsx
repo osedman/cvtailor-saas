@@ -814,6 +814,7 @@ export default function CareerArcPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [state, setState] = useState<WizardState>({ step: "loading" })
+  const [betaLocked, setBetaLocked] = useState(false)
 
   useEffect(() => {
     if (!authLoading && !user) router.push("/tailor")
@@ -842,7 +843,10 @@ export default function CareerArcPage() {
   useEffect(() => {
     if (!user) return
     fetch("/api/career-profile")
-      .then((res) => readJson<{ profile: Profile | null }>(res))
+      .then((res) => {
+        if (res.status === 403) { setBetaLocked(true); return Promise.reject(new Error("beta")) }
+        return readJson<{ profile: Profile | null }>(res)
+      })
       .then((data) => {
         // Old-schema rows (pre-redesign) lack identity — treat as not built yet
         if (data.profile?.sections?.identity) {
@@ -853,6 +857,16 @@ export default function CareerArcPage() {
       })
       .catch(() => setState({ step: "paste" }))
   }, [user, startWizard])
+
+  if (betaLocked) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-3 px-6 text-center">
+        <p className="text-sm font-semibold text-[#1e1813]">Career Arc is in a small private beta.</p>
+        <p className="text-sm text-gray-500 max-w-sm">We're finishing it properly before it comes to everyone.</p>
+        <Link href="/tailor" className="text-sm text-[#dc4f33] hover:underline">Back to tailoring</Link>
+      </div>
+    )
+  }
 
   if (authLoading || !user || state.step === "loading") {
     return (

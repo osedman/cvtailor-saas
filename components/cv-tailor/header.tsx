@@ -6,6 +6,7 @@ import { LogOut, ChevronDown, Clock, Kanban, ShieldCheck, Target, TrendingUp } f
 import { useAuth } from "@/components/auth/auth-provider"
 import { SignInModal } from "@/components/auth/sign-in-modal"
 import { isAdminEmail } from "@/lib/admin"
+import { useCareerBeta } from "@/hooks/use-career-beta"
 
 interface HeaderProps {
   onSignInClick?: () => void
@@ -18,6 +19,7 @@ export function Header({ onSignInClick, onHistoryClick, enhanced = false }: Head
   const [showModal, setShowModal] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const { user, loading, signOut } = useAuth()
+  const careerBeta = useCareerBeta()
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10)
@@ -75,6 +77,7 @@ export function Header({ onSignInClick, onHistoryClick, enhanced = false }: Head
                   <Kanban className="w-4 h-4" />
                   <span className="hidden sm:block">Tracker</span>
                 </Link>
+                {careerBeta && (<>
                 <Link
                   href="/career-path"
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-[#dc4f33] hover:bg-[#ffeae4] rounded-lg transition-colors"
@@ -91,6 +94,7 @@ export function Header({ onSignInClick, onHistoryClick, enhanced = false }: Head
                   <TrendingUp className="w-4 h-4" />
                   <span className="hidden sm:block">Career Arc</span>
                 </Link>
+                </>)}
                 {isAdminEmail(user.email) && (
                   <Link
                     href="/admin"

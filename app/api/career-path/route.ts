@@ -1,18 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { anthropic, CAREER_ROADMAP_TOOL, type CareerRoadmapItem, type RequirementMapping } from '@/lib/anthropic'
+import { isCareerPathBeta, BETA_LOCKED } from '@/lib/feature-gate'
 import {
-  deriveTargetRole, rankGapsByUnlock, computeReadiness, skillMatches,
-  type HistoryEntry, type TrackerJob,
+  anthropic, CAREER_ROADMAP_TOOL, CV_FINDINGS_TOOL, SUGGEST_TARGETS_TOOL, ROLE_SKILLS_TOOL,
+  buildRoadmapPrompt, type CareerRoadmapItem, type RequirementMapping, type RoleSkillJudged,
+} from '@/lib/anthropic'
+import {
+  deriveTargetRole, rankGapsByUnlock, computeReadiness, readinessFromTargetSkills, skillMatches,
+  type HistoryEntry, type TrackerJob, type TargetSkill,
 } from '@/lib/career-path-compute'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
+import { errMessage } from '@/lib/err'
+import { validateItemResources } from '@/lib/course-validation'
+import {
+  loadItems, replaceItems, addItems, setItemStatus, removeSkill as storeRemoveSkill,
+  expireStaleQuickWins, type StoredRoadmapItem,
+} from '@/lib/roadmap-store'
 
 export const maxDuration = 300
 
-const PROMPT_PREFIX = `You are helping a job seeker close specific skill gaps that keep showing up across their job applications. For EACH skill listed below, search the web and find 2-3 REAL, FREE, reputable learning resources (prefer freeCodeCamp, MIT OpenCourseWare, Khan Academy, official framework/language documentation, Coursera or edX audit-mode courses, or well-known official YouTube channels). Only include resources you actually find via search — never invent a URL or a course that may not exist. For each skill also suggest one concrete, scoped project the candidate could build in their spare time to demonstrate it, and a single CV bullet point they could add once they have completed it.`
+const ROADMAP_COLS = 'id, created_at, updated_at, target_role, hours_per_week, current_title, milestones, intention, target_skills, findings'
 
-const ROADMAP_COLS = 'id, created_at, updated_at, target_role, hours_per_week, current_title, milestones, intention, items'
+/**
+ * Attach items from career_roadmap_items to a roadmap row.
+ *
+ * Items no longer live on the row (migration 016), but every client reads
+ * `roadmap.items`, so the API contract is preserved here rather than in the UI.
+ * Core-only by default: quick wins are surfaced separately and must never
+ * silently join the North Star path or its forecast.
+ */
+async function withItems<T extends object>(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  row: T | null,
+  horizon: 'core' | 'quick' | undefined = 'core',
+): Promise<(T & { items: StoredRoadmapItem[] }) | null> {
+  if (!row) return null
+  const items = await loadItems(supabase, userId, { horizon })
+  return { ...row, items }
+}
+
+/** The user's market, grounding region-aware course sourcing. Defaults to GB. */
+async function loadRegion(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): Promise<string> {
+  try {
+    const { data } = await supabase.from('profiles').select('country').eq('id', userId).maybeSingle()
+    return (data?.country as string | undefined)?.trim() || 'GB'
+  } catch { return 'GB' }
+}
 
 const MIN_CV = 300
 
@@ -41,20 +76,13 @@ function calibration(cv: string, intention: string): string {
 
 /** Surface real messages from Supabase/Postgrest errors, which are plain
  * objects (not Error instances) — otherwise String(err) yields "[object Object]". */
-function errMessage(err: unknown): string {
-  if (err instanceof Error) return err.message
-  if (err && typeof err === 'object') {
-    const e = err as { message?: string; error?: string; details?: string; hint?: string; code?: string }
-    return e.message || e.error || e.details || e.hint || (e.code ? `Database error ${e.code}` : JSON.stringify(err))
-  }
-  return String(err)
-}
 
 export async function GET() {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
     const [roadmapRes, histRes, trackRes, arcRes] = await Promise.all([
       supabase.from('career_roadmaps').select(ROADMAP_COLS).eq('user_id', user.id).maybeSingle(),
@@ -64,7 +92,7 @@ export async function GET() {
     ])
     if (roadmapRes.error) throw roadmapRes.error
 
-    const roadmap = roadmapRes.data ?? null
+    const roadmap = await withItems(supabase, user.id, roadmapRes.data ?? null)
 
     const history: HistoryEntry[] = (histRes.data ?? []).map((r) => ({
       historyId: r.id as string,
@@ -81,16 +109,31 @@ export async function GET() {
 
     const derivedTarget = deriveTargetRole(history)
     const items = (roadmap?.items as CareerRoadmapItem[] | undefined) ?? []
+    // NB: core-only, per withItems — quick wins never move the readiness number.
     const closedSkills = items.filter((i) => i.status === 'done').map((i) => i.skill)
     const openSkills = items.filter((i) => i.status !== 'done').map((i) => i.skill)
     const target = ((roadmap?.target_role as string) || derivedTarget || '').trim()
 
-    const readiness = computeReadiness(target, history, closedSkills)
+    // Readiness against the chosen North Star (its market skill set) when we have
+    // one; otherwise fall back to what tailor history reveals about the target.
+    const targetSkills = (roadmap?.target_skills as TargetSkill[] | undefined) ?? []
+    const readiness = targetSkills.length > 0
+      ? readinessFromTargetSkills(targetSkills, closedSkills)
+      : computeReadiness(target, history, closedSkills)
     const rankedGaps = rankGapsByUnlock(openSkills, tracker, historyById)
 
     const arcAmbition = ((arcRes.data?.sections as { story?: { ambition?: string } } | null)?.story?.ambition ?? '').trim()
 
-    return NextResponse.json({ roadmap, derivedTarget, readiness, rankedGaps, arcAmbition })
+    // Quick wins ride alongside the roadmap, never inside it: roadmap.items is
+    // core-only by contract (readiness and the forecast are computed from it),
+    // so run-surfaced items get their own field and their own section in the UI.
+    // Expiry is lazy, here at the read: untouched quick wins archive after 30
+    // days so the section never becomes a graveyard — the standard failure
+    // mode for lists like this. Best-effort; never blocks the path.
+    try { await expireStaleQuickWins(supabase, user.id) } catch { /* non-fatal */ }
+    const quickWins = await loadItems(supabase, user.id, { horizon: 'quick' })
+
+    return NextResponse.json({ roadmap, derivedTarget, readiness, rankedGaps, arcAmbition, quickWins })
   } catch (err) {
     const msg = errMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
@@ -102,12 +145,27 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
     const limited = await checkRateLimit(user.id, 'ai')
     if (limited) return limited
 
     const body = await req.json()
     const { targetRole, hoursPerWeek, skills, intention } = body
+
+    // Set the weekly learning pace — drives the forecast, never a deadline.
+    if (body?.mode === 'set-pace') {
+      const hours = Number(body.hoursPerWeek)
+      if (!Number.isFinite(hours) || hours < 1 || hours > 40) {
+        return NextResponse.json({ error: 'Pace must be between 1 and 40 hours a week.' }, { status: 400 })
+      }
+      const { data: saved, error } = await supabase
+        .from('career_roadmaps')
+        .upsert({ user_id: user.id, hours_per_week: Math.round(hours), updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+        .select(ROADMAP_COLS).single()
+      if (error) throw error
+      return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
+    }
 
     // Set/update the stated intention (goal) on its own.
     if (body?.mode === 'set-intention') {
@@ -117,7 +175,120 @@ export async function POST(req: NextRequest) {
         .upsert({ user_id: user.id, intention: value, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
         .select(ROADMAP_COLS).single()
       if (error) throw error
-      return NextResponse.json({ roadmap: saved })
+      return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
+    }
+
+    // ── Stage 1 of the North Star journey: scan the CV → career-coach findings.
+    // Strengths first, then gaps, in Tailr's evidence voice. No web. Cached on
+    // the roadmap row so the scan screen is instant on return.
+    if (body?.mode === 'scan-cv') {
+      const cv = await loadCandidateCv(supabase, user.id)
+      if (!cv) return NextResponse.json({ error: "We couldn't find a CV to scan yet — tailor a CV first, or paste one." }, { status: 400 })
+
+      const msg = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 900,
+        tools: [CV_FINDINGS_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_cv_findings' },
+        messages: [{ role: 'user', content: `Read this candidate's CV as a career coach. Name their standout strengths FIRST (evidence-backed), then their honest development gaps. Use ONLY what the CV supports — never invent experience.\n\n${cv}` }],
+      })
+      const tu = msg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_cv_findings')
+      if (!tu || tu.type !== 'tool_use') throw new Error('Could not read your CV. Please try again.')
+      const findings = sanitizeDeep(tu.input as Record<string, unknown>)
+
+      // Best-effort cache; never block returning the findings.
+      try {
+        await supabase.from('career_roadmaps').upsert(
+          { user_id: user.id, findings, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id' },
+        )
+      } catch { /* caching is a nice-to-have */ }
+
+      return NextResponse.json({ findings })
+    }
+
+    // ── Stage 2: suggest North Stars from the CV + stated ambition. No web.
+    if (body?.mode === 'suggest-targets') {
+      const cv = await loadCandidateCv(supabase, user.id)
+      const { data: prof } = await supabase.from('career_profiles').select('sections').eq('user_id', user.id).maybeSingle()
+      const ambition = ((prof?.sections as { story?: { ambition?: string } } | null)?.story?.ambition ?? '').trim()
+      const steer = String(body.intention ?? '').trim() || ambition
+
+      const msg = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 700,
+        tools: [SUGGEST_TARGETS_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_target_suggestions' },
+        messages: [{ role: 'user', content: `Suggest 3-4 realistic 1-2 year target roles ("North Stars") for this candidate, grounded in their CV${steer ? ` and their stated goal: "${steer.slice(0, 300)}"` : ''}. Best-fit first, with one sentence each on why it fits them and an honest, differentiated CV-fit percentage per role.${cv ? `\n\nCV:\n${cv}` : '\n\n(No CV available — suggest broadly sensible starting roles and say they can search their own.)'}` }],
+      })
+      const tu = msg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_target_suggestions')
+      if (!tu || tu.type !== 'tool_use') throw new Error('Could not suggest roles. Please try again.')
+      const targets = ((tu.input as { targets?: unknown[] }).targets ?? [])
+      return NextResponse.json({ targets })
+    }
+
+    // ── Stage 3: lock in a North Star → pull the role's UK-market skill set,
+    // judge each against the CV (the transparent "60"), then generate a plan for
+    // the gaps. This drives the readiness % against the CHOSEN target.
+    if (body?.mode === 'set-target') {
+      const role = String(body.role ?? '').trim().slice(0, 120)
+      if (!role) return NextResponse.json({ error: 'Which role are you aiming at?' }, { status: 400 })
+
+      const [cv, region] = await Promise.all([loadCandidateCv(supabase, user.id), loadRegion(supabase, user.id)])
+      const { data: existing } = await supabase
+        .from('career_roadmaps').select('intention, hours_per_week').eq('user_id', user.id).maybeSingle()
+      const intention = (existing?.intention as string) || ''
+      const regionName = region.toUpperCase() === 'GB' ? 'the UK' : 'their country'
+
+      // 1) The role's market-demanded skills, judged have/missing against the CV.
+      const skillsMsg = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1500,
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 } as never, ROLE_SKILLS_TOOL],
+        messages: [{ role: 'user', content: `Research what the "${role}" role demands in ${regionName} job market today (search real, current job postings). Then list the 8-14 skills/requirements that role asks for — core ones first — and for EACH, judge whether this candidate's CV already gives clear evidence of it (have=true) or not. Include skills they HAVE and skills they LACK, so they see the full picture.${cv ? `\n\nCandidate CV:\n${cv}` : '\n\n(No CV provided — mark have=false unless clearly implied.)'}` }],
+      })
+      const stu = skillsMsg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_role_skills')
+      if (!stu || stu.type !== 'tool_use') throw new Error('Could not research that role. Please try again.')
+      const roleSkills = (((stu.input as { skills?: RoleSkillJudged[] }).skills ?? []) as RoleSkillJudged[])
+        .filter((s) => s && typeof s.skill === 'string' && s.skill.trim())
+        .map((s) => ({ skill: s.skill.trim().slice(0, 80), have: !!s.have, importance: s.importance || 'common' }))
+      if (roleSkills.length === 0) throw new Error('That role came back empty. Please try again.')
+
+      // 2) A learning plan for the gaps (the skills they lack), UK-sourced.
+      const gaps = roleSkills.filter((s) => !s.have).map((s) => s.skill).slice(0, 5)
+      let items: CareerRoadmapItem[] = []
+      if (gaps.length > 0) {
+        const planMsg = await anthropic.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 3000,
+          tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 } as never, CAREER_ROADMAP_TOOL],
+          messages: [{ role: 'user', content: buildRoadmapPrompt({ skills: gaps, targetRole: role, hoursPerWeek: (existing?.hours_per_week as number) ?? null, region, calibration: calibration(cv, intention) }) }],
+        })
+        const ptu = planMsg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_roadmap')
+        if (ptu && ptu.type === 'tool_use') {
+          items = await validateItemResources(
+            ((ptu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const }))
+          )
+        }
+      }
+
+      const clean = sanitizeDeep({ target_role: role, target_skills: roleSkills })
+      const { data: savedRow, error } = await supabase
+        .from('career_roadmaps')
+        .upsert({ user_id: user.id, ...clean, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+        .select(ROADMAP_COLS).single()
+      if (error) throw error
+      // Replaces the core plan only, so locking a new North Star can never wipe
+      // quick wins the user is part-way through.
+      const savedItems = await replaceItems(
+        supabase, user.id, savedRow.id as string,
+        sanitizeDeep(items) as StoredRoadmapItem[], 'core',
+      )
+      const saved = { ...savedRow, items: savedItems }
+
+      const closed = savedItems.filter((i) => i.status === 'done').map((i) => i.skill)
+      const readiness = readinessFromTargetSkills(roleSkills as TargetSkill[], closed)
+      return NextResponse.json({ roadmap: saved, readiness })
     }
 
     // Remove a skill from the path and remember it so it's never re-added.
@@ -125,17 +296,17 @@ export async function POST(req: NextRequest) {
       const skill = String(body.skill ?? '').trim()
       if (!skill) return NextResponse.json({ error: 'A skill is required' }, { status: 400 })
       const { data: existing, error: fErr } = await supabase
-        .from('career_roadmaps').select('items, removed_skills').eq('user_id', user.id).maybeSingle()
+        .from('career_roadmaps').select('removed_skills').eq('user_id', user.id).maybeSingle()
       if (fErr) throw fErr
       if (!existing) return NextResponse.json({ error: 'No path found' }, { status: 404 })
-      const items = ((existing.items as CareerRoadmapItem[]) ?? []).filter((i) => i.skill.toLowerCase() !== skill.toLowerCase())
+      await storeRemoveSkill(supabase, user.id, skill)
       const removed = Array.from(new Set([...(((existing.removed_skills as string[]) ?? [])), skill.toLowerCase()])).slice(-100)
       const { data: saved, error } = await supabase
         .from('career_roadmaps')
-        .update({ items, removed_skills: removed, updated_at: new Date().toISOString() })
+        .update({ removed_skills: removed, updated_at: new Date().toISOString() })
         .eq('user_id', user.id).select(ROADMAP_COLS).single()
       if (error) throw error
-      return NextResponse.json({ roadmap: saved })
+      return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
     }
 
     // ── Stage 3: living-path update actions ───────────────────────────────
@@ -150,7 +321,7 @@ export async function POST(req: NextRequest) {
 
       const { data: existing } = await supabase
         .from('career_roadmaps')
-        .select('target_role, hours_per_week, current_title, milestones, items')
+        .select('target_role, hours_per_week, current_title, milestones')
         .eq('user_id', user.id).maybeSingle()
 
       const priorMilestones = Array.isArray(existing?.milestones) ? existing!.milestones as Array<{ role: string; reachedAt: string }> : []
@@ -164,7 +335,6 @@ export async function POST(req: NextRequest) {
           hours_per_week: existing?.hours_per_week ?? null,
           current_title: reachedRole,
           milestones,
-          items: existing?.items ?? [],
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' })
         .select(ROADMAP_COLS).single()
@@ -235,9 +405,9 @@ export async function POST(req: NextRequest) {
 
       const { data: existing } = await supabase
         .from('career_roadmaps')
-        .select('target_role, hours_per_week, intention, items, removed_skills')
+        .select('target_role, hours_per_week, intention, removed_skills')
         .eq('user_id', user.id).maybeSingle()
-      const existingItems = (existing?.items as CareerRoadmapItem[] | undefined) ?? []
+      const existingItems = await loadItems(supabase, user.id)
       const existingSkills = existingItems.map((i) => i.skill)
       const removedForJd = ((existing?.removed_skills as string[] | undefined) ?? [])
       const jdCv = await loadCandidateCv(supabase, user.id)
@@ -267,12 +437,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ added: 0, message: 'Your path already covers what this job needs.' })
       }
 
-      const genPrompt = `${PROMPT_PREFIX}
-
-Target role: ${existing?.target_role || 'unspecified'}
-
-Skills to address, most important first:
-${toAdd.map((s, i) => `${i + 1}. ${s}`).join('\n')}${calibration(jdCv, (existing?.intention as string) || '')}`
+      const jdRegion = await loadRegion(supabase, user.id)
+      const genPrompt = buildRoadmapPrompt({
+        skills: toAdd,
+        targetRole: (existing?.target_role as string) || undefined,
+        region: jdRegion,
+        calibration: calibration(jdCv, (existing?.intention as string) || ''),
+      })
       const genMsg = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 2500,
@@ -281,20 +452,14 @@ ${toAdd.map((s, i) => `${i + 1}. ${s}`).join('\n')}${calibration(jdCv, (existing
       })
       const gtu = genMsg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_roadmap')
       if (!gtu || gtu.type !== 'tool_use') throw new Error('Could not build the new skills. Please try again.')
-      const newItems = ((gtu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const }))
+      const newItems = await validateItemResources(
+        ((gtu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const }))
+      )
       if (newItems.length === 0) return NextResponse.json({ added: 0, message: 'Nothing new to add.' })
 
-      const merged = sanitizeDeep([...existingItems, ...newItems])
-      const { error } = await supabase
-        .from('career_roadmaps')
-        .upsert({
-          user_id: user.id,
-          target_role: existing?.target_role ?? '',
-          hours_per_week: existing?.hours_per_week ?? null,
-          items: merged,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' })
-      if (error) throw error
+      // addItems dedupes on skill: a skill already on the path has its
+      // surfaced_count incremented rather than being duplicated.
+      await addItems(supabase, user.id, null, sanitizeDeep(newItems) as StoredRoadmapItem[])
 
       return NextResponse.json({ added: newItems.length })
     }
@@ -308,23 +473,24 @@ ${toAdd.map((s, i) => `${i + 1}. ${s}`).join('\n')}${calibration(jdCv, (existing
 
       const { data: existing, error: fetchErr } = await supabase
         .from('career_roadmaps')
-        .select('id, target_role, hours_per_week, intention, items')
+        .select('id, target_role, hours_per_week, intention')
         .eq('user_id', user.id)
         .maybeSingle()
       if (fetchErr) throw fetchErr
 
-      const items = (existing?.items as CareerRoadmapItem[] | undefined) ?? []
+      const items = await loadItems(supabase, user.id, { includeArchived: true })
       if (items.some((i) => i.skill.toLowerCase() === skill.toLowerCase())) {
         return NextResponse.json({ error: 'That skill is already on your career path.' }, { status: 409 })
       }
 
       const addCv = await loadCandidateCv(supabase, user.id)
-      const addPrompt = `${PROMPT_PREFIX}
-
-Target role: ${existing?.target_role || 'unspecified'}
-
-Skills to address, most important first:
-1. ${skill}${calibration(addCv, (existing?.intention as string) || '')}`
+      const addRegion = await loadRegion(supabase, user.id)
+      const addPrompt = buildRoadmapPrompt({
+        skills: [skill],
+        targetRole: (existing?.target_role as string) || undefined,
+        region: addRegion,
+        calibration: calibration(addCv, (existing?.intention as string) || ''),
+      })
 
       const message = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
@@ -341,10 +507,9 @@ Skills to address, most important first:
         throw new Error('Could not build that skill entry. Please try again.')
       }
       const raw = toolUse.input as { items?: CareerRoadmapItem[] }
-      const newItem = (Array.isArray(raw.items) ? raw.items : [])[0]
+      const validated = await validateItemResources(Array.isArray(raw.items) ? raw.items : [])
+      const newItem = validated[0]
       if (!newItem) throw new Error('Could not build that skill entry. Please try again.')
-
-      const merged = sanitizeDeep([...items, { ...newItem, status: 'todo' as const }])
 
       const { data: saved, error } = await supabase
         .from('career_roadmaps')
@@ -353,7 +518,6 @@ Skills to address, most important first:
             user_id: user.id,
             target_role: existing?.target_role ?? '',
             hours_per_week: existing?.hours_per_week ?? null,
-            items: merged,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'user_id' },
@@ -361,7 +525,11 @@ Skills to address, most important first:
         .select(ROADMAP_COLS)
         .single()
       if (error) throw error
-      return NextResponse.json({ roadmap: saved })
+      await addItems(
+        supabase, user.id, saved.id as string,
+        sanitizeDeep([{ ...newItem, status: 'todo' as const }]) as StoredRoadmapItem[],
+      )
+      return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
     }
 
     if (!Array.isArray(skills) || skills.length === 0) {
@@ -370,13 +538,14 @@ Skills to address, most important first:
     const trimmedSkills = skills.slice(0, 5).map((s: unknown) => String(s).slice(0, 80))
 
     const genCv = await loadCandidateCv(supabase, user.id)
-    const userPrompt = `${PROMPT_PREFIX}
-
-Target role: ${targetRole || 'unspecified'}
-Time available: ${hoursPerWeek ? `${hoursPerWeek} hours/week` : 'unspecified'}
-
-Skills to address, most important first:
-${trimmedSkills.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')}${calibration(genCv, String(intention ?? ''))}`
+    const genRegion = await loadRegion(supabase, user.id)
+    const userPrompt = buildRoadmapPrompt({
+      skills: trimmedSkills,
+      targetRole: targetRole || undefined,
+      hoursPerWeek: hoursPerWeek || null,
+      region: genRegion,
+      calibration: calibration(genCv, String(intention ?? '')),
+    })
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -394,13 +563,15 @@ ${trimmedSkills.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')}${cal
     }
 
     const raw = toolUse.input as { items?: CareerRoadmapItem[] }
-    const items = (Array.isArray(raw.items) ? raw.items : []).map((item) => ({
-      ...item,
-      status: 'todo' as const,
-    }))
+    const items = await validateItemResources(
+      (Array.isArray(raw.items) ? raw.items : []).map((item) => ({
+        ...item,
+        status: 'todo' as const,
+      }))
+    )
     if (items.length === 0) throw new Error('The roadmap came back empty. Please try again.')
 
-    const clean = sanitizeDeep({ target_role: targetRole || '', hours_per_week: hoursPerWeek || null, intention: String(intention ?? ''), items })
+    const clean = sanitizeDeep({ target_role: targetRole || '', hours_per_week: hoursPerWeek || null, intention: String(intention ?? '') })
 
     const { data: saved, error } = await supabase
       .from('career_roadmaps')
@@ -409,7 +580,11 @@ ${trimmedSkills.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')}${cal
       .single()
 
     if (error) throw error
-    return NextResponse.json({ roadmap: saved })
+    await replaceItems(
+      supabase, user.id, saved.id as string,
+      sanitizeDeep(items) as StoredRoadmapItem[], 'core',
+    )
+    return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
   } catch (err) {
     const msg = errMessage(err)
     const status = (err as { status?: number })?.status
@@ -425,6 +600,7 @@ export async function PATCH(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (!isCareerPathBeta(user.email)) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
     const { skill, status } = await req.json()
     if (typeof skill !== 'string' || !['todo', 'in_progress', 'done'].includes(status)) {
@@ -433,25 +609,23 @@ export async function PATCH(req: NextRequest) {
 
     const { data: row, error: fetchErr } = await supabase
       .from('career_roadmaps')
-      .select('items')
+      .select('id')
       .eq('user_id', user.id)
       .maybeSingle()
     if (fetchErr) throw fetchErr
     if (!row) return NextResponse.json({ error: 'No roadmap found' }, { status: 404 })
 
-    const items = (row.items as CareerRoadmapItem[]).map((item) =>
-      item.skill === skill ? { ...item, status } : item
-    )
+    await setItemStatus(supabase, user.id, skill, status)
 
     const { data: saved, error } = await supabase
       .from('career_roadmaps')
-      .update({ items, updated_at: new Date().toISOString() })
+      .update({ updated_at: new Date().toISOString() })
       .eq('user_id', user.id)
       .select(ROADMAP_COLS)
       .single()
 
     if (error) throw error
-    return NextResponse.json({ roadmap: saved })
+    return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
   } catch (err) {
     const msg = errMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
