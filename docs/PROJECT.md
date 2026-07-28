@@ -168,6 +168,46 @@ violations; Ose confirmed the user flow end to end.
 
 _Last updated: 28 July 2026_
 
+---
+
+## 📌 29 July 2026 — staging work not yet in production
+
+Everything below is on `staging` and verified there. It has NOT been ported.
+Prod is at the 28 Jul cut (career-path era behind the private beta).
+
+| Item | Notes |
+|---|---|
+| Upskill UI — Concept B segmented switch | Concept A's tinted panel read as bolted on. One segmented control now does all the separating; "Your skills." heads one area with North Star / Upskill as views. Upskill tab carries its open count so the hidden half is discoverable |
+| Tailr course repository + sync (Cursor agent) | `course_catalog` / `course_candidates` / `course_sync_runs`. **Prod needs migration `20260728172335_course_catalog.sql` BEFORE this code ships** |
+| Course review queue + catalogue browse | `/admin/courses`, two views. Bulk approve/reject; catalogue search + paging in Postgres. Retire sets `status='stale'` rather than deleting, so the unique `canonical_url` index still blocks re-adds |
+| YouTube sourcing aimed at our users | Queries now RPA/BA/automation, not generic dev topics. Ten trusted channels by default |
+| Provider cap (`diversifyByProvider`) | Microsoft Learn was 2,000 of 2,012 rows and filled every shortlist slot. Capped at 2 of 5, soft — backfills rather than returning fewer |
+| Win-back email + `scripts/send-winback.mjs` | Built, **not sent**. Blocked on the key rotation below |
+| `/walkthrough` onboarding page | Seven-slide walkthrough on the marketing site, linked from the hero |
+
+**Two bugs worth remembering, both found by shipping:**
+`vettedChannels()` returned an EMPTY set when its env var was unset, so every
+channel was untrusted and a sync appeared to do nothing. And `hydrate()` sent
+every video id in one request against YouTube's hard 50-id limit — fine at 8
+search queries, a 400 at 16. Batched now, with a failed batch skipped rather
+than losing the whole run.
+
+## 🔐 OPEN — rotate the exposed Supabase `service_role` key
+
+The production `service_role` key was pasted into a chat transcript on 29 Jul.
+It bypasses all RLS: full read/write on every user's CV text, email and history.
+
+It is a **legacy symmetric JWT**, so it cannot be rotated directly. The path is:
+migrate JWT secret → rotate signing keys → **revoke** the previous key (without
+revoke the old key stays valid) → create new secret/publishable API keys →
+update Vercel → verify → **only then** disable the legacy pair. Disabling before
+Vercel is updated takes gettailr.com down. `supabase-js` takes the new secret key
+in the same position, so no code changes are needed — only env values.
+
+Blocks: sending the win-back email, and any unattended end-to-end testing.
+
+_Last updated: 29 July 2026_
+
 ## 🔧 In progress / open PRs
 
 | Item | Type | PR | Notes |
