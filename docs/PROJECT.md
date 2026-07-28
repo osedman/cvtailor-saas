@@ -18,7 +18,7 @@ Requested in the 27 Jul sync: every feature, one line, where it actually is.
 |---|---|---|---|---|
 | Tailor pipeline (2-pass, compression, cache) | **Prod** | Done | ✅ real users | Maintain |
 | Match score + gaps / ATS / JD coverage | **Prod** | Done | ✅ confirmed good in sync | Maintain |
-| Job fetch from any URL | **Prod** | Done | ✅ works; wording says LinkedIn/Indeed only | Small copy fix |
+| Job fetch from any URL | **Prod** | Done | ✅ any board + bare-host normalize | Maintain |
 | Cover letter | **Prod** | Done | Partial | Maintain |
 | Interview prep, tracker, history | **Prod** | Done | Partial | Maintain |
 | Magic-link auth + rate limiting + RLS | **Prod** | Done | ✅ | Maintain |
