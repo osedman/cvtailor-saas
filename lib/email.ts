@@ -1,4 +1,4 @@
-import { appPath, getMarketingOrigin } from '@/lib/site-url'
+import { appPath, getMarketingOrigin, marketingPath } from '@/lib/site-url'
 
 /**
  * Minimal transactional email sender via Resend's HTTP API (no SDK dependency).
@@ -84,7 +84,7 @@ export function welcomeEmailHtml(): string {
  * Brand voice, matching welcomeEmailHtml(): "we", signed by the team, dash-free
  * prose. Never Ose's first person.
  */
-export function winBackEmailHtml(walkthroughUrl: string): string {
+export function winBackEmailHtml(walkthroughUrl = marketingPath("/walkthrough")): string {
   const tailorUrl = appPath("/tailor")
   const marketingHost = getMarketingOrigin().replace(/^https?:\/\//, "")
   const step = (n: string, title: string, body: string) =>

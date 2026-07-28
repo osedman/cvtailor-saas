@@ -22,7 +22,7 @@ import { readFileSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { createClient } from '@supabase/supabase-js'
 
-const WALKTHROUGH = 'https://claude.ai/code/artifact/27add419-f661-4f73-8508-db35834ac33b'
+const WALKTHROUGH = 'https://www.gettailr.com/walkthrough'
 const SUBJECT = 'Your CV is still generic'
 
 // ── env ──────────────────────────────────────────────────────────────────
