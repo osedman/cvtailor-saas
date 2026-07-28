@@ -373,7 +373,9 @@ export function ResizablePanels({
           <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-gray-100 bg-white/60">
             <Link className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
             <input
-              type="url"
+              type="text"
+              inputMode="url"
+              autoComplete="url"
               value={jobUrl}
               onChange={(e) => setJobUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleScrapeUrl()}
