@@ -60,7 +60,7 @@ North Star in one cut, backfill at cutover.
 | S6 | "Next"/"Later" clarity — sequence not priority | UX | Low | Copy/tooltip fix |
 | S7 | Career path performance/speed | Perf | Med | Measure before optimising |
 | S8 | Job-fetch wording: "paste any URL", not LinkedIn/Indeed | Copy | Low | Raised twice now |
-| S9 | Udemy/short-course sourcing for roadmap resources | Feature | Med | **Check Udemy API/affiliate ToS before any scraping ticket exists** |
+| S9 | Udemy/short-course sourcing for roadmap resources | Feature | Med | **Build half DONE on staging 28 Jul** (`8a8bb65`): generator prefers Udemy → YouTube → freeCodeCamp → vendor training; strict domain allowlist + liveness check gates every resource at all 5 generation sites; resources carry duration + free/paid. Remaining: Udemy Affiliate API integration (needs approved affiliate account — Ose action; scraping ruled out, against ToS) |
 
 ---
 
