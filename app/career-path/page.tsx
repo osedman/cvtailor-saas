@@ -588,6 +588,83 @@ function NorthStarJourney({ cachedFindings, seedIntention, onBuilt, onCancel }: 
   )
 }
 
+/**
+ * Core vs Upskill as one skills area with two views.
+ *
+ * Concept B (Ose, 28 Jul): the earlier design put Upskill in a tinted panel
+ * below the skill map, which read as bolted on. A segmented control does the
+ * separating instead, so neither list needs its own chrome. The open count
+ * lives in the Upskill tab so the section is discoverable without being
+ * clicked — the one real weakness of a tabbed layout.
+ */
+function SkillsSwitch({ upskill, upskillCount, coreCount, onChanged, renderCore }: {
+  upskill: UpskillItem[]
+  upskillCount: number
+  coreCount: number
+  onChanged: () => void
+  renderCore: () => React.ReactNode
+}) {
+  const [view, setView] = useState<"core" | "upskill">("core")
+  const tabs: { key: "core" | "upskill"; label: string; count: number }[] = [
+    { key: "core", label: "North Star", count: coreCount },
+    { key: "upskill", label: "Upskill", count: upskill.length },
+  ]
+
+  return (
+    <section style={{ marginTop: 48 }}>
+      <div className="flex items-baseline justify-between flex-wrap gap-3" style={{ paddingBottom: 14, borderBottom: "1px solid var(--ns-border)" }}>
+        <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Your skills<span style={{ color: "var(--ns-coral)" }}>.</span></h2>
+        <span className="t-mono">
+          {view === "core" ? `${coreCount} skills researched` : `${upskillCount} open`}
+        </span>
+      </div>
+
+      <div
+        role="tablist"
+        aria-label="Skill view"
+        className="inline-flex"
+        style={{
+          marginTop: 20, padding: 3, borderRadius: 999,
+          background: "var(--ns-paper)", border: "1px solid var(--ns-border)",
+        }}
+      >
+        {tabs.map((t) => {
+          const active = view === t.key
+          return (
+            <button
+              key={t.key}
+              role="tab"
+              aria-selected={active}
+              onClick={() => setView(t.key)}
+              className="transition-colors"
+              style={{
+                padding: "8px 18px", borderRadius: 999, fontSize: 12.5, fontWeight: 500,
+                background: active ? "var(--ns-ink)" : "transparent",
+                color: active ? "var(--ns-cream)" : "var(--ns-ink-55)",
+                cursor: "pointer",
+              }}
+            >
+              {t.label} · {String(t.count).padStart(2, "0")}
+            </button>
+          )
+        })}
+      </div>
+
+      {view === "core"
+        ? renderCore()
+        : (
+          <>
+            <p className="t-small" style={{ margin: "16px 0 0", maxWidth: 620 }}>
+              Skills individual jobs asked for. These never move your North Star readiness —
+              close one and it counts toward that job, not the role you&rsquo;re aiming at.
+            </p>
+            <UpskillSection items={upskill} onChanged={onChanged} bare />
+          </>
+        )}
+    </section>
+  )
+}
+
 function SkillSet({ targetSkills, haveList, missing, items, onOpenSkill, onAddSkill, addingSkill }: {
   targetSkills: TargetSkill[]
   haveList: string[]
@@ -604,13 +681,8 @@ function SkillSet({ targetSkills, haveList, missing, items, onOpenSkill, onAddSk
   const planFor = (skill: string) => items.find((it) => it.skill.toLowerCase() === skill.toLowerCase())
 
   return (
-    <section style={{ marginTop: 48 }}>
-      <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, borderBottom: "1px solid var(--ns-border)" }}>
-        <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Your skill set against the role<span style={{ color: "var(--ns-coral)" }}>.</span></h2>
-        <span className="t-mono">{have.length + miss.length} skills researched</span>
-      </div>
-
-      <div style={{ marginTop: 24 }}>
+    <div>
+      <div style={{ marginTop: 4 }}>
         <div className="flex items-baseline gap-3" style={{ marginBottom: 12 }}>
           {/* 27 Jul sync: MISSING is the coral one — the gap is what asks for
               attention, not the things already in hand. */}
@@ -651,7 +723,7 @@ function SkillSet({ targetSkills, haveList, missing, items, onOpenSkill, onAddSk
           </div>
         </div>
       )}
-    </section>
+    </div>
   )
 }
 
@@ -1135,11 +1207,19 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
           )
         })()}
 
-        {/* Quick wins — run-surfaced, sit beside the path, never move its forecast */}
-        <UpskillSection items={data.upskillItems ?? []} onChanged={() => { void reload() }} />
-
-        {/* Skill set vs role (the transparent map) */}
-        <SkillSet targetSkills={roadmap.target_skills ?? []} haveList={data.readiness.haveList ?? []} missing={data.readiness.missing} items={roadmap.items} onOpenSkill={(sk) => setSelected(sk)} onAddSkill={addSkill} addingSkill={addingSkill} />
+        {/* One skills area, two views. The segmented switch is the whole
+            separating device — the previous tinted panel below the map read as
+            bolted on. North Star is the default view; Upskill announces its
+            count in the tab so it can't be missed. */}
+        <SkillsSwitch
+          upskill={data.upskillItems ?? []}
+          upskillCount={(data.upskillItems ?? []).filter((i) => i.status !== "done").length}
+          coreCount={(roadmap.target_skills ?? []).length}
+          onChanged={() => { void reload() }}
+          renderCore={() => (
+            <SkillSet targetSkills={roadmap.target_skills ?? []} haveList={data.readiness.haveList ?? []} missing={data.readiness.missing} items={roadmap.items} onOpenSkill={(sk) => setSelected(sk)} onAddSkill={addSkill} addingSkill={addingSkill} />
+          )}
+        />
 
         {/* Footer actions */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" style={{ marginTop: 56, paddingTop: 28, borderTop: "1px solid var(--ns-border)" }}>
