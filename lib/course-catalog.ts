@@ -106,7 +106,7 @@ export function rankCourses(
   const level = options.level ?? null
   const maxDuration = options.maxDurationMinutes ?? null
 
-  return [...new Map(entries.map((entry) => [entry.canonicalUrl, entry])).values()]
+  const ranked = [...new Map(entries.map((entry) => [entry.canonicalUrl, entry])).values()]
     .filter((entry) => !options.freeOnly || entry.accessType !== 'paid')
     .filter((entry) => entry.regions.length === 0 || entry.regions.includes(region))
     .filter((entry) => !level || entry.level === 'all' || entry.level === level)
@@ -136,8 +136,52 @@ export function rankCourses(
       (a.entry.durationMinutes ?? Number.MAX_SAFE_INTEGER) - (b.entry.durationMinutes ?? Number.MAX_SAFE_INTEGER) ||
       a.entry.title.localeCompare(b.entry.title),
     )
-    .slice(0, options.limit ?? 5)
     .map(({ entry }) => entry)
+
+  return diversifyByProvider(ranked, options.limit ?? 5)
+}
+
+/**
+ * Take the top `limit`, but never more than `perProvider` from any one source.
+ *
+ * Why: one provider can dominate the catalogue by sheer volume — Microsoft
+ * Learn's open API contributed 2,000 of the first 2,012 rows. Pure relevance
+ * ranking then fills every slot with the same source, so a user closing a
+ * Salesforce or UiPath gap gets five Microsoft modules and none of the better,
+ * rarer match. Variety here is a quality control, not a fairness gesture.
+ *
+ * The cap is soft on purpose. If a skill genuinely is only covered by one
+ * provider, we backfill in rank order rather than returning fewer courses —
+ * showing three results because of a quota would be worse for the user than
+ * showing five from one place.
+ */
+export function diversifyByProvider<T extends { provider: string }>(
+  ranked: T[],
+  limit: number,
+  perProvider = 2,
+): T[] {
+  const picked: T[] = []
+  const seen = new Set<T>()
+  const counts = new Map<string, number>()
+
+  for (const item of ranked) {
+    if (picked.length >= limit) break
+    const used = counts.get(item.provider) ?? 0
+    if (used >= perProvider) continue
+    picked.push(item)
+    seen.add(item)
+    counts.set(item.provider, used + 1)
+  }
+
+  // Backfill: the cap must never cost the user results.
+  if (picked.length < limit) {
+    for (const item of ranked) {
+      if (picked.length >= limit) break
+      if (!seen.has(item)) picked.push(item)
+    }
+  }
+
+  return picked
 }
 
 export async function findCourses(

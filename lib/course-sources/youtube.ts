@@ -130,22 +130,52 @@ async function search(query: string, apiKey: string, region: string): Promise<Se
   return Array.isArray(body.items) ? body.items : []
 }
 
+/** YouTube's videos endpoint accepts at most 50 ids per request. */
+const HYDRATE_BATCH = 50
+
+/**
+ * Fetch durations for the discovered videos.
+ *
+ * Batched because the id list is a hard 50-per-request limit: this sent one
+ * request with every id, which worked at 8 search queries (~40 videos) and
+ * started returning 400 the moment the query list grew to 16. Batching removes
+ * the coupling between how many things we search for and whether the lookup
+ * survives.
+ *
+ * A failed batch is skipped rather than thrown: losing durations for 50 videos
+ * is a degraded sync, but throwing loses the entire run including the ones that
+ * came back fine.
+ */
 async function hydrate(ids: string[], apiKey: string): Promise<Map<string, VideoItem>> {
-  if (ids.length === 0) return new Map()
-  const url = new URL('https://www.googleapis.com/youtube/v3/videos')
-  url.search = new URLSearchParams({
-    part: 'contentDetails,status',
-    id: ids.join(','),
-    key: apiKey,
-  }).toString()
-  const response = await fetch(url, { signal: AbortSignal.timeout(15_000) })
-  if (!response.ok) throw new Error(`YouTube video lookup returned ${response.status}`)
-  const body = await response.json() as { items?: VideoItem[] }
-  return new Map(
-    (body.items ?? [])
-      .filter((item): item is VideoItem & { id: string } => typeof item.id === 'string')
-      .map((item) => [item.id, item]),
-  )
+  const out = new Map<string, VideoItem>()
+  if (ids.length === 0) return out
+
+  const batches: string[][] = []
+  for (let i = 0; i < ids.length; i += HYDRATE_BATCH) {
+    batches.push(ids.slice(i, i + HYDRATE_BATCH))
+  }
+
+  const results = await Promise.all(batches.map(async (batch) => {
+    const url = new URL('https://www.googleapis.com/youtube/v3/videos')
+    url.search = new URLSearchParams({
+      part: 'contentDetails,status',
+      id: batch.join(','),
+      key: apiKey,
+    }).toString()
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(15_000) })
+      if (!response.ok) return []
+      const body = await response.json() as { items?: VideoItem[] }
+      return body.items ?? []
+    } catch {
+      return []
+    }
+  }))
+
+  for (const item of results.flat()) {
+    if (typeof item.id === 'string') out.set(item.id, item)
+  }
+  return out
 }
 
 function inferredLevel(query: string): CourseLevel {
