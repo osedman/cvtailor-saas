@@ -11,7 +11,7 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
 
 const STEPS = [
   ["Add your CV", "Upload a PDF or DOCX, or paste it in"],
-  ["Paste the job", "Or drop a LinkedIn / Indeed link to auto-fill"],
+  ["Paste the job", "Or drop any job URL to auto-fill"],
   ["Hit Tailor", "Get your rewrite and match score in ~30s"],
 ]
 

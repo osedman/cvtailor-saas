@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect, DragEvent, useId } from "react"
 import { GripVertical, Upload, X, FileText, Link, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { normalizeJobUrl } from "@/lib/job-url"
 
 interface ResizablePanelsProps {
   cvText: string
@@ -194,17 +195,22 @@ export function ResizablePanels({
   // Scrape job URL
   const handleScrapeUrl = useCallback(async () => {
     if (!jobUrl.trim()) return
+    const parsed = normalizeJobUrl(jobUrl)
+    if (!parsed) {
+      toast.error("That doesn't look like a valid job URL")
+      return
+    }
     setScrapingUrl(true)
     try {
       const res = await fetch('/api/scrape-job', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: jobUrl.trim() }),
+        body: JSON.stringify({ url: parsed.href }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setJobDescription(data.text)
-      onJobUrlScraped?.(jobUrl.trim())
+      onJobUrlScraped?.(parsed.href)
       setJobUrl("")
       toast.success("Job description fetched!")
     } catch (err) {
@@ -212,7 +218,7 @@ export function ResizablePanels({
     } finally {
       setScrapingUrl(false)
     }
-  }, [jobUrl, setJobDescription])
+  }, [jobUrl, setJobDescription, onJobUrlScraped])
 
   const words = wordCount(cvText)
 
@@ -371,7 +377,7 @@ export function ResizablePanels({
               value={jobUrl}
               onChange={(e) => setJobUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleScrapeUrl()}
-              placeholder="Paste LinkedIn / Indeed URL to auto-fill…"
+              placeholder="Paste any job URL to auto-fill…"
               className="flex-1 text-xs bg-transparent focus:outline-none text-[#1e1813] placeholder:text-gray-300 min-w-0"
             />
             {jobUrl && (

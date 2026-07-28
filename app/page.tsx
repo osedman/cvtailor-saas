@@ -306,7 +306,7 @@ function HowItWorks() {
     },
     {
       n: "02", t: "Paste the job",
-      d: "Drop any LinkedIn, Indeed or Reed link and we fetch the description automatically.",
+      d: "Drop any job posting URL and we fetch the description automatically.",
       icon: <Link2 className="w-5 h-5" />,
     },
     {
