@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { normalizeJobUrl } from '@/lib/job-url'
 
 export const maxDuration = 30
 
@@ -82,10 +83,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 })
     }
 
-    let parsedUrl: URL
-    try {
-      parsedUrl = new URL(url)
-    } catch {
+    const parsedUrl = normalizeJobUrl(url)
+    if (!parsedUrl) {
       return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
     }
 

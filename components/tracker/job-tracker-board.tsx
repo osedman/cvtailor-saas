@@ -196,7 +196,7 @@ function AddJobModal({
               value={form.job_url}
               onChange={e => setForm(f => ({ ...f, job_url: e.target.value }))}
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#dc4f33] focus:ring-1 focus:ring-[#dc4f33]/20"
-              placeholder="https://linkedin.com/jobs/…"
+              placeholder="https://…"
             />
           </div>
 

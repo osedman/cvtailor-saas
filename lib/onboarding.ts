@@ -8,7 +8,7 @@ export type OnboardingStep = "cv" | "job" | "tailor" | "prep" | "cover" | "compa
 
 export const ONBOARDING_STEPS: { id: OnboardingStep; label: string; hint: string }[] = [
   { id: "cv", label: "Add your CV", hint: "Upload a PDF or DOCX, or paste it in" },
-  { id: "job", label: "Paste a job description", hint: "Or drop a LinkedIn / Indeed link to auto-fill" },
+  { id: "job", label: "Paste a job description", hint: "Or drop any job URL to auto-fill" },
   { id: "tailor", label: "Run your first tailor", hint: "Get an evidence-checked rewrite and match score" },
   { id: "prep", label: "Explore interview prep", hint: "Predicted questions with answer frameworks" },
   { id: "cover", label: "Generate a cover letter", hint: "A tailored cover letter in one click" },
