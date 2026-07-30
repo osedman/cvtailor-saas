@@ -126,6 +126,57 @@ _Recorded 28 July 2026._
 
 ---
 
+## 🐛 Staging locked out by production's key rotation (30 July 2026)
+
+**Symptom:** staging loaded fine for anyone, but the sign-in modal returned
+`Invalid API key`. Reported as "I don't have access to staging", which sent the
+first 20 minutes down the Vercel Deployment Protection path — the wrong tree.
+Staging was returning **200** to an unauthenticated `curl` the whole time.
+
+**Cause:** collateral damage from the `service_role` rotation logged above. When
+production moved to the new `sb_publishable_…` / secret key pair and Vercel was
+updated, the new **production** values landed at a scope that also covered the
+`staging` branch's Preview environment. Staging ended up with
+`NEXT_PUBLIC_SUPABASE_URL` → `tailr-staging` but **both keys** → production's
+project. Supabase rejects a key belonging to another project.
+
+**Two separate breakages, one cause — the second was hidden behind the first:**
+
+| Variable | Effect |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | browser auth calls 401 |
+| `SUPABASE_SERVICE_ROLE_KEY` | `POST /api/auth/request-otp` → 400 `Invalid API key`; **no login email is ever sent** |
+
+Fixing only the anon key looked like progress and changed nothing user-visible.
+The service-role key is what actually sends the magic link.
+
+**Status: RESOLVED same day.** Both keys replaced with `tailr-staging`'s own, each
+edited in place in the Vercel dashboard (nothing deleted), then redeployed.
+Verified: the staging bundle ships staging URL + staging key, `/auth/v1/settings`
+returns 200, and `POST /api/auth/request-otp` returns `{"ok":true}` — the same
+call that returned `Invalid API key` before the fix. Production was checked
+before and after every change and never changed.
+
+**Rules that follow:**
+1. Rotating a production key is a **staging event too**. After any rotation, run
+   `vercel env pull --environment=preview --git-branch=staging` and confirm the
+   URL's project ref matches the keys' project.
+2. Diagnose the layer first. `curl -o /dev/null -w "%{http_code}"` on the staging
+   URL separates "Vercel is blocking you" (403) from "the app is broken" (200)
+   in one command.
+3. Avoid `vercel env rm <name> preview staging`. It removed the branch-scoped
+   entry *and* stripped `Preview` + `Development` off the shared variable,
+   briefly leaving every PR preview with no key. Edit in the dashboard instead.
+4. Staging Auth SMTP was **not** the problem, contrary to the note in
+   docs/STAGING.md's history — login goes through `/api/auth/request-otp`, so
+   Supabase's mailer config is not on the critical path.
+
+Full diagnosis and the verification commands: [docs/STAGING.md](STAGING.md).
+
+_Recorded 30 July 2026._
+
+---
+
 ## 🎯 Feature: Core = the North Star only; JD skills live in Upskill (28 July 2026)
 
 **Decision (Ose):** every skill Tailr researches for the chosen North Star role
@@ -206,7 +257,13 @@ in the same position, so no code changes are needed — only env values.
 
 Blocks: sending the win-back email, and any unattended end-to-end testing.
 
-_Last updated: 29 July 2026_
+**Progress verified 30 Jul:** production is on the new `sb_publishable_…` key and
+its **legacy `anon` JWT is disabled**, so the publishable half of this is done.
+The legacy secret half was not checked. Note the fallout: updating Vercel during
+the rotation overwrote staging's scoped keys and locked staging out — see the
+30 July entry below.
+
+_Last updated: 30 July 2026_
 
 ## 🔧 In progress / open PRs
 
