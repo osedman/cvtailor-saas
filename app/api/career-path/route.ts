@@ -259,8 +259,18 @@ export async function POST(req: NextRequest) {
         .map((s) => ({ skill: s.skill.trim().slice(0, 80), have: !!s.have, importance: s.importance || 'common' }))
       if (roleSkills.length === 0) throw new Error('That role came back empty. Please try again.')
 
-      // 2) A learning plan for the gaps (the skills they lack), UK-sourced.
-      const gaps = roleSkills.filter((s) => !s.have).map((s) => s.skill).slice(0, 5)
+      // 2) EVERY skill the role wants that the CV does not evidence becomes a
+      //    North Star item. The tab is a category, not a reward for a
+      //    successful AI call (Ose, 29 Jul) — so the items exist first and the
+      //    generated plan enriches them below.
+      //
+      //    Previously only the first 5 gaps were planned and an item existed
+      //    ONLY if generation succeeded, so a locked role could show 6 missing
+      //    skills in the map with nothing behind any of them.
+      const allGaps = roleSkills.filter((s) => !s.have).map((s) => s.skill)
+      // Enrichment is still capped — it is a slow, paid call — but the cap no
+      // longer decides which skills appear on the path.
+      const gaps = allGaps.slice(0, 5)
       let items: CareerRoadmapItem[] = []
       if (gaps.length > 0) {
         const catalogContext = await loadCourseCatalogContext(supabase, gaps, {
@@ -293,6 +303,25 @@ export async function POST(req: NextRequest) {
           )
         }
       }
+
+      // Every gap gets an item. Where generation produced a plan we use it; the
+      // rest are placeholders carrying the skill and its importance, which the
+      // UI already renders (a resource-less item reads as "no plan yet" rather
+      // than disappearing). Matching is case-insensitive because the model
+      // sometimes returns a slightly reworded skill name.
+      const planBySkill = new Map(items.map((it) => [it.skill.trim().toLowerCase(), it]))
+      items = allGaps.map((skill) => {
+        const planned = planBySkill.get(skill.trim().toLowerCase())
+        if (planned) return { ...planned, skill }
+        return {
+          skill,
+          whyItMatters: `${role} asks for this and your CV does not yet evidence it.`,
+          resources: [],
+          projectBrief: '',
+          cvPhrasing: '',
+          status: 'todo' as const,
+        }
+      })
 
       const clean = sanitizeDeep({ target_role: role, target_skills: roleSkills })
       const { data: savedRow, error } = await supabase

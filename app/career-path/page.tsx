@@ -705,6 +705,15 @@ function SkillSet({ targetSkills, haveList, missing, items, onOpenSkill, onAddSk
             <span style={{ flex: 1, height: 1, background: "var(--ns-border)" }} />
           </div>
           <p className="t-small" style={{ margin: "0 0 12px" }}>Every one of these is closeable — click a skill to see its plan, or to build one with free resources.</p>
+          {/* A skill with no plan behind it renders identically to one that has
+              a full plan, which made an empty path look like a broken page.
+              Name the state instead. */}
+          {miss.every((sk) => !planFor(sk)) && (
+            <p className="t-small" style={{ margin: "0 0 12px", color: "var(--ns-coral-deep)" }}>
+              No plans built yet. Click any skill and Tailr will find free, practical
+              resources and a project to prove it.
+            </p>
+          )}
           <div className="flex flex-wrap" style={{ gap: 10 }}>
             {miss.map((sk, i) => {
               const plan = planFor(sk)
