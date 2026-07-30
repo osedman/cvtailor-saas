@@ -407,12 +407,23 @@ export function UpskillStrip({
 export function UpskillSection({
   items,
   onChanged,
+  bare = false,
 }: {
   items: UpskillItem[]
   onChanged: () => void
+  /** Rendered inside the skills segmented switch, which already supplies the
+   *  heading and the separation. The tinted panel and its own header are the
+   *  chrome that made this read as bolted on — drop both. */
+  bare?: boolean
 }) {
   const { cycle, busySkill } = useCycle(() => onChanged())
-  if (items.length === 0) return null
+  if (items.length === 0) {
+    return bare ? (
+      <p className="t-small" style={{ marginTop: 20 }}>
+        Nothing here yet. Gaps you add from a tailored CV land in Upskill.
+      </p>
+    ) : null
+  }
 
   // Split rather than stack. A flat list of identical cards gives a 2-hour
   // task the same weight as a 3x-surfaced one and buries what is still open
@@ -422,15 +433,18 @@ export function UpskillSection({
   const totalHours = open.reduce((sum, i) => sum + (i.effortEstimateHours ?? i.effortHours ?? 0), 0)
 
   return (
-    <section style={{ marginTop: 48 }}>
-      <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, borderBottom: "1px solid var(--ns-border)" }}>
-        <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Upskill<span style={{ color: "var(--ns-coral)" }}>.</span></h2>
-        <span className="t-mono tabular-nums">{closed.length} of {items.length} closed</span>
-      </div>
+    <section style={{ marginTop: bare ? 20 : 48 }}>
+      {!bare && (
+        <div className="flex items-baseline justify-between" style={{ paddingBottom: 14, borderBottom: "1px solid var(--ns-border)" }}>
+          <h2 className="t-title" style={{ fontSize: 24, margin: 0 }}>Upskill<span style={{ color: "var(--ns-coral)" }}>.</span></h2>
+          <span className="t-mono tabular-nums">{closed.length} of {items.length} closed</span>
+        </div>
+      )}
 
-      {/* One tinted block, so the whole group reads as a distinct thing sitting
-          BESIDE the path rather than more of the path. */}
-      <div style={{
+      {/* Inside the switch this is plain content — the segmented control is
+          what separates Upskill from the North Star, so the panel would just
+          be a second, competing device. */}
+      <div style={bare ? { marginTop: 0 } : {
         marginTop: 20,
         background: "var(--ns-tint-1)",
         border: "1px solid var(--ns-tint-2)",

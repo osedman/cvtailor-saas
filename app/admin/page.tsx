@@ -359,6 +359,12 @@ export default function AdminPage() {
             <ShieldCheck className="w-4 h-4 text-[#dc4f33]" />
             <h1 className="text-sm font-semibold text-[#1e1813]">Admin dashboard</h1>
           </div>
+          <div className="w-px h-4 bg-gray-200" />
+          <div className="flex items-center gap-2">
+            <Link href="/admin/courses" className="text-xs text-gray-400 hover:text-[#dc4f33] transition-colors">
+              Course review
+            </Link>
+          </div>
           <div className="flex-1" />
           <span className="text-[10px] text-gray-300 hidden sm:block">
             Updated {fmtDateTime(stats.generatedAt)}

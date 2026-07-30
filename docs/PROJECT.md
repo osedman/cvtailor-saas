@@ -41,8 +41,8 @@ Requested in the 27 Jul sync: every feature, one line, where it actually is.
 manufactures it. Empty beats invented.* (Decided 28 Jul.)
 
 **Descoped / retired:** Upskill tab (merged into Quick Wins) · migration 009 ·
-university-course links in roadmaps (27 Jul decision: short/free/practical
-sources instead).
+long university programmes in roadmaps (focused, free OCW modules may enter
+the reviewed course repository when they meet the same practical duration bar).
 
 **Prod port order when approved:** migrations 014 + 015 + 016 (016 strictly
 before its code) → editable output + templates + quick wins + career path
@@ -60,7 +60,7 @@ North Star in one cut, backfill at cutover.
 | S6 | "Next"/"Later" clarity — sequence not priority | UX | Low | Copy/tooltip fix |
 | S7 | Career path performance/speed | Perf | Med | Measure before optimising |
 | S8 | Job-fetch wording: "paste any URL", not LinkedIn/Indeed | Copy | Low | **Done 28 Jul** — copy updated across tailor UI, onboarding, marketing; bare hosts (`www.indeed.com/…`) now normalize to `https://` via `lib/job-url.ts` |
-| S9 | Udemy/short-course sourcing for roadmap resources | Feature | Med | **Build half DONE on staging 28 Jul** (`8a8bb65`): generator prefers Udemy → YouTube → freeCodeCamp → vendor training; strict domain allowlist + liveness check gates every resource at all 5 generation sites; resources carry duration + free/paid. Remaining: Udemy Affiliate API integration (needs approved affiliate account — Ose action; scraping ruled out, against ToS) |
+| S9 | Tailr Course Repository + Udemy sourcing | Feature | Med | **Repository implementation ready 28 Jul**: global RLS-backed catalogue, reviewed seed, Microsoft Learn + key-gated YouTube adapters, weekly sync/liveness checks, candidate review queue, deterministic skill/region/free ranking, and catalogue IDs resolved server-side across all roadmap/upskill paths. Migration `20260728172335_course_catalog.sql` must run in staging then prod before deploy. Remaining external dependency: Udemy Affiliate API approval; scraping remains ruled out by ToS. |
 
 ---
 
@@ -126,6 +126,57 @@ _Recorded 28 July 2026._
 
 ---
 
+## 🐛 Staging locked out by production's key rotation (30 July 2026)
+
+**Symptom:** staging loaded fine for anyone, but the sign-in modal returned
+`Invalid API key`. Reported as "I don't have access to staging", which sent the
+first 20 minutes down the Vercel Deployment Protection path — the wrong tree.
+Staging was returning **200** to an unauthenticated `curl` the whole time.
+
+**Cause:** collateral damage from the `service_role` rotation logged above. When
+production moved to the new `sb_publishable_…` / secret key pair and Vercel was
+updated, the new **production** values landed at a scope that also covered the
+`staging` branch's Preview environment. Staging ended up with
+`NEXT_PUBLIC_SUPABASE_URL` → `tailr-staging` but **both keys** → production's
+project. Supabase rejects a key belonging to another project.
+
+**Two separate breakages, one cause — the second was hidden behind the first:**
+
+| Variable | Effect |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | browser auth calls 401 |
+| `SUPABASE_SERVICE_ROLE_KEY` | `POST /api/auth/request-otp` → 400 `Invalid API key`; **no login email is ever sent** |
+
+Fixing only the anon key looked like progress and changed nothing user-visible.
+The service-role key is what actually sends the magic link.
+
+**Status: RESOLVED same day.** Both keys replaced with `tailr-staging`'s own, each
+edited in place in the Vercel dashboard (nothing deleted), then redeployed.
+Verified: the staging bundle ships staging URL + staging key, `/auth/v1/settings`
+returns 200, and `POST /api/auth/request-otp` returns `{"ok":true}` — the same
+call that returned `Invalid API key` before the fix. Production was checked
+before and after every change and never changed.
+
+**Rules that follow:**
+1. Rotating a production key is a **staging event too**. After any rotation, run
+   `vercel env pull --environment=preview --git-branch=staging` and confirm the
+   URL's project ref matches the keys' project.
+2. Diagnose the layer first. `curl -o /dev/null -w "%{http_code}"` on the staging
+   URL separates "Vercel is blocking you" (403) from "the app is broken" (200)
+   in one command.
+3. Avoid `vercel env rm <name> preview staging`. It removed the branch-scoped
+   entry *and* stripped `Preview` + `Development` off the shared variable,
+   briefly leaving every PR preview with no key. Edit in the dashboard instead.
+4. Staging Auth SMTP was **not** the problem, contrary to the note in
+   docs/STAGING.md's history — login goes through `/api/auth/request-otp`, so
+   Supabase's mailer config is not on the critical path.
+
+Full diagnosis and the verification commands: [docs/STAGING.md](STAGING.md).
+
+_Recorded 30 July 2026._
+
+---
+
 ## 🎯 Feature: Core = the North Star only; JD skills live in Upskill (28 July 2026)
 
 **Decision (Ose):** every skill Tailr researches for the chosen North Star role
@@ -167,6 +218,52 @@ databases before the code deployed. Verified on staging with real data:
 violations; Ose confirmed the user flow end to end.
 
 _Last updated: 28 July 2026_
+
+---
+
+## 📌 29 July 2026 — staging work not yet in production
+
+Everything below is on `staging` and verified there. It has NOT been ported.
+Prod is at the 28 Jul cut (career-path era behind the private beta).
+
+| Item | Notes |
+|---|---|
+| Upskill UI — Concept B segmented switch | Concept A's tinted panel read as bolted on. One segmented control now does all the separating; "Your skills." heads one area with North Star / Upskill as views. Upskill tab carries its open count so the hidden half is discoverable |
+| Tailr course repository + sync (Cursor agent) | `course_catalog` / `course_candidates` / `course_sync_runs`. **Prod needs migration `20260728172335_course_catalog.sql` BEFORE this code ships** |
+| Course review queue + catalogue browse | `/admin/courses`, two views. Bulk approve/reject; catalogue search + paging in Postgres. Retire sets `status='stale'` rather than deleting, so the unique `canonical_url` index still blocks re-adds |
+| YouTube sourcing aimed at our users | Queries now RPA/BA/automation, not generic dev topics. Ten trusted channels by default |
+| Provider cap (`diversifyByProvider`) | Microsoft Learn was 2,000 of 2,012 rows and filled every shortlist slot. Capped at 2 of 5, soft — backfills rather than returning fewer |
+| Win-back email + `scripts/send-winback.mjs` | Built, **not sent**. Blocked on the key rotation below |
+| `/walkthrough` onboarding page | Seven-slide walkthrough on the marketing site, linked from the hero |
+
+**Two bugs worth remembering, both found by shipping:**
+`vettedChannels()` returned an EMPTY set when its env var was unset, so every
+channel was untrusted and a sync appeared to do nothing. And `hydrate()` sent
+every video id in one request against YouTube's hard 50-id limit — fine at 8
+search queries, a 400 at 16. Batched now, with a failed batch skipped rather
+than losing the whole run.
+
+## 🔐 OPEN — rotate the exposed Supabase `service_role` key
+
+The production `service_role` key was pasted into a chat transcript on 29 Jul.
+It bypasses all RLS: full read/write on every user's CV text, email and history.
+
+It is a **legacy symmetric JWT**, so it cannot be rotated directly. The path is:
+migrate JWT secret → rotate signing keys → **revoke** the previous key (without
+revoke the old key stays valid) → create new secret/publishable API keys →
+update Vercel → verify → **only then** disable the legacy pair. Disabling before
+Vercel is updated takes gettailr.com down. `supabase-js` takes the new secret key
+in the same position, so no code changes are needed — only env values.
+
+Blocks: sending the win-back email, and any unattended end-to-end testing.
+
+**Progress verified 30 Jul:** production is on the new `sb_publishable_…` key and
+its **legacy `anon` JWT is disabled**, so the publishable half of this is done.
+The legacy secret half was not checked. Note the fallout: updating Vercel during
+the rotation overwrote staging's scoped keys and locked staging out — see the
+30 July entry below.
+
+_Last updated: 30 July 2026_
 
 ## 🔧 In progress / open PRs
 

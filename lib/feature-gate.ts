@@ -31,6 +31,16 @@ const cache = new Map<string, { allowed: boolean; at: number }>()
 const TTL_MS = 5 * 60_000
 
 export async function isCareerPathBeta(email: string | undefined | null): Promise<boolean> {
+  // 30 Jul 2026: the career-path cluster is generally available. The gate is
+  // lifted here (the designed removal point — see the header comment) rather
+  // than by deleting call sites, so a rollback is a one-line revert. The
+  // beta_access table and BETA_EMAILS env override stay in place, unread.
+  void email
+  return true
+}
+
+// Retained for a fast re-gate: the pre-GA allowlist logic, unchanged.
+async function isCareerPathBetaAllowlisted(email: string | undefined | null): Promise<boolean> {
   if (isAdminEmail(email)) return true
   if (!email) return false
   const key = email.toLowerCase()
@@ -52,6 +62,7 @@ export async function isCareerPathBeta(email: string | undefined | null): Promis
   cache.set(key, { allowed, at: Date.now() })
   return allowed
 }
+void isCareerPathBetaAllowlisted
 
 /** Shared 403 body so clients can tell "not invited" from a real error. */
 export const BETA_LOCKED = { error: 'private-beta' } as const
