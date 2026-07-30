@@ -12,7 +12,12 @@ import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { errMessage } from '@/lib/err'
-import { validateItemResources } from '@/lib/course-validation'
+import {
+  catalogAwareRoadmapTools,
+  courseCatalogPrompt,
+  finalizeRoadmapResources,
+  loadCourseCatalogContext,
+} from '@/lib/course-catalog'
 import {
   loadItems, replaceItems, addItems, setItemStatus, removeSkill as storeRemoveSkill,
   expireStaleUpskillItems, type StoredRoadmapItem,
@@ -254,23 +259,69 @@ export async function POST(req: NextRequest) {
         .map((s) => ({ skill: s.skill.trim().slice(0, 80), have: !!s.have, importance: s.importance || 'common' }))
       if (roleSkills.length === 0) throw new Error('That role came back empty. Please try again.')
 
-      // 2) A learning plan for the gaps (the skills they lack), UK-sourced.
-      const gaps = roleSkills.filter((s) => !s.have).map((s) => s.skill).slice(0, 5)
+      // 2) EVERY skill the role wants that the CV does not evidence becomes a
+      //    North Star item. The tab is a category, not a reward for a
+      //    successful AI call (Ose, 29 Jul) — so the items exist first and the
+      //    generated plan enriches them below.
+      //
+      //    Previously only the first 5 gaps were planned and an item existed
+      //    ONLY if generation succeeded, so a locked role could show 6 missing
+      //    skills in the map with nothing behind any of them.
+      const allGaps = roleSkills.filter((s) => !s.have).map((s) => s.skill)
+      // Enrichment is still capped — it is a slow, paid call — but the cap no
+      // longer decides which skills appear on the path.
+      const gaps = allGaps.slice(0, 5)
       let items: CareerRoadmapItem[] = []
       if (gaps.length > 0) {
+        const catalogContext = await loadCourseCatalogContext(supabase, gaps, {
+          region,
+          freeOnly: true,
+          maxDurationMinutes: 600,
+        })
         const planMsg = await anthropic.messages.create({
           model: 'claude-sonnet-4-6',
           max_tokens: 3000,
-          tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 } as never, CAREER_ROADMAP_TOOL],
-          messages: [{ role: 'user', content: buildRoadmapPrompt({ skills: gaps, targetRole: role, hoursPerWeek: (existing?.hours_per_week as number) ?? null, region, calibration: calibration(cv, intention) }) }],
+          tools: catalogAwareRoadmapTools(catalogContext, CAREER_ROADMAP_TOOL, 8) as never,
+          messages: [{
+            role: 'user',
+            content: buildRoadmapPrompt({
+              skills: gaps,
+              targetRole: role,
+              hoursPerWeek: (existing?.hours_per_week as number) ?? null,
+              region,
+              catalogPrompt: courseCatalogPrompt(catalogContext),
+              calibration: calibration(cv, intention),
+            }),
+          }],
         })
         const ptu = planMsg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_roadmap')
         if (ptu && ptu.type === 'tool_use') {
-          items = await validateItemResources(
-            ((ptu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const }))
+          items = await finalizeRoadmapResources(
+            supabase,
+            ((ptu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const })),
+            { region, context: catalogContext },
           )
         }
       }
+
+      // Every gap gets an item. Where generation produced a plan we use it; the
+      // rest are placeholders carrying the skill and its importance, which the
+      // UI already renders (a resource-less item reads as "no plan yet" rather
+      // than disappearing). Matching is case-insensitive because the model
+      // sometimes returns a slightly reworded skill name.
+      const planBySkill = new Map(items.map((it) => [it.skill.trim().toLowerCase(), it]))
+      items = allGaps.map((skill) => {
+        const planned = planBySkill.get(skill.trim().toLowerCase())
+        if (planned) return { ...planned, skill }
+        return {
+          skill,
+          whyItMatters: `${role} asks for this and your CV does not yet evidence it.`,
+          resources: [],
+          projectBrief: '',
+          cvPhrasing: '',
+          status: 'todo' as const,
+        }
+      })
 
       const clean = sanitizeDeep({ target_role: role, target_skills: roleSkills })
       const { data: savedRow, error } = await supabase
@@ -438,22 +489,30 @@ export async function POST(req: NextRequest) {
       }
 
       const jdRegion = await loadRegion(supabase, user.id)
+      const jdCatalog = await loadCourseCatalogContext(supabase, toAdd, {
+        region: jdRegion,
+        freeOnly: true,
+        maxDurationMinutes: 600,
+      })
       const genPrompt = buildRoadmapPrompt({
         skills: toAdd,
         targetRole: (existing?.target_role as string) || undefined,
         region: jdRegion,
+        catalogPrompt: courseCatalogPrompt(jdCatalog),
         calibration: calibration(jdCv, (existing?.intention as string) || ''),
       })
       const genMsg = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 2500,
-        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 } as never, CAREER_ROADMAP_TOOL],
+        tools: catalogAwareRoadmapTools(jdCatalog, CAREER_ROADMAP_TOOL, 5) as never,
         messages: [{ role: 'user', content: genPrompt }],
       })
       const gtu = genMsg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_roadmap')
       if (!gtu || gtu.type !== 'tool_use') throw new Error('Could not build the new skills. Please try again.')
-      const newItems = await validateItemResources(
-        ((gtu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const }))
+      const newItems = await finalizeRoadmapResources(
+        supabase,
+        ((gtu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const })),
+        { region: jdRegion, context: jdCatalog },
       )
       if (newItems.length === 0) return NextResponse.json({ added: 0, message: 'Nothing new to add.' })
 
@@ -502,20 +561,23 @@ export async function POST(req: NextRequest) {
 
       const addCv = await loadCandidateCv(supabase, user.id)
       const addRegion = await loadRegion(supabase, user.id)
+      const addCatalog = await loadCourseCatalogContext(supabase, [skill], {
+        region: addRegion,
+        freeOnly: true,
+        maxDurationMinutes: 600,
+      })
       const addPrompt = buildRoadmapPrompt({
         skills: [skill],
         targetRole: (existing?.target_role as string) || undefined,
         region: addRegion,
+        catalogPrompt: courseCatalogPrompt(addCatalog),
         calibration: calibration(addCv, (existing?.intention as string) || ''),
       })
 
       const message = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 1500,
-        tools: [
-          { type: 'web_search_20250305', name: 'web_search', max_uses: 3 } as never,
-          CAREER_ROADMAP_TOOL,
-        ],
+        tools: catalogAwareRoadmapTools(addCatalog, CAREER_ROADMAP_TOOL, 3) as never,
         messages: [{ role: 'user', content: addPrompt }],
       })
 
@@ -524,7 +586,11 @@ export async function POST(req: NextRequest) {
         throw new Error('Could not build that skill entry. Please try again.')
       }
       const raw = toolUse.input as { items?: CareerRoadmapItem[] }
-      const validated = await validateItemResources(Array.isArray(raw.items) ? raw.items : [])
+      const validated = await finalizeRoadmapResources(
+        supabase,
+        Array.isArray(raw.items) ? raw.items : [],
+        { region: addRegion, context: addCatalog },
+      )
       const newItem = validated[0]
       if (!newItem) throw new Error('Could not build that skill entry. Please try again.')
 
@@ -556,21 +622,24 @@ export async function POST(req: NextRequest) {
 
     const genCv = await loadCandidateCv(supabase, user.id)
     const genRegion = await loadRegion(supabase, user.id)
+    const genCatalog = await loadCourseCatalogContext(supabase, trimmedSkills, {
+      region: genRegion,
+      freeOnly: true,
+      maxDurationMinutes: 600,
+    })
     const userPrompt = buildRoadmapPrompt({
       skills: trimmedSkills,
       targetRole: targetRole || undefined,
       hoursPerWeek: hoursPerWeek || null,
       region: genRegion,
+      catalogPrompt: courseCatalogPrompt(genCatalog),
       calibration: calibration(genCv, String(intention ?? '')),
     })
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 3000,
-      tools: [
-        { type: 'web_search_20250305', name: 'web_search', max_uses: 8 } as never,
-        CAREER_ROADMAP_TOOL,
-      ],
+      tools: catalogAwareRoadmapTools(genCatalog, CAREER_ROADMAP_TOOL, 8) as never,
       messages: [{ role: 'user', content: userPrompt }],
     })
 
@@ -580,11 +649,13 @@ export async function POST(req: NextRequest) {
     }
 
     const raw = toolUse.input as { items?: CareerRoadmapItem[] }
-    const items = await validateItemResources(
+    const items = await finalizeRoadmapResources(
+      supabase,
       (Array.isArray(raw.items) ? raw.items : []).map((item) => ({
         ...item,
         status: 'todo' as const,
-      }))
+      })),
+      { region: genRegion, context: genCatalog },
     )
     if (items.length === 0) throw new Error('The roadmap came back empty. Please try again.')
 

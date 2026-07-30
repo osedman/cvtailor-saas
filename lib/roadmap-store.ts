@@ -112,10 +112,19 @@ export async function replaceItems(
   db: Db, userId: string, roadmapId: string | null,
   items: StoredRoadmapItem[], horizon: Horizon = 'core',
 ): Promise<StoredRoadmapItem[]> {
+  // Replacing with nothing is never what anyone wants, and it used to be
+  // silent data loss: the delete ran BEFORE this check, so a North Star lock
+  // whose plan generation came back empty wiped every existing plan — the
+  // resources, the project briefs, the CV phrasing, and any evidence the user
+  // had already logged against those skills. Observed on staging 29 Jul: 14
+  // target skills, 0 plans. Keep what exists and let the caller report it.
+  if (items.length === 0) {
+    return loadItems(db, userId, { horizon })
+  }
+
   const { error: delErr } = await db
     .from('career_roadmap_items').delete().eq('user_id', userId).eq('horizon', horizon)
   if (delErr) throw delErr
-  if (items.length === 0) return []
 
   const rows = items.map((it, i) => itemToRow({ ...it, horizon }, userId, roadmapId, i))
   const { data, error } = await db.from('career_roadmap_items').insert(rows).select('*')
