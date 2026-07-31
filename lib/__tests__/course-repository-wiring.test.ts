@@ -27,6 +27,41 @@ describe('course repository wiring', () => {
     expect(acceptBlock).toContain('queueFallbacks: false')
   })
 
+  it('sends every unseen record to review, however trusted its source', () => {
+    const sync = read('lib/course-sync.ts')
+    // The split is catalog-membership, not source trust: a record the catalog
+    // has never seen goes to the approval queue even from a first-party
+    // provider. Reintroducing a `trusted` filter here would put thousands of
+    // unreviewed rows straight in front of users.
+    expect(sync).toMatch(/const candidates = valid\.filter\(\(record\) => !known\.has\(/)
+    expect(sync).toMatch(/const refresh = valid\.filter\(\(record\) => known\.has\(/)
+    expect(sync).not.toMatch(/filter\(\(record\) => record\.trusted\)/)
+  })
+
+  it('refreshes known rows without overturning a review decision', () => {
+    const sync = read('lib/course-sync.ts')
+    // catalogRow() computes a status from provider metadata; replaying it over
+    // a row an admin has already judged would silently revert them.
+    expect(sync).toMatch(/status: _decidedByReview, \.\.\.fields/)
+  })
+
+  it('pages the catalog-key read so a short page cannot flood the queue', () => {
+    const sync = read('lib/course-sync.ts')
+    // A truncated read makes existing rows look new, which would queue the
+    // entire catalog for re-approval.
+    expect(sync).toMatch(/\.range\(from, from \+ PAGE - 1\)/)
+    expect(sync).toMatch(/if \(!data \|\| data\.length < PAGE\) return keys/)
+  })
+
+  it('marks only the candidates it actually wrote', () => {
+    const route = read('app/api/admin/course-candidates/route.ts')
+    // A whole-provider approval is served in bounded pages. Marking the wider
+    // provider scope approved would strand every unwritten row: flagged as
+    // approved, never present in the catalog.
+    expect(route).toMatch(/const writtenIds = /)
+    expect(route).toMatch(/\.in\('id', writtenIds\)/)
+  })
+
   it('registers a secret-protected daily sync', () => {
     const route = read('app/api/cron/course-sync/route.ts')
     const vercel = JSON.parse(read('vercel.json')) as {

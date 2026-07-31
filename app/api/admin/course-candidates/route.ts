@@ -5,6 +5,10 @@ import { errMessage } from '@/lib/err'
 
 export const maxDuration = 60
 
+/** Approvals handled per request; the caller repeats while `remaining` > 0. */
+const APPROVE_PAGE_SIZE = 500
+const UPSERT_CHUNK = 200
+
 /**
  * The course review queue — admin only.
  *
@@ -40,6 +44,20 @@ export async function GET() {
     ])
     if (error) throw error
 
+    // The listing above is capped, so on a first-party catalog sync it shows
+    // 200 of several thousand. These counts are what the queue actually acts
+    // on for a whole-provider decision, so they must be exact rather than
+    // derived from the visible page.
+    const providers = [...new Set((rows ?? []).map((r: Record<string, unknown>) => r.provider as string))]
+    const pendingByProvider = Object.fromEntries(await Promise.all(
+      providers.map(async (provider) => {
+        const { count } = await admin.from('course_candidates')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'pending').eq('provider', provider)
+        return [provider, count ?? 0] as const
+      }),
+    ))
+
     const candidates = (rows ?? []).map((r: Record<string, unknown>) => {
       const p = (r.payload ?? {}) as Record<string, unknown>
       return {
@@ -55,7 +73,7 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({ candidates, catalogCount: catalogCount ?? 0 })
+    return NextResponse.json({ candidates, catalogCount: catalogCount ?? 0, pendingByProvider })
   } catch (err) {
     return NextResponse.json({ error: errMessage(err) }, { status: 500 })
   }
@@ -70,9 +88,12 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}))
     const action = String(body?.action ?? '')
+    const provider = typeof body?.provider === 'string' ? body.provider.trim() : ''
     const ids = (Array.isArray(body?.ids) ? body.ids : [])
       .map((i: unknown) => String(i)).filter(Boolean).slice(0, 200)
-    if (ids.length === 0) return NextResponse.json({ error: 'Nothing selected.' }, { status: 400 })
+    if (ids.length === 0 && !provider) {
+      return NextResponse.json({ error: 'Nothing selected.' }, { status: 400 })
+    }
     if (action !== 'approve' && action !== 'reject') {
       return NextResponse.json({ error: 'action must be approve or reject' }, { status: 400 })
     }
@@ -80,17 +101,30 @@ export async function POST(req: NextRequest) {
     const admin = createAdminClient()
     const now = new Date().toISOString()
 
-    if (action === 'reject') {
-      const { error } = await admin.from('course_candidates')
-        .update({ status: 'rejected', reviewed_at: now, updated_at: now })
-        .in('id', ids)
-      if (error) throw error
-      return NextResponse.json({ rejected: ids.length })
+    // A whole-provider decision covers every pending row for that provider,
+    // not just the page the admin can see. Selecting one first-party catalog
+    // is otherwise thousands of individual clicks, which in practice means the
+    // queue never gets cleared and the catalog stops growing.
+    const scope = <T>(q: T): T => {
+      const query = q as { in: (c: string, v: string[]) => T; eq: (c: string, v: string) => T }
+      return provider ? query.eq('provider', provider) : query.in('id', ids)
     }
 
-    // Approve: read the full rows, then write real catalog entries.
-    const { data: rows, error: readErr } = await admin
-      .from('course_candidates').select('*').in('id', ids).eq('status', 'pending')
+    if (action === 'reject') {
+      const { error, count } = await scope(admin.from('course_candidates')
+        .update({ status: 'rejected', reviewed_at: now, updated_at: now }, { count: 'exact' })
+        .eq('status', 'pending'))
+      if (error) throw error
+      return NextResponse.json({ rejected: count ?? ids.length })
+    }
+
+    // Approve: read the full rows, then write real catalog entries. Bounded
+    // per request so a whole-provider approval of a large first-party catalog
+    // cannot run past this route's 60s budget and die halfway through the
+    // write. The response reports what is left so the caller can repeat.
+    const { data: rows, error: readErr } = await scope(
+      admin.from('course_candidates').select('*').eq('status', 'pending'),
+    ).limit(APPROVE_PAGE_SIZE)
     if (readErr) throw readErr
 
     const catalogRows = (rows ?? []).map((r: Record<string, unknown>) => {
@@ -121,18 +155,32 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    if (catalogRows.length > 0) {
+    for (let i = 0; i < catalogRows.length; i += UPSERT_CHUNK) {
       const { error: upErr } = await admin
-        .from('course_catalog').upsert(catalogRows, { onConflict: 'canonical_url' })
+        .from('course_catalog')
+        .upsert(catalogRows.slice(i, i + UPSERT_CHUNK), { onConflict: 'canonical_url' })
       if (upErr) throw upErr
     }
 
-    const { error: markErr } = await admin.from('course_candidates')
-      .update({ status: 'approved', reviewed_at: now, updated_at: now })
-      .in('id', ids)
-    if (markErr) throw markErr
+    // Mark exactly the rows written above, never the wider provider scope —
+    // otherwise a bounded page would mark thousands of unwritten candidates
+    // approved and they would silently never reach the catalog.
+    const writtenIds = (rows ?? []).map((r: Record<string, unknown>) => r.id as string)
+    if (writtenIds.length > 0) {
+      const { error: markErr } = await admin.from('course_candidates')
+        .update({ status: 'approved', reviewed_at: now, updated_at: now })
+        .in('id', writtenIds)
+      if (markErr) throw markErr
+    }
 
-    return NextResponse.json({ approved: catalogRows.length })
+    let remaining = 0
+    if (provider) {
+      const { count } = await admin.from('course_candidates')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending').eq('provider', provider)
+      remaining = count ?? 0
+    }
+    return NextResponse.json({ approved: catalogRows.length, remaining })
   } catch (err) {
     return NextResponse.json({ error: errMessage(err) }, { status: 500 })
   }
