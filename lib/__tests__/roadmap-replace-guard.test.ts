@@ -75,15 +75,25 @@ describe('set-target populates every gap, not just the planned ones', () => {
   const route = readFileSync(path.join(ROOT, 'app/api/career-path/route.ts'), 'utf8')
 
   it('builds items from all gaps, with the AI plan as enrichment', () => {
-    // allGaps drives the items; gaps (capped) only drives the paid call.
+    // allGaps drives the items in set-target; the paid plan call lives in the
+    // separate enrich-plan mode (split 30 Jul so locking a target returns fast)
+    // and fills placeholders via planBySkill.
     expect(route).toMatch(/const allGaps = roleSkills\.filter\(\(s\) => !s\.have\)/)
-    expect(route).toMatch(/items = allGaps\.map\(/)
+    expect(route).toMatch(/= allGaps\.map\(/)
+    expect(route).toMatch(/mode === 'enrich-plan'/)
     expect(route).toMatch(/planBySkill/)
   })
 
   it('caps enrichment but not which skills appear', () => {
-    // The .slice(0, 5) must apply to `gaps` (the AI call), never to allGaps.
-    expect(route).toMatch(/const gaps = allGaps\.slice\(0, 5\)/)
+    // The .slice(0, 5) applies to `pending`/`gaps` (the AI call in
+    // enrich-plan), never to allGaps in set-target.
+    expect(route).toMatch(/pending\.slice\(0, 5\)/)
     expect(route).not.toMatch(/const allGaps = [^\n]*\.slice\(/)
+  })
+
+  it('enrichment never clobbers items the user owns', () => {
+    // Only resource-less placeholders may be replaced by a generated plan.
+    expect(route).toMatch(/isPlaceholder/)
+    expect(route).toMatch(/if \(!isPlaceholder \|\| !plan\) return it/)
   })
 })
