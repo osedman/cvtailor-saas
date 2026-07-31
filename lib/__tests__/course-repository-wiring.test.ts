@@ -27,16 +27,19 @@ describe('course repository wiring', () => {
     expect(acceptBlock).toContain('queueFallbacks: false')
   })
 
-  it('registers a secret-protected weekly sync', () => {
+  it('registers a secret-protected daily sync', () => {
     const route = read('app/api/cron/course-sync/route.ts')
     const vercel = JSON.parse(read('vercel.json')) as {
       crons: Array<{ path: string; schedule: string }>
     }
     expect(route).toContain('Bearer ${secret}')
     expect(route).toContain('createAdminClient()')
+    // Daily, not weekly: discovery feeds the approval queue every morning, and
+    // the link-rot sweep only covers the catalog in reasonable time at this
+    // cadence. Stays within Hobby's one-trigger-per-day cron limit.
     expect(vercel.crons).toContainEqual({
       path: '/api/cron/course-sync',
-      schedule: '0 3 * * 0',
+      schedule: '0 3 * * *',
     })
   })
 

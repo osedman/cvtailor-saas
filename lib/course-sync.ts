@@ -4,7 +4,17 @@ import { searchTextFor } from '@/lib/course-sources/types'
 import { isAllowedResourceUrl, isUrlAlive } from '@/lib/course-validation'
 
 const UPSERT_BATCH_SIZE = 200
-const VERIFY_BATCH_SIZE = 100
+/**
+ * Link-rot sweep size per run. Each run re-checks the least-recently-verified
+ * rows, so this number and the cron cadence together set how long a full pass
+ * takes: at 100/run on a weekly cron a ~4.4k catalog took over a year to check
+ * once, which meant dead links reached users long before we noticed. 250 on a
+ * daily cron brings a full pass to under three weeks. Raise with care — these
+ * are live HTTP checks issued inside one 300s invocation.
+ */
+const VERIFY_BATCH_SIZE = 250
+/** How many of those checks run at once. See the wave loop below for why. */
+const VERIFY_CONCURRENCY = 25
 
 function chunks<T>(values: T[], size: number): T[][] {
   const result: T[][] = []
@@ -159,10 +169,16 @@ export async function syncCourseCatalog(
       .limit(VERIFY_BATCH_SIZE)
     if (error) throw error
 
-    const checked = await Promise.all((verifyRows ?? []).map(async (row) => ({
-      id: row.id as string,
-      alive: await isUrlAlive(row.canonical_url as string, 6_000),
-    })))
+    // Verified in waves rather than one Promise.all: the catalog is dominated
+    // by a single host, so firing the whole batch at once reads as a burst to
+    // them and risks throttling that would look like mass link rot here.
+    const checked: Array<{ id: string; alive: boolean }> = []
+    for (const wave of chunks(verifyRows ?? [], VERIFY_CONCURRENCY)) {
+      checked.push(...await Promise.all(wave.map(async (row) => ({
+        id: row.id as string,
+        alive: await isUrlAlive(row.canonical_url as string, 6_000),
+      }))))
+    }
     const liveIds = checked.filter((row) => row.alive).map((row) => row.id)
     const staleIds = checked.filter((row) => !row.alive).map((row) => row.id)
     if (liveIds.length > 0) {
