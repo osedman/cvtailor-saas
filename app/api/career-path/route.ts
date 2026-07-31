@@ -146,6 +146,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now()
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -240,9 +241,6 @@ export async function POST(req: NextRequest) {
       if (!role) return NextResponse.json({ error: 'Which role are you aiming at?' }, { status: 400 })
 
       const [cv, region] = await Promise.all([loadCandidateCv(supabase, user.id), loadRegion(supabase, user.id)])
-      const { data: existing } = await supabase
-        .from('career_roadmaps').select('intention, hours_per_week').eq('user_id', user.id).maybeSingle()
-      const intention = (existing?.intention as string) || ''
       const regionName = region.toUpperCase() === 'GB' ? 'the UK' : 'their country'
 
       // 1) The role's market-demanded skills, judged have/missing against the CV.
@@ -262,66 +260,27 @@ export async function POST(req: NextRequest) {
       // 2) EVERY skill the role wants that the CV does not evidence becomes a
       //    North Star item. The tab is a category, not a reward for a
       //    successful AI call (Ose, 29 Jul) — so the items exist first and the
-      //    generated plan enriches them below.
+      //    enrich-plan call fills them in afterwards.
       //
       //    Previously only the first 5 gaps were planned and an item existed
       //    ONLY if generation succeeded, so a locked role could show 6 missing
       //    skills in the map with nothing behind any of them.
       const allGaps = roleSkills.filter((s) => !s.have).map((s) => s.skill)
-      // Enrichment is still capped — it is a slow, paid call — but the cap no
-      // longer decides which skills appear on the path.
-      const gaps = allGaps.slice(0, 5)
-      let items: CareerRoadmapItem[] = []
-      if (gaps.length > 0) {
-        const catalogContext = await loadCourseCatalogContext(supabase, gaps, {
-          region,
-          freeOnly: true,
-          maxDurationMinutes: 600,
-        })
-        const planMsg = await anthropic.messages.create({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 3000,
-          tools: catalogAwareRoadmapTools(catalogContext, CAREER_ROADMAP_TOOL, 8) as never,
-          messages: [{
-            role: 'user',
-            content: buildRoadmapPrompt({
-              skills: gaps,
-              targetRole: role,
-              hoursPerWeek: (existing?.hours_per_week as number) ?? null,
-              region,
-              catalogPrompt: courseCatalogPrompt(catalogContext),
-              calibration: calibration(cv, intention),
-            }),
-          }],
-        })
-        const ptu = planMsg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_roadmap')
-        if (ptu && ptu.type === 'tool_use') {
-          items = await finalizeRoadmapResources(
-            supabase,
-            ((ptu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const })),
-            { region, context: catalogContext },
-          )
-        }
-      }
 
-      // Every gap gets an item. Where generation produced a plan we use it; the
-      // rest are placeholders carrying the skill and its importance, which the
-      // UI already renders (a resource-less item reads as "no plan yet" rather
-      // than disappearing). Matching is case-insensitive because the model
-      // sometimes returns a slightly reworded skill name.
-      const planBySkill = new Map(items.map((it) => [it.skill.trim().toLowerCase(), it]))
-      items = allGaps.map((skill) => {
-        const planned = planBySkill.get(skill.trim().toLowerCase())
-        if (planned) return { ...planned, skill }
-        return {
-          skill,
-          whyItMatters: `${role} asks for this and your CV does not yet evidence it.`,
-          resources: [],
-          projectBrief: '',
-          cvPhrasing: '',
-          status: 'todo' as const,
-        }
-      })
+      // Every gap gets a placeholder item immediately — the UI renders a
+      // resource-less item as "no plan yet". Plan enrichment (the second slow,
+      // paid model call) no longer happens here: the client fires mode
+      // "enrich-plan" right after this returns, so the user sees their skill
+      // map and readiness in roughly half the time. That call fills the
+      // placeholders in; if it never lands, the path still exists.
+      const items: CareerRoadmapItem[] = allGaps.map((skill) => ({
+        skill,
+        whyItMatters: `${role} asks for this and your CV does not yet evidence it.`,
+        resources: [],
+        projectBrief: '',
+        cvPhrasing: '',
+        status: 'todo' as const,
+      }))
 
       const clean = sanitizeDeep({ target_role: role, target_skills: roleSkills })
       const { data: savedRow, error } = await supabase
@@ -339,7 +298,78 @@ export async function POST(req: NextRequest) {
 
       const closed = savedItems.filter((i) => i.status === 'done').map((i) => i.skill)
       const readiness = readinessFromTargetSkills(roleSkills as TargetSkill[], closed)
-      return NextResponse.json({ roadmap: saved, readiness })
+      console.log(`[career-path] set-target researched ${roleSkills.length} skills (${allGaps.length} gaps) in ${Date.now() - t0}ms`)
+      return NextResponse.json({ roadmap: saved, readiness, enriching: allGaps.length > 0 })
+    }
+
+    // ── Stage 3b: enrich the placeholder gap items with a learning plan.
+    // Split out of set-target so locking a North Star returns fast; the client
+    // calls this immediately after. Idempotent and clobber-safe: only items
+    // that are still resource-less placeholders are updated, so re-running
+    // never overwrites a plan the user has started working through.
+    if (body?.mode === 'enrich-plan') {
+      const { data: row } = await supabase
+        .from('career_roadmaps').select(ROADMAP_COLS).eq('user_id', user.id).maybeSingle()
+      const role = (row?.target_role as string | undefined)?.trim()
+      if (!row || !role) return NextResponse.json({ error: 'No North Star to enrich yet.' }, { status: 400 })
+
+      const current = await loadItems(supabase, user.id, { horizon: 'core' })
+      const pending = current.filter((it) => (it.resources ?? []).length === 0 && !it.projectBrief)
+      if (pending.length === 0) return NextResponse.json({ roadmap: await withItems(supabase, user.id, row) })
+
+      const [cv, region] = await Promise.all([loadCandidateCv(supabase, user.id), loadRegion(supabase, user.id)])
+      const intention = (row.intention as string) || ''
+      // Enrichment stays capped — it is a slow, paid call — but the cap no
+      // longer decides which skills appear on the path.
+      const gaps = pending.slice(0, 5).map((it) => it.skill)
+
+      const catalogContext = await loadCourseCatalogContext(supabase, gaps, {
+        region,
+        freeOnly: true,
+        maxDurationMinutes: 600,
+      })
+      const planMsg = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 3000,
+        tools: catalogAwareRoadmapTools(catalogContext, CAREER_ROADMAP_TOOL, 8) as never,
+        messages: [{
+          role: 'user',
+          content: buildRoadmapPrompt({
+            skills: gaps,
+            targetRole: role,
+            hoursPerWeek: (row.hours_per_week as number) ?? null,
+            region,
+            catalogPrompt: courseCatalogPrompt(catalogContext),
+            calibration: calibration(cv, intention),
+          }),
+        }],
+      })
+      let planned: CareerRoadmapItem[] = []
+      const ptu = planMsg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_roadmap')
+      if (ptu && ptu.type === 'tool_use') {
+        planned = await finalizeRoadmapResources(
+          supabase,
+          ((ptu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const })),
+          { region, context: catalogContext },
+        )
+      }
+
+      // Merge: fill placeholders in place, keep everything the user owns.
+      // Matching is case-insensitive because the model sometimes returns a
+      // slightly reworded skill name.
+      const planBySkill = new Map(planned.map((it) => [it.skill.trim().toLowerCase(), it]))
+      const merged = current.map((it) => {
+        const isPlaceholder = (it.resources ?? []).length === 0 && !it.projectBrief
+        const plan = planBySkill.get(it.skill.trim().toLowerCase())
+        if (!isPlaceholder || !plan) return it
+        return { ...plan, skill: it.skill, status: it.status }
+      })
+      const savedItems = await replaceItems(
+        supabase, user.id, row.id as string,
+        sanitizeDeep(merged) as StoredRoadmapItem[], 'core',
+      )
+      console.log(`[career-path] enrich-plan planned ${planned.length}/${gaps.length} gaps in ${Date.now() - t0}ms`)
+      return NextResponse.json({ roadmap: { ...row, items: savedItems } })
     }
 
     // Remove a skill from the path and remember it so it's never re-added.

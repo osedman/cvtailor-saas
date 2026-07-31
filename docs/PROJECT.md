@@ -177,6 +177,37 @@ _Recorded 30 July 2026._
 
 ---
 
+## 🚀 SHIPPED: Career path GA — gate lifted, announcement sent (30 July 2026)
+
+[PR #34](https://github.com/osedman/cvtailor-saas/pull/34) merged to main (`e4aefd2`):
+the full staging port (course catalog + YouTube sync + review queue + cron, North
+Star lock fix, onboarding walkthrough, Concept B skills UI) plus the beta-gate
+lift — `isCareerPathBeta` returns true for everyone. Verified on prod:
+`/api/career-path/access` → `{"beta":true}` unauthenticated, `/career-path` 200,
+all course routes returning correct auth refusals (no 500s), `course_catalog`
+migration applied with RLS. Prod env: `COURSE_SOURCE_REGION=GB`,
+`YOUTUBE_COURSES_ENABLED=1` (channel IDs deliberately unset in prod — the
+in-code `DEFAULT_TRUSTED_CHANNELS` list applies).
+
+**Announcement email sent same day: 60 of 62 delivered** (2 failures, addresses
+not captured — check Resend dashboard if needed). Copy:
+`email/career-path-out-of-beta.md`; send script: `scripts/send-career-path-ga.mjs`
+(same safety ladder as win-back). CTA asks for a one-word reply — **watch the
+hello@gettailr.com inbox for "right"/"wrong" replies**; that's the North Star
+quality signal.
+
+Note: the gate lift is on **main only** — staging still runs the allowlist
+version of `lib/feature-gate.ts` until staging next syncs from main.
+
+Open follow-ups: first course-sync cron run unverified (skim logs); perf work on
+career-path generation still to do; service_role rotation ticket above now MORE
+urgent (the prod key also sits in `.env.development.local` locally for the send
+script).
+
+_Recorded 30 July 2026._
+
+---
+
 ## 🎯 Feature: Core = the North Star only; JD skills live in Upskill (28 July 2026)
 
 **Decision (Ose):** every skill Tailr researches for the chosen North Star role
