@@ -177,6 +177,60 @@ _Recorded 30 July 2026._
 
 ---
 
+## 🐛 FIXED: skills showed no courses — relevance was never actually required (31 July 2026)
+
+**Symptom:** career-path skills rendered with a project brief and **no courses at all**.
+
+**Two wrong diagnoses first, both mine.** "The catalog is empty" (it was, and filling it
+did not fix this) and then "rebuild the path". The path Ose built at 18:43 — *after* the
+catalog held 4,443 courses — still produced 0 resources for 4 skills. Populating data and
+re-running are the obvious moves and neither touched the real cause.
+
+**Actual cause:** in `rankCourses` (`lib/course-catalog.ts`) relevance and fit were a
+single score. A free, short Microsoft module scored **~66 on metadata alone** (quality +
+provider preference + free + duration) against a threshold of **15**, so every skill
+returned five results however unrelated. Production was serving:
+
+- *"Direct line management"* → **"Build and deploy apps for Microsoft Teams"**
+- *"Target Operating Model"* → **"Advanced Model-Driven Apps with Power Apps"** — matched
+  on the word *"model"*
+
+**Why that showed up as silence rather than bad courses.** `fullCoverage` (every skill
+has ≥2 records) suppresses the web-search fallback in `catalogAwareRoadmapTools`. So
+business and leadership skills had only irrelevant candidates *and no way to look
+elsewhere*. The model correctly attached nothing — and that is what reached users. **A
+false positive in matching surfaced as a missing feature.**
+
+**Fix ([PR #39](https://github.com/osedman/cvtailor-saas/pull/39), `25bea91`):**
+- Relevance is scored separately and **gates eligibility**; fit only reorders records that
+  already match.
+- A match needs a phrase hit, or enough distinct token hits to stop being coincidence,
+  **scaled to the skill's length** — two hits is convincing for "Power BI" and meaningless
+  for a nine-word skill. The Teams module cleared a flat bar of two on "team" (matching
+  the tag "office teams") and "developers" (matching "developer").
+- Substring matching between words needs length ≥5, so a two-letter tag like `ai` no
+  longer matches `email`.
+
+Verified against the live catalog: business skills now return nothing and re-enable web
+search, while Power BI, Azure DevOps, Python, Kubernetes, Power Automate and data analysis
+all still resolve. Tests were checked to fail against the old logic.
+
+**Being strict is cheap here** — falling short of coverage turns the fallback on, which
+beats a confident irrelevant answer. That is the design principle to preserve.
+
+**Blast radius: zero real users.** All 6 course-less items belonged to Ose's own two
+accounts; 9 of 62 users have built a path at all. No backfill needed. Old items do not
+self-heal (already stored with empty resources) — re-locking a North Star regenerates
+them, and the fallback now fires properly for business skills.
+
+**OPEN — next session:** Ose asked for **tooltips / UI** making this legible to users:
+why a skill has no course yet, and how to refresh it. Not started. Per the standing rule,
+this is designed in **Figma before any UI code**.
+
+_Recorded 31 July 2026._
+
+---
+
 ## 🚀 SHIPPED: Faster North Star, daily course sync, real approval gate (31 July 2026)
 
 Three merges to `main`, all live in production.
