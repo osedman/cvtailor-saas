@@ -177,6 +177,47 @@ _Recorded 30 July 2026._
 
 ---
 
+## 🚀 SHIPPED: Faster North Star, daily course sync, real approval gate (31 July 2026)
+
+Three merges to `main`, all live in production.
+
+**[PR #35](https://github.com/osedman/cvtailor-saas/pull/35) — North Star build returns
+in about half the time.** `set-target` now responds as soon as role research completes;
+placeholder items render immediately and a follow-up `enrich-plan` call fills in course
+plans behind them. Per-stage timing logs added so the remaining cost is measurable rather
+than guessed at. This also closed the staging↔prod gap: the only intentional difference
+left is `lib/feature-gate.ts` (staging keeps the pre-GA allowlist, main has GA).
+
+**[PR #36](https://github.com/osedman/cvtailor-saas/pull/36) — courses.** Three things:
+
+1. **Why courses weren't showing at all.** Prod's `course_catalog` was **empty**. The
+   table shipped with the 30 Jul port but the first sync never ran — the cron only fired
+   Sundays. Roadmap generation asked the catalog for URLs, got nothing, and produced
+   items with project ideas and no courses.
+2. **Cron is now daily at 03:00**, and Microsoft Learn's record cap went 2,000 → 5,000.
+   The old ceiling was silently discarding over half of Microsoft's ~4.4k catalog, and
+   *which* half depended on their ordering rather than on quality. Prod went
+   **2,012 → 4,443 active courses**.
+3. **The approval gate is real now.** It used to key off *source trust*: anything marked
+   `trusted: true` wrote straight to users, so 4,440 records went live unreviewed and the
+   queue looked permanently empty. The split is now **catalog membership** — a record
+   already in the catalog is refreshed in place, anything unseen goes to review whatever
+   its provider. `/admin/courses` gained exact per-provider pending counts and
+   Approve/Reject-all, because gating everything only works if approving is cheap.
+
+Link-rot sweep also went 100 → 250 rows per run in waves of 25. At the old rate a catalog
+this size took **over a year** to verify once; it is now under three weeks. The waves
+matter because the catalog is dominated by one host — a single large `Promise.all` risks
+throttling that looks exactly like mass link rot in our own data.
+
+**Watch tomorrow (1 Aug):** the 03:00 run is the first time YouTube actually executes in
+production, so the review queue gets real candidates for the first time. Check
+`/admin/courses` and the `course_sync_runs` table.
+
+_Recorded 31 July 2026._
+
+---
+
 ## 🚀 SHIPPED: Career path GA — gate lifted, announcement sent (30 July 2026)
 
 [PR #34](https://github.com/osedman/cvtailor-saas/pull/34) merged to main (`e4aefd2`):
