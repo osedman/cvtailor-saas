@@ -315,27 +315,57 @@ every video id in one request against YouTube's hard 50-id limit — fine at 8
 search queries, a 400 at 16. Batched now, with a failed batch skipped rather
 than losing the whole run.
 
-## 🔐 OPEN — rotate the exposed Supabase `service_role` key
+## 🔐 CLOSED 31 Jul — the exposed Supabase `service_role` key is rotated
 
 The production `service_role` key was pasted into a chat transcript on 29 Jul.
 It bypasses all RLS: full read/write on every user's CV text, email and history.
 
-It is a **legacy symmetric JWT**, so it cannot be rotated directly. The path is:
-migrate JWT secret → rotate signing keys → **revoke** the previous key (without
-revoke the old key stays valid) → create new secret/publishable API keys →
-update Vercel → verify → **only then** disable the legacy pair. Disabling before
-Vercel is updated takes gettailr.com down. `supabase-js` takes the new secret key
-in the same position, so no code changes are needed — only env values.
+**It stayed live for two days after being marked resolved.** The 29 Jul work did
+the `anon` half properly (prod moved to `sb_publishable_…`) and created secret
+keys — but `SUPABASE_SERVICE_ROLE_KEY` in Vercel Production was never actually
+swapped, so the exposed legacy JWT remained in use. On 31 Jul it still read all
+62 user profiles, and it is the key that sent the 60 GA announcement emails. Two
+unused `sb_secret_` keys had been sitting in Supabase the whole time; only the
+final wiring step was missing. **The board and this file both said "done".**
 
-Blocks: sending the win-back email, and any unattended end-to-end testing.
+**Rotation actually performed 31 Jul**, legacy kept live as rollback until the
+new key was proven:
 
-**Progress verified 30 Jul:** production is on the new `sb_publishable_…` key and
-its **legacy `anon` JWT is disabled**, so the publishable half of this is done.
-The legacy secret half was not checked. Note the fallout: updating Vercel during
-the rotation overwrote staging's scoped keys and locked staging out — see the
-30 July entry below.
+1. Created secret key `vercel_prod_20260731` — fresh, so its provenance is known
+   and it has never appeared in a transcript.
+2. Swapped it into Vercel **Production only** via the clipboard, so the value
+   never entered an agent context.
+3. Redeployed prod, then verified the **service-role path end to end**:
+   `POST /api/auth/request-otp` → `{"ok":true}`. That request is the only one
+   that genuinely exercises `service_role`; page 200s prove nothing here.
+4. Updated the local `.env.development.local` copy and re-verified the send
+   script against it.
+5. **Only then** disabled the legacy JWT pair.
 
-_Last updated: 30 July 2026_
+**Verified after disabling:** the exposed legacy `anon` key returns **401** on
+both `/auth/v1/settings` and `/rest/v1`, while the new publishable key returns
+200. Prod healthy — login 200, `/career-path` 200, `/tailor` 200,
+`gettailr.com` 200, 62 users and 4,443 courses intact.
+
+**Two traps worth remembering:**
+- The clipboard was overwritten by an unrelated Figma URL between copying the key
+  and pasting it. Caught by zooming into the field *before* saving; had it saved
+  and deployed, prod login would have broken with an opaque auth error. **Verify
+  the field, not just the copy.**
+- Supabase's *Disable JWT-based API keys* has a **second** confirmation requiring
+  you to type `disable`. The first click looks like it worked and does nothing.
+  What caught it was testing the key itself — the management API still reported
+  `disabled: false` at that point, so neither the dashboard nor the API was
+  trustworthy on its own.
+
+**Follow-ups:** prod now has three secret keys — `default` and `tailr_server`
+(both unused, from 29 Jul) plus `vercel_prod_20260731` (in use). Delete the two
+unused ones; idle privileged keys are pure attack surface. Separately **staging
+still uses a legacy `service_role` JWT** — not exposed, so lower priority, but
+legacy keys cannot be disabled on `tailr-staging` until Vercel's
+`Preview (staging)` var is swapped first.
+
+_Last updated: 31 July 2026_
 
 ## 🔧 In progress / open PRs
 
