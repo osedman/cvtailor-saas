@@ -189,7 +189,22 @@ export function computeUsageCounts(
   return counts
 }
 
-/** Most recent substantive CV text from tailor history, or '' when none exists. */
+/**
+ * The fullest substantive CV among recent runs, '' when none qualifies.
+ * Recency window first, length within it: a burst of test runs with a thin CV
+ * must not displace the user's real CV sitting a few runs back.
+ */
+export function pickFullestCv(cvs: Array<string | null>, minLength: number): string {
+  let best = ''
+  for (const cv of cvs) {
+    const text = cv ?? ''
+    if (text.trim().length < minLength) continue
+    if (text.length > best.length) best = text
+  }
+  return best
+}
+
+/** Fullest substantive CV from the user's 10 most recent tailor runs. */
 export async function resolveStoredCv(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
@@ -200,8 +215,7 @@ export async function resolveStoredCv(
     .select('original_cv')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
-    .limit(5)
+    .limit(10)
   if (error) throw new Error(error.message)
-  const substantive = (rows ?? []).find((r: { original_cv: string | null }) => (r.original_cv ?? '').trim().length >= minLength)
-  return substantive?.original_cv ?? ''
+  return pickFullestCv((rows ?? []).map((r: { original_cv: string | null }) => r.original_cv), minLength)
 }

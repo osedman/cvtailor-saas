@@ -6,6 +6,7 @@ import {
   isSubstringOfCv,
   normalizeForMatch,
   numberTokens,
+  pickFullestCv,
   validateEvidenceCards,
   validateRephrase,
 } from '@/lib/career-evidence'
@@ -141,5 +142,23 @@ describe('usage counts', () => {
       [tailored],
     )
     expect(counts).toEqual({ a: 1, b: 0 })
+  })
+})
+
+describe('pickFullestCv', () => {
+  const thin = 'x'.repeat(400)
+  const full = 'y'.repeat(4000)
+
+  it('prefers the fullest CV over the most recent', () => {
+    expect(pickFullestCv([thin, thin, full, thin], 300)).toBe(full)
+  })
+
+  it('ignores rows below the substantive threshold', () => {
+    expect(pickFullestCv(['short', null, thin], 300)).toBe(thin)
+  })
+
+  it('returns empty when nothing qualifies', () => {
+    expect(pickFullestCv(['short', null, '   '], 300)).toBe('')
+    expect(pickFullestCv([], 300)).toBe('')
   })
 })
