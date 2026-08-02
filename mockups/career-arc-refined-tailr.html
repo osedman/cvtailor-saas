@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Career Arc — Refined (Tailr skin, Ledger structure)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1e1813; --cream: #f9f6f0; --paper: #fdfcf9; --white: #ffffff;
+    --coral: #dc4f33; --peach: #f4a58e; --coral-tint: #fff7f4; --coral-soft: #f5d9d0;
+    --sand: #e0d6c9; --sand-lt: #ece2d6; --muted: #a89e93; --dim: #55504a; --gray: #8a8178;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--cream); font-family: "Geist", system-ui, sans-serif; color: var(--ink); padding: 32px 24px 80px; }
+  .mono { font-family: "Geist Mono", monospace; }
+  .page { max-width: 1080px; margin: 0 auto; }
+
+  /* top nav strip */
+  .crumb { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .crumb .logo { font-weight: 900; font-size: 19px; }
+  .crumb .logo em { color: var(--coral); font-style: normal; }
+  .crumb .sep { color: var(--muted); font-size: 12px; }
+  .crumb .here { font-family: "Geist Mono"; font-size: 11.5px; letter-spacing: .14em; color: var(--dim); }
+  .crumb .spacer { flex: 1; }
+  .btn { font-size: 13px; font-weight: 600; border-radius: 10px; padding: 9px 16px; cursor: pointer; border: 1px solid var(--sand); background: var(--white); color: var(--ink); }
+  .btn.primary { background: var(--coral); border-color: var(--coral); color: #fff; box-shadow: 0 6px 18px rgba(220,79,51,.28); }
+
+  /* ledger card */
+  .ledger { background: var(--paper); border: 1px solid var(--sand); border-radius: 24px; box-shadow: 0 16px 48px rgba(30,24,19,.10); overflow: hidden; position: relative; }
+  .head { padding: 40px 48px 28px; border-bottom: 1px solid var(--sand-lt); position: relative; }
+  .head h1 { font-size: 34px; font-weight: 900; letter-spacing: -.01em; }
+  .head h1 em { color: var(--coral); font-style: normal; }
+  .meta { display: flex; gap: 28px; margin-top: 14px; flex-wrap: wrap; }
+  .meta span { font-family: "Geist Mono"; font-size: 11px; letter-spacing: .08em; color: var(--gray); }
+  .meta b { color: var(--dim); font-weight: 500; }
+  .privacy { display: inline-flex; align-items: center; gap: 7px; margin-top: 16px; background: var(--coral-tint); border: 1px solid var(--coral-soft); border-radius: 99px; padding: 6px 13px; font-size: 12px; font-weight: 600; }
+  .privacy .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--coral); }
+  .stamp { position: absolute; top: 34px; right: 44px; transform: rotate(-11deg); border: 3px solid var(--coral); color: var(--coral); border-radius: 8px; padding: 8px 16px 7px; text-align: center; opacity: .9; }
+  .stamp .big { font-family: "Geist Mono"; font-size: 15px; font-weight: 700; letter-spacing: .22em; }
+  .stamp small { display: block; font-family: "Geist Mono"; font-size: 8px; letter-spacing: .16em; margin-top: 3px; }
+
+  section { padding: 30px 48px; }
+  section + section { border-top: 1px solid var(--sand-lt); }
+  .sec-head { display: flex; align-items: baseline; margin-bottom: 18px; }
+  .sec-head h2 { font-family: "Geist Mono"; font-size: 12px; font-weight: 700; letter-spacing: .22em; }
+  .sec-head .note { margin-left: auto; font-size: 12px; color: var(--muted); }
+
+  /* at a glance */
+  .glance { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .stat { background: var(--white); border: 1px solid var(--sand-lt); border-radius: 16px; padding: 18px 20px; }
+  .stat .v { font-size: 30px; font-weight: 800; color: var(--coral); font-variant-numeric: tabular-nums; }
+  .stat .l { font-family: "Geist Mono"; font-size: 10px; letter-spacing: .14em; color: var(--gray); margin-top: 6px; text-transform: uppercase; }
+
+  /* path */
+  .path-card { background: var(--white); border: 1px solid var(--sand-lt); border-radius: 16px; padding: 24px 26px 16px; }
+  .path-card svg text { font-family: "Geist", sans-serif; }
+  .st-name { font-size: 12.5px; font-weight: 700; fill: var(--ink); }
+  .st-sub { font-size: 10px; font-weight: 500; fill: var(--muted); }
+  .st-year { font-family: "Geist Mono", monospace !important; font-size: 9.5px; fill: var(--dim); }
+  .path-foot { display: flex; justify-content: space-between; border-top: 1px solid var(--sand-lt); margin-top: 8px; padding-top: 12px; font-size: 12px; color: var(--muted); }
+
+  /* evidence bank */
+  .bank { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pinned { grid-column: 1 / -1; background: var(--ink); border-radius: 18px; padding: 26px 28px; position: relative; overflow: hidden; }
+  .pinned::after { content: ""; position: absolute; right: -110px; top: -110px; width: 300px; height: 300px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(220,79,51,.35) 0%, transparent 70%); pointer-events: none; }
+  .pinned .tag { font-family: "Geist Mono"; font-size: 10px; letter-spacing: .2em; color: var(--peach); }
+  .pinned p.claim { font-size: 20px; font-weight: 700; color: var(--cream); line-height: 1.45; margin-top: 10px; max-width: 44rem; }
+  .pinned .src-row { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .chip { font-family: "Geist Mono"; font-size: 10.5px; letter-spacing: .06em; border-radius: 99px; padding: 5px 12px; }
+  .chip.src { background: rgba(249,246,240,.09); border: 1px solid rgba(249,246,240,.2); color: var(--cream); }
+  .chip.use { background: var(--coral); color: #fff; }
+  .card { background: var(--white); border: 1px solid var(--sand-lt); border-radius: 18px; padding: 20px 22px; position: relative; transition: box-shadow .2s, transform .2s; }
+  .card:hover { box-shadow: 0 10px 28px rgba(30,24,19,.10); transform: translateY(-2px); }
+  .card .cat { font-family: "Geist Mono"; font-size: 9.5px; letter-spacing: .2em; color: var(--gray); }
+  .card p.claim { font-size: 14.5px; font-weight: 600; line-height: 1.5; margin-top: 8px; }
+  .card .src-row { margin-top: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .card .chip.src2 { background: var(--coral-tint); border: 1px solid var(--coral-soft); color: var(--ink); }
+  .card .used { font-size: 11px; color: var(--muted); }
+  .actions { position: absolute; top: 14px; right: 14px; display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
+  .card:hover .actions, .card.demo-hover .actions { opacity: 1; }
+  .actions button { font-family: "Geist Mono"; font-size: 9.5px; letter-spacing: .1em; padding: 5px 10px; border-radius: 8px;
+    border: 1px solid var(--sand); background: var(--cream); color: var(--dim); cursor: pointer; }
+  .actions button:hover { border-color: var(--coral); color: var(--coral); }
+  .card.demo-hover { box-shadow: 0 10px 28px rgba(30,24,19,.10); }
+  .card.demo-hover::before { content: "hover state"; position: absolute; bottom: -9px; right: 16px; font-family: "Geist Mono"; font-size: 9px;
+    letter-spacing: .12em; background: var(--ink); color: var(--cream); border-radius: 99px; padding: 3px 10px; }
+  .add-card { border: 2px dashed var(--sand); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; background: transparent; }
+  .add-card .t { font-family: "Geist Mono"; font-size: 11px; letter-spacing: .18em; color: var(--dim); }
+  .add-card p { font-size: 12px; color: var(--muted); max-width: 26rem; line-height: 1.6; }
+  .add-card .btn { margin-top: 4px; font-size: 12px; padding: 7px 14px; }
+
+  /* notes */
+  .notes { background: var(--white); border: 1px solid var(--sand-lt); border-radius: 16px; padding: 20px 24px; }
+  .notes p { font-size: 12.5px; color: var(--dim); line-height: 1.8; }
+  .notes b { font-family: "Geist Mono"; font-size: 11px; letter-spacing: .1em; color: var(--ink); }
+
+  /* bridge footer */
+  .bridge { display: flex; align-items: center; gap: 18px; background: var(--ink); border-radius: 0; padding: 26px 48px; }
+  .bridge .txt b { display: block; color: var(--cream); font-size: 15.5px; font-weight: 700; }
+  .bridge .txt span { color: var(--gray); font-size: 12.5px; }
+  .bridge .spacer { flex: 1; }
+  .bridge .btn.primary { white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="crumb">
+    <span class="logo">Tailr<em>.</em></span>
+    <span class="sep">/</span>
+    <span class="here">CAREER ARC</span>
+    <span class="spacer"></span>
+    <button class="btn">Replay reveal</button>
+    <button class="btn primary">Share my arc</button>
+  </div>
+
+  <div class="ledger">
+
+    <div class="head">
+      <h1>Amara Okafor<em>.</em></h1>
+      <div class="meta">
+        <span>PERIOD <b>2017 — 2026</b></span>
+        <span>BASIS <b>evidence-first · nothing invented</b></span>
+        <span>LAST EXTRACTED <b>28 Jul 2026</b></span>
+      </div>
+      <div class="privacy"><span class="dot"></span>Private — visible only to you until you share</div>
+      <div class="stamp">
+        <div class="big">NOTHING INVENTED</div>
+        <small>12 PROOFS · SOURCED FROM YOUR CV</small>
+      </div>
+    </div>
+
+    <section>
+      <div class="sec-head"><h2>AT A GLANCE</h2><span class="note">re-extracted whenever your CV changes</span></div>
+      <div class="glance">
+        <div class="stat"><div class="v">5</div><div class="l">Chapters · 9 years</div></div>
+        <div class="stat"><div class="v">3</div><div class="l">Employers</div></div>
+        <div class="stat"><div class="v">12</div><div class="l">Proofs on file</div></div>
+        <div class="stat"><div class="v">37</div><div class="l">Reuses in 8 CVs</div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>THE PATH</h2><span class="note">chapters, not levels — sideways moves &amp; breaks are entries too</span></div>
+      <div class="path-card">
+        <svg width="100%" viewBox="0 0 980 240">
+          <path d="M 40 200 H 180 Q 200 200 202 182 L 208 158 Q 210 148 230 148 H 330 Q 350 148 352 130 L 358 112 Q 360 102 380 102 H 560 Q 580 102 582 88 L 586 74 Q 588 64 608 64 H 800"
+                fill="none" stroke="#dc4f33" stroke-width="5" stroke-linecap="round"/>
+          <path d="M 800 64 Q 830 64 848 52 L 880 34" fill="none" stroke="#dc4f33" stroke-width="5"
+                stroke-linecap="round" stroke-dasharray="1 14" opacity=".65"/>
+          <circle cx="110" cy="200" r="8" fill="#fff" stroke="#dc4f33" stroke-width="4"/>
+          <text x="110" y="224" text-anchor="middle" class="st-name">Ops Assistant</text>
+          <text x="110" y="238" text-anchor="middle" class="st-sub">Wilko</text>
+          <text x="110" y="184" text-anchor="middle" class="st-year">2017</text>
+          <circle cx="280" cy="148" r="8" fill="#fff" stroke="#dc4f33" stroke-width="4"/>
+          <text x="280" y="172" text-anchor="middle" class="st-name">Ops Coordinator</text>
+          <text x="280" y="186" text-anchor="middle" class="st-sub">Gousto</text>
+          <text x="280" y="132" text-anchor="middle" class="st-year">2019</text>
+          <circle cx="470" cy="102" r="11" fill="#fff" stroke="#1e1813" stroke-width="4"/>
+          <circle cx="470" cy="102" r="4.5" fill="#dc4f33"/>
+          <text x="470" y="128" text-anchor="middle" class="st-name">Ops Manager</text>
+          <text x="470" y="142" text-anchor="middle" class="st-sub">Gousto · promoted mid-restructure</text>
+          <text x="470" y="84" text-anchor="middle" class="st-year">2021</text>
+          <circle cx="690" cy="64" r="8" fill="#fff" stroke="#dc4f33" stroke-width="4"/>
+          <text x="690" y="88" text-anchor="middle" class="st-name">Ops Lead</text>
+          <text x="690" y="102" text-anchor="middle" class="st-sub">Deliveroo · £1.2m saved · 4 sites</text>
+          <text x="690" y="46" text-anchor="middle" class="st-year">2023</text>
+          <circle cx="800" cy="64" r="10" fill="#dc4f33"/>
+          <circle cx="800" cy="64" r="17" fill="none" stroke="#dc4f33" stroke-width="1.5" opacity=".4"/>
+          <text x="800" y="40" text-anchor="middle" class="st-name" fill="#dc4f33">You are here</text>
+          <rect x="838" y="6" width="132" height="42" rx="12" fill="none" stroke="#1e1813" stroke-width="1.5" stroke-dasharray="4 4"/>
+          <text x="904" y="24" text-anchor="middle" class="st-name">Head of Ops</text>
+          <text x="904" y="39" text-anchor="middle" class="st-sub">next chapter · open</text>
+        </svg>
+        <div class="path-foot">
+          <span>Ops assistant → Ops lead · 5 chapters, one line</span>
+          <span>Career breaks render as chapters — recorded, never counted against you</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>EVIDENCE BANK · 12 PROOFS</h2><span class="note">hover a card to edit — everything traceable to your CV</span></div>
+      <div class="bank">
+        <div class="pinned">
+          <span class="tag">PROUDEST WORK · YOU PINNED THIS</span>
+          <p class="claim">Rolled a warehouse management system across four Deliveroo sites, cutting supplier onboarding from six weeks to nine days.</p>
+          <div class="src-row">
+            <span class="chip src">OPS LEAD · DELIVEROO · 2023—26</span>
+            <span class="chip src">SOURCE: CV LINE 14</span>
+            <span class="chip use">USED IN 4 CVS</span>
+          </div>
+        </div>
+
+        <div class="card demo-hover">
+          <div class="actions"><button>REPHRASE</button><button>REORDER</button><button>HIDE</button></div>
+          <span class="cat">02 · QUANT</span>
+          <p class="claim">Saved £1.2m per annum through process automation at Deliveroo.</p>
+          <div class="src-row"><span class="chip src2">OPS LEAD · DELIVEROO</span><span class="used">used in 6 CVs</span></div>
+        </div>
+        <div class="card">
+          <div class="actions"><button>REPHRASE</button><button>REORDER</button><button>HIDE</button></div>
+          <span class="cat">03 · SCOPE</span>
+          <p class="claim">Led three teams — 34 people — through a single unified workflow.</p>
+          <div class="src-row"><span class="chip src2">OPS MANAGER · GOUSTO</span><span class="used">used in 5 CVs</span></div>
+        </div>
+        <div class="card">
+          <div class="actions"><button>REPHRASE</button><button>REORDER</button><button>HIDE</button></div>
+          <span class="cat">04 · LEADERSHIP</span>
+          <p class="claim">Promoted during a company-wide restructure; retained 100% of the team.</p>
+          <div class="src-row"><span class="chip src2">OPS MANAGER · GOUSTO</span><span class="used">used in 3 CVs</span></div>
+        </div>
+        <div class="card">
+          <div class="actions"><button>REPHRASE</button><button>REORDER</button><button>HIDE</button></div>
+          <span class="cat">05 · CRAFT</span>
+          <p class="claim">Chased stock variance to zero, on the shop floor, after hours.</p>
+          <div class="src-row"><span class="chip src2">OPS ASSISTANT · WILKO</span><span class="used">used in 2 CVs</span></div>
+        </div>
+
+        <div class="add-card" style="grid-column: 1 / -1;">
+          <span class="t">+ ADD FROM CV</span>
+          <p>Nothing invented — only text already in your CV can become a new evidence card. Paste the exact line and Tailr will source-check it.</p>
+          <button class="btn">Re-extract from latest CV</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>HOW THIS PAGE WORKS</h2></div>
+      <div class="notes">
+        <p><b>SOURCING.</b> Every card comes from your CV or your own written answers. Adjectives are expensed immediately.</p>
+        <p><b>YOU CONTROL THIS PAGE.</b> Nothing is shared until you press Share — and then redaction is per-claim; you decide exactly what a recipient sees.</p>
+        <p><b>RE-EXTRACTION.</b> A new CV upload refreshes the ledger, keeping your pinned proudest work and redaction choices. Nothing is invented on top.</p>
+      </div>
+    </section>
+
+    <div class="bridge">
+      <div class="txt">
+        <b>Tailoring for a new role?</b>
+        <span>Start from your evidence — Tailr picks the proofs that match the job description.</span>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn primary">Tailor a CV from this →</button>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

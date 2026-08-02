@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Career Arc Refined 05 — Tailor + Evidence Sidebar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:#1e1813; --cream:#f9f6f0; --paper:#fdfcf9; --white:#fff; --workspace:#f4f1ea;
+    --coral:#dc4f33; --peach:#f4a58e; --coral-tint:#fff7f4; --coral-soft:#f5d9d0;
+    --sand:#e0d6c9; --sand-lt:#ece2d6; --muted:#a89e93; --dim:#55504a; --gray:#8a8178;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--workspace); font-family:"Geist",system-ui,sans-serif; color:var(--ink); padding:28px 24px 70px; }
+  .page { max-width:1240px; margin:0 auto; }
+  .crumb { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+  .crumb .logo { font-weight:900; font-size:19px; } .crumb .logo em { color:var(--coral); font-style:normal; }
+  .crumb .sep { color:var(--muted); font-size:12px; }
+  .crumb .jd { font-size:13px; font-weight:700; }
+  .crumb .jd span { font-weight:400; color:var(--muted); }
+  .crumb .spacer { flex:1; }
+  .btn { font-size:13px; font-weight:600; border-radius:10px; padding:9px 16px; cursor:pointer; border:1px solid var(--sand); background:var(--white); color:var(--ink); }
+  .btn.primary { background:var(--coral); border-color:var(--coral); color:#fff; box-shadow:0 6px 18px rgba(220,79,51,.28); }
+  .layout { display:grid; grid-template-columns:1fr 350px; gap:18px; align-items:start; }
+
+  /* left: tailored CV — existing Tailr card language */
+  .cv { background:var(--white); border:1px solid var(--sand-lt); border-radius:20px; padding:32px 36px; box-shadow:0 10px 30px rgba(30,24,19,.06); }
+  .cv h1 { font-size:22px; font-weight:900; }
+  .cv .role-line { font-size:12.5px; color:var(--muted); margin-top:3px; }
+  .job { margin-top:24px; }
+  .job .j-head { display:flex; align-items:baseline; }
+  .job .j-head b { font-size:15px; font-weight:800; }
+  .job .j-head span { margin-left:auto; font-family:"Geist Mono"; font-size:10.5px; color:var(--gray); }
+  .bullet { display:flex; gap:9px; margin-top:10px; font-size:13.5px; line-height:1.55; color:var(--dim); }
+  .bullet::before { content:"•"; color:var(--coral); font-weight:700; }
+  .bullet.matched { background:var(--coral-tint); border:1px solid var(--coral-soft); border-radius:10px; padding:8px 12px 8px 10px; color:var(--ink); }
+  .ev { font-family:"Geist Mono"; font-size:8.5px; letter-spacing:.1em; background:var(--ink); color:var(--cream); border-radius:99px; padding:3px 8px; white-space:nowrap; align-self:center; }
+
+  /* right: evidence sidebar — Tailr components, ledger accents only */
+  .side { display:flex; flex-direction:column; gap:14px; }
+  .panel { background:var(--white); border:1px solid var(--sand-lt); border-radius:18px; padding:20px 22px; }
+  .panel h2 { font-family:"Geist Mono"; font-size:10.5px; font-weight:700; letter-spacing:.2em; color:var(--ink); }
+  .panel .sub { font-size:11.5px; color:var(--muted); margin-top:4px; }
+  .cov { display:flex; align-items:baseline; gap:8px; margin-top:14px; }
+  .cov .n { font-size:34px; font-weight:900; color:var(--coral); font-variant-numeric:tabular-nums; }
+  .cov .of { font-size:14px; font-weight:600; color:var(--dim); }
+  .segbar { display:flex; gap:4px; margin-top:12px; }
+  .segbar i { flex:1; height:7px; border-radius:99px; background:var(--coral); }
+  .segbar i.gap { background:var(--sand); }
+  .cov-note { font-size:11px; color:var(--muted); margin-top:10px; }
+  .req { display:flex; gap:10px; padding:10px 0; border-top:1px solid var(--sand-lt); align-items:baseline; }
+  .req:first-of-type { border-top:none; }
+  .req .tick { color:var(--coral); font-weight:800; font-size:12px; }
+  .req .txt { flex:1; }
+  .req .txt b { font-size:12.5px; font-weight:700; display:block; }
+  .req .txt span { font-family:"Geist Mono"; font-size:9.5px; color:var(--gray); letter-spacing:.04em; }
+  .req .txt span em { color:var(--coral); font-style:normal; font-weight:700; }
+  .gap-card { background:var(--coral-tint); border:1px solid var(--coral-soft); border-radius:14px; padding:13px 15px; margin-top:10px; }
+  .gap-card b { font-size:12.5px; font-weight:700; display:block; }
+  .gap-card p { font-size:11px; color:var(--dim); margin-top:3px; line-height:1.5; }
+  .gap-card .act { margin-top:9px; }
+  .gap-card .act button { font-size:11.5px; font-weight:700; color:var(--coral); background:none; border:none; cursor:pointer; padding:0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="crumb">
+    <span class="logo">Tailr<em>.</em></span><span class="sep">/</span>
+    <span class="jd">Head of Operations · Ocado Retail <span>· pasted from URL · 22 Jul 2026</span></span>
+    <span class="spacer"></span>
+    <button class="btn">Preview</button>
+    <button class="btn primary">Download PDF</button>
+  </div>
+
+  <div class="layout">
+    <div class="cv">
+      <h1>Amara Okafor</h1>
+      <p class="role-line">Operations Lead · London · amara@example.com</p>
+
+      <div class="job">
+        <div class="j-head"><b>Operations Lead — Deliveroo</b><span>2023 — PRESENT</span></div>
+        <div class="bullet matched">Rolled out a warehouse management system across four sites, cutting supplier onboarding from six weeks to nine days.<span class="ev">EV·01</span></div>
+        <div class="bullet matched">Saved £1.2m per annum through process automation.<span class="ev">EV·02</span></div>
+        <div class="bullet">Owned operations across four UK dark stores; managed a 22-person team.</div>
+      </div>
+
+      <div class="job">
+        <div class="j-head"><b>Operations Manager — Gousto</b><span>2021 — 2023</span></div>
+        <div class="bullet matched">Led three teams — 34 people — through a single unified workflow.<span class="ev">EV·03</span></div>
+        <div class="bullet matched">Promoted during a company-wide restructure; retained 100% of the team.<span class="ev">EV·05</span></div>
+      </div>
+
+      <div class="job">
+        <div class="j-head"><b>Operations Coordinator — Gousto</b><span>2019 — 2021</span></div>
+        <div class="bullet matched">First systems work: standardised three team workflows into one.<span class="ev">EV·08</span></div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <h2>EVIDENCE MATCHED</h2>
+        <p class="sub">Head of Ops · Ocado Retail · 9 requirements on file</p>
+        <div class="cov"><span class="n">7</span><span class="of">of 9 requirements</span></div>
+        <div class="segbar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="gap"></i><i class="gap"></i></div>
+        <p class="cov-note">5 pulled from your evidence bank · 2 implied · 2 named gaps</p>
+      </div>
+
+      <div class="panel">
+        <h2>REQUIREMENTS — MATCHED</h2>
+        <div style="margin-top:10px;">
+          <div class="req"><span class="tick">✓</span><div class="txt"><b>Multi-site operations leadership</b><span>pulled from <em>EV·01</em> · WMS 4-site rollout</span></div></div>
+          <div class="req"><span class="tick">✓</span><div class="txt"><b>Process automation with measurable cost impact</b><span>pulled from <em>EV·02</em> · £1.2m saved</span></div></div>
+          <div class="req"><span class="tick">✓</span><div class="txt"><b>Team leadership at 20+ scale</b><span>pulled from <em>EV·03</em> · 34 people, one workflow</span></div></div>
+          <div class="req"><span class="tick">✓</span><div class="txt"><b>Restructure / change management</b><span>pulled from <em>EV·05</em> · promoted mid-restructure</span></div></div>
+          <div class="req"><span class="tick">✓</span><div class="txt"><b>Workflow standardisation</b><span>pulled from <em>EV·08</em> · three workflows into one</span></div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>NAMED GAPS · 2</h2>
+        <p class="sub">Real gaps, not writing problems — Tailr won't paper over them.</p>
+        <div class="gap-card">
+          <b>Multi-site P&amp;L ownership</b>
+          <p>Not evidenced in your CV. If you have it, add the line; if not, it's a skill to build.</p>
+          <div class="act"><button>Add to career path →</button></div>
+        </div>
+        <div class="gap-card">
+          <b>Cold-chain / grocery fulfilment</b>
+          <p>Adjacent to your dark-store work but not named. Two courses queued on your path.</p>
+          <div class="act"><button>Add to career path →</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

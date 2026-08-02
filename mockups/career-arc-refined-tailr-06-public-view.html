@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Career Arc Refined 06 — Public Recipient View (shared link)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:#1e1813; --cream:#f9f6f0; --paper:#fdfcf9; --white:#fff;
+    --coral:#dc4f33; --peach:#f4a58e; --coral-tint:#fff7f4; --coral-soft:#f5d9d0;
+    --sand:#e0d6c9; --sand-lt:#ece2d6; --muted:#a89e93; --dim:#55504a; --gray:#8a8178;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--cream); font-family:"Geist",system-ui,sans-serif; color:var(--ink); }
+  .topbar { display:flex; align-items:center; gap:14px; padding:14px 48px; background:var(--cream); border-bottom:1px solid var(--sand-lt); }
+  .topbar .logo { font-weight:900; font-size:19px; } .topbar .logo em { color:var(--coral); font-style:normal; }
+  .topbar .who { font-size:12.5px; color:var(--muted); margin-left:auto; margin-right:4px; }
+  .btn { font-size:13px; font-weight:600; border-radius:10px; padding:9px 16px; cursor:pointer; border:1px solid var(--sand); background:var(--white); color:var(--ink); }
+  .btn.primary { background:var(--coral); border-color:var(--coral); color:#fff; box-shadow:0 6px 18px rgba(220,79,51,.28); }
+
+  .trust { display:flex; align-items:center; gap:12px; background:var(--ink); padding:11px 48px; }
+  .trust .mark { font-family:"Geist Mono"; font-size:10px; letter-spacing:.16em; font-weight:700; color:var(--ink); background:var(--peach); border-radius:99px; padding:4px 11px; white-space:nowrap; }
+  .trust p { font-size:12px; color:var(--cream); }
+  .trust p b { color:var(--peach); }
+  .trust .exp { margin-left:auto; font-family:"Geist Mono"; font-size:9.5px; letter-spacing:.1em; color:var(--gray); white-space:nowrap; }
+
+  .page { max-width:1020px; margin:34px auto 0; padding:0 24px 70px; }
+  .ledger { background:var(--paper); border:1px solid var(--sand); border-radius:24px; box-shadow:0 16px 48px rgba(30,24,19,.10); overflow:hidden; position:relative; }
+  .head { padding:38px 48px 26px; border-bottom:1px solid var(--sand-lt); position:relative; }
+  .head h1 { font-size:32px; font-weight:900; } .head h1 em { color:var(--coral); font-style:normal; }
+  .meta { display:flex; gap:26px; margin-top:12px; flex-wrap:wrap; }
+  .meta span { font-family:"Geist Mono"; font-size:11px; letter-spacing:.08em; color:var(--gray); }
+  .meta b { color:var(--dim); font-weight:500; }
+  .stamp { position:absolute; top:30px; right:44px; transform:rotate(-11deg); border:3px solid var(--coral); color:var(--coral); border-radius:8px; padding:7px 15px 6px; text-align:center; opacity:.9; }
+  .stamp .big { font-family:"Geist Mono"; font-size:13.5px; font-weight:700; letter-spacing:.2em; }
+  .stamp small { display:block; font-family:"Geist Mono"; font-size:7.5px; letter-spacing:.14em; margin-top:3px; }
+  section { padding:28px 48px; } section + section { border-top:1px solid var(--sand-lt); }
+  .sec-head { display:flex; align-items:baseline; margin-bottom:16px; }
+  .sec-head h2 { font-family:"Geist Mono"; font-size:12px; font-weight:700; letter-spacing:.22em; }
+  .sec-head .note { margin-left:auto; font-size:12px; color:var(--muted); }
+  .glance { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .stat { background:var(--white); border:1px solid var(--sand-lt); border-radius:16px; padding:16px 18px; }
+  .stat .v { font-size:28px; font-weight:800; color:var(--coral); }
+  .stat .l { font-family:"Geist Mono"; font-size:9.5px; letter-spacing:.13em; color:var(--gray); margin-top:6px; text-transform:uppercase; }
+
+  .path-card { background:var(--white); border:1px solid var(--sand-lt); border-radius:16px; padding:22px 24px 12px; }
+  .path-card svg text { font-family:"Geist",sans-serif; }
+  .st-name { font-size:12px; font-weight:700; fill:var(--ink); }
+  .st-sub { font-size:9.5px; font-weight:500; fill:var(--muted); }
+
+  .bank { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .card { background:var(--white); border:1px solid var(--sand-lt); border-radius:16px; padding:18px 20px; }
+  .card .cat { font-family:"Geist Mono"; font-size:9px; letter-spacing:.18em; color:var(--gray); }
+  .card p.claim { font-size:13.5px; font-weight:600; line-height:1.5; margin-top:7px; }
+  .card p.claim em { color:var(--coral); font-style:normal; border-bottom:1.5px dotted var(--coral-soft); cursor:help; }
+  .chip { display:inline-block; margin-top:12px; font-family:"Geist Mono"; font-size:9.5px; letter-spacing:.05em; background:var(--coral-tint); border:1px solid var(--coral-soft); color:var(--ink); border-radius:99px; padding:4px 10px; }
+  .redact-note { font-size:11px; color:var(--muted); margin-top:12px; }
+
+  .cta { background:var(--ink); border-radius:0; padding:44px 48px; text-align:center; position:relative; overflow:hidden; }
+  .cta::after { content:""; position:absolute; right:-120px; top:-120px; width:340px; height:340px; border-radius:50%;
+    background:radial-gradient(circle, rgba(220,79,51,.3) 0%, transparent 70%); pointer-events:none; }
+  .cta h2 { font-size:26px; font-weight:900; color:var(--cream); position:relative; }
+  .cta h2 em { color:var(--coral); font-style:normal; }
+  .cta p { font-size:13px; color:var(--gray); margin-top:8px; position:relative; }
+  .cta .btn.primary { margin-top:18px; position:relative; font-size:14px; padding:12px 26px; }
+  .cta .fine { display:block; margin-top:14px; font-family:"Geist Mono"; font-size:9.5px; letter-spacing:.14em; color:var(--gray); position:relative; }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <span class="logo">Tailr<em>.</em></span>
+    <span class="who">Amara shared her Career Arc with you</span>
+    <button class="btn primary">Build your own — free</button>
+  </div>
+
+  <div class="trust">
+    <span class="mark">NOTHING INVENTED</span>
+    <p><b>12 proofs on file.</b> Extracted from a CV — nothing added, nothing embellished. Amara chose what to share.</p>
+    <span class="exp">LINK EXPIRES 30 OCT 2026</span>
+  </div>
+
+  <div class="page">
+    <div class="ledger">
+      <div class="head">
+        <h1>Amara<em>.</em></h1>
+        <div class="meta">
+          <span>PERIOD <b>9 years</b></span>
+          <span>BASIS <b>evidence-first · nothing invented</b></span>
+          <span>SHOWING <b>what Amara chose to share</b></span>
+        </div>
+        <div class="stamp"><div class="big">NOTHING INVENTED</div><small>SHARED 02 AUG 2026</small></div>
+      </div>
+
+      <section>
+        <div class="sec-head"><h2>AT A GLANCE</h2><span class="note">employer names hidden by Amara</span></div>
+        <div class="glance">
+          <div class="stat"><div class="v">5</div><div class="l">Chapters · 9 yrs</div></div>
+          <div class="stat"><div class="v">2</div><div class="l">Sectors · retail + q-commerce</div></div>
+          <div class="stat"><div class="v">12</div><div class="l">Proofs on file</div></div>
+          <div class="stat"><div class="v">3</div><div class="l">Promotions</div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>THE PATH</h2><span class="note">chapters, not levels</span></div>
+        <div class="path-card">
+          <svg width="100%" viewBox="0 0 920 210">
+            <path d="M 40 175 H 170 Q 190 175 192 158 L 198 136 Q 200 126 220 126 H 320 Q 340 126 342 110 L 348 90 Q 350 80 370 80 H 540 Q 560 80 562 66 L 566 54 Q 568 44 588 44 H 760"
+                  fill="none" stroke="#dc4f33" stroke-width="5" stroke-linecap="round"/>
+            <circle cx="105" cy="175" r="8" fill="#fff" stroke="#dc4f33" stroke-width="4"/>
+            <text x="105" y="199" text-anchor="middle" class="st-name">Ops Assistant</text>
+            <text x="105" y="212" text-anchor="middle" class="st-sub">a UK high-street retailer</text>
+            <circle cx="270" cy="126" r="8" fill="#fff" stroke="#dc4f33" stroke-width="4"/>
+            <text x="270" y="150" text-anchor="middle" class="st-name">Ops Coordinator</text>
+            <text x="270" y="163" text-anchor="middle" class="st-sub">a UK meal-kit brand</text>
+            <circle cx="455" cy="80" r="11" fill="#fff" stroke="#1e1813" stroke-width="4"/>
+            <circle cx="455" cy="80" r="4.5" fill="#dc4f33"/>
+            <text x="455" y="105" text-anchor="middle" class="st-name">Ops Manager</text>
+            <text x="455" y="118" text-anchor="middle" class="st-sub">promoted mid-restructure</text>
+            <circle cx="680" cy="44" r="10" fill="#dc4f33"/>
+            <circle cx="680" cy="44" r="17" fill="none" stroke="#dc4f33" stroke-width="1.5" opacity=".4"/>
+            <text x="680" y="20" text-anchor="middle" class="st-name">Ops Lead</text>
+            <text x="680" y="68" text-anchor="middle" class="st-sub">a UK q-commerce company · multi-site</text>
+          </svg>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>EVIDENCE · WHAT AMARA CHOSE TO SHARE</h2><span class="note">every claim traceable to her CV</span></div>
+        <div class="bank">
+          <div class="card">
+            <span class="cat">QUANT</span>
+            <p class="claim">Delivered <em>seven-figure</em> annual savings through process automation.</p>
+            <span class="chip">OPS LEAD · A UK Q-COMMERCE COMPANY</span>
+          </div>
+          <div class="card">
+            <span class="cat">QUANT</span>
+            <p class="claim">Cut supplier onboarding from six weeks to nine days across <em>multiple sites</em>.</p>
+            <span class="chip">OPS LEAD · A UK Q-COMMERCE COMPANY</span>
+          </div>
+          <div class="card">
+            <span class="cat">LEADERSHIP</span>
+            <p class="claim">Led <em>a team of 30+</em> through a single unified workflow; promoted mid-restructure.</p>
+            <span class="chip">OPS MANAGER · A UK MEAL-KIT BRAND</span>
+          </div>
+        </div>
+        <p class="redact-note">Coral-dotted text has been generalised by Amara — the fact is real; the specificity was her choice. Ask her for the numbers.</p>
+      </section>
+
+      <div class="cta">
+        <h2>Your career has an arc, too<em>.</em></h2>
+        <p>Tailr builds a private evidence bank from your CV. Nothing generated, embellished, or invented on top. Free to try — four minutes to a page like this one.</p>
+        <button class="btn primary">Build my Career Arc →</button>
+        <span class="fine">TAILR.APP · NOTHING INVENTED</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

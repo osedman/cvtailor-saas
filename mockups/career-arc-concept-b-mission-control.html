@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Career Arc Concept B — Mission Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #131110; --tile: #1c1916; --line: rgba(249,246,240,.08);
+    --cream: #f9f6f0; --muted: #8a8178; --coral: #dc4f33; --peach: #f4a58e;
+    --track: #332e29;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0c0b0a; font-family: "Geist Mono", monospace; color: var(--cream); padding: 40px; }
+  .frame { max-width: 1200px; margin: 0 auto; background: var(--ink); border: 1px solid var(--line); padding: 28px 40px 32px; }
+  .statusbar { display: flex; align-items: center; gap: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .statusbar .brand { font-weight: 700; font-size: 13px; letter-spacing: .08em; }
+  .statusbar .meta { font-size: 11.5px; color: var(--muted); }
+  .statusbar .spacer { flex: 1; }
+  .status-chip { font-size: 11.5px; font-weight: 700; color: var(--coral); background: rgba(220,79,51,.15); padding: 5px 10px; border-radius: 4px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
+  .tile { background: var(--tile); border: 1px solid var(--line); border-radius: 10px; padding: 18px 22px 20px; }
+  .tile h3 { font-size: 10.5px; font-weight: 500; letter-spacing: .2em; color: var(--muted); margin-bottom: 14px; }
+  .gauge-row { display: flex; align-items: center; gap: 16px; }
+  .big { font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 48px; line-height: 1; }
+  .sub { font-size: 10.5px; color: var(--muted); margin-top: 6px; }
+  .pos { font-size: 10.5px; color: var(--coral); font-weight: 500; margin-top: 4px; }
+  .target-name { font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 26px; margin-bottom: 12px; }
+  .bar { height: 8px; border-radius: 99px; background: var(--track); overflow: hidden; margin-bottom: 10px; }
+  .bar i { display: block; height: 100%; width: 78%; background: var(--coral); border-radius: 99px; }
+  .readiness { font-size: 12px; font-weight: 700; color: var(--coral); margin-bottom: 8px; }
+  .skill { display: grid; grid-template-columns: 110px 1fr 34px; gap: 10px; align-items: center; font-size: 11px; margin-bottom: 9px; color: var(--cream); }
+  .skill .bar { margin: 0; height: 6px; }
+  .skill .val { color: var(--muted); text-align: right; }
+  .locker-row { display: flex; justify-content: space-between; font-size: 11.5px; padding: 7px 0; border-bottom: 1px dashed var(--line); }
+  .locker-row .v { color: var(--peach); font-weight: 500; }
+  .feed p { font-size: 11px; line-height: 1.9; color: var(--muted); }
+  .feed .t { color: var(--cream); }
+  .feed .warn { color: var(--coral); }
+  .feed .ok { color: var(--peach); }
+  .bottombar { display: flex; justify-content: space-between; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 10.5px; color: var(--muted); letter-spacing: .12em; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="statusbar">
+    <span class="brand">TAILR&nbsp;// CAREER TELEMETRY</span>
+    <span class="spacer"></span>
+    <span class="meta">SUBJECT: A.OKAFOR</span>
+    <span class="meta">UPTIME: 9.2Y</span>
+    <span class="status-chip">▲ ASCENDING</span>
+  </div>
+
+  <div class="grid">
+    <div class="tile">
+      <h3>CAREER MOMENTUM</h3>
+      <div class="gauge-row">
+        <svg width="110" height="110" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="50" fill="none" stroke="#332e29" stroke-width="10"/>
+          <path d="M 60 10 A 50 50 0 1 1 17.6 84" fill="none" stroke="#dc4f33" stroke-width="10" stroke-linecap="round"/>
+        </svg>
+        <div>
+          <div class="big">87</div>
+          <div class="sub">/100 · TOP QUARTILE</div>
+          <div class="pos">+4 SINCE LAST CV</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tile">
+      <h3>TRAJECTORY — 5 ROLES</h3>
+      <svg width="100%" height="110" viewBox="0 0 300 110" preserveAspectRatio="none">
+        <line x1="8" y1="104" x2="292" y2="104" stroke="#332e29" stroke-width="1"/>
+        <path d="M 8 98 L 66 98 L 66 76 L 124 76 L 124 54 L 182 54 L 182 32 L 240 32 L 240 12 L 292 12" fill="none" stroke="#dc4f33" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="292" cy="12" r="5" fill="#dc4f33"/>
+      </svg>
+      <div class="sub">SLOPE: +1 LEVEL / 2.3Y · NO PLATEAUS DETECTED</div>
+    </div>
+
+    <div class="tile">
+      <h3>NEXT TARGET</h3>
+      <div class="target-name">HEAD OF OPS</div>
+      <div class="bar"><i></i></div>
+      <div class="readiness">READINESS: 78%</div>
+      <div class="sub">BLOCKERS: P&amp;L OWNERSHIP · COLD-CHAIN</div>
+    </div>
+
+    <div class="tile">
+      <h3>SKILL MATRIX</h3>
+      <div class="skill"><span>OPERATIONS</span><span class="bar"><i style="width:92%"></i></span><span class="val">92</span></div>
+      <div class="skill"><span>AUTOMATION</span><span class="bar"><i style="width:84%"></i></span><span class="val">84</span></div>
+      <div class="skill"><span>LEADERSHIP</span><span class="bar"><i style="width:71%"></i></span><span class="val">71</span></div>
+      <div class="skill"><span>P&amp;L</span><span class="bar"><i style="width:38%"></i></span><span class="val">38</span></div>
+      <div class="sub" style="margin-top:10px">SOURCE: 12 VERIFIED PROOFS + 2 SELF-REPORTS</div>
+    </div>
+
+    <div class="tile">
+      <h3>EVIDENCE LOCKER</h3>
+      <div class="locker-row"><span>£1.2M ANNUAL SAVINGS</span><span class="v">4 DEPLOYS</span></div>
+      <div class="locker-row"><span>ONBOARDING 6WK → 9D</span><span class="v">3 DEPLOYS</span></div>
+      <div class="locker-row"><span>34 PPL / ONE WORKFLOW</span><span class="v">2 DEPLOYS</span></div>
+      <div class="locker-row"><span>WMS 4-SITE ROLLOUT</span><span class="v">5 DEPLOYS</span></div>
+      <div class="sub" style="margin-top:10px">12 VERIFIED · 0 UNSUBSTANTIATED CLAIMS</div>
+    </div>
+
+    <div class="tile feed">
+      <h3>SIGNAL FEED</h3>
+      <p><span class="t">2026-07</span> <span class="ok">MARKET SIGNAL</span> — 14 matching Head-of-Ops roles live</p>
+      <p><span class="t">2026-06</span> <span class="warn">GAP DETECTED</span> — cold-chain · 2 courses queued</p>
+      <p><span class="t">2026-05</span> <span class="ok">EVIDENCE ADDED</span> — WMS rollout verified</p>
+      <p><span class="t">2025-11</span> <span class="ok">PROMOTION SIGNAL</span> — scope +2 sites</p>
+    </div>
+  </div>
+
+  <div class="bottombar">
+    <span>ALL SYSTEMS NOMINAL</span>
+    <span>NEXT REVIEW: 30D · TAILR.APP</span>
+  </div>
+</div>
+</body>
+</html>

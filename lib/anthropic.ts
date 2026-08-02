@@ -680,6 +680,19 @@ export interface CareerProfileSections {
   story: CareerProfileStory
   projects: CareerProfileProject[]
   qualities: CareerProfileQuality[]
+  evidence?: CareerEvidenceCard[]
+}
+
+export const CAREER_EVIDENCE_CATEGORIES = ['quant', 'scope', 'leadership', 'systems', 'craft'] as const
+export type CareerEvidenceCategory = (typeof CAREER_EVIDENCE_CATEGORIES)[number]
+
+export interface CareerEvidenceCard {
+  category: CareerEvidenceCategory
+  claim: string
+  sourceRole: string
+  sourceCompany: string
+  sourceSpan: string
+  cvLine: number | null
 }
 
 export interface CareerQuestion {
@@ -861,7 +874,35 @@ export const CAREER_PROFILE_TOOL: Anthropic.Tool = {
         },
         description: "3-5 professional traits inferred ONLY from repeated patterns in the CV's language. Ground every trait in an actual repeated pattern; never invent one.",
       },
+      evidence: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            category: { type: "string", enum: ["quant", "scope", "leadership", "systems", "craft"], description: "quant: a claim anchored on a figure that appears literally in the CV. scope: breadth of remit (teams, sites, budgets, markets). leadership: people outcomes (promotions, retention, mentoring). systems: process/tooling/platform work. craft: hands-on quality of execution." },
+            claim: { type: "string", description: "One self-contained proof statement in sentence case, 8-30 words, drawn from a specific CV bullet. Tighten wording only — every fact, figure, name, and date must appear in the CV. Never merge facts from different roles into one claim." },
+            sourceRole: { type: "string", description: "The job title this claim comes from, exactly as in the CV. Empty string if unclear." },
+            sourceCompany: { type: "string", description: "The company this claim comes from, exactly as in the CV. Empty string if unclear." },
+            sourceSpan: { type: "string", description: "That role's date span as written in the CV, e.g. '2023-26'. Empty string if unclear." },
+            cvLine: { type: "number", description: "The 1-based line number in the CV text (as provided, counting every line) where the supporting text appears. Null if you cannot point to one line." },
+          },
+          required: ["category", "claim", "sourceRole", "sourceCompany", "sourceSpan", "cvLine"],
+        },
+        description: "6-14 evidence cards — the candidate's strongest reusable proofs, each traceable to one CV bullet or line. Cover a spread of categories where the CV supports it. Every quant card's figure must appear LITERALLY in the CV. If the CV is thin, return fewer cards; never pad.",
+      },
     },
-    required: ["identity", "stats", "achievements", "timeline", "organisations", "skills", "growth", "chapters", "story", "projects", "qualities"],
+    required: ["identity", "stats", "achievements", "timeline", "organisations", "skills", "growth", "chapters", "story", "projects", "qualities", "evidence"],
+  },
+}
+
+export const CAREER_REPHRASE_TOOL: Anthropic.Tool = {
+  name: "submit_rephrase",
+  description: "Submit one alternative wording of a career evidence claim. The rewording must keep every fact, figure, name, and date from the original claim and add nothing new — this is a wording change only, never a content change.",
+  input_schema: {
+    type: "object",
+    properties: {
+      claim: { type: "string", description: "The rephrased claim: sentence case, 8-30 words, same facts and figures as the original, different phrasing. Never introduce a number, name, or outcome that is not in the original claim." },
+    },
+    required: ["claim"],
   },
 }

@@ -10,6 +10,7 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
+import { normalizeForMatch, resolveStoredCv, validateEvidenceCards } from '@/lib/career-evidence'
 
 export const maxDuration = 300
 
@@ -17,7 +18,9 @@ const NO_INVENTION = `Every fact must come directly from the CV text provided. N
 
 const BUILD_PROMPT = `You are building a factual "career highlight reel" from a candidate's CV — identity, headline stats, quantified achievements, timeline, organisations, skills, growth milestones, key projects, and inferred professional qualities. ${NO_INVENTION}
 
-The candidate may also have answered a few personal questions about their career story. Their answers are the ONLY source for the story fields (origin, turningPoint, ambition) — keep their voice and first person, fixing only typos and grammar. If they named a proudest project, mark the matching project as featured. Unanswered questions mean empty story fields.`
+The candidate may also have answered a few personal questions about their career story. Their answers are the ONLY source for the story fields (origin, turningPoint, ambition) — keep their voice and first person, fixing only typos and grammar. If they named a proudest project, mark the matching project as featured. Unanswered questions mean empty story fields.
+
+Also extract the evidence bank: the CV's strongest reusable proof statements, each traceable to a single CV bullet or line, with its source role, company, span, and line number. These are the claims the candidate will reuse across tailored CVs, so each must stand alone and stay strictly within what that one CV line says.`
 
 const QUESTIONS_PROMPT = `Read this CV, then write 4 short, warm, personalised questions for the candidate — one each for: how their career started (reference their actual first role by name), their turning point (reference their actual title change), their proudest project, and where they want to go next. ${NO_INVENTION}`
 
@@ -25,15 +28,7 @@ const MIN_CV_LENGTH = 300 // anything shorter can't be a real CV (seeded/test ro
 
 async function resolveCv(supabase: Awaited<ReturnType<typeof createClient>>, userId: string, pastedCv: string): Promise<string> {
   if (pastedCv.trim().length >= MIN_CV_LENGTH) return pastedCv
-  const { data: rows, error } = await supabase
-    .from('tailor_history')
-    .select('original_cv')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(5)
-  if (error) throw error
-  const substantive = (rows ?? []).find((r) => (r.original_cv ?? '').trim().length >= MIN_CV_LENGTH)
-  return substantive?.original_cv ?? ''
+  return resolveStoredCv(supabase, userId, MIN_CV_LENGTH)
 }
 
 const FALLBACK_QUESTIONS: CareerQuestion[] = [
@@ -125,7 +120,7 @@ export async function POST(req: NextRequest) {
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
+      max_tokens: 6000,
       tools: [CAREER_PROFILE_TOOL],
       tool_choice: { type: 'tool', name: 'submit_career_profile' },
       messages: [{ role: 'user', content: userPrompt }],
@@ -136,16 +131,61 @@ export async function POST(req: NextRequest) {
       throw new Error('Could not build your Career Arc. Please try again.')
     }
 
-    const sections = sanitizeDeep(toolUse.input as CareerProfileSections)
+    // Evidence cards live in career_evidence, not in the profile blob.
+    const { evidence: rawEvidence, ...profileSections } = sanitizeDeep(toolUse.input as CareerProfileSections)
+    const cards = validateEvidenceCards(rawEvidence, cv)
 
     const { data: saved, error } = await supabase
       .from('career_profiles')
-      .upsert({ user_id: user.id, source: 'single_cv', sections, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+      .upsert({ user_id: user.id, source: 'single_cv', sections: profileSections, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
       .select('id, created_at, updated_at, source, sections')
       .single()
 
     if (error) throw error
-    return NextResponse.json({ profile: saved })
+
+    // Replace extracted evidence, but never wipe rows the user has invested in
+    // (pinned or rephrased) — a rebuild must not silently destroy their edits.
+    const { data: kept, error: keptErr } = await supabase
+      .from('career_evidence')
+      .select('id, claim, pinned, rephrased_text, sort_order')
+      .eq('user_id', user.id)
+    if (keptErr) throw keptErr
+
+    const keepRows = (kept ?? []).filter((r) => r.pinned || r.rephrased_text)
+    const dropIds = (kept ?? []).filter((r) => !r.pinned && !r.rephrased_text).map((r) => r.id)
+    if (dropIds.length > 0) {
+      const { error: delErr } = await supabase.from('career_evidence').delete().in('id', dropIds)
+      if (delErr) throw delErr
+    }
+
+    const keptClaims = new Set(keepRows.map((r) => normalizeForMatch(r.claim)))
+    const baseOrder = keepRows.reduce((max, r) => Math.max(max, r.sort_order + 1), 0)
+    const freshRows = cards
+      .filter((c) => !keptClaims.has(normalizeForMatch(c.claim)))
+      .map((c, i) => ({
+        user_id: user.id,
+        profile_id: saved.id,
+        category: c.category,
+        claim: c.claim,
+        source_role: c.sourceRole,
+        source_company: c.sourceCompany,
+        source_span: c.sourceSpan,
+        cv_line: c.cvLine,
+        sort_order: baseOrder + i,
+      }))
+    if (freshRows.length > 0) {
+      const { error: insErr } = await supabase.from('career_evidence').insert(freshRows)
+      if (insErr) throw insErr
+    }
+
+    const { data: evidence, error: evErr } = await supabase
+      .from('career_evidence')
+      .select('id, category, claim, source_role, source_company, source_span, cv_line, pinned, hidden, rephrased_text, sort_order, created_at')
+      .eq('user_id', user.id)
+      .order('sort_order', { ascending: true })
+    if (evErr) throw evErr
+
+    return NextResponse.json({ profile: saved, evidence: evidence ?? [] })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     const status = (err as { status?: number })?.status

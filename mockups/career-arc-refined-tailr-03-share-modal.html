@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Career Arc Refined 03 — Share Modal (per-claim redaction)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:#1e1813; --cream:#f9f6f0; --paper:#fdfcf9; --white:#fff;
+    --coral:#dc4f33; --peach:#f4a58e; --coral-tint:#fff7f4; --coral-soft:#f5d9d0;
+    --sand:#e0d6c9; --sand-lt:#ece2d6; --muted:#a89e93; --dim:#55504a; --gray:#8a8178;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:rgba(30,24,19,.62); font-family:"Geist",system-ui,sans-serif; color:var(--ink);
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:36px 24px; }
+  .modal { width:1060px; max-width:100%; background:var(--paper); border-radius:24px; overflow:hidden;
+    box-shadow:0 32px 90px rgba(30,24,19,.5); display:grid; grid-template-columns:440px 1fr; }
+
+  /* left: card preview */
+  .preview { background:var(--ink); padding:28px; display:flex; flex-direction:column; position:relative; overflow:hidden; }
+  .preview::after { content:""; position:absolute; right:-120px; top:-120px; width:340px; height:340px; border-radius:50%;
+    background:radial-gradient(circle, rgba(220,79,51,.32) 0%, transparent 70%); pointer-events:none; }
+  .ptabs { display:flex; gap:6px; margin-bottom:18px; position:relative; z-index:1; }
+  .ptab { font-family:"Geist Mono"; font-size:9px; letter-spacing:.1em; color:var(--gray); border:1px solid rgba(249,246,240,.18);
+    border-radius:8px; padding:6px 9px; text-align:center; line-height:1.4; cursor:pointer; flex:1; }
+  .ptab.on { background:var(--cream); color:var(--ink); border-color:var(--cream); font-weight:700; }
+  .card { position:relative; z-index:1; background:radial-gradient(ellipse 90% 60% at 50% 30%, #2b1d15 0%, #16120e 65%);
+    border:1px solid rgba(249,246,240,.14); border-radius:14px; aspect-ratio:1/1; padding:34px 30px;
+    display:flex; flex-direction:column; text-align:center; }
+  .card .eyebrow { font-family:"Geist Mono"; font-size:9.5px; letter-spacing:.34em; color:var(--gray); }
+  .card .name { font-family:"Geist Mono"; font-size:11px; letter-spacing:.26em; color:var(--cream); margin-top:16px; }
+  .card .big { font-weight:900; font-size:64px; line-height:1.02; letter-spacing:-.01em; color:var(--cream);
+    margin:auto 0; text-shadow:0 0 56px rgba(220,79,51,.4); }
+  .card .big em { color:var(--coral); font-style:normal; }
+  .card .sub { font-family:"Geist Mono"; font-size:10px; letter-spacing:.2em; color:var(--peach); }
+  .card .chipline { margin:14px auto 0; font-family:"Geist Mono"; font-size:8.5px; letter-spacing:.14em; color:var(--cream);
+    border:1px solid rgba(249,246,240,.3); border-radius:99px; padding:5px 12px; }
+  .card .foot { display:flex; justify-content:space-between; margin-top:22px; font-family:"Geist Mono"; font-size:8.5px; letter-spacing:.14em; color:var(--gray); }
+  .pstate { margin-top:14px; text-align:center; font-family:"Geist Mono"; font-size:9.5px; letter-spacing:.14em; color:var(--gray); position:relative; z-index:1; }
+  .pstate b { color:var(--peach); }
+
+  /* right: controls */
+  .controls { padding:30px 34px; overflow-y:auto; }
+  .controls h1 { font-size:22px; font-weight:900; } .controls h1 em { color:var(--coral); font-style:normal; }
+  .controls .lede { font-size:12.5px; color:var(--dim); line-height:1.6; margin-top:6px; }
+  .group { margin-top:24px; }
+  .group .g-head { display:flex; align-items:baseline; margin-bottom:12px; }
+  .group .g-head h2 { font-family:"Geist Mono"; font-size:10.5px; font-weight:700; letter-spacing:.2em; color:var(--ink); }
+  .group .g-head span { margin-left:auto; font-size:11px; color:var(--muted); }
+  .claim-row { background:var(--white); border:1px solid var(--sand-lt); border-radius:14px; padding:13px 16px; display:flex; align-items:center; gap:14px; }
+  .claim-row + .claim-row { margin-top:8px; }
+  .claim-row .txt { flex:1; min-width:0; }
+  .claim-row .txt b { font-size:13px; font-weight:700; display:block; }
+  .claim-row .txt span { font-size:11px; color:var(--muted); }
+  .claim-row .txt span em { color:var(--coral); font-style:italic; font-weight:600; }
+  .seg { display:flex; background:var(--cream); border:1px solid var(--sand); border-radius:10px; padding:3px; gap:2px; }
+  .seg button { font-family:"Geist Mono"; font-size:9.5px; letter-spacing:.06em; padding:6px 10px; border-radius:7px; border:none; background:transparent; color:var(--dim); cursor:pointer; }
+  .seg button.on { background:var(--ink); color:var(--cream); font-weight:700; }
+  .id-row { display:flex; align-items:center; gap:14px; background:var(--white); border:1px solid var(--sand-lt); border-radius:14px; padding:12px 16px; }
+  .id-row + .id-row { margin-top:8px; }
+  .id-row .txt { flex:1; } .id-row .txt b { font-size:13px; font-weight:700; display:block; }
+  .id-row .txt span { font-size:11px; color:var(--muted); }
+  .toggle { width:40px; height:23px; border-radius:99px; background:var(--sand); position:relative; cursor:pointer; flex-shrink:0; }
+  .toggle::after { content:""; position:absolute; top:2.5px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2); transition:left .15s; }
+  .toggle.on { background:var(--coral); } .toggle.on::after { left:19px; }
+  .link-row { display:flex; gap:8px; margin-top:10px; }
+  .link-box { flex:1; font-family:"Geist Mono"; font-size:11.5px; color:var(--dim); background:var(--white); border:1px solid var(--sand-lt); border-radius:12px; padding:12px 15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .btn { font-size:13px; font-weight:600; border-radius:10px; padding:10px 16px; cursor:pointer; border:1px solid var(--sand); background:var(--white); color:var(--ink); white-space:nowrap; }
+  .btn.primary { background:var(--coral); border-color:var(--coral); color:#fff; box-shadow:0 6px 18px rgba(220,79,51,.28); }
+  .expiry { font-size:11px; color:var(--muted); margin-top:8px; }
+  .expiry b { color:var(--dim); }
+  .cta-row { display:flex; gap:10px; margin-top:26px; padding-top:20px; border-top:1px solid var(--sand-lt); }
+  .cta-row .note { font-size:11px; color:var(--muted); align-self:center; margin-left:auto; text-align:right; }
+</style>
+</head>
+<body>
+<div class="modal">
+
+  <div class="preview">
+    <div class="ptabs">
+      <div class="ptab">01<br/>COVER</div>
+      <div class="ptab on">02<br/>NUMBER</div>
+      <div class="ptab">03<br/>PROUDEST</div>
+      <div class="ptab">04<br/>PATH</div>
+      <div class="ptab">05<br/>CTA</div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">MY CAREER ARC</div>
+      <div class="name">AMARA</div>
+      <div class="big">SEVEN-<br/>FIGURE<em>.</em></div>
+      <div class="sub">ANNUAL SAVINGS · OPS LEAD YEARS</div>
+      <div class="chipline">NOTHING INVENTED · SOURCED FROM A REAL CV</div>
+      <div class="foot"><span>TAILR.APP</span><span>2017 — 2026</span></div>
+    </div>
+    <div class="pstate">CARD 2 · "THE NUMBER" · REDACTION: <b>BAND</b> — live preview</div>
+  </div>
+
+  <div class="controls">
+    <h1>Share your arc<em>.</em></h1>
+    <p class="lede">Nothing is shared until you're ready — and you choose what each claim shows, claim by claim.</p>
+
+    <div class="group">
+      <div class="g-head"><h2>PER-CLAIM REDACTION</h2><span>for each number, you choose</span></div>
+      <div class="claim-row">
+        <div class="txt"><b>£1.2m saved — annual savings at Deliveroo</b><span>will show as → <em>"seven-figure savings"</em></span></div>
+        <div class="seg"><button>FULL</button><button class="on">BAND</button><button>MASK</button><button>HIDE</button></div>
+      </div>
+      <div class="claim-row">
+        <div class="txt"><b>6 weeks → 9 days — supplier onboarding</b><span>will show as → <em>"6 weeks → 9 days"</em></span></div>
+        <div class="seg"><button class="on">FULL</button><button>BAND</button><button>MASK</button><button>HIDE</button></div>
+      </div>
+      <div class="claim-row">
+        <div class="txt"><b>34 people — team size at Gousto</b><span>will show as → <em>"a team of 30+"</em></span></div>
+        <div class="seg"><button>FULL</button><button class="on">BAND</button><button>MASK</button><button>HIDE</button></div>
+      </div>
+      <div class="claim-row">
+        <div class="txt"><b>4 sites — WMS rollout</b><span>will show as → <em>"multi-site"</em></span></div>
+        <div class="seg"><button>FULL</button><button class="on">BAND</button><button>MASK</button><button>HIDE</button></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="g-head"><h2>IDENTITY</h2><span>applies across the page and all cards</span></div>
+      <div class="id-row"><div class="txt"><b>First name only</b><span>"Amara", not "Amara Okafor"</span></div><div class="toggle on"></div></div>
+      <div class="id-row"><div class="txt"><b>Hide employer names</b><span>"a UK q-commerce company" instead of "Deliveroo"</span></div><div class="toggle on"></div></div>
+      <div class="id-row"><div class="txt"><b>Hide dates</b><span>"9 years" stays; individual years disappear</span></div><div class="toggle"></div></div>
+      <div class="id-row"><div class="txt"><b>Include career break</b><span>off by default — recipients see chapters, not gaps</span></div><div class="toggle"></div></div>
+    </div>
+
+    <div class="group">
+      <div class="g-head"><h2>SHARE LINK</h2><span>revocable at any time</span></div>
+      <div class="link-row">
+        <div class="link-box">tailr.app/arc/amara-7f3k9q</div>
+        <button class="btn primary">Copy link</button>
+        <button class="btn">Revoke</button>
+      </div>
+      <p class="expiry">Link expires <b>30 Oct 2026</b> (90 days) — extend any time; the URL never changes.</p>
+    </div>
+
+    <div class="cta-row">
+      <button class="btn primary">Download cards (5)</button>
+      <button class="btn">Post to LinkedIn</button>
+      <span class="note">Cards render with your redactions applied.</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

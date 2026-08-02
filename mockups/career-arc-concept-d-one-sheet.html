@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Career Arc Concept D — The One-Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@300;400;500&family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#16120e; --cream:#f9f6f0; --coral:#dc4f33; --peach:#f4a58e; --dim:#8a8178; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background:#000; font-family:"Geist",sans-serif; padding:40px; display:flex; justify-content:center; }
+  .poster { width: 760px; background: radial-gradient(ellipse 90% 55% at 50% 34%, #2b1d15 0%, var(--ink) 62%);
+    border: 1px solid rgba(249,246,240,.14); padding: 56px 64px 44px; text-align: center; color: var(--cream);
+    box-shadow: 0 40px 120px rgba(0,0,0,.8); }
+  .studio { font-family:"Oswald"; font-weight:400; font-size:13px; letter-spacing:.55em; color:var(--dim); text-transform:uppercase; }
+  .starring { font-family:"Oswald"; font-weight:500; font-size:17px; letter-spacing:.34em; margin-top:26px; text-transform:uppercase; }
+  h1 { font-family:"Bebas Neue"; font-size:150px; line-height:.92; letter-spacing:.015em; margin-top:6px;
+    color:var(--cream); text-shadow:0 0 70px rgba(220,79,51,.45); }
+  h1 .accent { color:var(--coral); }
+  .tagline { font-family:"Oswald"; font-weight:300; font-size:16.5px; letter-spacing:.12em; color:var(--peach); margin-top:14px; text-transform:uppercase; }
+  .art { margin: 34px auto 8px; position: relative; width: 560px; }
+  .art .glow { position:absolute; inset:-40px; background: radial-gradient(circle at 78% 18%, rgba(220,79,51,.35) 0%, transparent 60%); pointer-events:none; }
+  .quotes { display:flex; justify-content:center; gap:36px; margin-top:30px; }
+  .q { max-width: 200px; }
+  .q .stars { color: var(--coral); font-size: 13px; letter-spacing: .2em; }
+  .q p { font-size: 12.5px; line-height: 1.5; color: var(--cream); margin-top: 6px; font-style: italic; }
+  .q span { display:block; font-size: 10.5px; color: var(--dim); margin-top: 5px; }
+  .credits { margin-top: 34px; font-family:"Oswald"; font-weight:300; font-size:11.5px; letter-spacing:.14em;
+    line-height: 2.05; color:var(--dim); text-transform: uppercase; }
+  .credits b { font-weight:500; color:var(--cream); }
+  .banner { margin-top: 30px; border-top: 1px solid rgba(249,246,240,.16); padding-top: 20px;
+    font-family:"Bebas Neue"; font-size: 30px; letter-spacing:.06em; color: var(--coral); }
+  .footer { display:flex; justify-content:space-between; margin-top:16px; font-size:10.5px; color:var(--dim); letter-spacing:.18em; }
+</style>
+</head>
+<body>
+<div class="poster">
+  <div class="studio">A Tailr Original Story</div>
+  <div class="starring">Amara Okafor</div>
+  <h1>THE<br/>CLIMB<span class="accent">.</span></h1>
+  <div class="tagline">She joined broken processes. She left systems.</div>
+
+  <div class="art">
+    <div class="glow"></div>
+    <svg width="560" height="180" viewBox="0 0 560 180">
+      <path d="M 20 162 L 124 162 L 124 128 L 228 128 L 228 94 L 332 94 L 332 60 L 436 60 L 436 26 L 540 26"
+        fill="none" stroke="#dc4f33" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="540" cy="26" r="9" fill="#dc4f33"/>
+      <circle cx="540" cy="26" r="18" fill="none" stroke="#dc4f33" stroke-width="2" opacity=".4"/>
+    </svg>
+  </div>
+
+  <div class="quotes">
+    <div class="q"><div class="stars">★★★★★</div><p>“Calm when everything is on fire.”</p><span>— a former manager, probably</span></div>
+    <div class="q"><div class="stars">★★★★★</div><p>“£1.2m in savings. Rolling in the aisles.”</p><span>— The Finance Team</span></div>
+    <div class="q"><div class="stars">★★★★★</div><p>“Nine days. It used to take six weeks.”</p><span>— Supplier Onboarding Weekly</span></div>
+  </div>
+
+  <div class="credits">
+    <b>Wilko</b> presents in association with <b>Gousto</b> and <b>Deliveroo</b> · a nine-year production<br/>
+    starring <b>£1.2M in annual savings</b> · <b>34 people, one workflow</b> · <b>a 4-site WMS rollout</b><br/>
+    directed by <b>ambition</b> · edited by <b>Tailr</b> · no facts were invented in the making of this career
+  </div>
+
+  <div class="banner">COMING 2026 · HEAD OF OPERATIONS</div>
+  <div class="footer"><span>CERT: VERIFIED-12</span><span>TAILR.APP/ARC/AMARA</span><span>RUNTIME: 9 YRS</span></div>
+</div>
+</body>
+</html>

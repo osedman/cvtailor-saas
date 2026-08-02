@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Career Arc Concept C — The Metro Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1e1813; --cream: #f9f6f0; --paper: #fdfcf9; --muted: #a89e93; --dim: #55504a;
+    --coral: #dc4f33; --teal: #2f7e6d; --mustard: #d9a441; --sand: #e0d6c9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #efe9df; font-family: "Geist", sans-serif; color: var(--ink); padding: 40px; }
+  .frame { max-width: 1300px; margin: 0 auto; background: var(--cream); border: 1px solid var(--sand); border-radius: 4px; padding: 48px 56px; }
+  .masthead { display: flex; align-items: baseline; gap: 16px; border-bottom: 4px solid var(--ink); padding-bottom: 18px; }
+  .masthead h1 { font-size: 34px; font-weight: 900; letter-spacing: -0.01em; }
+  .masthead .roundel { width: 44px; height: 44px; border: 4px solid var(--coral); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px; color: var(--ink); align-self: center; }
+  .masthead .sub { color: var(--dim); font-size: 13px; margin-left: auto; }
+  .map { margin: 12px 0 4px; }
+  .legend { display: flex; gap: 28px; padding: 16px 0 0; border-top: 1px solid var(--sand); flex-wrap: wrap; }
+  .legend .item { display: flex; align-items: center; gap: 9px; font-size: 12.5px; font-weight: 600; }
+  .legend .swatch { width: 26px; height: 6px; border-radius: 3px; }
+  .legend .note { margin-left: auto; font-size: 12px; color: var(--muted); font-weight: 400; }
+  text { font-family: "Geist", sans-serif; }
+  .station-name { font-size: 13px; font-weight: 600; fill: var(--ink); }
+  .station-sub { font-size: 10.5px; font-weight: 500; fill: var(--muted); }
+  .year { font-size: 10px; font-weight: 600; fill: var(--dim); }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="masthead">
+    <div class="roundel">AO</div>
+    <h1>The Amara Line</h1>
+    <span class="sub">Career transit map · 2017 — 2026 · issued by Tailr</span>
+  </div>
+
+  <svg class="map" width="100%" viewBox="0 0 1200 470">
+    <!-- Operations line (coral) — the main line, always in service -->
+    <path d="M 40 380 H 240 L 320 300 H 480 L 560 220 H 720 L 800 140 H 940"
+          fill="none" stroke="#dc4f33" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- future extension: dashed -->
+    <path d="M 940 140 L 1000 80 H 1120" fill="none" stroke="#dc4f33" stroke-width="10"
+          stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2 18" opacity=".7"/>
+
+    <!-- Systems & Automation line (teal) joins at Gousto 2019 -->
+    <path d="M 40 430 H 330 L 402 358 L 402 316 L 480 316 L 560 236 H 720 L 800 156 H 940"
+          fill="none" stroke="#2f7e6d" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity=".95"/>
+
+    <!-- Leadership line (ink) joins at the 2021 interchange -->
+    <path d="M 560 430 V 252 L 576 236 H 720 L 800 156 L 800 172 L 880 172 H 940"
+          fill="none" stroke="#1e1813" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity=".92"/>
+
+    <!-- P&L line (mustard) — under construction, not yet reached -->
+    <path d="M 1000 430 V 300 L 1060 240 V 120 L 1120 90" fill="none" stroke="#d9a441" stroke-width="10"
+          stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2 18" opacity=".8"/>
+
+    <!-- Stations -->
+    <g>
+      <circle cx="140" cy="380" r="11" fill="#fff" stroke="#dc4f33" stroke-width="5"/>
+      <text x="140" y="412" text-anchor="middle" class="station-name">Ops Assistant</text>
+      <text x="140" y="428" text-anchor="middle" class="station-sub">Wilko</text>
+      <text x="140" y="360" text-anchor="middle" class="year">2017</text>
+    </g>
+    <g>
+      <circle cx="402" cy="300" r="11" fill="#fff" stroke="#dc4f33" stroke-width="5"/>
+      <text x="402" y="270" text-anchor="middle" class="station-name">Ops Coordinator</text>
+      <text x="402" y="286" text-anchor="middle" class="station-sub">Gousto · Systems line joins</text>
+      <text x="352" y="322" text-anchor="middle" class="year">2019</text>
+    </g>
+    <!-- interchange: double ring -->
+    <g>
+      <circle cx="576" cy="226" r="16" fill="#fff" stroke="#1e1813" stroke-width="5"/>
+      <circle cx="576" cy="226" r="7" fill="#fff" stroke="#dc4f33" stroke-width="4"/>
+      <text x="576" y="188" text-anchor="middle" class="station-name">Ops Manager</text>
+      <text x="576" y="204" text-anchor="middle" class="station-sub">Gousto · Interchange: Leadership line opens</text>
+      <text x="530" y="250" text-anchor="middle" class="year">2021</text>
+    </g>
+    <g>
+      <circle cx="820" cy="150" r="11" fill="#fff" stroke="#dc4f33" stroke-width="5"/>
+      <text x="820" y="118" text-anchor="middle" class="station-name">Ops Lead</text>
+      <text x="820" y="134" text-anchor="middle" class="station-sub">Deliveroo · £1.2m saved</text>
+      <text x="778" y="172" text-anchor="middle" class="year">2023</text>
+    </g>
+    <!-- you are here -->
+    <g>
+      <circle cx="940" cy="140" r="13" fill="#dc4f33"/>
+      <circle cx="940" cy="140" r="20" fill="none" stroke="#dc4f33" stroke-width="2" opacity=".45"/>
+      <text x="940" y="108" text-anchor="middle" class="station-name" fill="#dc4f33">You are here</text>
+    </g>
+    <!-- terminus -->
+    <g>
+      <rect x="1030" y="48" width="164" height="60" rx="10" fill="#1e1813"/>
+      <text x="1112" y="74" text-anchor="middle" class="station-name" fill="#f9f6f0">Head of Ops</text>
+      <text x="1112" y="93" text-anchor="middle" class="station-sub" fill="#f4a58e">terminus · est. 2026–27</text>
+    </g>
+    <!-- construction notice -->
+    <text x="982" y="345" class="station-sub" transform="rotate(-90 982 345)">P&amp;L line — under construction</text>
+  </svg>
+
+  <div class="legend">
+    <span class="item"><span class="swatch" style="background:#dc4f33"></span>Operations line</span>
+    <span class="item"><span class="swatch" style="background:#2f7e6d"></span>Systems &amp; Automation</span>
+    <span class="item"><span class="swatch" style="background:#1e1813"></span>Leadership</span>
+    <span class="item"><span class="swatch" style="background:repeating-linear-gradient(90deg,#d9a441 0 6px,transparent 6px 12px)"></span>P&amp;L — under construction</span>
+    <span class="note">Interchanges mark promotions · dashed track = planned · map not to scale, careers rarely are</span>
+  </div>
+</div>
+</body>
+</html>

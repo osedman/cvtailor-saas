@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Career Arc Refined 02 — Thin CV + Career Break</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:#1e1813; --cream:#f9f6f0; --paper:#fdfcf9; --white:#fff;
+    --coral:#dc4f33; --peach:#f4a58e; --coral-tint:#fff7f4; --coral-soft:#f5d9d0;
+    --sand:#e0d6c9; --sand-lt:#ece2d6; --muted:#a89e93; --dim:#55504a; --gray:#8a8178;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--cream); font-family:"Geist",system-ui,sans-serif; color:var(--ink); padding:32px 24px 80px; }
+  .page { max-width:1080px; margin:0 auto; }
+  .crumb { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
+  .crumb .logo { font-weight:900; font-size:19px; } .crumb .logo em { color:var(--coral); font-style:normal; }
+  .crumb .sep { color:var(--muted); font-size:12px; }
+  .crumb .here { font-family:"Geist Mono"; font-size:11.5px; letter-spacing:.14em; color:var(--dim); }
+  .crumb .spacer { flex:1; }
+  .btn { font-size:13px; font-weight:600; border-radius:10px; padding:9px 16px; cursor:pointer; border:1px solid var(--sand); background:var(--white); color:var(--ink); }
+  .btn.primary { background:var(--coral); border-color:var(--coral); color:#fff; box-shadow:0 6px 18px rgba(220,79,51,.28); }
+  .ledger { background:var(--paper); border:1px solid var(--sand); border-radius:24px; box-shadow:0 16px 48px rgba(30,24,19,.10); overflow:hidden; position:relative; }
+  .head { padding:40px 48px 28px; border-bottom:1px solid var(--sand-lt); position:relative; }
+  .head h1 { font-size:34px; font-weight:900; letter-spacing:-.01em; } .head h1 em { color:var(--coral); font-style:normal; }
+  .meta { display:flex; gap:28px; margin-top:14px; flex-wrap:wrap; }
+  .meta span { font-family:"Geist Mono"; font-size:11px; letter-spacing:.08em; color:var(--gray); }
+  .meta b { color:var(--dim); font-weight:500; }
+  .privacy { display:inline-flex; align-items:center; gap:7px; margin-top:16px; background:var(--coral-tint); border:1px solid var(--coral-soft); border-radius:99px; padding:6px 13px; font-size:12px; font-weight:600; }
+  .privacy .dot { width:7px; height:7px; border-radius:50%; background:var(--coral); }
+  .stamp { position:absolute; top:34px; right:44px; transform:rotate(-11deg); border:3px solid var(--coral); color:var(--coral); border-radius:8px; padding:8px 16px 7px; text-align:center; opacity:.9; }
+  .stamp .big { font-family:"Geist Mono"; font-size:15px; font-weight:700; letter-spacing:.22em; }
+  .stamp small { display:block; font-family:"Geist Mono"; font-size:8px; letter-spacing:.16em; margin-top:3px; }
+  section { padding:30px 48px; } section + section { border-top:1px solid var(--sand-lt); }
+  .sec-head { display:flex; align-items:baseline; margin-bottom:18px; }
+  .sec-head h2 { font-family:"Geist Mono"; font-size:12px; font-weight:700; letter-spacing:.22em; }
+  .sec-head .note { margin-left:auto; font-size:12px; color:var(--muted); }
+  .glance { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .stat { background:var(--white); border:1px solid var(--sand-lt); border-radius:16px; padding:18px 20px; }
+  .stat .v { font-size:30px; font-weight:800; color:var(--coral); font-variant-numeric:tabular-nums; }
+  .stat .l { font-family:"Geist Mono"; font-size:10px; letter-spacing:.14em; color:var(--gray); margin-top:6px; text-transform:uppercase; }
+
+  /* chapter list replaces the chart when a CV is thin */
+  .chapters { background:var(--white); border:1px solid var(--sand-lt); border-radius:16px; overflow:hidden; }
+  .ch { display:grid; grid-template-columns:120px 1fr auto; gap:18px; padding:20px 24px; align-items:baseline; }
+  .ch + .ch { border-top:1px solid var(--sand-lt); }
+  .ch .span { font-family:"Geist Mono"; font-size:11.5px; color:var(--gray); }
+  .ch .t b { font-size:15px; font-weight:700; display:block; }
+  .ch .t span { font-size:12.5px; color:var(--muted); }
+  .ch .badge { font-family:"Geist Mono"; font-size:9.5px; letter-spacing:.12em; color:var(--dim); background:var(--cream); border:1px solid var(--sand); border-radius:99px; padding:4px 11px; white-space:nowrap; }
+  .ch.break { background:var(--coral-tint); }
+  .ch.break .badge { background:var(--white); border-color:var(--coral-soft); color:var(--coral); font-weight:700; }
+  .chapters-foot { padding:13px 24px; border-top:1px solid var(--sand-lt); font-size:12px; color:var(--muted); }
+
+  .bank { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .card { background:var(--white); border:1px solid var(--sand-lt); border-radius:18px; padding:20px 22px; position:relative; transition:box-shadow .2s, transform .2s; }
+  .card:hover { box-shadow:0 10px 28px rgba(30,24,19,.10); transform:translateY(-2px); }
+  .card .cat { font-family:"Geist Mono"; font-size:9.5px; letter-spacing:.2em; color:var(--gray); }
+  .card p.claim { font-size:14.5px; font-weight:600; line-height:1.5; margin-top:8px; }
+  .card .src-row { margin-top:14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .chip { font-family:"Geist Mono"; font-size:10.5px; letter-spacing:.06em; border-radius:99px; padding:5px 12px; }
+  .chip.src2 { background:var(--coral-tint); border:1px solid var(--coral-soft); color:var(--ink); }
+  .card .used { font-size:11px; color:var(--muted); }
+  .add-card { grid-column:1 / -1; border:2px dashed var(--sand); border-radius:18px; padding:26px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px; }
+  .add-card .t { font-family:"Geist Mono"; font-size:11px; letter-spacing:.18em; color:var(--dim); }
+  .add-card p { font-size:12.5px; color:var(--muted); max-width:30rem; line-height:1.7; }
+  .notes { background:var(--white); border:1px solid var(--sand-lt); border-radius:16px; padding:20px 24px; }
+  .notes p { font-size:12.5px; color:var(--dim); line-height:1.8; }
+  .notes b { font-family:"Geist Mono"; font-size:11px; letter-spacing:.1em; color:var(--ink); }
+  .bridge { display:flex; align-items:center; gap:18px; background:var(--ink); padding:26px 48px; }
+  .bridge .txt b { display:block; color:var(--cream); font-size:15.5px; font-weight:700; }
+  .bridge .txt span { color:var(--gray); font-size:12.5px; }
+  .bridge .spacer { flex:1; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="crumb">
+    <span class="logo">Tailr<em>.</em></span><span class="sep">/</span><span class="here">CAREER ARC</span>
+    <span class="spacer"></span>
+    <button class="btn primary">Share my arc</button>
+  </div>
+
+  <div class="ledger">
+    <div class="head">
+      <h1>Jamie Reid<em>.</em></h1>
+      <div class="meta">
+        <span>PERIOD <b>2021 — 2026</b></span>
+        <span>BASIS <b>evidence-first · nothing invented</b></span>
+        <span>LAST EXTRACTED <b>01 Aug 2026</b></span>
+      </div>
+      <div class="privacy"><span class="dot"></span>Private — visible only to you until you share</div>
+      <div class="stamp"><div class="big">NOTHING INVENTED</div><small>2 PROOFS · SOURCED FROM YOUR CV</small></div>
+    </div>
+
+    <section>
+      <div class="sec-head"><h2>AT A GLANCE</h2><span class="note">a thin arc is still an arc — we don't invent to fill space</span></div>
+      <div class="glance">
+        <div class="stat"><div class="v">3</div><div class="l">Chapters · 5 years</div></div>
+        <div class="stat"><div class="v">1</div><div class="l">Employer</div></div>
+        <div class="stat"><div class="v">2</div><div class="l">Proofs on file</div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>THE PATH</h2><span class="note">every chapter counts — a break is an entry, not a gap</span></div>
+      <div class="chapters">
+        <div class="ch">
+          <span class="span">2021 — 2022</span>
+          <div class="t"><b>Junior Analyst</b><span>Bright Data Co · first role · six months in post before the break</span></div>
+          <span class="badge">CHAPTER 1 · 1 PROOF</span>
+        </div>
+        <div class="ch break">
+          <span class="span">2022 — 2024</span>
+          <div class="t"><b>Break — carer for a parent</b><span>returned to work Feb 2024</span></div>
+          <span class="badge">RECORDED · NOT COUNTED AGAINST YOU</span>
+        </div>
+        <div class="ch">
+          <span class="span">2024 — 2026</span>
+          <div class="t"><b>Data Analyst</b><span>Bright Data Co · returned to the same team, on request</span></div>
+          <span class="badge">CHAPTER 2 · 1 PROOF</span>
+        </div>
+      </div>
+      <p style="margin-top:12px; font-size:12px; color:var(--muted);">The path chart appears once an arc has three working chapters — until then, the record speaks for itself.</p>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>EVIDENCE BANK · 2 PROOFS</h2><span class="note">everything traceable to your CV</span></div>
+      <div class="bank">
+        <div class="card">
+          <span class="cat">01 · CRAFT</span>
+          <p class="claim">Built the first automated reporting pipeline for the retail analytics team — cut the Monday report from four hours to twenty minutes.</p>
+          <div class="src-row"><span class="chip src2">DATA ANALYST · BRIGHT DATA CO</span><span class="used">used in 2 CVs</span></div>
+        </div>
+        <div class="card">
+          <span class="cat">02 · SCOPE</span>
+          <p class="claim">Returned to the same team on request after a two-year career break; picked up the reporting stack in the first fortnight.</p>
+          <div class="src-row"><span class="chip src2">DATA ANALYST · BRIGHT DATA CO</span><span class="used">used in 1 CV</span></div>
+        </div>
+        <div class="add-card">
+          <span class="t">+ ADD FROM CV</span>
+          <p>Two proofs is a real career. If your CV has more claims we missed, paste the exact line and Tailr will extract from that text only. Nothing invented.</p>
+          <button class="btn">Re-extract from latest CV</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>HOW THIS PAGE WORKS</h2></div>
+      <div class="notes">
+        <p><b>SOURCING.</b> Every card comes from your CV or your own written answers. Adjectives are expensed immediately.</p>
+        <p><b>THE BREAK.</b> Your career break renders as a chapter with your framing, in your words. Recipients see chapters, not gaps — and it's off by default when you share.</p>
+      </div>
+    </section>
+
+    <div class="bridge">
+      <div class="txt"><b>Tailoring for a new role?</b><span>Start from your evidence — Tailr picks the proofs that match the job description.</span></div>
+      <span class="spacer"></span>
+      <button class="btn primary">Tailor a CV from this →</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
