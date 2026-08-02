@@ -107,6 +107,7 @@ function GlanceStatBlock({ value, label, active }: { value: number; label: strin
 
 function PathChart({ sections }: { sections: CareerProfileSections }) {
   const { ref, visible } = useInView<HTMLDivElement>()
+  const reduced = usePrefersReducedMotion()
   const layout = pathLayout(sections)
   if (!layout) return null
   const halo = { paintOrder: "stroke" as const, stroke: "#fff", strokeWidth: 4, strokeLinejoin: "round" as const }
@@ -115,7 +116,7 @@ function PathChart({ sections }: { sections: CareerProfileSections }) {
       <svg viewBox={`0 0 ${layout.width} ${layout.height}`} className="w-full" role="img" aria-label="Career path chart">
         <path
           d={layout.linePath} fill="none" stroke={ACCENT} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round"
-          style={{ strokeDasharray: 1600, strokeDashoffset: visible ? 0 : 1600, transition: "stroke-dashoffset 1.4s ease-out" }}
+          style={reduced ? undefined : { strokeDasharray: 1600, strokeDashoffset: visible ? 0 : 1600, transition: "stroke-dashoffset 1.4s ease-out" }}
         />
         <path d={layout.futurePath} fill="none" stroke={ACCENT} strokeWidth={5} strokeLinecap="round" strokeDasharray="1 14" opacity={0.65} />
         {layout.nodes.map((node, i) => (
@@ -159,7 +160,9 @@ function PathChart({ sections }: { sections: CareerProfileSections }) {
 /** Screen 02: under three roles the record itself carries the page. */
 function ChapterList({ sections }: { sections: CareerProfileSections }) {
   const chapters = sections.chapters ?? []
-  if (chapters.length === 0) return null
+  if (chapters.length === 0) {
+    return <p className="text-[12.5px] text-[#a89e93]">Your chapters appear here once your arc has been extracted from a CV with dated roles.</p>
+  }
   return (
     <div>
       <div className="space-y-2.5">
@@ -193,12 +196,14 @@ function ChapterList({ sections }: { sections: CareerProfileSections }) {
   )
 }
 
+const FOCUS_RING = "focus-visible:ring-2 focus-visible:ring-[#dc4f33]/40 focus-visible:ring-offset-1"
+
 function ActionButton({ label, onClick, disabled }: { label: string; onClick: () => void; disabled: boolean }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className="font-mono text-[9.5px] tracking-[0.1em] px-2.5 py-1.5 rounded-lg border bg-[#f9f6f0] text-[#55504a] transition-colors hover:border-[#dc4f33] hover:text-[#dc4f33] disabled:opacity-40 disabled:cursor-not-allowed"
+      className={`font-mono text-[9.5px] tracking-[0.1em] px-2.5 py-1.5 rounded-lg border bg-[#f9f6f0] text-[#55504a] transition-colors hover:border-[#dc4f33] hover:text-[#dc4f33] disabled:opacity-40 disabled:cursor-not-allowed ${FOCUS_RING}`}
       style={{ borderColor: SAND }}
     >
       {label}
@@ -269,7 +274,7 @@ function EvidenceBank({
               <button
                 onClick={() => onAction({ action: "pin", id: pinned.id })}
                 disabled={busy}
-                className="font-mono text-[9.5px] tracking-[0.1em] px-2.5 py-1 rounded-lg border border-[rgba(249,246,240,0.25)] text-[#cfc8bf] hover:text-white hover:border-white transition-colors disabled:opacity-40"
+                className={`font-mono text-[9.5px] tracking-[0.1em] px-2.5 py-1 rounded-lg border border-[rgba(249,246,240,0.25)] text-[#cfc8bf] hover:text-white hover:border-white transition-colors disabled:opacity-40 ${FOCUS_RING}`}
               >
                 UNPIN
               </button>
@@ -324,8 +329,13 @@ function EvidenceBank({
           <input
             value={addText}
             onChange={(e) => setAddText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submitAdd() }}
             placeholder="Paste the exact line from your CV…"
-            className="flex-1 rounded-lg border px-3 py-2 text-[13px] outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300"
+            aria-label="Exact line from your CV"
+            name="cv-line"
+            autoComplete="off"
+            spellCheck={false}
+            className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-[13px] outline-none transition-colors focus:border-[#dc4f33] focus:ring-2 focus:ring-[#dc4f33]/15 placeholder:text-gray-300"
             style={{ borderColor: SAND }}
           />
           <select
@@ -342,27 +352,27 @@ function EvidenceBank({
           <button
             onClick={submitAdd}
             disabled={busy || adding}
-            className="rounded-lg px-4 py-2 text-[12.5px] font-semibold text-white transition-all hover:brightness-105 disabled:opacity-50"
+            className={`rounded-lg px-4 py-2 text-[12.5px] font-semibold text-white transition-all hover:brightness-105 disabled:opacity-50 ${FOCUS_RING}`}
             style={{ background: ACCENT }}
           >
-            {adding ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Source-check & add"}
+            {adding ? <Loader2 className="mx-auto h-4 w-4 animate-spin" aria-label="Adding…" /> : "Source-check & add"}
           </button>
         </div>
-        <button onClick={onRebuild} className="mt-3 rounded-[10px] border bg-white px-3.5 py-1.5 text-[12px] font-semibold text-[#1e1813] transition-colors hover:border-[#dc4f33]" style={{ borderColor: SAND }}>
+        <button onClick={onRebuild} className={`mt-3 rounded-[10px] border bg-white px-3.5 py-1.5 text-[12px] font-semibold text-[#1e1813] transition-colors hover:border-[#dc4f33] ${FOCUS_RING}`} style={{ borderColor: SAND }}>
           Re-extract from latest CV
         </button>
       </div>
 
       {hidden.length > 0 && (
         <div className="sm:col-span-2">
-          <button onClick={() => setShowHidden((v) => !v)} className="text-[12px] text-[#a89e93] underline-offset-2 hover:underline">
+          <button onClick={() => setShowHidden((v) => !v)} className={`rounded text-[12px] text-[#a89e93] underline-offset-2 hover:underline ${FOCUS_RING}`}>
             {showHidden ? "Hide" : "Show"} {hidden.length} hidden card{hidden.length === 1 ? "" : "s"}
           </button>
           {showHidden && (
             <div className="mt-2 space-y-2">
               {hidden.map((row) => (
                 <div key={row.id} className="flex items-center gap-3 rounded-xl border bg-white/60 px-4 py-2.5" style={{ borderColor: SAND_LT }}>
-                  <p className="flex-1 truncate text-[12.5px] text-[#8a8178]">{row.rephrased_text ?? row.claim}</p>
+                  <p className="min-w-0 flex-1 truncate text-[12.5px] text-[#8a8178]">{row.rephrased_text ?? row.claim}</p>
                   <ActionButton label="UNHIDE" onClick={() => onAction({ action: "hide", id: row.id })} disabled={busy} />
                 </div>
               ))}
@@ -402,12 +412,12 @@ export function LedgerView({ sections, lastExtracted, evidence, usage, usedCvCou
       <div className="mb-5 flex items-center gap-2.5">
         <span className="font-mono text-[11.5px] tracking-[0.14em] text-[#55504a]">CAREER ARC</span>
         <span className="flex-1" />
-        <button onClick={onReplay} className="rounded-[10px] border bg-white px-4 py-2 text-[13px] font-semibold text-[#1e1813] transition-colors hover:border-[#dc4f33]" style={{ borderColor: SAND }}>
+        <button onClick={onReplay} className={`rounded-[10px] border bg-white px-4 py-2 text-[13px] font-semibold text-[#1e1813] transition-colors hover:border-[#dc4f33] ${FOCUS_RING}`} style={{ borderColor: SAND }}>
           Replay reveal
         </button>
         <button
           onClick={() => toast.info("Sharing is coming in the next update — per-claim redaction included.")}
-          className="rounded-[10px] px-4 py-2 text-[13px] font-semibold text-white shadow-[0_6px_18px_rgba(220,79,51,0.28)] transition-all hover:brightness-105"
+          className={`rounded-[10px] px-4 py-2 text-[13px] font-semibold text-white shadow-[0_6px_18px_rgba(220,79,51,0.28)] transition-all hover:brightness-105 ${FOCUS_RING}`}
           style={{ background: ACCENT }}
         >
           Share my arc
@@ -484,7 +494,7 @@ export function LedgerView({ sections, lastExtracted, evidence, usage, usedCvCou
           <span className="flex-1" />
           <Link
             href="/tailor"
-            className="whitespace-nowrap rounded-[10px] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_6px_18px_rgba(220,79,51,0.28)] transition-all hover:brightness-105"
+            className={`whitespace-nowrap rounded-[10px] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_6px_18px_rgba(220,79,51,0.28)] transition-all hover:brightness-105 ${FOCUS_RING}`}
             style={{ background: ACCENT }}
           >
             Tailor a CV from this →
@@ -493,7 +503,7 @@ export function LedgerView({ sections, lastExtracted, evidence, usage, usedCvCou
       </div>
 
       <div className="mt-6 text-center">
-        <button onClick={onRebuild} className="text-[13px] font-medium text-gray-400 transition-colors hover:text-[#1e1813]">
+        <button onClick={onRebuild} className={`rounded text-[13px] font-medium text-gray-400 transition-colors hover:text-[#1e1813] ${FOCUS_RING}`}>
           Rebuild my arc
         </button>
       </div>
