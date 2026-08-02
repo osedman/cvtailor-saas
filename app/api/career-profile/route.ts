@@ -4,6 +4,8 @@ import {
   anthropic,
   CAREER_PROFILE_TOOL,
   CAREER_QUESTIONS_TOOL,
+  CAREER_EVIDENCE_TOOL,
+  type CareerEvidenceCard,
   type CareerProfileSections,
   type CareerQuestion,
 } from '@/lib/anthropic'
@@ -23,6 +25,13 @@ The candidate may also have answered a few personal questions about their career
 Also extract the evidence bank: the CV's strongest reusable proof statements, each traceable to a single CV bullet or line, with its source role, company, span, and line number. These are the claims the candidate will reuse across tailored CVs, so each must stand alone and stay strictly within what that one CV line says.`
 
 const QUESTIONS_PROMPT = `Read this CV, then write 4 short, warm, personalised questions for the candidate — one each for: how their career started (reference their actual first role by name), their turning point (reference their actual title change), their proudest project, and where they want to go next. ${NO_INVENTION}`
+
+const EVIDENCE_PROMPT = `Extract this candidate's evidence bank: their strongest reusable proof statements, each traceable to one CV bullet or line. Each CV line below is prefixed with its line number as "N| " — use it for cvLine and never copy the prefix into a claim. Attribute every card to the role and company whose section it sits under. Include every quantified achievement as a quant card, keeping each figure exactly as written. ${NO_INVENTION}`
+
+/** Prefix each CV line with "N| " so the model can cite line numbers precisely. */
+function numberCvLines(cv: string): string {
+  return cv.split('\n').map((line, i) => `${i + 1}| ${line}`).join('\n')
+}
 
 const MIN_CV_LENGTH = 300 // anything shorter can't be a real CV (seeded/test rows, fragments)
 
@@ -118,21 +127,35 @@ export async function POST(req: NextRequest) {
 
     const userPrompt = `${BUILD_PROMPT}\n\nCV:\n${cv.slice(0, 20_000)}${answersText ? `\n\nThe candidate's own answers:\n${answersText}` : '\n\nThe candidate answered no questions — leave all story fields empty and all projects unfeatured.'}`
 
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 6000,
-      tools: [CAREER_PROFILE_TOOL],
-      tool_choice: { type: 'tool', name: 'submit_career_profile' },
-      messages: [{ role: 'user', content: userPrompt }],
-    })
+    // Profile build and evidence extraction run as parallel focused passes —
+    // a single pass starved the evidence section (5 thin cards, empty sources).
+    const [message, evidenceMessage] = await Promise.all([
+      anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4000,
+        tools: [CAREER_PROFILE_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_career_profile' },
+        messages: [{ role: 'user', content: userPrompt }],
+      }),
+      anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 3000,
+        tools: [CAREER_EVIDENCE_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_career_evidence' },
+        messages: [{ role: 'user', content: `${EVIDENCE_PROMPT}\n\nCV:\n${numberCvLines(cv.slice(0, 20_000))}` }],
+      }),
+    ])
 
     const toolUse = message.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_profile')
     if (!toolUse || toolUse.type !== 'tool_use') {
       throw new Error('Could not build your Career Arc. Please try again.')
     }
+    const profileSections = sanitizeDeep(toolUse.input as CareerProfileSections)
 
-    // Evidence cards live in career_evidence, not in the profile blob.
-    const { evidence: rawEvidence, ...profileSections } = sanitizeDeep(toolUse.input as CareerProfileSections)
+    const evidenceUse = evidenceMessage.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_evidence')
+    const rawEvidence = evidenceUse && evidenceUse.type === 'tool_use'
+      ? sanitizeDeep(evidenceUse.input as { cards: CareerEvidenceCard[] }).cards
+      : []
     const { cards, outcomes } = auditEvidenceCards(rawEvidence, cv)
 
     // Aggregate observability only — counts and categories, never content.
@@ -147,9 +170,9 @@ export async function POST(req: NextRequest) {
         return m
       }, {}),
       rawWithSource: rawList.filter((c) => (c as { sourceRole?: string })?.sourceRole || (c as { sourceCompany?: string })?.sourceCompany).length,
-      rawKeys: rawList[0] ? Object.keys(rawList[0] as object).sort() : [],
-      stopReason: message.stop_reason,
-      outputTokens: message.usage?.output_tokens,
+      rawWithLine: rawList.filter((c) => typeof (c as { cvLine?: unknown })?.cvLine === 'number').length,
+      stopReason: evidenceMessage.stop_reason,
+      outputTokens: evidenceMessage.usage?.output_tokens,
     }))
 
     const { data: saved, error } = await supabase

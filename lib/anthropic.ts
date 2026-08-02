@@ -680,7 +680,6 @@ export interface CareerProfileSections {
   story: CareerProfileStory
   projects: CareerProfileProject[]
   qualities: CareerProfileQuality[]
-  evidence?: CareerEvidenceCard[]
 }
 
 export const CAREER_EVIDENCE_CATEGORIES = ['quant', 'scope', 'leadership', 'systems', 'craft'] as const
@@ -874,24 +873,35 @@ export const CAREER_PROFILE_TOOL: Anthropic.Tool = {
         },
         description: "3-5 professional traits inferred ONLY from repeated patterns in the CV's language. Ground every trait in an actual repeated pattern; never invent one.",
       },
-      evidence: {
+    },
+    required: ["identity", "stats", "achievements", "timeline", "organisations", "skills", "growth", "chapters", "story", "projects", "qualities"],
+  },
+}
+
+export const CAREER_EVIDENCE_TOOL: Anthropic.Tool = {
+  name: "submit_career_evidence",
+  description: "Extract the evidence bank from a CV: the candidate's strongest reusable proof statements, each traceable to one CV bullet or line. Every fact, figure, name, and date must appear in the CV text. Never invent, merge, or embellish. If the CV is thin, return fewer cards; never pad.",
+  input_schema: {
+    type: "object",
+    properties: {
+      cards: {
         type: "array",
         items: {
           type: "object",
           properties: {
-            category: { type: "string", enum: ["quant", "scope", "leadership", "systems", "craft"], description: "quant: a claim anchored on a figure that appears literally in the CV. scope: breadth of remit (teams, sites, budgets, markets). leadership: people outcomes (promotions, retention, mentoring). systems: process/tooling/platform work. craft: hands-on quality of execution." },
-            claim: { type: "string", description: "One self-contained proof statement in sentence case, 8-30 words, drawn from a specific CV bullet. Tighten wording only — every fact, figure, name, and date must appear in the CV. Never merge facts from different roles into one claim." },
-            sourceRole: { type: "string", description: "The job title this claim comes from, exactly as in the CV. Empty string if unclear." },
-            sourceCompany: { type: "string", description: "The company this claim comes from, exactly as in the CV. Empty string if unclear." },
-            sourceSpan: { type: "string", description: "That role's date span as written in the CV, e.g. '2023-26'. Empty string if unclear." },
-            cvLine: { type: "number", description: "The 1-based line number in the CV text (as provided, counting every line) where the supporting text appears. Null if you cannot point to one line." },
+            category: { type: "string", enum: ["quant", "scope", "leadership", "systems", "craft"], description: "quant: anchored on a figure that appears literally in the CV (money, %, counts). scope: breadth of remit (teams, sites, budgets, markets). leadership: people outcomes (promotions, retention, mentoring, hiring). systems: process/tooling/platform work. craft: hands-on quality of execution." },
+            claim: { type: "string", description: "One self-contained proof statement in sentence case, 8-30 words, drawn from a specific CV bullet. Tighten wording only — every fact, figure, name, and date must appear in the CV. Never merge facts from different roles into one claim. Never include the line-number prefix." },
+            sourceRole: { type: "string", description: "REQUIRED for every card: the job title whose section this claim sits under, exactly as in the CV. Empty string ONLY if the CV genuinely has no role headings." },
+            sourceCompany: { type: "string", description: "REQUIRED for every card: the company for that role, exactly as in the CV. Empty string ONLY if the CV genuinely names no companies." },
+            sourceSpan: { type: "string", description: "That role's date span as written in the CV, e.g. '2023-26'. Empty string if the CV shows no dates for it." },
+            cvLine: { type: "number", description: "The line number where the supporting text appears — read it directly from the N| prefix on each CV line. Null only if the claim's support spans no single line." },
           },
           required: ["category", "claim", "sourceRole", "sourceCompany", "sourceSpan", "cvLine"],
         },
-        description: "6-14 evidence cards — the candidate's strongest reusable proofs, each traceable to one CV bullet or line. Cover a spread of categories where the CV supports it. Every quant card's figure must appear LITERALLY in the CV. If the CV is thin, return fewer cards; never pad.",
+        description: "8-14 cards covering the candidate's strongest proofs. Include EVERY quantified achievement in the CV as a quant card (the figure must appear literally). Spread across categories wherever the CV supports it. Order strongest first.",
       },
     },
-    required: ["identity", "stats", "achievements", "timeline", "organisations", "skills", "growth", "chapters", "story", "projects", "qualities", "evidence"],
+    required: ["cards"],
   },
 }
 
