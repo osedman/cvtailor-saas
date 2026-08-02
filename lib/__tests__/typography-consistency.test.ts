@@ -37,6 +37,10 @@ const ALLOWLIST: Record<string, string> = {
     'Tabular numerals in chart tooltips so values do not jitter.',
   'components/auth/sign-in-modal.tsx:font-mono':
     'Six-digit one-time code — a machine token, letter-spaced for legibility.',
+  'components/career-arc/ledger-view.tsx:font-mono':
+    'Career Arc ledger chrome (approved Ledger × Tailr skin, 2 Aug): section ' +
+    'labels, source/category chips, the NOTHING INVENTED stamp, year markers. ' +
+    'Claims, summaries and all prose stay in the sans.',
 }
 
 /** Source files we typeset; ignore build output and vendored code. */

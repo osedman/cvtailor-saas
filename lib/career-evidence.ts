@@ -176,6 +176,18 @@ export function claimUsedInText(claim: string, normalizedText: string): boolean 
   return hits / words.length >= 0.6
 }
 
+/** How many tailored CVs used at least one of these cards — the reuse stat. */
+export function countCvsUsingAny(
+  cards: Array<{ claim: string; rephrased_text: string | null }>,
+  historyTexts: string[],
+): number {
+  const claims = cards.map((c) => c.rephrased_text ?? c.claim)
+  return historyTexts.filter((t) => {
+    const normalized = normalizeForMatch(t)
+    return claims.some((claim) => claimUsedInText(claim, normalized))
+  }).length
+}
+
 export function computeUsageCounts(
   cards: Array<{ id: string; claim: string; rephrased_text: string | null }>,
   historyTexts: string[],

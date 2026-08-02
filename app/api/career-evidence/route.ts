@@ -14,6 +14,7 @@ import {
   MAX_EVIDENCE_CARDS,
   MIN_CLAIM_LENGTH,
   computeUsageCounts,
+  countCvsUsingAny,
   findCvLine,
   isSubstringOfCv,
   resolveStoredCv,
@@ -75,8 +76,9 @@ export async function GET() {
 
     const historyTexts = (history ?? []).map((h) => JSON.stringify(h.result ?? ''))
     const usage = computeUsageCounts(evidence, historyTexts)
+    const usedCvCount = countCvsUsingAny(evidence.filter((e) => !e.hidden), historyTexts)
 
-    return NextResponse.json({ evidence, usage })
+    return NextResponse.json({ evidence, usage, usedCvCount })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: msg }, { status: 500 })
