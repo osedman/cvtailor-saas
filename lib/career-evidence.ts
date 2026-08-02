@@ -48,38 +48,77 @@ function isCategory(value: unknown): value is CareerEvidenceCategory {
   return typeof value === 'string' && (CAREER_EVIDENCE_CATEGORIES as readonly string[]).includes(value)
 }
 
+export interface EvidenceAudit {
+  cards: CareerEvidenceCard[]
+  /** Aggregate outcome counts (kept / drop reasons) — safe to log, contains no content. */
+  outcomes: Record<string, number>
+}
+
 /**
- * Filter model-proposed evidence cards down to what the CV can prove.
- * Drops (never repairs) any card whose figures are not literally in the CV —
- * empty over guessed, per the no-invention contract.
+ * Filter model-proposed evidence cards down to what the CV can prove, and
+ * report why each raw card was kept or dropped. Drops (never repairs) any card
+ * whose figures are not literally in the CV — empty over guessed, per the
+ * no-invention contract.
  */
-export function validateEvidenceCards(raw: unknown, cv: string): CareerEvidenceCard[] {
-  if (!Array.isArray(raw)) return []
+export function auditEvidenceCards(raw: unknown, cv: string): EvidenceAudit {
+  if (!Array.isArray(raw)) return { cards: [], outcomes: { not_an_array: 1 } }
   const cvNorm = normalizeForMatch(cv).replace(/,/g, '')
   const cvLineCount = cv.split('\n').length
   const seen = new Set<string>()
   const cards: CareerEvidenceCard[] = []
+  const outcomes: Record<string, number> = {}
+  const count = (reason: string) => {
+    outcomes[reason] = (outcomes[reason] ?? 0) + 1
+  }
 
   for (const item of raw) {
-    if (cards.length >= MAX_EVIDENCE_CARDS) break
-    if (!item || typeof item !== 'object') continue
+    if (cards.length >= MAX_EVIDENCE_CARDS) {
+      count('over_cap')
+      continue
+    }
+    if (!item || typeof item !== 'object') {
+      count('bad_shape')
+      continue
+    }
     const { category, claim, sourceRole, sourceCompany, sourceSpan, cvLine } = item as Record<string, unknown>
 
-    if (!isCategory(category)) continue
-    if (typeof claim !== 'string') continue
+    if (!isCategory(category)) {
+      count('bad_category')
+      continue
+    }
+    if (typeof claim !== 'string') {
+      count('bad_shape')
+      continue
+    }
     const trimmed = claim.trim()
-    if (trimmed.length < MIN_CLAIM_LENGTH || trimmed.length > MAX_CLAIM_LENGTH) continue
-    if (/[<>]/.test(trimmed)) continue
+    if (trimmed.length < MIN_CLAIM_LENGTH || trimmed.length > MAX_CLAIM_LENGTH) {
+      count('claim_length')
+      continue
+    }
+    if (/[<>]/.test(trimmed)) {
+      count('markup')
+      continue
+    }
 
     // No-invention guard: every figure in the claim must appear literally in the CV.
     const figures = numberTokens(trimmed)
-    if (!figures.every((f) => cvNorm.includes(f))) continue
+    if (!figures.every((f) => cvNorm.includes(f))) {
+      count('figure_not_in_cv')
+      continue
+    }
     // A quant card without a figure is a category error — drop it.
-    if (category === 'quant' && figures.length === 0) continue
+    if (category === 'quant' && figures.length === 0) {
+      count('quant_no_figure')
+      continue
+    }
 
     const key = normalizeForMatch(trimmed)
-    if (seen.has(key)) continue
+    if (seen.has(key)) {
+      count('duplicate')
+      continue
+    }
     seen.add(key)
+    count('kept')
 
     const line = typeof cvLine === 'number' && Number.isInteger(cvLine) && cvLine >= 1 && cvLine <= cvLineCount ? cvLine : null
 
@@ -92,7 +131,11 @@ export function validateEvidenceCards(raw: unknown, cv: string): CareerEvidenceC
       cvLine: line,
     })
   }
-  return cards
+  return { cards, outcomes }
+}
+
+export function validateEvidenceCards(raw: unknown, cv: string): CareerEvidenceCard[] {
+  return auditEvidenceCards(raw, cv).cards
 }
 
 /**

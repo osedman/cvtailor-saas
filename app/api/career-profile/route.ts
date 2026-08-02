@@ -10,7 +10,7 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
-import { normalizeForMatch, resolveStoredCv, validateEvidenceCards } from '@/lib/career-evidence'
+import { auditEvidenceCards, normalizeForMatch, resolveStoredCv } from '@/lib/career-evidence'
 
 export const maxDuration = 300
 
@@ -133,7 +133,24 @@ export async function POST(req: NextRequest) {
 
     // Evidence cards live in career_evidence, not in the profile blob.
     const { evidence: rawEvidence, ...profileSections } = sanitizeDeep(toolUse.input as CareerProfileSections)
-    const cards = validateEvidenceCards(rawEvidence, cv)
+    const { cards, outcomes } = auditEvidenceCards(rawEvidence, cv)
+
+    // Aggregate observability only — counts and categories, never content.
+    const rawList = Array.isArray(rawEvidence) ? rawEvidence : []
+    console.log('[career-profile] evidence', JSON.stringify({
+      raw: rawList.length,
+      kept: cards.length,
+      outcomes,
+      rawCats: rawList.reduce<Record<string, number>>((m, c) => {
+        const k = String((c as { category?: unknown })?.category ?? '?')
+        m[k] = (m[k] ?? 0) + 1
+        return m
+      }, {}),
+      rawWithSource: rawList.filter((c) => (c as { sourceRole?: string })?.sourceRole || (c as { sourceCompany?: string })?.sourceCompany).length,
+      rawKeys: rawList[0] ? Object.keys(rawList[0] as object).sort() : [],
+      stopReason: message.stop_reason,
+      outputTokens: message.usage?.output_tokens,
+    }))
 
     const { data: saved, error } = await supabase
       .from('career_profiles')
