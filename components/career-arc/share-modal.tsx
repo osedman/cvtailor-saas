@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { Loader2, X } from "lucide-react"
 import { bandClaim, DEFAULT_SHARE_SETTINGS, type ClaimRedaction, type ShareSettings } from "@/lib/career-arc-share"
+import { ShareCardsStrip } from "@/components/career-arc/share-cards"
+import type { CareerProfileSections } from "@/lib/anthropic"
 import type { EvidenceRow } from "@/lib/career-arc-ledger"
 
 const ACCENT = "#dc4f33"
@@ -61,7 +63,7 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
   )
 }
 
-export function ShareModal({ evidence, onClose }: { evidence: EvidenceRow[]; onClose: () => void }) {
+export function ShareModal({ sections, evidence, onClose }: { sections: CareerProfileSections; evidence: EvidenceRow[]; onClose: () => void }) {
   const [share, setShare] = useState<ShareState | null>(null)
   const [loading, setLoading] = useState(true)
   const [settings, setSettings] = useState<ShareSettings>(DEFAULT_SHARE_SETTINGS)
@@ -292,6 +294,11 @@ export function ShareModal({ evidence, onClose }: { evidence: EvidenceRow[]; onC
                   NEW LINK
                 </button>
               </div>
+            </div>
+
+            <div className="mt-6">
+              <GroupHead label="SHARE CARDS" note="what you download is what you see" />
+              <ShareCardsStrip sections={sections} evidence={evidence} settings={settings} />
             </div>
 
             <div className="mt-6 flex items-center gap-3 border-t pt-4" style={{ borderColor: SAND_LT }}>

@@ -413,7 +413,7 @@ export function LedgerView({ sections, lastExtracted, evidence, usage, usedCvCou
 
   return (
     <div className="mx-auto max-w-[1080px] px-4 pb-20 pt-4">
-      {sharing && <ShareModal evidence={evidence} onClose={() => setSharing(false)} />}
+      {sharing && <ShareModal sections={sections} evidence={evidence} onClose={() => setSharing(false)} />}
       <div className="mb-5 flex items-center gap-2.5">
         <span className="font-mono text-[11.5px] tracking-[0.14em] text-[#55504a]">CAREER ARC</span>
         <span className="flex-1" />

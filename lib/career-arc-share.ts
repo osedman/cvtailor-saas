@@ -61,6 +61,24 @@ function digitsOfMagnitude(raw: string): number {
 
 const FIGURE_WORDS = ['', '', '', '', 'four-figure', 'five-figure', 'six-figure', 'seven-figure', 'eight-figure', 'nine-figure', 'ten-figure']
 
+/** Band word for a single raw figure ("£1.2m" → "seven-figure", "34" → "30+"). */
+export function bandFigureWord(raw: string): string {
+  if (/[£$€]/.test(raw)) {
+    const norm = raw.replace(/million/i, 'm').replace(/billion|bn/i, 'b')
+    const digits = digitsOfMagnitude(norm.replace(/[£$€]\s?/, ''))
+    return FIGURE_WORDS[Math.min(digits, 10)] || 'substantial'
+  }
+  if (/%/.test(raw)) {
+    const v = parseFloat(raw)
+    if (v >= 100) return 'multiple-fold'
+    return v >= 10 ? 'double-digit %' : 'single-digit %'
+  }
+  const v = parseInt(raw.replace(/,/g, ''), 10)
+  if (Number.isNaN(v)) return 'several'
+  if (v >= 10) return `${Math.floor(v / 10) * 10}+`
+  return v > 1 ? 'multiple' : 'a'
+}
+
 /** Band a single claim's figures away. Never returns the original numbers. */
 export function bandClaim(claim: string): string {
   let out = claim

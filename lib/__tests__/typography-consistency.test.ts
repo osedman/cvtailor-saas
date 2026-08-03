@@ -47,6 +47,10 @@ const ALLOWLIST: Record<string, string> = {
   'app/arc/[token]/page.tsx:font-mono':
     'Public arc page chrome (screen 06 of the approved skin): the same ledger ' +
     'labels/chips/stamp as the private page. Claims and prose stay sans.',
+  'components/career-arc/share-cards.tsx:font-mono':
+    'Share-card chrome (screen 04): eyebrow/name/chip/foot on the 1080px ' +
+    'cards and the hover download label — the same mono card language as the ' +
+    'approved mockups. Big statements stay in the sans.',
 }
 
 /** Source files we typeset; ignore build output and vendored code. */
