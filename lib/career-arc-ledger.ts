@@ -23,6 +23,16 @@ export interface EvidenceRow {
 /** Chart appears at this many roles; below it, the chapter list carries the page. */
 export const PATH_CHART_MIN_ROLES = 3
 
+/**
+ * Case/whitespace-insensitive normalisation for text matching. Lives here (a
+ * client-safe module) so browser code can match without pulling
+ * lib/career-evidence's server-leaning import graph into the bundle;
+ * career-evidence re-exports it as the server-side source of truth.
+ */
+export function normalizeForMatch(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
 export function parseYear(text: string): number | null {
   const m = text?.match(/(19|20)\d{2}/)
   return m ? parseInt(m[0], 10) : null

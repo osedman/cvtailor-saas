@@ -16,9 +16,8 @@ export const MAX_CLAIM_LENGTH = 300
 export const MIN_CLAIM_LENGTH = 20
 
 /** Lowercase and collapse all whitespace runs so matching survives reformatting. */
-export function normalizeForMatch(text: string): string {
-  return text.toLowerCase().replace(/\s+/g, ' ').trim()
-}
+export { normalizeForMatch } from '@/lib/career-arc-ledger'
+import { normalizeForMatch } from '@/lib/career-arc-ledger'
 
 /** Digit-bearing tokens (figures, percentages, money, years) with commas stripped. */
 export function numberTokens(text: string): string[] {

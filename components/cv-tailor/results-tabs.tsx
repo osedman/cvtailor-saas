@@ -5,6 +5,7 @@ import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles, ThumbsUp,
 import { toast } from "sonner"
 
 import type { TailorResult, InterviewPrepResult, PitchesResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
+import { EvidenceMatchPanel } from "@/components/career-arc/evidence-match-panel"
 import { downloadWordDoc } from "@/lib/word"
 import { getTemplate, px, TEMPLATE_LIST, type CvTemplateId } from "@/lib/cv-templates"
 import { useCvTemplate } from "@/hooks/use-cv-template"
@@ -817,6 +818,17 @@ export function ResultsTabs({
 
         {activeTab === "Gaps" && (
           <div className="space-y-6">
+            {/* Evidence traceability (Career Arc beta): which bank card backs
+                which requirement, plus named gaps. Renders nothing for users
+                without an evidence bank — purely additive to this tab. */}
+            {(results.requirementsCoverage ?? []).length > 0 && (
+              <EvidenceMatchPanel
+                requirements={results.requirementsCoverage ?? []}
+                jobTitle={results.jobTitle}
+                companyName={results.companyName}
+              />
+            )}
+
             {/* Requirements coverage — how the match score was computed */}
             {(results.requirementsCoverage ?? []).length > 0 && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">

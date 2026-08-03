@@ -51,6 +51,10 @@ const ALLOWLIST: Record<string, string> = {
     'Share-card chrome (screen 04): eyebrow/name/chip/foot on the 1080px ' +
     'cards and the hover download label — the same mono card language as the ' +
     'approved mockups. Big statements stay in the sans.',
+  'components/career-arc/evidence-match-panel.tsx:font-mono':
+    'Tailor sidebar chrome (screen 05): panel labels and EV·NN chips — ' +
+    'machine references into the evidence bank. Requirements and gap prose ' +
+    'stay in the sans.',
 }
 
 /** Source files we typeset; ignore build output and vendored code. */
