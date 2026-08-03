@@ -47,6 +47,7 @@ export const APP_PATH_PREFIXES = [
   "/history",
   "/career-path",
   "/career-arc",
+  "/arc",
   "/admin",
   "/pricing",
   "/privacy",

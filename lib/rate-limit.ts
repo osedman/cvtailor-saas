@@ -38,6 +38,12 @@ const PRESETS: Record<string, Rule[]> = {
     { key: 'auth:min', limit: 3,  windowSeconds: 60 },
     { key: 'auth:day', limit: 15, windowSeconds: DAY },
   ],
+  // Career Arc share-link writes (create / regenerate / settings). Cheap DB
+  // ops, but token regeneration and settings churn shouldn't be scriptable.
+  share: [
+    { key: 'share:min', limit: 10, windowSeconds: 60 },
+    { key: 'share:day', limit: 60, windowSeconds: DAY },
+  ],
 }
 
 export type RateLimitPreset = keyof typeof PRESETS

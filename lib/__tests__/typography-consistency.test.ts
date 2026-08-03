@@ -41,6 +41,12 @@ const ALLOWLIST: Record<string, string> = {
     'Career Arc ledger chrome (approved Ledger × Tailr skin, 2 Aug): section ' +
     'labels, source/category chips, the NOTHING INVENTED stamp, year markers. ' +
     'Claims, summaries and all prose stay in the sans.',
+  'components/career-arc/share-modal.tsx:font-mono':
+    'Share modal chrome (screen 03 of the approved skin): group labels, ' +
+    'redaction segments, the share URL (machine data). Prose stays sans.',
+  'app/arc/[token]/page.tsx:font-mono':
+    'Public arc page chrome (screen 06 of the approved skin): the same ledger ' +
+    'labels/chips/stamp as the private page. Claims and prose stay sans.',
 }
 
 /** Source files we typeset; ignore build output and vendored code. */

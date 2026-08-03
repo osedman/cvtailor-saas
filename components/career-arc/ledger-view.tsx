@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
+import { ShareModal } from "@/components/career-arc/share-modal"
 import type { CareerProfileSections } from "@/lib/anthropic"
 import {
   PATH_CHART_MIN_ROLES,
@@ -391,6 +392,7 @@ function EvidenceBank({
 
 export function LedgerView({ sections, lastExtracted, evidence, usage, usedCvCount, onAction, onRebuild, onReplay }: LedgerViewProps) {
   const [busy, setBusy] = useState(false)
+  const [sharing, setSharing] = useState(false)
   const glanceRef = useInView<HTMLDivElement>()
   const visibleCount = evidence.filter((e) => !e.hidden).length
   const period = arcPeriod(sections.timeline)
@@ -411,6 +413,7 @@ export function LedgerView({ sections, lastExtracted, evidence, usage, usedCvCou
 
   return (
     <div className="mx-auto max-w-[1080px] px-4 pb-20 pt-4">
+      {sharing && <ShareModal evidence={evidence} onClose={() => setSharing(false)} />}
       <div className="mb-5 flex items-center gap-2.5">
         <span className="font-mono text-[11.5px] tracking-[0.14em] text-[#55504a]">CAREER ARC</span>
         <span className="flex-1" />
@@ -418,7 +421,7 @@ export function LedgerView({ sections, lastExtracted, evidence, usage, usedCvCou
           Replay reveal
         </button>
         <button
-          onClick={() => toast.info("Sharing is coming in the next update — per-claim redaction included.")}
+          onClick={() => setSharing(true)}
           className={`rounded-[10px] px-4 py-2 text-[13px] font-semibold text-white shadow-[0_6px_18px_rgba(220,79,51,0.28)] transition-all hover:brightness-105 ${FOCUS_RING}`}
           style={{ background: ACCENT }}
         >
