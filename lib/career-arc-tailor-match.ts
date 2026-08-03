@@ -53,12 +53,23 @@ const STOPWORDS = new Set([
   'skills', 'working', 'knowledge', 'understanding', 'proven', 'track', 'record',
 ])
 
+/** Light stemming: plural/verb suffixes collapse so "automations" meets
+ * "automation" and "integrating" meets "integration"-adjacent roots. */
+function stem(word: string): string {
+  return word
+    .replace(/(?:ations|ation)$/, 'ate')
+    .replace(/(?:ies)$/, 'y')
+    .replace(/(?:ing|ed|es)$/, '')
+    .replace(/s$/, '')
+}
+
 function tokens(text: string): Set<string> {
   return new Set(
     normalizeForMatch(text)
       .replace(/[^a-z0-9 ]/g, ' ')
       .split(' ')
-      .filter((w) => w.length >= 4 && !STOPWORDS.has(w) && !/^\d+$/.test(w)),
+      .filter((w) => w.length >= 4 && !STOPWORDS.has(w) && !/^\d+$/.test(w))
+      .map(stem),
   )
 }
 

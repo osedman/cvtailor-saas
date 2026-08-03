@@ -22,6 +22,14 @@ describe('scoreCardAgainstRequirement', () => {
     expect(scoreCardAgainstRequirement(r, automation)).toBeGreaterThanOrEqual(3)
     expect(scoreCardAgainstRequirement(r, teams)).toBeLessThan(3)
   })
+
+  it('matches across plural and verb forms (automations ↔ automation)', () => {
+    const r = req('Building integrations and automations across warehouse platforms', {
+      keywords: ['building automations'],
+    })
+    const c = card('x', 'Automated warehouse workflows: integration of supplier platform automation')
+    expect(scoreCardAgainstRequirement(r, c)).toBeGreaterThanOrEqual(3)
+  })
 })
 
 describe('matchEvidenceToRequirements', () => {
