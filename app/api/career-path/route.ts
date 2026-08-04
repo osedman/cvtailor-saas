@@ -5,7 +5,8 @@ import {
   buildRoadmapPrompt, type CareerRoadmapItem, type RequirementMapping, type RoleSkillJudged,
 } from '@/lib/anthropic'
 import {
-  deriveTargetRole, rankGapsByUnlock, computeReadiness, readinessFromTargetSkills, skillMatches,
+  alignPlansToSkills, deriveTargetRole, rankGapsByUnlock, computeReadiness,
+  readinessFromTargetSkills, skillMatches,
   type HistoryEntry, type TrackerJob, type TargetSkill,
 } from '@/lib/career-path-compute'
 import { createClient } from '@/lib/supabase/server'
@@ -315,7 +316,9 @@ export async function POST(req: NextRequest) {
 
       const current = await loadItems(supabase, user.id, { horizon: 'core' })
       const pending = current.filter((it) => (it.resources ?? []).length === 0 && !it.projectBrief)
-      if (pending.length === 0) return NextResponse.json({ roadmap: await withItems(supabase, user.id, row) })
+      if (pending.length === 0) {
+        return NextResponse.json({ roadmap: await withItems(supabase, user.id, row), remaining: 0 })
+      }
 
       const [cv, region] = await Promise.all([loadCandidateCv(supabase, user.id), loadRegion(supabase, user.id)])
       const intention = (row.intention as string) || ''
@@ -344,19 +347,27 @@ export async function POST(req: NextRequest) {
           }),
         }],
       })
-      let planned: CareerRoadmapItem[] = []
       const ptu = planMsg.content.find((b) => b.type === 'tool_use' && b.name === 'submit_career_roadmap')
-      if (ptu && ptu.type === 'tool_use') {
-        planned = await finalizeRoadmapResources(
-          supabase,
-          ((ptu.input as { items?: CareerRoadmapItem[] }).items ?? []).map((it) => ({ ...it, status: 'todo' as const })),
-          { region, context: catalogContext },
-        )
+      if (!ptu || ptu.type !== 'tool_use') {
+        throw new Error('Could not build the learning plans. Please try again.')
       }
+      const rawPlanned = ((ptu.input as { items?: CareerRoadmapItem[] }).items ?? [])
+        .map((it) => ({ ...it, status: 'todo' as const }))
+      const aligned = alignPlansToSkills(gaps, rawPlanned)
+      if (aligned.length === 0) {
+        throw new Error('The learning plans came back empty. Please try again.')
+      }
+      // Align to the app-owned skill names before catalog finalization. Catalog
+      // context is keyed by those names, so finalizing a model-shortened label
+      // first could discard otherwise valid course matches.
+      const planned = await finalizeRoadmapResources(
+        supabase,
+        aligned,
+        { region, context: catalogContext },
+      )
 
       // Merge: fill placeholders in place, keep everything the user owns.
-      // Matching is case-insensitive because the model sometimes returns a
-      // slightly reworded skill name.
+      // alignPlansToSkills restored the exact app-owned names above.
       const planBySkill = new Map(planned.map((it) => [it.skill.trim().toLowerCase(), it]))
       const merged = current.map((it) => {
         const isPlaceholder = (it.resources ?? []).length === 0 && !it.projectBrief
@@ -368,8 +379,11 @@ export async function POST(req: NextRequest) {
         supabase, user.id, row.id as string,
         sanitizeDeep(merged) as StoredRoadmapItem[], 'core',
       )
-      console.log(`[career-path] enrich-plan planned ${planned.length}/${gaps.length} gaps in ${Date.now() - t0}ms`)
-      return NextResponse.json({ roadmap: { ...row, items: savedItems } })
+      const remaining = savedItems.filter(
+        (it) => (it.resources ?? []).length === 0 && !it.projectBrief,
+      ).length
+      console.log(`[career-path] enrich-plan planned ${planned.length}/${gaps.length} gaps (${remaining} remaining) in ${Date.now() - t0}ms`)
+      return NextResponse.json({ roadmap: { ...row, items: savedItems }, remaining })
     }
 
     // Remove a skill from the path and remember it so it's never re-added.

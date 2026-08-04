@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import type { RequirementMapping } from "@/lib/anthropic"
 import {
+  alignPlansToSkills,
   skillMatches,
   deriveTargetRole,
   rankGapsByUnlock,
@@ -31,6 +32,32 @@ describe("skillMatches", () => {
   it("does not match unrelated skills or blanks", () => {
     expect(skillMatches("python", "tableau")).toBe(false)
     expect(skillMatches("", "sql")).toBe(false)
+  })
+})
+
+describe("alignPlansToSkills", () => {
+  it("restores the exact requested name when the model shortens it", () => {
+    const planned = [{ skill: "Stakeholder", projectBrief: "Run a workshop" }]
+    expect(alignPlansToSkills(["Stakeholder management"], planned)).toEqual([
+      { skill: "Stakeholder management", projectBrief: "Run a workshop" },
+    ])
+  })
+
+  it("uses order only when the model returned the complete batch", () => {
+    const complete = [
+      { skill: "Data pipelines", projectBrief: "Build a pipeline" },
+      { skill: "Cloud deployment", projectBrief: "Deploy it" },
+    ]
+    expect(alignPlansToSkills(["ETL", "AWS"], complete).map((item) => item.skill))
+      .toEqual(["ETL", "AWS"])
+
+    expect(alignPlansToSkills(["ETL", "AWS"], complete.slice(0, 1))).toEqual([])
+  })
+
+  it("never assigns one generated plan to two skills", () => {
+    const planned = [{ skill: "SQL", projectBrief: "Query a dataset" }]
+    expect(alignPlansToSkills(["SQL", "Advanced SQL"], planned).map((item) => item.skill))
+      .toEqual(["SQL"])
   })
 })
 
