@@ -37,6 +37,26 @@ function FormattedCV({ text, template, annotations }: { text: string; template?:
   )
   if (firstSection === -1) firstSection = 0
 
+  // Some CVs arrive as three stacked lines per job — role title / company /
+  // dates — instead of one "Role, Company | 2021–2023" line. Recognise the
+  // date-only line and work upward so every company renders the same, whether
+  // or not it happens to be written in capitals.
+  const DATE_PART = String.raw`(?:[A-Za-z]{3,9}\.?\s+)?(?:19|20)\d{2}|Present|Current|Now`
+  const dateOnlyRe = new RegExp(String.raw`^\(?(?:${DATE_PART})\)?(?:\s*[,–—-]\s*\(?(?:${DATE_PART})\)?)?\s*$`, "i")
+  const nextIdx = (i: number) => { let j = i + 1; while (j < lines.length && !lines[j].trim()) j++; return j }
+  const isDateLine = (s: string) => dateOnlyRe.test(s)
+  const isCompanyLine = (i: number) => {
+    const s = lines[i]?.trim() ?? ""
+    if (!s || s.length >= 90 || /^[•\-\*·]/.test(s) || isDateLine(s)) return false
+    const j = nextIdx(i)
+    return j < lines.length && isDateLine(lines[j].trim())
+  }
+  const isRoleTitleLine = (i: number) => {
+    const s = lines[i]?.trim() ?? ""
+    if (!s || s.length >= 130 || /^[•\-\*·]/.test(s) || isDateLine(s)) return false
+    return isCompanyLine(nextIdx(i))
+  }
+
   return (
     <div style={{ fontFamily: t.fontStack, color: t.bodyText.color }}>
       {lines.map((line, i) => {
@@ -65,6 +85,34 @@ function FormattedCV({ text, template, annotations }: { text: string; template?:
             <p key={i} style={{
               fontSize: px(t.contact.sizePt), color: t.contact.color,
               textAlign: t.contact.align, margin: `0 0 ${px(3)} 0`,
+            }}>{trimmed}</p>
+          )
+        }
+
+        // ── Stacked role / company / dates block ──
+        const prevIdx = (() => { let j = i - 1; while (j >= 0 && !lines[j].trim()) j--; return j })()
+        if (isDateLine(trimmed) && isCompanyLine(prevIdx)) {
+          return (
+            <p key={i} style={{
+              fontSize: px(t.company.sizePt), color: t.company.color,
+              fontStyle: t.company.italic ? "italic" : "normal",
+              margin: `0 0 ${px(4)} 0`,
+            }}>{trimmed}</p>
+          )
+        }
+        if (isCompanyLine(i)) {
+          return (
+            <p key={i} style={{
+              fontSize: px(t.role.sizePt + 1), fontWeight: 700, color: t.heading.color,
+              margin: `0 0 ${px(1)} 0`,
+            }}>{trimmed}</p>
+          )
+        }
+        if (isRoleTitleLine(i)) {
+          return (
+            <p key={i} style={{
+              fontSize: px(t.role.sizePt), fontWeight: 700, color: t.role.color,
+              margin: `${px(9)} 0 ${px(1)} 0`,
             }}>{trimmed}</p>
           )
         }
