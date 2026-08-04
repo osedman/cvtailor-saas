@@ -177,6 +177,23 @@ _Recorded 30 July 2026._
 
 ---
 
+## ✅ SHIPPED: every company renders consistently in the displayed CV (4 August 2026)
+
+Reported by Ose with a prod screenshot: YOOX NET-A-PORTER rendered as a giant
+section header while Fairmatic, BP, Optum and State Street were plain body
+text, and bare date lines went bold. Cause: `FormattedCV` only understood
+ALL-CAPS headings and single-line "Role | 2019–2021" rows — the three-stacked-
+lines format (role title / company / dates) had no pattern. Fix: detect the
+date-only line and classify upward; every company is now a bold sub-heading
+with the role above and dates in muted company style.
+
+[PR #42](https://github.com/osedman/cvtailor-saas/pull/42) squash-merged to
+main (`d131653`), verified live in the prod bundle. Ported to staging
+(`858a234`) same day. Follow-up owed: the Word export (`lib/word.ts`) still
+uses the old line classification for this format.
+
+---
+
 ## ✅ VERIFIED ON PREVIEW: pace lag, CORE tags, multi-document First CV upload (4 August 2026)
 
 Three small fixes shipped with the enrichment work below (commit `117cbd4`,
