@@ -177,6 +177,147 @@ _Recorded 30 July 2026._
 
 ---
 
+## ✅ VERIFIED ON PREVIEW: pace lag, CORE tags, multi-document First CV upload (4 August 2026)
+
+Three small fixes shipped with the enrichment work below (commit `117cbd4`,
+Ose verified all three on the branch preview 4 Aug; ported to staging same day):
+
+1. **Pace control was slow.** Changing hrs/week awaited the save round-trip plus
+   a full path reload before the forecast moved. The forecast is computed
+   client-side, so the pin now updates instantly (optimistic local state) and
+   saves in the background, reverting with a toast if the save fails.
+2. **CORE tag on every North Star skill.** The skill map only tagged skills the
+   model judged `importance === "core"`, so most missing skills carried no tag.
+   Every researched North Star skill now shows CORE — the model's core/common/edge
+   split is still stored, just no longer trusted for the badge.
+3. **First CV builder reads documents, plural.** The evidence uploader accepts
+   multiple files in one pick (sequential extract calls, per-file errors, one
+   combined toast) and all copy/errors now say "documents" rather than
+   file/CV-of-it language ("Upload documents", "Reading your documents…",
+   "We could not read evidence from that document.").
+
+**Status:** verified working on the branch preview by Ose (4 Aug); ported to
+staging. No production deployment until explicitly approved.
+
+---
+
+## 🐛 FIXED: North Star skills kept empty plan placeholders (2 August 2026)
+
+**Symptom:** after choosing a North Star, skills appeared but their courses and
+project ideas stayed empty.
+
+**Cause:** the fast-build change saved empty placeholders and delegated plans to
+one fire-and-forget `enrich-plan` request. Errors were swallowed, only the first
+five gaps were attempted, there was no retry on a later visit, and model-shortened
+skill names failed an exact-name merge.
+
+**Fix on `fix/north-star-enrichment`:** the living path now retries pending plans
+on load, runs every five-skill batch until all researched gaps are covered, reports
+failures instead of hiding them, and aligns model output to app-owned skill names
+before catalog resolution. Regression tests cover shortened names, complete-batch
+fallback, duplicate prevention, multi-batch enrichment, and revisit recovery.
+
+**Status:** shipped with `117cbd4` and verified on the branch preview 4 Aug
+(plans filled in on load); ported to staging. No production deployment until
+explicitly approved.
+
+---
+
+## 🐛 FIXED: skills showed no courses — relevance was never actually required (31 July 2026)
+
+**Symptom:** career-path skills rendered with a project brief and **no courses at all**.
+
+**Two wrong diagnoses first, both mine.** "The catalog is empty" (it was, and filling it
+did not fix this) and then "rebuild the path". The path Ose built at 18:43 — *after* the
+catalog held 4,443 courses — still produced 0 resources for 4 skills. Populating data and
+re-running are the obvious moves and neither touched the real cause.
+
+**Actual cause:** in `rankCourses` (`lib/course-catalog.ts`) relevance and fit were a
+single score. A free, short Microsoft module scored **~66 on metadata alone** (quality +
+provider preference + free + duration) against a threshold of **15**, so every skill
+returned five results however unrelated. Production was serving:
+
+- *"Direct line management"* → **"Build and deploy apps for Microsoft Teams"**
+- *"Target Operating Model"* → **"Advanced Model-Driven Apps with Power Apps"** — matched
+  on the word *"model"*
+
+**Why that showed up as silence rather than bad courses.** `fullCoverage` (every skill
+has ≥2 records) suppresses the web-search fallback in `catalogAwareRoadmapTools`. So
+business and leadership skills had only irrelevant candidates *and no way to look
+elsewhere*. The model correctly attached nothing — and that is what reached users. **A
+false positive in matching surfaced as a missing feature.**
+
+**Fix ([PR #39](https://github.com/osedman/cvtailor-saas/pull/39), `25bea91`):**
+- Relevance is scored separately and **gates eligibility**; fit only reorders records that
+  already match.
+- A match needs a phrase hit, or enough distinct token hits to stop being coincidence,
+  **scaled to the skill's length** — two hits is convincing for "Power BI" and meaningless
+  for a nine-word skill. The Teams module cleared a flat bar of two on "team" (matching
+  the tag "office teams") and "developers" (matching "developer").
+- Substring matching between words needs length ≥5, so a two-letter tag like `ai` no
+  longer matches `email`.
+
+Verified against the live catalog: business skills now return nothing and re-enable web
+search, while Power BI, Azure DevOps, Python, Kubernetes, Power Automate and data analysis
+all still resolve. Tests were checked to fail against the old logic.
+
+**Being strict is cheap here** — falling short of coverage turns the fallback on, which
+beats a confident irrelevant answer. That is the design principle to preserve.
+
+**Blast radius: zero real users.** All 6 course-less items belonged to Ose's own two
+accounts; 9 of 62 users have built a path at all. No backfill needed. Old items do not
+self-heal (already stored with empty resources) — re-locking a North Star regenerates
+them, and the fallback now fires properly for business skills.
+
+**OPEN — next session:** Ose asked for **tooltips / UI** making this legible to users:
+why a skill has no course yet, and how to refresh it. Not started. Per the standing rule,
+this is designed in **Figma before any UI code**.
+
+_Recorded 31 July 2026._
+
+---
+
+## 🚀 SHIPPED: Faster North Star, daily course sync, real approval gate (31 July 2026)
+
+Three merges to `main`, all live in production.
+
+**[PR #35](https://github.com/osedman/cvtailor-saas/pull/35) — North Star build returns
+in about half the time.** `set-target` now responds as soon as role research completes;
+placeholder items render immediately and a follow-up `enrich-plan` call fills in course
+plans behind them. Per-stage timing logs added so the remaining cost is measurable rather
+than guessed at. This also closed the staging↔prod gap: the only intentional difference
+left is `lib/feature-gate.ts` (staging keeps the pre-GA allowlist, main has GA).
+
+**[PR #36](https://github.com/osedman/cvtailor-saas/pull/36) — courses.** Three things:
+
+1. **Why courses weren't showing at all.** Prod's `course_catalog` was **empty**. The
+   table shipped with the 30 Jul port but the first sync never ran — the cron only fired
+   Sundays. Roadmap generation asked the catalog for URLs, got nothing, and produced
+   items with project ideas and no courses.
+2. **Cron is now daily at 03:00**, and Microsoft Learn's record cap went 2,000 → 5,000.
+   The old ceiling was silently discarding over half of Microsoft's ~4.4k catalog, and
+   *which* half depended on their ordering rather than on quality. Prod went
+   **2,012 → 4,443 active courses**.
+3. **The approval gate is real now.** It used to key off *source trust*: anything marked
+   `trusted: true` wrote straight to users, so 4,440 records went live unreviewed and the
+   queue looked permanently empty. The split is now **catalog membership** — a record
+   already in the catalog is refreshed in place, anything unseen goes to review whatever
+   its provider. `/admin/courses` gained exact per-provider pending counts and
+   Approve/Reject-all, because gating everything only works if approving is cheap.
+
+Link-rot sweep also went 100 → 250 rows per run in waves of 25. At the old rate a catalog
+this size took **over a year** to verify once; it is now under three weeks. The waves
+matter because the catalog is dominated by one host — a single large `Promise.all` risks
+throttling that looks exactly like mass link rot in our own data.
+
+**Watch tomorrow (1 Aug):** the 03:00 run is the first time YouTube actually executes in
+production, so the review queue gets real candidates for the first time. Check
+`/admin/courses` and the `course_sync_runs` table.
+
+_Recorded 31 July 2026._
+
+---
+
 ## 🚀 SHIPPED: Career path GA — gate lifted, announcement sent (30 July 2026)
 
 [PR #34](https://github.com/osedman/cvtailor-saas/pull/34) merged to main (`e4aefd2`):

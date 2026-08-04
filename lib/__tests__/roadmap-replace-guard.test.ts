@@ -73,6 +73,7 @@ describe('replaceItems — never wipes on an empty list', () => {
 
 describe('set-target populates every gap, not just the planned ones', () => {
   const route = readFileSync(path.join(ROOT, 'app/api/career-path/route.ts'), 'utf8')
+  const page = readFileSync(path.join(ROOT, 'app/career-path/page.tsx'), 'utf8')
 
   it('builds items from all gaps, with the AI plan as enrichment', () => {
     // allGaps drives the items in set-target; the paid plan call lives in the
@@ -86,14 +87,29 @@ describe('set-target populates every gap, not just the planned ones', () => {
 
   it('caps enrichment but not which skills appear', () => {
     // The .slice(0, 5) applies to `pending`/`gaps` (the AI call in
-    // enrich-plan), never to allGaps in set-target.
+    // enrich-plan), never to allGaps in set-target. The client repeats batches
+    // until the route reports that no placeholders remain.
     expect(route).toMatch(/pending\.slice\(0, 5\)/)
     expect(route).not.toMatch(/const allGaps = [^\n]*\.slice\(/)
+    expect(route).toMatch(/remaining/)
+    expect(page).toMatch(/while \(!cancelled && remaining > 0/)
   })
 
   it('enrichment never clobbers items the user owns', () => {
     // Only resource-less placeholders may be replaced by a generated plan.
     expect(route).toMatch(/isPlaceholder/)
     expect(route).toMatch(/if \(!isPlaceholder \|\| !plan\) return it/)
+  })
+
+  it('retries incomplete plans on path load and surfaces failures', () => {
+    expect(page).toMatch(/needsEnrichment/)
+    expect(page).toMatch(/mode: "enrich-plan"/)
+    expect(page).toMatch(/Tailr will retry/)
+    expect(page).not.toMatch(/\.catch\(\(\) => \{ \/\* placeholders still render/)
+  })
+
+  it('aligns model output before resolving catalog resources', () => {
+    expect(route.indexOf('alignPlansToSkills(gaps, rawPlanned)'))
+      .toBeLessThan(route.indexOf('finalizeRoadmapResources(\n        supabase,\n        aligned'))
   })
 })
