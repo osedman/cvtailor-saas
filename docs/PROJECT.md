@@ -177,6 +177,51 @@ _Recorded 30 July 2026._
 
 ---
 
+## ✅ VERIFIED ON PREVIEW + STAGING: pace lag, CORE tags, multi-document First CV upload (4 August 2026)
+
+Three small fixes shipped with the enrichment work below (commit `117cbd4`,
+Ose verified all three on the branch preview and again on staging, 4 Aug):
+
+1. **Pace control was slow.** Changing hrs/week awaited the save round-trip plus
+   a full path reload before the forecast moved. The forecast is computed
+   client-side, so the pin now updates instantly (optimistic local state) and
+   saves in the background, reverting with a toast if the save fails.
+2. **CORE tag on every North Star skill.** The skill map only tagged skills the
+   model judged `importance === "core"`, so most missing skills carried no tag.
+   Every researched North Star skill now shows CORE — the model's core/common/edge
+   split is still stored, just no longer trusted for the badge.
+3. **First CV builder reads documents, plural.** The evidence uploader accepts
+   multiple files in one pick (sequential extract calls, per-file errors, one
+   combined toast) and all copy/errors now say "documents" rather than
+   file/CV-of-it language ("Upload documents", "Reading your documents…",
+   "We could not read evidence from that document.").
+
+**Status:** verified by Ose on the branch preview and on staging (4 Aug,
+staging commit `08c2955`); ported to main via PR.
+
+---
+
+## 🐛 FIXED: North Star skills kept empty plan placeholders (2 August 2026)
+
+**Symptom:** after choosing a North Star, skills appeared but their courses and
+project ideas stayed empty.
+
+**Cause:** the fast-build change saved empty placeholders and delegated plans to
+one fire-and-forget `enrich-plan` request. Errors were swallowed, only the first
+five gaps were attempted, there was no retry on a later visit, and model-shortened
+skill names failed an exact-name merge.
+
+**Fix on `fix/north-star-enrichment`:** the living path now retries pending plans
+on load, runs every five-skill batch until all researched gaps are covered, reports
+failures instead of hiding them, and aligns model output to app-owned skill names
+before catalog resolution. Regression tests cover shortened names, complete-batch
+fallback, duplicate prevention, multi-batch enrichment, and revisit recovery.
+
+**Status:** shipped with `117cbd4`, verified on the branch preview and staging
+4 Aug (plans filled in on load); ported to main via PR.
+
+---
+
 ## 🐛 FIXED: skills showed no courses — relevance was never actually required (31 July 2026)
 
 **Symptom:** career-path skills rendered with a project brief and **no courses at all**.

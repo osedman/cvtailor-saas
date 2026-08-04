@@ -74,15 +74,26 @@ export default function FirstCvPage() {
     } catch (error) { setEvidence(previous); toast.error(error instanceof Error ? error.message : "Could not update that item.") }
   }
 
-  async function upload(file: File) {
+  async function upload(files: File[]) {
     setUploading(true)
+    let found = 0
+    // One document per request, sequentially: the extract endpoint reads a
+    // single file, and this keeps a batch inside the per-user AI rate limit.
     try {
-      const body = new FormData(); body.append("file", file)
-      const data = await json<{ evidence: CvEvidenceItem[] }>(await fetch("/api/first-cv/extract", { method: "POST", body }))
-      setEvidence((old) => [...data.evidence, ...old])
-      toast.success(`Found ${data.evidence.length} thing${data.evidence.length === 1 ? "" : "s"} for you to review. The file was not stored.`)
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not read that file.") }
-    finally { setUploading(false); if (fileRef.current) fileRef.current.value = "" }
+      for (const file of files) {
+        try {
+          const body = new FormData(); body.append("file", file)
+          const data = await json<{ evidence: CvEvidenceItem[] }>(await fetch("/api/first-cv/extract", { method: "POST", body }))
+          setEvidence((old) => [...data.evidence, ...old])
+          found += data.evidence.length
+        } catch (error) {
+          toast.error(`${file.name}: ${error instanceof Error ? error.message : "Could not read that document."}`)
+        }
+      }
+      if (found > 0) {
+        toast.success(`Found ${found} thing${found === 1 ? "" : "s"} across your document${files.length === 1 ? "" : "s"} for you to review. Nothing was stored.`)
+      }
+    } finally { setUploading(false); if (fileRef.current) fileRef.current.value = "" }
   }
 
   async function generate() {
@@ -136,20 +147,20 @@ export default function FirstCvPage() {
 
             <div className="mt-6 rounded-2xl bg-white border border-[#ece6da] p-5">
               <div className="flex items-start justify-between gap-4">
-                <div><h2 className="font-bold text-[#1e1813]">1. Add your evidence</h2><p className="mt-1 text-xs text-gray-500">PDF, DOCX or TXT, maximum 10 MB. Files are read and discarded.</p></div>
+                <div><h2 className="font-bold text-[#1e1813]">1. Add your evidence</h2><p className="mt-1 text-xs text-gray-500">PDF, DOCX or TXT, up to 10 MB each. Documents are read and discarded.</p></div>
                 <ShieldCheck className="w-5 h-5 text-green-600 shrink-0" />
               </div>
               <div className="mt-4 grid sm:grid-cols-2 gap-3">
                 <button onClick={() => fileRef.current?.click()} disabled={uploading} className="rounded-xl border border-dashed border-[#dac9bf] bg-[#fffaf8] p-4 text-left hover:border-[#dc4f33] transition-colors disabled:opacity-60">
                   {uploading ? <Loader2 className="w-5 h-5 animate-spin text-[#dc4f33]" /> : <Upload className="w-5 h-5 text-[#dc4f33]" />}
-                  <span className="mt-2 block text-sm font-semibold text-[#1e1813]">{uploading ? "Reading your file…" : "Upload a document"}</span>
-                  <span className="text-xs text-gray-500">Certificate, project, portfolio or notes</span>
+                  <span className="mt-2 block text-sm font-semibold text-[#1e1813]">{uploading ? "Reading your documents…" : "Upload documents"}</span>
+                  <span className="text-xs text-gray-500">Certificates, projects, portfolio or notes — add several at once</span>
                 </button>
                 <button onClick={() => setShowForm(true)} className="rounded-xl border border-[#ece6da] bg-white p-4 text-left hover:border-[#dc4f33] transition-colors">
                   <PencilLine className="w-5 h-5 text-[#dc4f33]" /><span className="mt-2 block text-sm font-semibold text-[#1e1813]">Tell us yourself</span><span className="text-xs text-gray-500">No document needed</span>
                 </button>
               </div>
-              <input ref={fileRef} type="file" accept=".pdf,.docx,.txt" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) upload(file) }} />
+              <input ref={fileRef} type="file" accept=".pdf,.docx,.txt" multiple className="hidden" onChange={(event) => { const files = Array.from(event.target.files ?? []); if (files.length) upload(files) }} />
             </div>
 
             {showForm && <div className="mt-4 rounded-2xl bg-white border border-[#ece6da] p-5">

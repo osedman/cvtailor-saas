@@ -61,6 +61,43 @@ export function skillMatches(a: string, b: string): boolean {
   return x === y || x.includes(y) || y.includes(x)
 }
 
+/**
+ * Reattach model-generated plans to the exact skill names the app owns.
+ *
+ * Models occasionally shorten "Stakeholder management" to "Stakeholder".
+ * Exact-only matching silently discarded those otherwise valid plans. Match
+ * exact names first, then safe substring variants, and only use positional
+ * fallback when the model returned the complete requested batch.
+ */
+export function alignPlansToSkills<T extends { skill: string }>(
+  skills: string[],
+  planned: T[],
+): Array<T & { skill: string }> {
+  const used = new Set<number>()
+  const completeBatch = planned.length === skills.length
+
+  return skills.flatMap((skill, position) => {
+    const normalized = skill.trim().toLowerCase()
+    let index = planned.findIndex(
+      (item, i) => !used.has(i) && item.skill.trim().toLowerCase() === normalized,
+    )
+    if (index < 0) {
+      index = planned.findIndex(
+        (item, i) => !used.has(i) && skillMatches(item.skill, skill),
+      )
+    }
+    if (index < 0 && completeBatch) {
+      index = !used.has(position)
+        ? position
+        : planned.findIndex((_, i) => !used.has(i))
+    }
+    if (index < 0) return []
+
+    used.add(index)
+    return [{ ...planned[index], skill }]
+  })
+}
+
 /** Most-frequent recent job title — seeds the target so the intake form can die. */
 export function deriveTargetRole(history: HistoryEntry[]): string {
   if (history.length === 0) return ""
