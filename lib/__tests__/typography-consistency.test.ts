@@ -67,6 +67,10 @@ const ALLOWLIST: Record<string, string> = {
     'EV·NN evidence chips on tailored-CV bullets (screen 05) — machine ' +
     'references into the evidence bank, same token as the sidebar chips. ' +
     'The CV text itself stays in the template face.',
+  'components/career-arc/reveal-card.tsx:font-mono':
+    'Rebuilt reveal (Aug 3): slide eyebrows, the NOTHING INVENTED stamp and ' +
+    'the evidence source line — the same ledger chrome as the page the ' +
+    'reveal opens. Claims and prose stay in the sans.',
   'components/career-arc/evidence-match-panel.tsx:font-mono':
     'Tailor sidebar chrome (screen 05): panel labels and EV·NN chips — ' +
     'machine references into the evidence bank. Requirements and gap prose ' +

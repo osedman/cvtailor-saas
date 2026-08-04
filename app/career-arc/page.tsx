@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2, Sparkles, TrendingUp } from "lucide-react"
 import { Header } from "@/components/cv-tailor/header"
 import { useAuth } from "@/components/auth/auth-provider"
 import { LedgerView, type EvidenceAction } from "@/components/career-arc/ledger-view"
+import { RevealCard } from "@/components/career-arc/reveal-card"
 import type { EvidenceRow } from "@/lib/career-arc-ledger"
 import type { CareerProfileSections, CareerQuestion } from "@/lib/anthropic"
 
@@ -38,40 +39,6 @@ async function readJson<T>(res: Response): Promise<T> {
     throw new Error(msg || `Server error ${res.status}. Please try again.`)
   }
   return data as T
-}
-
-function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(false)
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
-    setReduced(mq.matches)
-    const handler = () => setReduced(mq.matches)
-    mq.addEventListener("change", handler)
-    return () => mq.removeEventListener("change", handler)
-  }, [])
-  return reduced
-}
-
-function useCountUp(target: number, active: boolean, durationMs = 1000) {
-  const [value, setValue] = useState(0)
-  const reduced = usePrefersReducedMotion()
-  useEffect(() => {
-    if (!active) return
-    if (reduced || target === 0) { setValue(target); return }
-    let raf = 0
-    const start = performance.now()
-    const tick = (now: number) => {
-      // rAF timestamps can predate the captured start — clamp low or the eased
-      // value goes negative for a frame.
-      const t = Math.max(0, Math.min(1, (now - start) / durationMs))
-      const eased = 1 - Math.pow(1 - t, 3)
-      setValue(Math.round(eased * target))
-      if (t < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [active, target, durationMs, reduced])
-  return value
 }
 
 /** Wizard step 2: personalised questions, each individually skippable (blank = skipped) */
@@ -186,200 +153,6 @@ function CVPasteStep({ onCv }: { onCv: (cv: string) => void }) {
   )
 }
 
-/** Card-based reveal with full art direction: alternating ink/cream slides,
-    ghost numerals, glows, staggered type. Tap to advance, always skippable. */
-function RevealCard({ s, onDone }: { s: CareerProfileSections; onDone: () => void }) {
-  const years = s.stats?.find((st) => /year/i.test(st.label))
-  const roles = s.stats?.find((st) => /role/i.test(st.label))
-  const yearsNum = years && /^\d+$/.test(years.value.trim()) ? parseInt(years.value, 10) : null
-  const topAchievement = s.achievements?.[0]
-  const qualities = (s.qualities ?? []).slice(0, 3)
-
-  type Slide = "title" | "years" | "origin" | "climb" | "number" | "qualities" | "final"
-  const slides: Slide[] = [
-    "title",
-    ...(yearsNum !== null ? (["years"] as Slide[]) : []),
-    ...(s.story?.origin ? (["origin"] as Slide[]) : []),
-    ...((s.timeline?.length ?? 0) >= 2 ? (["climb"] as Slide[]) : []),
-    ...(topAchievement ? (["number"] as Slide[]) : []),
-    ...(qualities.length > 0 ? (["qualities"] as Slide[]) : []),
-    "final",
-  ]
-  const [index, setIndex] = useState(0)
-  const slide = slides[index]
-  const isLast = index === slides.length - 1
-  const count = useCountUp(yearsNum ?? 0, slide === "years", 1400)
-
-  // Ink slides feel cinematic; cream slides breathe. Alternate by content weight.
-  const DARK: Slide[] = ["title", "climb", "number", "final"]
-  const dark = DARK.includes(slide)
-  const next = () => { if (isLast) onDone(); else setIndex(index + 1) }
-
-  const stagger = (i: number) => ({ animation: "fade-in-up 0.55s ease-out both", animationDelay: `${0.15 + i * 0.18}s` })
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(30,24,19,0.6)", backdropFilter: "blur(4px)" }}>
-      <style>{`@keyframes arc-draw { from { stroke-dashoffset: 700; } to { stroke-dashoffset: 0; } }
-@keyframes glow-in { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }`}</style>
-      <div
-        role="dialog"
-        aria-label="Your Career Arc reveal"
-        className="relative w-full max-w-xl rounded-[28px] p-8 sm:p-12 flex flex-col overflow-hidden shadow-[0_24px_64px_rgba(30,24,19,0.45)] cursor-pointer select-none transition-colors duration-500"
-        style={{ background: dark ? INK : "#f9f6f0", minHeight: "30rem" }}
-        onClick={next}
-      >
-        {/* Ambient glow on ink slides */}
-        {dark && (
-          <div className="absolute pointer-events-none" style={{
-            width: 420, height: 420, right: -140, top: -140, borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(220,79,51,0.28) 0%, rgba(220,79,51,0) 70%)",
-          }} />
-        )}
-
-        <div className="relative flex items-center justify-between mb-4">
-          <p className="text-[11px] tabular-nums" style={{ color: dark ? "#8a8178" : "#a89e93" }}>
-            {String(index + 1).padStart(2, "0")} — {String(slides.length).padStart(2, "0")}
-          </p>
-          <button
-            onClick={(e) => { e.stopPropagation(); onDone() }}
-            className="text-[12px] transition-colors"
-            style={{ color: dark ? "#8a8178" : "#a89e93" }}
-          >
-            Skip
-          </button>
-        </div>
-
-        <div key={index} className="relative flex-1 flex flex-col justify-center py-6">
-          <div className="w-9 h-[3px] mb-7 rounded-full" style={{ background: ACCENT, ...stagger(0) }} />
-
-          {slide === "title" && (
-            <>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] mb-5" style={{ color: "#f4a58e", ...stagger(1) }}>Your Career Arc</p>
-              <p className="font-extrabold tracking-tight" style={{ fontSize: "clamp(1.9rem, 5.5vw, 2.9rem)", lineHeight: 1.15, color: "#f9f6f0" }}>
-                {years && roles ? (
-                  <>
-                    <span className="block" style={stagger(2)}>{years.value} years.</span>
-                    <span className="block" style={stagger(3)}>{roles.value} roles.</span>
-                    <span className="block" style={{ color: "#f4a58e", ...stagger(4) }}>One direction.</span>
-                  </>
-                ) : (
-                  <span style={stagger(2)}>{s.identity.roleLine}</span>
-                )}
-              </p>
-            </>
-          )}
-
-          {slide === "years" && (
-            <>
-              <p className="absolute right-0 top-1/2 -translate-y-1/2 font-extrabold tabular-nums pointer-events-none" style={{ fontSize: "17rem", lineHeight: 1, color: "rgba(220,79,51,0.07)" }}>
-                {years?.value}
-              </p>
-              <p className="font-extrabold tabular-nums leading-none" style={{ fontSize: "clamp(5rem, 16vw, 8rem)", color: ACCENT, ...stagger(1) }}>{count}</p>
-              <p className="mt-4 text-[17px] font-semibold text-gray-500" style={stagger(2)}>years building a career</p>
-            </>
-          )}
-
-          {slide === "origin" && (
-            <>
-              <p className="absolute -left-2 -top-2 font-extrabold pointer-events-none" style={{ fontSize: "11rem", lineHeight: 1, color: "rgba(220,79,51,0.1)", fontFamily: "Georgia, serif" }}>&ldquo;</p>
-              <p className="text-[11px] uppercase tracking-[0.25em] mb-5 text-gray-400" style={stagger(1)}>Where it started</p>
-              <p className="text-[20px] text-[#1e1813] leading-relaxed italic" style={stagger(2)}>&ldquo;{s.story.origin}&rdquo;</p>
-            </>
-          )}
-
-          {slide === "climb" && (
-            <>
-              <p className="text-[11px] uppercase tracking-[0.25em] mb-2" style={{ color: "#8a8178", ...stagger(1) }}>The climb</p>
-              <p className="text-[16px] font-bold mb-6" style={{ color: "#f9f6f0", ...stagger(2) }}>
-                {s.growth?.fromTitle} <span style={{ color: "#8a8178" }}>→</span> <span style={{ color: "#f4a58e" }}>{s.growth?.toTitle}</span>
-              </p>
-              <div style={stagger(3)}>
-                <svg viewBox="0 0 300 110" className="w-full">
-                  {(() => {
-                    const n = s.timeline.length
-                    const run = 280 / n
-                    let d = `M 10 ${96}`
-                    for (let i = 1; i < n; i++) {
-                      const y = 96 - (i * 82) / (n - 1)
-                      d += ` L ${10 + i * run} ${96 - ((i - 1) * 82) / (n - 1)} L ${10 + i * run} ${y}`
-                    }
-                    d += ` L 290 14`
-                    return (
-                      <>
-                        <path d={d} fill="none" stroke="rgba(220,79,51,0.25)" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round"
-                          style={{ strokeDasharray: 700, animation: "arc-draw 1.6s ease-out both", animationDelay: "0.5s" }} />
-                        <path d={d} fill="none" stroke={ACCENT} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"
-                          style={{ strokeDasharray: 700, animation: "arc-draw 1.6s ease-out both", animationDelay: "0.5s" }} />
-                        <circle cx={290} cy={14} r={6} fill={ACCENT} style={{ animation: "glow-in 0.4s ease-out both", animationDelay: "2s" }} />
-                        <circle cx={290} cy={14} r={12} fill="none" stroke={ACCENT} strokeWidth={1.5} opacity={0.4} style={{ animation: "glow-in 0.5s ease-out both", animationDelay: "2.1s" }} />
-                      </>
-                    )
-                  })()}
-                </svg>
-              </div>
-              <p className="mt-4 text-[12px]" style={{ color: "#8a8178", ...stagger(4) }}>{s.timeline.length} roles, every one a step up</p>
-            </>
-          )}
-
-          {slide === "number" && topAchievement && (
-            <>
-              <div className="absolute pointer-events-none" style={{
-                width: 300, height: 300, left: "50%", top: "50%", transform: "translate(-50%, -50%)", borderRadius: "50%",
-                background: "radial-gradient(circle, rgba(220,79,51,0.18) 0%, rgba(220,79,51,0) 70%)",
-                animation: "glow-in 1s ease-out both", animationDelay: "0.3s",
-              }} />
-              <p className="text-[11px] uppercase tracking-[0.25em] mb-4" style={{ color: "#8a8178", ...stagger(1) }}>One number that says it all</p>
-              <p className="font-extrabold leading-none" style={{ fontSize: "clamp(3.2rem, 11vw, 5.5rem)", color: "#f4a58e", textShadow: "0 0 40px rgba(220,79,51,0.35)", ...stagger(2) }}>
-                {topAchievement.value}
-              </p>
-              <p className="mt-4 text-[15px] leading-relaxed" style={{ color: "#cfc8bf", ...stagger(3) }}>{topAchievement.label}</p>
-            </>
-          )}
-
-          {slide === "qualities" && (
-            <>
-              <p className="text-[11px] uppercase tracking-[0.25em] mb-6 text-gray-400" style={stagger(1)}>Your career says you&apos;re a</p>
-              <div className="space-y-2">
-                {qualities.map((q, i) => (
-                  <p key={i} className="font-extrabold tracking-tight flex items-baseline gap-3" style={{ fontSize: "clamp(1.6rem, 5vw, 2.4rem)", lineHeight: 1.2, color: i === qualities.length - 1 ? ACCENT : INK, ...stagger(2 + i) }}>
-                    <span className="w-2 h-2 rounded-full flex-shrink-0 translate-y-[-0.35rem]" style={{ background: ACCENT }} />
-                    {q.label}.
-                  </p>
-                ))}
-              </div>
-            </>
-          )}
-
-          {slide === "final" && (
-            <>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] mb-5" style={{ color: "#f4a58e", ...stagger(1) }}>Ready</p>
-              <p className="font-extrabold tracking-tight mb-8" style={{ fontSize: "clamp(1.8rem, 5vw, 2.6rem)", lineHeight: 1.2, color: "#f9f6f0", ...stagger(2) }}>
-                This is your Career Arc{s.identity.name ? `, ${s.identity.name.split(" ")[0]}` : ""}<span style={{ color: ACCENT }}>.</span>
-              </p>
-              <button
-                onClick={(e) => { e.stopPropagation(); onDone() }}
-                className="self-start inline-flex items-center gap-2 px-6 py-3 text-[15px] font-semibold text-white rounded-xl shadow-lg transition-all hover:shadow-xl hover:brightness-105 active:scale-[0.98]"
-                style={{ background: ACCENT, boxShadow: "0 8px 24px rgba(220,79,51,0.4)", ...stagger(3) }}
-              >
-                See the full picture
-              </button>
-            </>
-          )}
-        </div>
-
-        <div className="relative flex items-center justify-between mt-6">
-          <div className="flex gap-1.5">
-            {slides.map((_, i) => (
-              <div key={i} className="h-1 rounded-full transition-all duration-300" style={{ width: i === index ? 22 : 8, background: i <= index ? ACCENT : dark ? "#4a4038" : "#e8ddd2" }} />
-            ))}
-          </div>
-          {!isLast && <p className="text-[11px]" style={{ color: dark ? "#6b6259" : "#c4bab0" }}>tap to continue</p>}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function formatExtractedDate(iso: string | undefined): string | null {
   if (!iso) return null
   const d = new Date(iso)
@@ -416,7 +189,14 @@ function CareerArcView({ profile, onRebuild, reveal }: { profile: Profile; onReb
 
   return (
     <>
-      {showReveal && <RevealCard s={s} onDone={() => setShowReveal(false)} />}
+      {showReveal && bank !== null && (
+        <RevealCard
+          sections={s}
+          evidence={bank.evidence}
+          usage={bank.usage}
+          onDone={() => setShowReveal(false)}
+        />
+      )}
       {bank === null ? (
         <div className="flex flex-col items-center justify-center gap-4 py-24">
           <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
