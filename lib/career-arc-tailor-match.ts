@@ -96,6 +96,47 @@ export function scoreCardAgainstRequirement(req: RequirementMapping, card: Evide
 const MATCH_THRESHOLD = 3
 const MAX_MATCHES_PER_REQUIREMENT = 2
 
+/** Overlap ratio between a CV line and an evidence claim, 0–1. */
+function lineSimilarity(line: string, claim: string): number {
+  const a = tokens(line)
+  const b = tokens(claim)
+  if (a.size === 0 || b.size === 0) return 0
+  let shared = 0
+  for (const t of a) if (b.has(t)) shared++
+  return shared / Math.min(a.size, b.size)
+}
+
+/**
+ * Map tailored-CV bullet lines to the evidence cards they came from, for the
+ * EV·NN chips on screen 05. Only confident matches are labelled: a bullet the
+ * model wrote from the JD rather than from banked evidence gets no chip, which
+ * is the honest outcome — the chip means "this is traceable", so it must not
+ * appear on a line that is not.
+ */
+export function annotateCvLines(cvText: string, evidence: EvidenceRow[]): Map<number, string> {
+  const bank = [...evidence].filter((e) => !e.hidden).sort((a, b) => a.sort_order - b.sort_order)
+  const labels = new Map(bank.map((card, i) => [card.id, `EV·${String(i + 1).padStart(2, '0')}`]))
+  const out = new Map<number, string>()
+  const used = new Set<string>()
+
+  cvText.split('\n').forEach((rawLine, index) => {
+    const line = rawLine.trim()
+    if (!/^[•\-*·]/.test(line) || line.length < 25) return
+    let best: { id: string; score: number } | null = null
+    for (const card of bank) {
+      if (used.has(card.id)) continue
+      const score = lineSimilarity(line, card.rephrased_text ?? card.claim)
+      if (score > (best?.score ?? 0)) best = { id: card.id, score }
+    }
+    if (best && best.score >= 0.5) {
+      out.set(index, labels.get(best.id)!)
+      used.add(best.id)
+    }
+  })
+
+  return out
+}
+
 export function matchEvidenceToRequirements(
   requirements: RequirementMapping[],
   evidence: EvidenceRow[],

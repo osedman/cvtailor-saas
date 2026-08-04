@@ -116,10 +116,12 @@ export function buildShareCards({ sections, evidence, settings }: CardInputs): S
 
   // 02 · THE NUMBER — only when a quantified claim survives redaction.
   const ordered = [...evidence].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || a.sort_order - b.sort_order)
+  // A masked claim has no figure to headline — the whole point of mask is that
+  // the number is withheld — so it cannot source the Number card either.
   const numberSource = ordered.find((row) => {
     if (row.hidden) return false
     const redaction: ClaimRedaction = settings.claimRedactions[row.id] ?? 'full'
-    if (redaction === 'hide') return false
+    if (redaction === 'hide' || redaction === 'mask') return false
     return row.category === 'quant' && pickDominantFigure(row.rephrased_text ?? row.claim) !== null
   })
   if (numberSource) {
@@ -150,7 +152,9 @@ export function buildShareCards({ sections, evidence, settings }: CardInputs): S
     const base = pinned.rephrased_text ?? pinned.claim
     const text = pinnedRedaction === 'band'
       ? base.replace(FIGURE_RX, (f) => bandFigureWord(f))
-      : base
+      : pinnedRedaction === 'mask'
+        ? base.replace(FIGURE_RX, '████')
+        : base
     const clipped = text.length > 140 ? text.slice(0, 139).trimEnd() + '…' : text
     const { size, maxChars } = proudestSize(clipped)
     const source = [pinned.source_role, settings.hideEmployers ? '' : pinned.source_company].filter(Boolean).map(up).join(' · ')

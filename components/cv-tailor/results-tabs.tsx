@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles, ThumbsUp, ThumbsDown, Building2, FileText, GitCompare, Mail, MessagesSquare, ListChecks, Pencil, GraduationCap, CircleDot, ArrowRight, ExternalLink, RotateCcw, LayoutTemplate, ChevronDown, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import type { TailorResult, InterviewPrepResult, PitchesResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 import { EvidenceMatchPanel } from "@/components/career-arc/evidence-match-panel"
+import { annotateCvLines } from "@/lib/career-arc-tailor-match"
+import type { EvidenceRow } from "@/lib/career-arc-ledger"
 import { downloadWordDoc } from "@/lib/word"
 import { getTemplate, px, TEMPLATE_LIST, type CvTemplateId } from "@/lib/cv-templates"
 import { useCvTemplate } from "@/hooks/use-cv-template"
@@ -20,7 +22,12 @@ import { InterviewPitches } from "./interview-pitches"
  * with points converted to px — so this is a true preview of the downloaded
  * file, not a lookalike. Line classification mirrors lib/word.ts.
  */
-function FormattedCV({ text, template }: { text: string; template?: CvTemplateId }) {
+/**
+ * `annotations` maps a line index to an evidence chip label (EV·03). It is
+ * screen-only decoration for the Tailored CV tab — omitted by the editor and
+ * by every export path, so downloaded and copied CVs are unchanged.
+ */
+function FormattedCV({ text, template, annotations }: { text: string; template?: CvTemplateId; annotations?: Map<number, string> }) {
   const t = getTemplate(template)
   const lines = (text ?? "").split("\n")
 
@@ -84,6 +91,15 @@ function FormattedCV({ text, template }: { text: string; template?: CvTemplateId
             }}>
               <span style={{ color: t.accent }}>{t.bulletChar}</span>
               {"  "}{trimmed.replace(/^[•\-\*·]\s*/, "")}
+              {annotations?.get(i) && (
+                <span
+                  title="Traceable to your evidence bank"
+                  className="ml-1.5 inline-block rounded px-1 py-px align-middle font-mono text-[8.5px] font-bold tracking-[0.08em]"
+                  style={{ background: "#fff7f4", border: "1px solid #f5d9d0", color: "#dc4f33" }}
+                >
+                  {annotations.get(i)}
+                </span>
+              )}
             </p>
           )
         }
@@ -478,6 +494,26 @@ export function ResultsTabs({
     }
   }, [activeTab])
 
+  // Evidence bank, fetched once and shared by the CV chips and the rail.
+  // Stays empty (and everything evidence-related stays hidden) for users
+  // outside the Career Arc beta or when the fetch fails.
+  const [evidenceBank, setEvidenceBank] = useState<EvidenceRow[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/career-evidence")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.evidence)) setEvidenceBank(data.evidence as EvidenceRow[])
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  const cvAnnotations = useMemo(
+    () => (evidenceBank.length > 0 ? annotateCvLines(results.tailoredCV, evidenceBank) : undefined),
+    [results.tailoredCV, evidenceBank],
+  )
+
   const handleCopy = async () => {
     await navigator.clipboard.writeText(results.tailoredCV)
     setCopied(true)
@@ -667,6 +703,7 @@ export function ResultsTabs({
         )}
 
         {activeTab === "Tailored CV" && (
+          <div className={evidenceBank.length > 0 && editing !== "cv" ? "grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start" : ""}>
           <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
             {editing === "cv" ? (
               <OutputEditor
@@ -695,7 +732,7 @@ export function ResultsTabs({
               </button>
             </div>
             <TemplatePicker value={template} onChange={setTemplate} />
-            <FormattedCV text={results.tailoredCV} template={template} />
+            <FormattedCV text={results.tailoredCV} template={template} annotations={cvAnnotations} />
             {results.tailoredCVOriginal && results.tailoredCVOriginal !== results.tailoredCV && (
               <p className="mt-4 inline-flex items-center gap-1.5 text-[11px] text-gray-400">
                 <Pencil className="w-3 h-3" />
@@ -726,6 +763,20 @@ export function ResultsTabs({
                 <FeedbackBar historyId={historyId} />
               </div>
             )}
+          </div>
+          {/* Screen 05's rail: the evidence behind this CV, beside it on wide
+              screens. Hidden while editing so the editor keeps full width. */}
+          {evidenceBank.length > 0 && editing !== "cv" && (results.requirementsCoverage ?? []).length > 0 && (
+            <aside className="hidden xl:block xl:sticky xl:top-4">
+              <EvidenceMatchPanel
+                requirements={results.requirementsCoverage ?? []}
+                jobTitle={results.jobTitle}
+                companyName={results.companyName}
+                evidence={evidenceBank}
+                compact
+              />
+            </aside>
+          )}
           </div>
         )}
 

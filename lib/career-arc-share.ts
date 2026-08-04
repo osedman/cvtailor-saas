@@ -12,7 +12,14 @@ import { isBreakChapter, parseYear } from '@/lib/career-arc-ledger'
  * the public path.
  */
 
-export type ClaimRedaction = 'full' | 'band' | 'hide'
+/**
+ * Redaction levels, weakest to strongest:
+ *  full — the claim as written
+ *  band — figures generalised ("£1.2m" → "seven-figure"): shape and scale kept
+ *  mask — figures blacked out ("█████"): the claim exists, the number does not
+ *  hide — the claim never appears at all
+ */
+export type ClaimRedaction = 'full' | 'band' | 'mask' | 'hide'
 
 export interface ShareSettings {
   claimRedactions: Record<string, ClaimRedaction>
@@ -110,6 +117,18 @@ export function bandClaim(claim: string): string {
   return out
 }
 
+/**
+ * Black out every figure, preserving the sentence around it. The block length
+ * is fixed rather than proportional to the original — a longer bar would leak
+ * the magnitude it is meant to conceal.
+ */
+export function maskClaim(claim: string): string {
+  return claim.replace(
+    /[£$€]\s?\d[\d,.]*\s?(?:k|m|bn|b|million|billion)?\+?|\d+(?:\.\d+)?\s?%|\b\d+(?:,\d{3})*\b/gi,
+    '⟪████⟫',
+  )
+}
+
 /** True when a banded claim still contains any digit outside ⟪⟫ markers. */
 export function bandLeaksFigures(banded: string): boolean {
   const outsideMarkers = banded.replace(/⟪[^⟫]*⟫/g, '')
@@ -122,9 +141,12 @@ export function bandLeaksFigures(banded: string): boolean {
 
 export interface PublicArcCard {
   category: string
-  /** Claim text; ⟪…⟫ spans mark banded segments. */
+  /** Claim text; ⟪…⟫ spans mark banded or masked segments. */
   text: string
+  /** True for band OR mask — both mark generalised spans in the renderer. */
   banded: boolean
+  /** True only for mask: the span is a blackout, not a generalisation. */
+  masked: boolean
   sourceRole: string
   /** '' when employers are hidden. */
   sourceCompany: string
@@ -204,11 +226,12 @@ export function buildPublicArc({ sections, evidence, settings, sharedOn, expires
     const redaction: ClaimRedaction = settings.claimRedactions[row.id] ?? 'full'
     if (redaction === 'hide') continue
     const base = row.rephrased_text ?? row.claim
-    const text = redaction === 'band' ? bandClaim(base) : base
+    const text = redaction === 'band' ? bandClaim(base) : redaction === 'mask' ? maskClaim(base) : base
     cards.push({
       category: row.category,
       text,
-      banded: redaction === 'band',
+      banded: redaction === 'band' || redaction === 'mask',
+      masked: redaction === 'mask',
       sourceRole: row.source_role,
       sourceCompany: settings.hideEmployers ? '' : row.source_company,
     })
@@ -221,6 +244,18 @@ export function buildPublicArc({ sections, evidence, settings, sharedOn, expires
   }
   if (employerCount > 0) glance.push({ value: employerCount, label: employerCount === 1 ? 'Employer' : 'Employers' })
   glance.push({ value: cards.length, label: 'Proofs shared' })
+  // The mockup's "Promotions" stat, derived rather than invented: a title
+  // change at the same employer. Omitted entirely when there are none, so the
+  // slot is never padded with a zero to fill the grid.
+  const promotions = timeline.reduce((count, role, i) => {
+    if (i === 0) return count
+    const prev = timeline[i - 1]
+    const sameEmployer = (prev.company ?? '').trim().toLowerCase() === (role.company ?? '').trim().toLowerCase()
+    return sameEmployer && prev.title.trim() !== role.title.trim() ? count + 1 : count
+  }, 0)
+  if (promotions > 0) {
+    glance.push({ value: promotions, label: promotions === 1 ? 'Promotion' : 'Promotions' })
+  }
 
   return {
     displayName,
@@ -241,7 +276,7 @@ export function buildPublicArc({ sections, evidence, settings, sharedOn, expires
 // Settings validation for the share APIs
 // ---------------------------------------------------------------------------
 
-const REDACTIONS = new Set<string>(['full', 'band', 'hide'])
+const REDACTIONS = new Set<string>(['full', 'band', 'mask', 'hide'])
 
 /**
  * Validate a client-supplied settings patch against the caller's own card ids.

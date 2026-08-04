@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { Loader2, X } from "lucide-react"
-import { bandClaim, DEFAULT_SHARE_SETTINGS, type ClaimRedaction, type ShareSettings } from "@/lib/career-arc-share"
+import { bandClaim, maskClaim, DEFAULT_SHARE_SETTINGS, type ClaimRedaction, type ShareSettings } from "@/lib/career-arc-share"
 import { ShareCardsStrip } from "@/components/career-arc/share-cards"
 import type { CareerProfileSections } from "@/lib/anthropic"
 import type { EvidenceRow } from "@/lib/career-arc-ledger"
@@ -190,7 +190,7 @@ export function ShareModal({ sections, evidence, onClose }: { sections: CareerPr
                           {text}
                         </p>
                         <div className="flex gap-1" role="radiogroup" aria-label="Redaction level">
-                          {(["full", "band", "hide"] as const).map((r) => (
+                          {(["full", "band", "mask", "hide"] as const).map((r) => (
                             <button
                               key={r}
                               role="radio"
@@ -206,9 +206,12 @@ export function ShareModal({ sections, evidence, onClose }: { sections: CareerPr
                           ))}
                         </div>
                       </div>
-                      {current === "band" && (
+                      {(current === "band" || current === "mask") && (
                         <p className="mt-1.5 text-[11.5px] text-[#a89e93]">
-                          will show as → <em className="font-semibold not-italic" style={{ color: ACCENT }}>{stripMarkers(bandClaim(text))}</em>
+                          will show as →{" "}
+                          <em className="font-semibold not-italic" style={{ color: current === "mask" ? INK : ACCENT }}>
+                            {stripMarkers(current === "mask" ? maskClaim(text) : bandClaim(text))}
+                          </em>
                         </p>
                       )}
                     </div>

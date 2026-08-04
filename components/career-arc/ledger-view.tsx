@@ -9,6 +9,7 @@ import type { CareerProfileSections } from "@/lib/anthropic"
 import {
   PATH_CHART_MIN_ROLES,
   arcPeriod,
+  chapterProofCount,
   deriveGlance,
   isBreakChapter,
   pathLayout,
@@ -161,10 +162,17 @@ function PathChart({ sections }: { sections: CareerProfileSections }) {
 }
 
 /** Screen 02: under three roles the record itself carries the page. */
-function ChapterList({ sections }: { sections: CareerProfileSections }) {
+function ChapterList({ sections, evidence }: { sections: CareerProfileSections; evidence: EvidenceRow[] }) {
   const chapters = sections.chapters ?? []
   if (chapters.length === 0) {
     return <p className="text-[12.5px] text-[#a89e93]">Your chapters appear here once your arc has been extracted from a CV with dated roles.</p>
+  }
+
+  // Proof counts are shown only where the chapter's span maps to real roles;
+  // an unmappable chapter shows its number alone rather than a fabricated count.
+  const chapterBadge = (span: string, i: number) => {
+    const count = chapterProofCount(span, sections.timeline, evidence)
+    return count === null ? `CHAPTER ${i + 1}` : `CHAPTER ${i + 1} · ${count} PROOF${count === 1 ? "" : "S"}`
   }
   return (
     <div>
@@ -186,7 +194,7 @@ function ChapterList({ sections }: { sections: CareerProfileSections }) {
                 className="font-mono text-[9.5px] tracking-[0.14em] rounded-full border px-3 py-1"
                 style={isBreak ? { borderColor: "#f5d9d0", color: ACCENT } : { borderColor: SAND, color: "#55504a" }}
               >
-                {isBreak ? "RECORDED · NOT COUNTED AGAINST YOU" : `CHAPTER ${i + 1}`}
+                {isBreak ? "RECORDED · NOT COUNTED AGAINST YOU" : chapterBadge(ch.span, i)}
               </span>
             </div>
           )
@@ -471,7 +479,7 @@ export function LedgerView({ sections, lastExtracted, evidence, usage, usedCvCou
             label="THE PATH"
             note={hasChart ? "chapters, not levels — sideways moves & breaks are entries too" : "every chapter counts — a break is an entry, not a gap"}
           />
-          {hasChart ? <PathChart sections={sections} /> : <ChapterList sections={sections} />}
+          {hasChart ? <PathChart sections={sections} /> : <ChapterList sections={sections} evidence={evidence} />}
         </section>
 
         <section className="border-b px-6 py-7 sm:px-12" style={{ borderColor: SAND_LT }}>

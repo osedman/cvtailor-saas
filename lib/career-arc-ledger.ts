@@ -162,3 +162,31 @@ export function deriveGlance(
 export function isBreakChapter(name: string): boolean {
   return /\bbreak\b|carer|caring|sabbatical|parental|career gap/i.test(name)
 }
+
+/**
+ * Proofs attributable to a chapter, by overlapping the chapter's span with the
+ * year on each card's source role. Returns null when the chapter has no
+ * parseable span — the badge then shows no count rather than a made-up one.
+ */
+export function chapterProofCount(
+  chapterSpan: string,
+  timeline: CareerProfileSections['timeline'],
+  evidence: EvidenceRow[],
+): number | null {
+  const years = (chapterSpan.match(/(19|20)\d{2}/g) ?? []).map(Number)
+  if (years.length === 0) return null
+  const from = Math.min(...years)
+  const to = years.length > 1 ? Math.max(...years) : from
+
+  const rolesInSpan = (timeline ?? []).filter((role) => {
+    const start = parseYear(role.start)
+    return start !== null && start >= from && start <= to
+  })
+  if (rolesInSpan.length === 0) return null
+
+  return evidence.filter((card) => {
+    if (card.hidden || !card.source_role) return false
+    const needle = card.source_role.toLowerCase().slice(0, 18)
+    return rolesInSpan.some((role) => role.title.toLowerCase().includes(needle))
+  }).length
+}

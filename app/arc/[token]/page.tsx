@@ -115,20 +115,34 @@ function PublicPathChart({ nodes }: { nodes: PublicArc['nodes'] }) {
   )
 }
 
-/** Render a claim, converting ⟪…⟫ band markers to the coral-dotted style. */
+/**
+ * Render a claim, converting ⟪…⟫ markers to their treatment: banded spans get
+ * the coral dotted underline; masked spans get a solid ink blackout bar.
+ */
 function ClaimText({ text }: { text: string }) {
   const parts = text.split(/(⟪[^⟫]*⟫)/)
   return (
     <>
-      {parts.map((part, i) =>
-        part.startsWith('⟪') ? (
+      {parts.map((part, i) => {
+        if (!part.startsWith('⟪')) return <span key={i}>{part}</span>
+        const inner = part.slice(1, -1)
+        if (/^█+$/.test(inner)) {
+          return (
+            <span
+              key={i}
+              className="mx-0.5 inline-block translate-y-[1px] rounded-[2px] align-baseline"
+              style={{ background: INK, width: '3.2em', height: '0.95em' }}
+              aria-label="redacted"
+              role="img"
+            />
+          )
+        }
+        return (
           <em key={i} className="not-italic font-bold" style={{ color: ACCENT, borderBottom: `2px dotted ${ACCENT}` }}>
-            {part.slice(1, -1)}
+            {inner}
           </em>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
+        )
+      })}
     </>
   )
 }
@@ -256,7 +270,9 @@ export default async function PublicArcPage({ params }: { params: Promise<{ toke
             )}
             {arc.anyBanded && (
               <p className="mt-4 text-[12px] leading-relaxed text-[#a89e93]">
-                Coral-dotted text has been generalised by {first} — the fact is real; the specificity was their choice. Ask them for the numbers.
+                Coral-dotted text has been generalised by {first}
+                {arc.cards.some((c) => c.masked) && <>, and blacked-out figures withheld entirely</>}
+                {' '}— the fact is real; the specificity was their choice. Ask them for the numbers.
               </p>
             )}
           </section>

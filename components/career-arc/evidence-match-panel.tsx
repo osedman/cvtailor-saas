@@ -44,17 +44,22 @@ function GapCard({ gap, onAdd, busy, added }: { gap: NamedGap; onAdd: () => void
 }
 
 export function EvidenceMatchPanel({
-  requirements, jobTitle, companyName,
+  requirements, jobTitle, companyName, evidence: providedEvidence, compact = false,
 }: {
   requirements: RequirementMapping[]
   jobTitle?: string
   companyName?: string
+  /** Supply the bank to skip the fetch — used by the CV-tab rail. */
+  evidence?: EvidenceRow[]
+  /** Rail mode: tighter type, no gap cards (they live in the Gaps tab). */
+  compact?: boolean
 }) {
-  const [evidence, setEvidence] = useState<EvidenceRow[] | null>(null)
+  const [evidence, setEvidence] = useState<EvidenceRow[] | null>(providedEvidence ?? null)
   const [addingSkill, setAddingSkill] = useState<string | null>(null)
   const [added, setAdded] = useState<Set<string>>(new Set())
 
   useEffect(() => {
+    if (providedEvidence) { setEvidence(providedEvidence); return }
     let cancelled = false
     fetch("/api/career-evidence")
       .then(async (res) => {
@@ -65,7 +70,7 @@ export function EvidenceMatchPanel({
       .then((rows) => { if (!cancelled && rows && rows.length > 0) setEvidence(rows) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [])
+  }, [providedEvidence])
 
   const summary = useMemo(
     () => (evidence ? matchEvidenceToRequirements(requirements, evidence) : null),
@@ -159,7 +164,7 @@ export function EvidenceMatchPanel({
         </ul>
       </div>
 
-      {summary.gaps.length > 0 && (
+      {summary.gaps.length > 0 && !compact && (
         <div className="px-5 py-4">
           <h3 className="font-mono text-[11px] font-bold tracking-[0.2em]" style={{ color: INK }}>
             NAMED GAPS · {summary.gaps.length}

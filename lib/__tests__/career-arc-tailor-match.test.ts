@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RequirementMapping } from '@/lib/anthropic'
 import type { EvidenceRow } from '@/lib/career-arc-ledger'
-import { matchEvidenceToRequirements, scoreCardAgainstRequirement } from '@/lib/career-arc-tailor-match'
+import { annotateCvLines, matchEvidenceToRequirements, scoreCardAgainstRequirement } from '@/lib/career-arc-tailor-match'
 
 const req = (requirement: string, over: Partial<RequirementMapping> = {}): RequirementMapping => ({
   requirement, type: 'must', keywords: [], strength: 'strong', evidence: '', ...over,
@@ -74,5 +74,39 @@ describe('matchEvidenceToRequirements', () => {
     expect(matchEvidenceToRequirements([], [wms]).total).toBe(0)
     const out = matchEvidenceToRequirements(requirements, [])
     expect(out.rows.every((r) => r.matches.length === 0)).toBe(true)
+  })
+})
+
+describe('annotateCvLines', () => {
+  const bank = [wms, automation, teams]
+
+  it('labels only bullets that genuinely trace to a card', () => {
+    const cv = [
+      'AMARA OKAFOR',
+      'EXPERIENCE',
+      '• Rolled a warehouse management system across four sites, cutting supplier onboarding',
+      '• Attended the weekly ops stand-up and took minutes',
+      '• Saved £1.2m per annum through process automation',
+    ].join('\n')
+    const out = annotateCvLines(cv, bank)
+    expect(out.get(2)).toBe('EV·01')
+    expect(out.get(4)).toBe('EV·02')
+    expect(out.has(3)).toBe(false)
+  })
+
+  it('never labels headings, blanks or short lines', () => {
+    const out = annotateCvLines('EXPERIENCE\n\n• Short one\nRolled a warehouse management system across four sites', bank)
+    expect(out.size).toBe(0)
+  })
+
+  it('never reuses one card on two bullets', () => {
+    const dupe = '• Saved £1.2m per annum through process automation\n• Saved £1.2m per annum through process automation'
+    expect(annotateCvLines(dupe, bank).size).toBe(1)
+  })
+
+  it('ignores hidden cards and empty banks', () => {
+    const hiddenBank = [card('x', 'Saved £1.2m per annum through process automation', { hidden: true })]
+    expect(annotateCvLines('• Saved £1.2m per annum through process automation', hiddenBank).size).toBe(0)
+    expect(annotateCvLines('• Saved £1.2m per annum through process automation', []).size).toBe(0)
   })
 })

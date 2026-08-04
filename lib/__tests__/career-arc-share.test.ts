@@ -7,6 +7,7 @@ import {
   bandLeaksFigures,
   buildPublicArc,
   generateShareToken,
+  maskClaim,
   isValidShareToken,
   validateShareSettings,
   type ShareSettings,
@@ -175,5 +176,45 @@ describe('validateShareSettings', () => {
     expect(validateShareSettings({ firstNameOnly: 'yes' }, own)).toBeNull()
     expect(validateShareSettings([], own)).toBeNull()
     expect(validateShareSettings(null, own)).toBeNull()
+  })
+})
+
+describe('mask redaction', () => {
+  it('blacks out every figure and leaks no digits', () => {
+    const masked = maskClaim('Saved £1.2m across 4 sites with 34 people, up 80%')
+    expect(masked).not.toMatch(/\d/)
+    expect(masked).toContain('████')
+    expect(masked).toContain('Saved')
+  })
+
+  it('uses a fixed bar width so magnitude cannot be inferred from length', () => {
+    const small = maskClaim('saved 4')
+    const large = maskClaim('saved 4200000')
+    expect(small).toBe(large)
+  })
+
+  it('marks masked cards distinctly from banded ones', () => {
+    const out = build([row('a', { claim: 'Saved £1.2m per annum' })], settings({ claimRedactions: { a: 'mask' } }))
+    expect(out.cards[0].masked).toBe(true)
+    expect(out.cards[0].banded).toBe(true)
+    expect(out.cards[0].text).not.toMatch(/1\.2/)
+  })
+
+  it('accepts mask in validated settings', () => {
+    expect(validateShareSettings({ claimRedactions: { a: 'mask' } }, new Set(['a']))?.claimRedactions.a).toBe('mask')
+  })
+})
+
+describe('promotions stat', () => {
+  it('counts same-employer title changes and omits the stat at zero', () => {
+    const promoted = buildPublicArc({
+      sections: { ...sections(), timeline: [
+        { title: 'Ops Coordinator', company: 'Gousto', start: '2019', end: '2021', highlights: [] },
+        { title: 'Ops Manager', company: 'Gousto', start: '2021', end: '2023', highlights: [] },
+      ] },
+      evidence: [], settings: settings(), sharedOn: '', expiresOn: null,
+    })
+    expect(promoted.glance.find((g) => /Promotion/.test(g.label))?.value).toBe(1)
+    expect(build([], settings()).glance.some((g) => /Promotion/.test(g.label))).toBe(false)
   })
 })

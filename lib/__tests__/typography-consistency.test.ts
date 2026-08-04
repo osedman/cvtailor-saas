@@ -63,6 +63,10 @@ const ALLOWLIST: Record<string, string> = {
     'Concept preview (Ledger): audited-accounts table chrome and note labels.',
   'app/career-arc/preview/[concept]/page.tsx:font-mono':
     'Concept preview switcher chrome — nav labels for the four directions.',
+  'components/cv-tailor/results-tabs.tsx:font-mono':
+    'EV·NN evidence chips on tailored-CV bullets (screen 05) — machine ' +
+    'references into the evidence bank, same token as the sidebar chips. ' +
+    'The CV text itself stays in the template face.',
   'components/career-arc/evidence-match-panel.tsx:font-mono':
     'Tailor sidebar chrome (screen 05): panel labels and EV·NN chips — ' +
     'machine references into the evidence bank. Requirements and gap prose ' +
