@@ -177,10 +177,10 @@ _Recorded 30 July 2026._
 
 ---
 
-## 🔧 FIX IN PROGRESS: pace lag, CORE tags, multi-document First CV upload (4 August 2026)
+## ✅ VERIFIED ON PREVIEW + STAGING: pace lag, CORE tags, multi-document First CV upload (4 August 2026)
 
-Three small fixes on `fix/north-star-enrichment` (alongside the enrichment work
-below):
+Three small fixes shipped with the enrichment work below (commit `117cbd4`,
+Ose verified all three on the branch preview and again on staging, 4 Aug):
 
 1. **Pace control was slow.** Changing hrs/week awaited the save round-trip plus
    a full path reload before the forecast moved. The forecast is computed
@@ -196,12 +196,12 @@ below):
    file/CV-of-it language ("Upload documents", "Reading your documents…",
    "We could not read evidence from that document.").
 
-**Status:** implemented locally; 167/167 tests and `tsc --noEmit` pass. Staging
-verification still required. No production deployment until explicitly approved.
+**Status:** verified by Ose on the branch preview and on staging (4 Aug,
+staging commit `08c2955`); ported to main via PR.
 
 ---
 
-## 🐛 FIX IN PROGRESS: North Star skills kept empty plan placeholders (2 August 2026)
+## 🐛 FIXED: North Star skills kept empty plan placeholders (2 August 2026)
 
 **Symptom:** after choosing a North Star, skills appeared but their courses and
 project ideas stayed empty.
@@ -217,8 +217,8 @@ failures instead of hiding them, and aligns model output to app-owned skill name
 before catalog resolution. Regression tests cover shortened names, complete-batch
 fallback, duplicate prevention, multi-batch enrichment, and revisit recovery.
 
-**Status:** implemented locally; tests and staging verification still required.
-No production deployment until explicitly approved.
+**Status:** shipped with `117cbd4`, verified on the branch preview and staging
+4 Aug (plans filled in on load); ported to main via PR.
 
 ---
 
