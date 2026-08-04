@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto'
 import type { CareerProfileSections } from '@/lib/anthropic'
 import type { EvidenceRow } from '@/lib/career-arc-ledger'
-import { isBreakChapter, parseYear } from '@/lib/career-arc-ledger'
+import { isBreakChapter, normalizeForMatch, parseYear } from '@/lib/career-arc-ledger'
 
 /**
  * Share-link redaction for the public Career Arc page (rebuild stage 3).
@@ -270,6 +270,88 @@ export function buildPublicArc({ sections, evidence, settings, sharedOn, expires
     anyBanded: cards.some((c) => c.banded),
     employersHidden: settings.hideEmployers,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Redaction survival across rebuilds
+// ---------------------------------------------------------------------------
+
+interface RemapCard {
+  id: string
+  claim: string
+  rephrased_text: string | null
+}
+
+function claimTokens(text: string): Set<string> {
+  return new Set(
+    normalizeForMatch(text)
+      .replace(/[^a-z0-9 ]/g, ' ')
+      .split(' ')
+      .filter((w) => w.length >= 4),
+  )
+}
+
+/**
+ * Carry the per-claim redaction map across a rebuild. Extraction re-creates
+ * most rows with new ids; without this, a user's BAND/MASK/HIDE choices die
+ * silently and the public page un-redacts itself — the exact failure the
+ * share modal promises cannot happen.
+ *
+ * Matching is conservative: same id survives untouched; otherwise the old
+ * claim must match a new claim exactly (normalized) or overlap on ≥70% of its
+ * distinctive words. Anything unmatched is dropped — a redaction must never
+ * jump to a claim the user did not choose it for.
+ */
+export function remapClaimRedactions(
+  oldCards: RemapCard[],
+  newCards: RemapCard[],
+  redactions: Record<string, ClaimRedaction>,
+): { remapped: Record<string, ClaimRedaction>; changed: boolean } {
+  const newIds = new Set(newCards.map((c) => c.id))
+  const oldById = new Map(oldCards.map((c) => [c.id, c]))
+  const byNormalizedClaim = new Map(newCards.map((c) => [normalizeForMatch(c.rephrased_text ?? c.claim), c.id]))
+  const taken = new Set<string>()
+
+  const remapped: Record<string, ClaimRedaction> = {}
+  let changed = false
+
+  for (const [id, level] of Object.entries(redactions)) {
+    if (newIds.has(id)) {
+      remapped[id] = level
+      taken.add(id)
+      continue
+    }
+    changed = true
+    const oldCard = oldById.get(id)
+    if (!oldCard) continue
+    const oldText = oldCard.rephrased_text ?? oldCard.claim
+
+    const exact = byNormalizedClaim.get(normalizeForMatch(oldText))
+    if (exact && !taken.has(exact)) {
+      remapped[exact] = level
+      taken.add(exact)
+      continue
+    }
+
+    const oldTokens = claimTokens(oldText)
+    if (oldTokens.size === 0) continue
+    let best: { id: string; ratio: number } | null = null
+    for (const candidate of newCards) {
+      if (taken.has(candidate.id)) continue
+      const candidateTokens = claimTokens(candidate.rephrased_text ?? candidate.claim)
+      let shared = 0
+      for (const t of oldTokens) if (candidateTokens.has(t)) shared++
+      const ratio = shared / oldTokens.size
+      if (ratio > (best?.ratio ?? 0)) best = { id: candidate.id, ratio }
+    }
+    if (best && best.ratio >= 0.7) {
+      remapped[best.id] = level
+      taken.add(best.id)
+    }
+    // else: the claim is genuinely gone; its redaction goes with it.
+  }
+
+  return { remapped, changed }
 }
 
 // ---------------------------------------------------------------------------

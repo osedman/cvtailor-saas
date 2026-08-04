@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { auditEvidenceCards, normalizeForMatch, resolveStoredCv } from '@/lib/career-evidence'
+import { remapClaimRedactions } from '@/lib/career-arc-share'
 
 export const maxDuration = 300
 
@@ -224,6 +225,31 @@ export async function POST(req: NextRequest) {
       .eq('user_id', user.id)
       .order('sort_order', { ascending: true })
     if (evErr) throw evErr
+
+    // Replaced rows get new ids, so the share link's per-claim redactions must
+    // follow their claims or the public page silently un-redacts on rebuild.
+    // Best-effort: a failure here logs but never fails the rebuild itself.
+    try {
+      const { data: share } = await supabase
+        .from('career_arc_shares')
+        .select('id, claim_redactions')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      const redactions = (share?.claim_redactions ?? {}) as Record<string, 'full' | 'band' | 'mask' | 'hide'>
+      if (share && Object.keys(redactions).length > 0) {
+        const oldCards = (kept ?? []).map((r) => ({ id: r.id, claim: r.claim, rephrased_text: r.rephrased_text ?? null }))
+        const newCards = (evidence ?? []).map((r) => ({ id: r.id, claim: r.claim, rephrased_text: r.rephrased_text ?? null }))
+        const { remapped, changed } = remapClaimRedactions(oldCards, newCards, redactions)
+        if (changed) {
+          await supabase
+            .from('career_arc_shares')
+            .update({ claim_redactions: remapped, updated_at: new Date().toISOString() })
+            .eq('id', share.id)
+        }
+      }
+    } catch (e) {
+      console.error('[career-profile] redaction remap failed:', e)
+    }
 
     return NextResponse.json({ profile: saved, evidence: evidence ?? [] })
   } catch (err) {

@@ -8,6 +8,7 @@ import {
   buildPublicArc,
   generateShareToken,
   maskClaim,
+  remapClaimRedactions,
   isValidShareToken,
   validateShareSettings,
   type ShareSettings,
@@ -216,5 +217,63 @@ describe('promotions stat', () => {
     })
     expect(promoted.glance.find((g) => /Promotion/.test(g.label))?.value).toBe(1)
     expect(build([], settings()).glance.some((g) => /Promotion/.test(g.label))).toBe(false)
+  })
+})
+
+describe('remapClaimRedactions — choices survive rebuilds', () => {
+  const oldCard = (id: string, claim: string, rephrased: string | null = null) => ({ id, claim, rephrased_text: rephrased })
+
+  it('keeps entries whose ids still exist, untouched', () => {
+    const cards = [oldCard('a', 'Saved £1.2m per annum')]
+    const { remapped, changed } = remapClaimRedactions(cards, cards, { a: 'band' })
+    expect(remapped).toEqual({ a: 'band' })
+    expect(changed).toBe(false)
+  })
+
+  it('follows a claim to its new id on exact normalized match', () => {
+    const { remapped, changed } = remapClaimRedactions(
+      [oldCard('old1', 'Saved £1.2m per annum through process automation')],
+      [oldCard('new1', 'Saved £1.2M   per annum through process automation')],
+      { old1: 'mask' },
+    )
+    expect(remapped).toEqual({ new1: 'mask' })
+    expect(changed).toBe(true)
+  })
+
+  it('follows a lightly reworded claim via token overlap', () => {
+    const { remapped } = remapClaimRedactions(
+      [oldCard('old1', 'Developed RPA solutions using UiPath, reducing task completion time by 80% and saving over $3M annually')],
+      [oldCard('new1', 'Developed and implemented RPA solutions using UiPath, reducing task completion time by up to 80% and saving over $3M annually')],
+      { old1: 'band' },
+    )
+    expect(remapped).toEqual({ new1: 'band' })
+  })
+
+  it('drops the entry when the claim is genuinely gone — never jumps to an unrelated card', () => {
+    const { remapped, changed } = remapClaimRedactions(
+      [oldCard('old1', 'Ran the warehouse night shift for two winters')],
+      [oldCard('new1', 'Saved £1.2m per annum through process automation')],
+      { old1: 'hide' },
+    )
+    expect(remapped).toEqual({})
+    expect(changed).toBe(true)
+  })
+
+  it('never maps two old entries onto one new card', () => {
+    const { remapped } = remapClaimRedactions(
+      [oldCard('o1', 'Saved £1.2m per annum through automation'), oldCard('o2', 'Saved £1.2m per annum through automations')],
+      [oldCard('n1', 'Saved £1.2m per annum through automation')],
+      { o1: 'band', o2: 'hide' },
+    )
+    expect(Object.keys(remapped)).toEqual(['n1'])
+  })
+
+  it('matches on the rephrased text when present', () => {
+    const { remapped } = remapClaimRedactions(
+      [oldCard('old1', 'original wording here', 'Cut £1.2m in annual cost by automating core processes')],
+      [oldCard('new1', 'Cut £1.2m in annual cost by automating core processes')],
+      { old1: 'band' },
+    )
+    expect(remapped).toEqual({ new1: 'band' })
   })
 })
