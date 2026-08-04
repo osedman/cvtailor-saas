@@ -96,7 +96,9 @@ export function OneSheet({ data }: { data: ConceptData }) {
                   <span key={e}>{i > 0 && " and "}<b style={{ color: CREAM }}>{e}</b></span>
                 ))}</>
               )}
-              {data.tenureYears !== null && <> · a {data.tenureYears}-year production</>}
+              {data.tenureYears !== null && (
+                <> · {/^[8aeiou]/.test(String(data.tenureYears)) ? "an" : "a"} {data.tenureYears}-year production</>
+              )}
               <br />
             </>
           )}

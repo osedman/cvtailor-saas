@@ -83,8 +83,8 @@ export function LedgerSheet({ data }: { data: ConceptData }) {
                 <td className="py-3 text-[11.5px]">
                   {data.proofCount} VERIFIED PROOFS · {data.totalReuses} DEPLOYMENTS
                 </td>
-                <td className="py-3 text-right" style={{ color: CORAL }}>
-                  +{data.promotions} LEVEL{data.promotions === 1 ? "" : "S"}
+                <td className="py-3 text-right" style={{ color: data.promotions > 0 ? CORAL : MUTED }}>
+                  {data.promotions > 0 ? `+${data.promotions} LEVEL${data.promotions === 1 ? "" : "S"}` : "—"}
                 </td>
               </tr>
             </tbody>
