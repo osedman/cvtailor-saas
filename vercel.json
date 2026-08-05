@@ -9,12 +9,12 @@
   },
   "crons": [
     {
-      "path": "/api/path-digest",
-      "schedule": "0 9 * * 1"
+      "path": "/api/agency/cron",
+      "schedule": "30 3 * * *"
     },
     {
-      "path": "/api/cron/course-sync",
-      "schedule": "0 3 * * 0"
+      "path": "/api/cron/weekly",
+      "schedule": "0 9 * * 0,1"
     }
   ]
 }
