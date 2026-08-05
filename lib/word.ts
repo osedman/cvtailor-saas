@@ -31,14 +31,13 @@ import {
   convertMillimetersToTwip,
 } from "docx"
 import { getTemplate, type CvTemplate, type CvTemplateId } from "./cv-templates"
+import {
+  isSectionHeading, isBulletLine as isBullet, isRoleLine,
+  isStackedCompanyLine, isStackedRoleTitleLine, isStackedDateLine,
+} from "./cv-lines"
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-
-const isSectionHeading = (t: string) => /^[A-Z][A-Z\s&/,'()-]+$/.test(t) && t.length >= 3
-const isBullet = (t: string) => /^[•\-\*·]/.test(t)
-// A role/employer line: contains a 4-digit year or "Present", reasonably short
-const isRoleLine = (t: string) => (/\b(19|20)\d{2}\b|Present/i.test(t)) && t.length < 130
 
 /** docx wants RRGGBB without the hash. */
 const hex = (c: string) => c.replace(/^#/, "")
@@ -97,6 +96,24 @@ export function buildCvHtml(text: string, templateId?: CvTemplateId): string {
     }
 
     if (!t) { out.push(`<p style="font-size:4pt;margin:0">&nbsp;</p>`); return }
+
+    // Stacked role / company / dates block — mirrors FormattedCV exactly.
+    if (isStackedDateLine(lines, idx)) {
+      out.push(
+        `<p style="font-size:${t9e.company.sizePt}pt;${t9e.company.italic ? "font-style:italic;" : ""}color:${t9e.company.color};margin:0 0 4pt 0">${esc(t)}</p>`
+      )
+      return
+    }
+    if (isStackedCompanyLine(lines, idx)) {
+      out.push(
+        `<p style="font-size:${t9e.role.sizePt + 1}pt;font-weight:bold;color:${t9e.heading.color};margin:0 0 1pt 0">${esc(t)}</p>`
+      )
+      return
+    }
+    if (isStackedRoleTitleLine(lines, idx)) {
+      out.push(`<p style="font-size:${t9e.role.sizePt}pt;font-weight:bold;color:${t9e.role.color};margin:9pt 0 1pt 0">${esc(t)}</p>`)
+      return
+    }
 
     if (isSectionHeading(t)) {
       const label = t9e.heading.uppercase ? t.toUpperCase() : t.charAt(0) + t.slice(1).toLowerCase()
@@ -213,6 +230,47 @@ export function buildCvParagraphs(text: string, templateId?: CvTemplateId): Para
 
     if (!t) {
       out.push(new Paragraph({ spacing: { after: 40 }, children: [] }))
+      return
+    }
+
+    // Stacked role / company / dates block — mirrors FormattedCV exactly.
+    if (isStackedDateLine(lines, idx)) {
+      out.push(
+        new Paragraph({
+          spacing: { after: 80 },
+          children: [
+            new TextRun({
+              text: t,
+              italics: t9e.company.italic,
+              size: hp(t9e.company.sizePt),
+              font,
+              color: hex(t9e.company.color),
+            }),
+          ],
+        }),
+      )
+      return
+    }
+    if (isStackedCompanyLine(lines, idx)) {
+      out.push(
+        new Paragraph({
+          spacing: { after: 20 },
+          children: [
+            new TextRun({ text: t, bold: true, size: hp(t9e.role.sizePt + 1), font, color: hex(t9e.heading.color) }),
+          ],
+        }),
+      )
+      return
+    }
+    if (isStackedRoleTitleLine(lines, idx)) {
+      out.push(
+        new Paragraph({
+          spacing: { before: 180, after: 20 },
+          children: [
+            new TextRun({ text: t, bold: true, size: hp(t9e.role.sizePt), font, color: hex(t9e.role.color) }),
+          ],
+        }),
+      )
       return
     }
 
