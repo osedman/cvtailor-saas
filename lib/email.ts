@@ -17,11 +17,14 @@ export async function sendEmail(opts: {
   subject: string
   html: string
   replyTo?: string
+  /** Override the From header (must be a verified sender domain). Defaults to
+   * WELCOME_FROM — agency candidate notices pass their own display name. */
+  from?: string
 }): Promise<{ sent: boolean; skipped?: string; error?: string }> {
   const key = process.env.RESEND_API_KEY
   if (!key) return { sent: false, skipped: "RESEND_API_KEY not set" }
 
-  const from = process.env.WELCOME_FROM || "Tailr <hello@gettailr.com>"
+  const from = opts.from || process.env.WELCOME_FROM || "Tailr <hello@gettailr.com>"
 
   try {
     const res = await fetch("https://api.resend.com/emails", {
