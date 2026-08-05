@@ -177,6 +177,22 @@ _Recorded 30 July 2026._
 
 ---
 
+## ✅ SHIPPED: Word export matches the preview for stacked CVs (4 August 2026)
+
+Follow-up to the display fix below. The preview learned the stacked
+role/company/dates format, but `lib/word.ts` still classified lines the old
+way, so the downloaded .docx didn't match what the user saw. Line
+classification now lives once in `lib/cv-lines.ts`, imported by FormattedCV,
+`buildCvHtml` and `buildCvParagraphs`, so the three can't drift again. Five
+tests pin the behaviour, including that an ALL-CAPS company exports as a bold
+company line rather than a section heading.
+
+[PR #43](https://github.com/osedman/cvtailor-saas/pull/43) squash-merged to
+main (`ccbf77c`), production deployment READY and verified in the live bundle.
+Ported to staging (`9969117`). No migrations.
+
+---
+
 ## ✅ SHIPPED: every company renders consistently in the displayed CV (4 August 2026)
 
 Reported by Ose with a prod screenshot: YOOX NET-A-PORTER rendered as a giant
