@@ -122,6 +122,7 @@ export interface AuditEntry {
     | "submission"
     | "notice"
     | "rights_request"
+    | "member"
   entityRef: string
   action: string
   fromValue?: unknown
