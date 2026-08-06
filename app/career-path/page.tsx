@@ -9,7 +9,7 @@ import { Header } from "@/components/cv-tailor/header"
 import { UpskillSection } from "@/components/upskill"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
-import { forecastReadyDate, daysSinceLastStitch } from "@/lib/career-path-compute"
+import { forecastReadyDate, daysSinceLastStitch, planPreview, weeksAtPace } from "@/lib/career-path-compute"
 
 const ACCENT = "#dc4f33"
 const INK = "#1e1813"
@@ -29,6 +29,7 @@ interface Roadmap {
   items: CareerRoadmapItem[]
   target_skills: TargetSkill[] | null
   findings: CvFindings | null
+  plan_started_at: string | null
 }
 interface Readiness { pct: number; have: number; total: number; missing: string[]; haveList?: string[] }
 interface RankedGap { skill: string; unlockCount: number; sourceJobs: string[] }
@@ -939,6 +940,126 @@ function IntentionLine({ value, onSave }: { value: string; onSave: (v: string) =
   )
 }
 
+/**
+ * Plan review — the handoff's Screen C. After a North Star is locked the user
+ * sees a short, concrete plan for the top missing skills before the living path
+ * opens: what to LEARN, what to BUILD, and what it costs in time.
+ *
+ * Shown once per target (career_roadmaps.plan_started_at), because a plan you
+ * have to re-approve every visit stops being a plan and becomes a nag.
+ */
+function PlanReview({ roadmap, market, onDone, onChangeTarget }: {
+  roadmap: Roadmap
+  market: MarketSnapshot | null
+  onDone: () => Promise<void>
+  onChangeTarget: () => void
+}) {
+  const [busy, setBusy] = useState<null | "start" | "later">(null)
+  const { top, total } = planPreview(roadmap.items, 3)
+  const enriching = top.some((i) => (i.resources ?? []).length === 0 && !i.projectBrief)
+
+  const ack = async (startFirst: boolean) => {
+    setBusy(startFirst ? "start" : "later")
+    try {
+      await readJson(await fetch("/api/career-path", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "start-plan", startFirst, skill: startFirst ? top[0]?.skill : undefined }),
+      }))
+      await onDone()
+      if (startFirst && top[0]) toast.success(`${top[0].skill} is in progress. The thread starts here.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't save your plan.")
+      setBusy(null)
+    }
+  }
+
+  return (
+    <>
+      <Breadcrumb step="C" />
+      <main className="max-w-[1120px] mx-auto px-6 sm:px-12 py-10 pb-28">
+        <div className="flex items-end justify-between gap-6 flex-wrap" style={{ marginBottom: 8 }}>
+          <div>
+            <div className="t-eyebrow" style={{ marginBottom: 14 }}>Close the gaps</div>
+            <h1 className="t-display text-[30px] sm:text-[40px]" style={{ margin: 0 }}>
+              A short plan for the missing skills
+            </h1>
+          </div>
+          {total > 0 && <span className="t-mono">Top {top.length} of {total}</span>}
+        </div>
+
+        <div style={{ marginTop: 28, borderTop: "1px solid var(--ns-border)" }}>
+          {top.map((item, i) => {
+            const resource = (item.resources ?? [])[0]
+            const weeks = weeksAtPace(
+              (item as CareerRoadmapItem & { effortEstimateHours?: number | null }).effortEstimateHours,
+              roadmap.hours_per_week,
+            )
+            // Only claim market demand when we actually measured it.
+            const demand = market?.unlocks.find((u) => u.skill === item.skill)
+            return (
+              <div key={item.skill} className="ns-rise grid grid-cols-1 md:grid-cols-[28px_1.1fr_1.2fr_1.2fr_auto]"
+                style={{ "--ns-i": i, gap: 20, padding: "26px 0", borderBottom: "1px solid var(--ns-border)", alignItems: "start" } as React.CSSProperties}>
+                <span className="t-mono" style={{ paddingTop: 2 }}>{String(i + 1).padStart(2, "0")}</span>
+
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0, lineHeight: 1.3 }}>{item.skill}</h3>
+                  <p className="t-small" style={{ margin: "6px 0 0" }}>
+                    {demand
+                      ? `Named in ${demand.roles} of the live ${roadmap.target_role || "target"} roles we tracked.`
+                      : item.whyItMatters}
+                  </p>
+                </div>
+
+                <div>
+                  <div className="t-eyebrow t-eyebrow-quiet" style={{ fontSize: 9.5, marginBottom: 8 }}>Learn</div>
+                  {resource ? (
+                    <>
+                      <a href={resource.url} target="_blank" rel="noopener noreferrer" className="t-body"
+                        style={{ borderBottom: "1px solid var(--ns-ink-15)", paddingBottom: 2 }}>
+                        {resource.title}
+                      </a>
+                      <p className="t-mono" style={{ margin: "8px 0 0" }}>{resource.source} · free</p>
+                    </>
+                  ) : (
+                    <p className="t-small" style={{ margin: 0 }}>{enriching ? "Finding free resources…" : "Resources coming on your path."}</p>
+                  )}
+                </div>
+
+                <div>
+                  <div className="t-eyebrow t-eyebrow-quiet" style={{ fontSize: 9.5, marginBottom: 8 }}>Build</div>
+                  <p className="t-body" style={{ margin: 0, color: "var(--ns-ink-70)" }}>
+                    {item.projectBrief || (enriching ? "Shaping a project for you…" : "A project will be suggested on your path.")}
+                  </p>
+                  {weeks !== null && <p className="t-mono" style={{ margin: "8px 0 0" }}>Est. ~{weeks} week{weeks === 1 ? "" : "s"}</p>}
+                </div>
+
+                <button onClick={() => ack(true)} disabled={busy !== null}
+                  className="ns-btn ns-btn-secondary" style={{ padding: "10px 16px", fontSize: 13, whiteSpace: "nowrap" }}>
+                  Start <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-4" style={{ marginTop: 32 }}>
+          <button onClick={onChangeTarget} className="ns-btn ns-btn-ghost" style={{ padding: "12px 0" }}>
+            <ArrowLeft className="w-3.5 h-3.5" /> Change target
+          </button>
+          <div className="flex flex-wrap gap-3">
+            <button onClick={() => ack(false)} disabled={busy !== null} className="ns-btn ns-btn-secondary">
+              {busy === "later" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save plan for later"}
+            </button>
+            <button onClick={() => ack(true)} disabled={busy !== null || top.length === 0} className="ns-btn ns-btn-primary">
+              {busy === "start" ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Start first skill <ArrowRight className="w-4 h-4" /></>}
+            </button>
+          </div>
+        </div>
+      </main>
+    </>
+  )
+}
+
 function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: () => Promise<void>; onChangeTarget: () => void }) {
   const roadmap = data.roadmap!
   const [updating, setUpdating] = useState<string | null>(null)
@@ -1066,6 +1187,20 @@ function LivingPath({ data, reload, onChangeTarget }: { data: PathData; reload: 
       return () => clearTimeout(t)
     }
   }, [pct])
+
+  // Screen C gate: a freshly locked North Star shows its plan once before the
+  // living path opens. Placed after every hook above so the early return can't
+  // change hook order between renders.
+  if (!roadmap.plan_started_at && roadmap.items.some((i) => i.status !== "done")) {
+    return (
+      <PlanReview
+        roadmap={roadmap}
+        market={market}
+        onDone={reload}
+        onChangeTarget={onChangeTarget}
+      />
+    )
+  }
 
   // Agenda rows: This week (active) → Next (first two queued) → Later (rest)
   const agenda: Array<{ item: CareerRoadmapItem; when: string; kind: "active" | "queued" | "later" }> = [

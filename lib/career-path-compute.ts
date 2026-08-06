@@ -319,3 +319,30 @@ export function splitByEffort<T extends { effortHours?: number }>(
 
 /** A skill this many runs keep surfacing is a pattern, not a one-off job. */
 
+
+/**
+ * The plan review (design handoff Screen C): the top few missing skills, shown
+ * once after a North Star is locked. Top-N by the same ordering the path uses,
+ * with the total kept so the UI can say "Top 3 of 5" — the user should know
+ * what's being held back, not think the plan is the whole job.
+ */
+export interface PlanPreview<T> {
+  top: T[]
+  total: number
+}
+
+export function planPreview<T extends { status: string }>(items: T[], take = 3): PlanPreview<T> {
+  const open = items.filter((i) => i.status !== "done")
+  return { top: open.slice(0, take), total: open.length }
+}
+
+/**
+ * Effort in weeks at the user's pace, for "Est. ~3 weeks".
+ * Returns null when the estimate is missing rather than guessing — an invented
+ * timeframe is worse than none, because the user plans around it.
+ */
+export function weeksAtPace(effortHours: number | null | undefined, hoursPerWeek: number | null): number | null {
+  if (!effortHours || effortHours <= 0) return null
+  const pace = hoursPerWeek && hoursPerWeek > 0 ? hoursPerWeek : 3
+  return Math.max(1, Math.round(effortHours / pace))
+}
