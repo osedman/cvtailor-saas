@@ -148,6 +148,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const t0 = Date.now()
+  let bodyMode = 'unknown'
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -158,6 +159,7 @@ export async function POST(req: NextRequest) {
     if (limited) return limited
 
     const body = await req.json()
+    bodyMode = String(body?.mode ?? 'generate')
     const { targetRole, hoursPerWeek, skills, intention } = body
 
     // Set the weekly learning pace — drives the forecast, never a deadline.
@@ -750,6 +752,10 @@ export async function POST(req: NextRequest) {
     if (status === 429) {
       return NextResponse.json({ error: 'Too many requests right now — please wait a moment and try again.' }, { status: 429 })
     }
+    // Log server-side too. Returning the message only in the response body
+    // makes a 500 invisible in the logs, which turned a one-line enrichment
+    // bug into a guessing game (6 Aug 2026).
+    console.error('[career-path] POST failed', { mode: bodyMode, error: msg })
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
