@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { isAdminViewer } from '@/lib/admin'
+import {
+  buildProductHealth,
+  buildQualityMetrics,
+  activationRate,
+  type MetricsRun,
+} from '@/lib/admin-metrics'
 
 export const maxDuration = 30
 
@@ -11,9 +17,34 @@ function daysAgo(n: number): string {
   return d.toISOString()
 }
 
+/** Paginate auth users — listUsers caps at 1000 per page. No emails returned. */
+async function listAllUsers(admin: ReturnType<typeof createAdminClient>) {
+  const users: Array<{
+    id: string
+    created_at: string
+    last_sign_in_at: string | null
+  }> = []
+  let page = 1
+  for (;;) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 })
+    if (error) throw error
+    const batch = data.users ?? []
+    for (const u of batch) {
+      users.push({
+        id: u.id,
+        created_at: u.created_at,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+      })
+    }
+    if (batch.length < 1000) break
+    page += 1
+    if (page > 20) break // hard stop — ~20k users
+  }
+  return users
+}
+
 export async function GET() {
   try {
-    // Gate: must be signed in AND an admin
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !isAdminViewer(user.email)) {
@@ -22,43 +53,151 @@ export async function GET() {
 
     const admin = createAdminClient()
     const since30 = daysAgo(30)
+    // Cohorts need first-run timestamps beyond 30d for older signup weeks.
+    const since90 = daysAgo(90)
 
-    const [usersRes, loginsRes, profilesRes, historyRes, trackerRes] = await Promise.all([
-      // All users with auth metadata
-      admin.auth.admin.listUsers({ perPage: 1000 }),
-      // Login events, last 30 days
-      admin.from('login_events')
-        .select('user_id, email, created_at, ip, user_agent')
-        .gte('created_at', since30)
-        .order('created_at', { ascending: false })
-        .limit(500),
-      // Profiles (usage counters)
-      admin.from('profiles').select('id, email, tailors_used, plan, created_at'),
-      // Tailoring runs, last 30 days
-      admin.from('tailor_history')
-        .select('user_id, created_at, match_score')
+    const [
+      users,
+      profilesRes,
+      historyRes,
+      historyQualityRes,
+      trackerRes,
+      loginsRes,
+      roadmapsRes,
+      roadmapItemsRes,
+      careerProfilesRes,
+      arcSharesRes,
+      evidenceRes,
+      firstCvsRes,
+    ] = await Promise.all([
+      listAllUsers(admin),
+      // No email — aggregates only
+      admin.from('profiles').select('id, tailors_used, plan'),
+      admin
+        .from('tailor_history')
+        .select('user_id, created_at')
+        .gte('created_at', since90),
+      admin
+        .from('tailor_history')
+        .select('user_id, created_at, match_score, feedback, edited_at, cover_letter')
         .gte('created_at', since30),
-      // Tracker activity
-      admin.from('job_tracker').select('user_id, status, created_at'),
+      admin.from('job_tracker').select('user_id, status, created_at, updated_at'),
+      // Timestamps only — never return email/IP/UA to the client
+      admin
+        .from('login_events')
+        .select('created_at')
+        .gte('created_at', since30)
+        .limit(5000),
+      admin.from('career_roadmaps').select('user_id, target_role'),
+      admin.from('career_roadmap_items').select('user_id, status'),
+      admin.from('career_profiles').select('user_id'),
+      admin.from('career_arc_shares').select('id', { count: 'exact', head: true }),
+      admin.from('career_evidence').select('user_id'),
+      admin.from('first_cvs').select('user_id, status'),
     ])
 
-    if (usersRes.error) throw usersRes.error
+    if (profilesRes.error) throw profilesRes.error
+    if (historyRes.error) throw historyRes.error
+    if (historyQualityRes.error) throw historyQualityRes.error
+    if (trackerRes.error) throw trackerRes.error
+    // Feature tables may be absent in older envs — degrade gracefully
+    type RowUser = { user_id: string }
+    type RowRoadmap = { user_id: string; target_role: string | null }
+    type RowItem = { user_id: string; status: string }
+    type RowFirstCv = { user_id: string; status: string | null }
+    type RowProfile = { id: string; tailors_used: number | null; plan: string | null }
+    type RowRunTiming = { user_id: string; created_at: string }
+    type RowRunQuality = RowRunTiming & {
+      match_score: number | null
+      feedback: MetricsRun['feedback']
+      edited_at: string | null
+      cover_letter: string | null
+    }
+    type RowTracked = {
+      user_id: string
+      status: string
+      created_at: string
+      updated_at: string | null
+    }
+    type RowLogin = { created_at: string }
 
-    type AuthUser = { id: string; email?: string; created_at: string; last_sign_in_at?: string }
-    const users = (usersRes.data.users as AuthUser[]).map(u => ({
-      id: u.id,
-      email: u.email ?? '',
-      created_at: u.created_at,
-      last_sign_in_at: u.last_sign_in_at ?? null,
+    const roadmaps = (roadmapsRes.error ? [] : (roadmapsRes.data ?? [])) as RowRoadmap[]
+    const roadmapItems = (roadmapItemsRes.error ? [] : (roadmapItemsRes.data ?? [])) as RowItem[]
+    const careerProfiles = (careerProfilesRes.error ? [] : (careerProfilesRes.data ?? [])) as RowUser[]
+    const firstCvs = (firstCvsRes.error ? [] : (firstCvsRes.data ?? [])) as RowFirstCv[]
+    const evidenceUsers = evidenceRes.error
+      ? 0
+      : new Set(((evidenceRes.data ?? []) as RowUser[]).map((r) => r.user_id)).size
+    const arcShares = arcSharesRes.error ? 0 : (arcSharesRes.count ?? 0)
+    const loginAts = (loginsRes.error ? [] : (loginsRes.data ?? []) as RowLogin[])
+      .map((l) => l.created_at)
+      .filter(Boolean)
+
+    const profiles = ((profilesRes.data ?? []) as RowProfile[]).map((p) => ({
+      id: p.id,
+      tailors_used: Number(p.tailors_used ?? 0),
+      plan: p.plan,
     }))
 
-    return NextResponse.json({
+    // Merge 90d runs (timing) with 30d quality fields for product health.
+    const qualityByKey = new Map<string, MetricsRun>()
+    for (const r of (historyQualityRes.data ?? []) as RowRunQuality[]) {
+      const key = `${r.user_id}|${r.created_at}`
+      qualityByKey.set(key, {
+        user_id: r.user_id,
+        created_at: r.created_at,
+        match_score: r.match_score,
+        feedback: r.feedback,
+        edited_at: r.edited_at,
+        cover_letter: r.cover_letter,
+      })
+    }
+    const runs90: MetricsRun[] = ((historyRes.data ?? []) as RowRunTiming[]).map((r) => {
+      const key = `${r.user_id}|${r.created_at}`
+      return qualityByKey.get(key) ?? { user_id: r.user_id, created_at: r.created_at }
+    })
+    const runs30 = [...qualityByKey.values()]
+
+    const tracked = ((trackerRes.data ?? []) as RowTracked[]).map((t) => ({
+      user_id: t.user_id,
+      status: t.status,
+      created_at: t.created_at,
+      updated_at: t.updated_at ?? undefined,
+    }))
+
+    const health = buildProductHealth({
       users,
-      loginEvents: loginsRes.data ?? [],
-      profiles: profilesRes.data ?? [],
-      tailorRuns: historyRes.data ?? [],
-      trackerJobs: trackerRes.data ?? [],
+      profiles,
+      runs: runs90,
+      runs30d: runs30,
+      tracked,
+      loginAts,
+      roadmaps: roadmaps.map((r) => ({
+        user_id: r.user_id,
+        target_role: r.target_role,
+      })),
+      roadmapItems: roadmapItems.map((i) => ({
+        user_id: i.user_id,
+        status: i.status,
+      })),
+      careerProfiles: careerProfiles.map((p) => ({ user_id: p.user_id })),
+      arcShares,
+      evidenceUsers,
+      firstCvs: firstCvs.map((f) => ({
+        user_id: f.user_id,
+        status: f.status,
+      })),
+      windowDays: 30,
+    })
+
+    // Quality uses the strict 30d window (scores/feedback/edits).
+    const activated = activationRate(users, profiles).activated
+    health.quality = buildQualityMetrics(runs30, activated)
+
+    return NextResponse.json({
+      health,
       generatedAt: new Date().toISOString(),
+      env: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'unknown',
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

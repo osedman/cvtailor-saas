@@ -1,46 +1,142 @@
 /**
- * Admin metrics — the funnel the roadmap is argued from.
+ * Admin product-health metrics.
  *
- * The dashboard used to show four volume counters (total users, active users,
- * tailors, tracked jobs). Volume tells you the app is being used; it does not
- * tell you whether it WORKS. These functions answer the question that actually
- * decides what to build next: of the people who sign up, how many reach the
- * moment the product exists for — a finished, tailored CV — and how many come
- * back after it?
- *
- * Everything here is pure so it can be unit tested; the page only renders it.
- *
- * ── A caveat that must survive into the UI ──
- * `tailorRuns` from /api/admin/stats covers the LAST 30 DAYS only, while
- * `profiles.tailors_used` is an all-time counter. So:
- *   - activation (all-time) is computed from `tailors_used`
- *   - return behaviour (which needs timestamps) is 30-day-scoped
- * Mixing the two silently would overstate churn for an older cohort. Callers
- * must label the windows, and `windowNote` exists to make that hard to forget.
+ * Pure functions: the API loads rows, this module turns them into the
+ * aggregates the dashboard renders. No PII leaves this layer — masked ids
+ * only. Every stage in a funnel is a strict subset of the one above it.
  */
 
 export interface MetricsProfile { id: string; tailors_used: number }
-export interface MetricsRun { user_id: string; created_at: string }
-export interface MetricsTracked { user_id: string }
-export interface MetricsUser { id: string; created_at: string }
+export interface MetricsRun {
+  user_id: string
+  created_at: string
+  match_score?: number | null
+  feedback?: { rating?: string } | null
+  edited_at?: string | null
+  cover_letter?: string | null
+}
+export interface MetricsTracked {
+  user_id: string
+  status?: string
+  created_at?: string
+  updated_at?: string
+}
+export interface MetricsUser {
+  id: string
+  created_at: string
+  last_sign_in_at?: string | null
+}
 
 export interface FunnelStage {
-  key: 'signed_up' | 'activated' | 'returned' | 'tracking'
+  key: string
   label: string
-  /** What this stage means, in plain English, for the tooltip. */
   meaning: string
   count: number
-  /** Share of the stage above it, 0–100, rounded. Null for the first stage. */
   conversionFromPrev: number | null
-  /** Share of all signups, 0–100, rounded. */
   shareOfTotal: number
-  /** True when the number is limited to the 30-day run window. */
   windowed: boolean
 }
 
-const pct = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 100))
+export interface CohortWeek {
+  weekStart: string
+  label: string
+  signedUp: number
+  tailoredIn7d: number
+  returned: number
+  tracking: number
+  tailoredRate: number
+  previousTailoredRate: number | null
+  delta: number | null
+}
 
-/** Distinct calendar days a user ran a tailor, within whatever runs are given. */
+export interface StuckBucket {
+  key: string
+  label: string
+  meaning: string
+  count: number
+  /** Masked ids only — never emails. */
+  users: string[]
+}
+
+export interface QualityMetrics {
+  medianScore: number | null
+  scoreBuckets: { low: number; medium: number; strong: number }
+  feedbackUp: number
+  feedbackDown: number
+  feedbackRate: number | null
+  editRate: number
+  coverLetterRate: number
+  runs: number
+  activatedUsers: number
+  runsPerActivated: number | null
+}
+
+export interface FeatureAdoption {
+  careerPathUsers: number
+  northStarLocked: number
+  skillsCompleted: number
+  careerArcProfiles: number
+  careerArcShared: number
+  evidenceUsers: number
+  firstCvStarted: number
+  firstCvCompleted: number
+  eligibleUsers: number
+}
+
+export interface DayCount {
+  label: string
+  value: number
+}
+
+/** Classic volume counters + activity series. Aggregates only — no emails. */
+export interface VolumeMetrics {
+  totalUsers: number
+  neverTailored: number
+  dau: number
+  wau: number
+  mau: number
+  tailorRuns30d: number
+  tailorRunsAllTime: number
+  trackedJobs: number
+  offers: number
+  proUsers: number
+  signupsPerDay: DayCount[]
+  loginsPerDay: DayCount[]
+  tailorsPerDay: DayCount[]
+  /** Masked ids only. */
+  topTailorers: Array<{ mask: string; tailors: number }>
+}
+
+export interface ProductHealth {
+  headlines: {
+    sevenDayActivation: { rate: number; activated: number; total: number }
+    timeToFirstTailorHours: number | null
+    weeklyActiveTailorers: number
+    thirtyDayReturnRate: { rate: number; returned: number; activated: number }
+  }
+  volume: VolumeMetrics
+  cohorts: CohortWeek[]
+  outcomeFunnel: FunnelStage[]
+  quality: QualityMetrics
+  features: FeatureAdoption
+  stuck: StuckBucket[]
+  confidence: {
+    windowDays: number
+    notes: string[]
+    profilesVsAuth: { profiles: number; authUsers: number }
+  }
+}
+
+const pct = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 100))
+const DAY = 86_400_000
+
+/** Mask a UUID for admin drill-down: "User ··A7F2". Never reverse-able to email. */
+export function maskUserId(id: string): string {
+  const clean = (id ?? '').replace(/-/g, '').toUpperCase()
+  const tail = clean.slice(-4) || '????'
+  return `User ··${tail}`
+}
+
 export function distinctRunDaysByUser(runs: MetricsRun[]): Map<string, number> {
   const seen = new Map<string, Set<string>>()
   for (const r of runs) {
@@ -53,9 +149,74 @@ export function distinctRunDaysByUser(runs: MetricsRun[]): Map<string, number> {
   return new Map([...seen].map(([user, days]) => [user, days.size]))
 }
 
+export function firstRunByUser(runs: MetricsRun[]): Map<string, number> {
+  const first = new Map<string, number>()
+  for (const r of runs) {
+    if (!r?.user_id || !r?.created_at) continue
+    const t = new Date(r.created_at).getTime()
+    const prev = first.get(r.user_id)
+    if (prev === undefined || t < prev) first.set(r.user_id, t)
+  }
+  return first
+}
+
+export function median(nums: number[]): number | null {
+  if (nums.length === 0) return null
+  const sorted = [...nums].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+    : sorted[mid]
+}
+
+/** Start of ISO week (Monday UTC) for a date. */
+export function weekStartUtc(iso: string): string {
+  const d = new Date(iso)
+  const day = d.getUTCDay() // 0 Sun … 6 Sat
+  const diff = day === 0 ? -6 : 1 - day
+  d.setUTCDate(d.getUTCDate() + diff)
+  return d.toISOString().slice(0, 10)
+}
+
+export function activationRate(
+  users: MetricsUser[],
+  profiles: MetricsProfile[],
+): { rate: number; activated: number; total: number } {
+  const total = users.length
+  const activated = profiles.filter((p) => (p.tailors_used ?? 0) >= 1).length
+  return { rate: pct(activated, total), activated, total }
+}
+
+export function weeklyActiveTailorers(runs: MetricsRun[], now = new Date()): number {
+  const cutoff = now.getTime() - 7 * DAY
+  const ids = new Set<string>()
+  for (const r of runs) {
+    if (!r?.created_at || !r?.user_id) continue
+    if (new Date(r.created_at).getTime() >= cutoff) ids.add(r.user_id)
+  }
+  return ids.size
+}
+
+export function recentCohortActivation(
+  users: MetricsUser[],
+  runs: MetricsRun[],
+  days = 30,
+  now = new Date(),
+): { rate: number; activated: number; total: number } {
+  const cutoff = now.getTime() - days * DAY
+  const cohort = users.filter((u) => new Date(u.created_at).getTime() >= cutoff)
+  const first = firstRunByUser(runs)
+  const activated = cohort.filter((u) => {
+    const t = first.get(u.id)
+    if (t === undefined) return false
+    return t - new Date(u.created_at).getTime() <= 7 * DAY
+  }).length
+  return { rate: pct(activated, cohort.length), activated, total: cohort.length }
+}
+
 /**
- * The four-stage funnel. Each stage is a strict subset of the one above it,
- * so conversions are always ≤ 100% and the chart can never lie by widening.
+ * Legacy four-stage funnel kept for existing tests. Prefer `outcomeFunnel`
+ * for the product-health dashboard.
  */
 export function buildFunnel(input: {
   users: MetricsUser[]
@@ -64,25 +225,17 @@ export function buildFunnel(input: {
   tracked: MetricsTracked[]
 }): FunnelStage[] {
   const { users, profiles, runs, tracked } = input
-
   const signedUp = users.length
-
   const activatedIds = new Set(
-    profiles.filter((p) => (p.tailors_used ?? 0) >= 1).map((p) => p.id)
+    profiles.filter((p) => (p.tailors_used ?? 0) >= 1).map((p) => p.id),
   )
   const activated = activatedIds.size
-
-  // "Came back" = tailored on 2+ separate days. One long session is not a
-  // habit; a second day is the first evidence of one.
   const runDays = distinctRunDaysByUser(runs)
   const returned = [...runDays].filter(
-    ([userId, days]) => days >= 2 && activatedIds.has(userId)
+    ([userId, days]) => days >= 2 && activatedIds.has(userId),
   ).length
-
-  // Tracking a job = the user treated Tailr as part of a real application,
-  // not a one-off experiment. Subset of activated, by construction below.
   const trackingIds = new Set(
-    tracked.map((t) => t.user_id).filter((id) => activatedIds.has(id))
+    tracked.map((t) => t.user_id).filter((id) => activatedIds.has(id)),
   )
   const tracking = trackingIds.size
 
@@ -126,70 +279,569 @@ export function buildFunnel(input: {
   ]
 }
 
-/**
- * THE north star: activation rate. Of everyone who signs up, what share ever
- * reaches a finished tailored CV? It is the honest headline because it cannot
- * be inflated by traffic — more signups with the same product move it not at
- * all — and every roadmap argument ("polish the editor" vs "fix onboarding")
- * resolves to whether it moves this number.
- */
-export function activationRate(
-  users: MetricsUser[],
-  profiles: MetricsProfile[]
-): { rate: number; activated: number; total: number } {
-  const total = users.length
-  const activated = profiles.filter((p) => (p.tailors_used ?? 0) >= 1).length
-  return { rate: pct(activated, total), activated, total }
+const STATUS_RANK: Record<string, number> = {
+  saved: 1,
+  applied: 2,
+  interview: 3,
+  offer: 4,
 }
 
-/**
- * Weekly active tailorers — people who produced something in the last 7 days.
- * Pairs with activation: activation says the product works once, this says it
- * keeps being worth opening. Deliberately counts RUNS, not logins; a login
- * with no output is not value delivered.
- */
-export function weeklyActiveTailorers(runs: MetricsRun[], now = new Date()): number {
-  const cutoff = now.getTime() - 7 * 86400000
-  const ids = new Set<string>()
-  for (const r of runs) {
-    if (!r?.created_at || !r?.user_id) continue
-    if (new Date(r.created_at).getTime() >= cutoff) ids.add(r.user_id)
+/** Highest tracker status reached by each user. */
+export function highestTrackerStatus(
+  tracked: MetricsTracked[],
+): Map<string, string> {
+  const best = new Map<string, string>()
+  for (const t of tracked) {
+    if (!t?.user_id || !t.status) continue
+    const prev = best.get(t.user_id)
+    if (!prev || (STATUS_RANK[t.status] ?? 0) > (STATUS_RANK[prev] ?? 0)) {
+      best.set(t.user_id, t.status)
+    }
   }
-  return ids.size
+  return best
 }
 
 /**
- * Of users who signed up in the last `days` days, what share tailored within
- * their first 7 days? Slower-moving than raw activation but far more
- * actionable — it isolates the onboarding experience from historical cohorts
- * who joined under a different version of the product.
+ * True outcome funnel. Every stage is a subset of the previous one among
+ * activated users (except signup → first tailor).
  */
-export function recentCohortActivation(
+export function buildOutcomeFunnel(input: {
+  users: MetricsUser[]
+  profiles: MetricsProfile[]
+  runs: MetricsRun[]
+  tracked: MetricsTracked[]
+}): FunnelStage[] {
+  const { users, profiles, runs, tracked } = input
+  const signedUp = users.length
+  const activatedIds = new Set(
+    profiles.filter((p) => (p.tailors_used ?? 0) >= 1).map((p) => p.id),
+  )
+  const activated = activatedIds.size
+  const runDays = distinctRunDaysByUser(runs)
+  const returnedIds = new Set(
+    [...runDays]
+      .filter(([id, days]) => days >= 2 && activatedIds.has(id))
+      .map(([id]) => id),
+  )
+  // Strict subsets: each stage ⊆ previous. Tracking only counts among returners.
+  const best = highestTrackerStatus(tracked)
+  const trackingIds = new Set(
+    [...best.keys()].filter((id) => returnedIds.has(id)),
+  )
+  const appliedIds = new Set(
+    [...best.entries()]
+      .filter(([id, s]) => trackingIds.has(id) && (STATUS_RANK[s] ?? 0) >= 2)
+      .map(([id]) => id),
+  )
+  const interviewIds = new Set(
+    [...best.entries()]
+      .filter(([id, s]) => appliedIds.has(id) && (STATUS_RANK[s] ?? 0) >= 3)
+      .map(([id]) => id),
+  )
+  const offerIds = new Set(
+    [...best.entries()]
+      .filter(([id, s]) => interviewIds.has(id) && (STATUS_RANK[s] ?? 0) >= 4)
+      .map(([id]) => id),
+  )
+
+  const stages: Array<Omit<FunnelStage, 'conversionFromPrev' | 'shareOfTotal'>> = [
+    {
+      key: 'signed_up',
+      label: 'Signed up',
+      meaning: 'Accounts created.',
+      count: signedUp,
+      windowed: false,
+    },
+    {
+      key: 'first_tailor',
+      label: 'First tailor',
+      meaning: 'Finished at least one tailored CV.',
+      count: activated,
+      windowed: false,
+    },
+    {
+      key: 'returned',
+      label: 'Returned',
+      meaning: 'Tailored on 2+ separate days.',
+      count: returnedIds.size,
+      windowed: false,
+    },
+    {
+      key: 'tracking',
+      label: 'Tracking',
+      meaning: 'Saved at least one application in the tracker.',
+      count: trackingIds.size,
+      windowed: false,
+    },
+    {
+      key: 'applied',
+      label: 'Applied',
+      meaning: 'Moved a job to Applied or further.',
+      count: appliedIds.size,
+      windowed: false,
+    },
+    {
+      key: 'interview',
+      label: 'Interview',
+      meaning: 'Reached Interview or Offer on any job.',
+      count: interviewIds.size,
+      windowed: false,
+    },
+    {
+      key: 'offer',
+      label: 'Offer',
+      meaning: 'Marked at least one job as Offer.',
+      count: offerIds.size,
+      windowed: false,
+    },
+  ]
+
+  return stages.map((s, i) => {
+    const prev = i === 0 ? null : stages[i - 1].count
+    return {
+      ...s,
+      conversionFromPrev: prev === null ? null : pct(s.count, prev),
+      shareOfTotal: pct(s.count, signedUp),
+    }
+  })
+}
+
+export function buildQualityMetrics(
+  runs: MetricsRun[],
+  activatedUsers: number,
+): QualityMetrics {
+  const scores = runs
+    .map((r) => r.match_score)
+    .filter((n): n is number => typeof n === 'number' && Number.isFinite(n))
+  const buckets = { low: 0, medium: 0, strong: 0 }
+  for (const s of scores) {
+    if (s < 60) buckets.low += 1
+    else if (s < 80) buckets.medium += 1
+    else buckets.strong += 1
+  }
+  let up = 0
+  let down = 0
+  for (const r of runs) {
+    const rating = r.feedback?.rating
+    if (rating === 'up') up += 1
+    if (rating === 'down') down += 1
+  }
+  const edited = runs.filter((r) => !!r.edited_at).length
+  const withLetter = runs.filter(
+    (r) => typeof r.cover_letter === 'string' && r.cover_letter.trim().length > 0,
+  ).length
+  const feedbackTotal = up + down
+
+  return {
+    medianScore: median(scores),
+    scoreBuckets: buckets,
+    feedbackUp: up,
+    feedbackDown: down,
+    feedbackRate: feedbackTotal === 0 ? null : pct(up, feedbackTotal),
+    editRate: pct(edited, runs.length),
+    coverLetterRate: pct(withLetter, runs.length),
+    runs: runs.length,
+    activatedUsers,
+    runsPerActivated:
+      activatedUsers === 0
+        ? null
+        : Math.round((runs.length / activatedUsers) * 10) / 10,
+  }
+}
+
+export function buildWeeklyCohorts(input: {
+  users: MetricsUser[]
+  runs: MetricsRun[]
+  tracked: MetricsTracked[]
+  weeks?: number
+  now?: Date
+}): CohortWeek[] {
+  const now = input.now ?? new Date()
+  const weekCount = input.weeks ?? 8
+  const first = firstRunByUser(input.runs)
+  const runDays = distinctRunDaysByUser(input.runs)
+  const trackers = new Set(input.tracked.map((t) => t.user_id))
+
+  // Build week buckets ending with the current week.
+  const thisWeek = weekStartUtc(now.toISOString())
+  const weeks: string[] = []
+  for (let i = weekCount - 1; i >= 0; i--) {
+    const d = new Date(`${thisWeek}T00:00:00.000Z`)
+    d.setUTCDate(d.getUTCDate() - i * 7)
+    weeks.push(d.toISOString().slice(0, 10))
+  }
+
+  const byWeek = new Map<string, MetricsUser[]>()
+  for (const w of weeks) byWeek.set(w, [])
+  for (const u of input.users) {
+    const w = weekStartUtc(u.created_at)
+    if (byWeek.has(w)) byWeek.get(w)!.push(u)
+  }
+
+  const cohorts: CohortWeek[] = []
+  for (const w of weeks) {
+    const cohort = byWeek.get(w) ?? []
+    const signedUp = cohort.length
+    let tailoredIn7d = 0
+    let returned = 0
+    let tracking = 0
+    for (const u of cohort) {
+      const signup = new Date(u.created_at).getTime()
+      const firstT = first.get(u.id)
+      if (firstT !== undefined && firstT - signup <= 7 * DAY) tailoredIn7d += 1
+      if ((runDays.get(u.id) ?? 0) >= 2) returned += 1
+      if (trackers.has(u.id)) tracking += 1
+    }
+    const tailoredRate = pct(tailoredIn7d, signedUp)
+    const prev = cohorts.length > 0 ? cohorts[cohorts.length - 1] : null
+    cohorts.push({
+      weekStart: w,
+      label: w.slice(5), // MM-DD
+      signedUp,
+      tailoredIn7d,
+      returned,
+      tracking,
+      tailoredRate,
+      previousTailoredRate: prev ? prev.tailoredRate : null,
+      delta: prev ? tailoredRate - prev.tailoredRate : null,
+    })
+  }
+  return cohorts
+}
+
+export function buildStuckBuckets(input: {
+  users: MetricsUser[]
+  profiles: MetricsProfile[]
+  runs: MetricsRun[]
+  tracked: MetricsTracked[]
+  roadmaps?: Array<{ user_id: string; target_role?: string | null }>
+  roadmapItems?: Array<{ user_id: string; status?: string }>
+  now?: Date
+  maxUsersPerBucket?: number
+}): StuckBucket[] {
+  const now = input.now ?? new Date()
+  const max = input.maxUsersPerBucket ?? 12
+  const activated = new Set(
+    input.profiles.filter((p) => (p.tailors_used ?? 0) >= 1).map((p) => p.id),
+  )
+  const first = firstRunByUser(input.runs)
+  const runDays = distinctRunDaysByUser(input.runs)
+  const best = highestTrackerStatus(input.tracked)
+  const hasRoadmap = new Set(
+    (input.roadmaps ?? [])
+      .filter((r) => (r.target_role ?? '').trim().length > 0)
+      .map((r) => r.user_id),
+  )
+  const skillActivity = new Set(
+    (input.roadmapItems ?? [])
+      .filter((i) => i.status === 'in_progress' || i.status === 'done')
+      .map((i) => i.user_id),
+  )
+
+  const pick = (ids: string[]) =>
+    ids.slice(0, max).map(maskUserId)
+
+  const neverTailored = input.users
+    .filter((u) => {
+      if (activated.has(u.id) || first.has(u.id)) return false
+      return now.getTime() - new Date(u.created_at).getTime() >= 3 * DAY
+    })
+    .map((u) => u.id)
+
+  const oneAndDone = [...activated].filter((id) => (runDays.get(id) ?? 0) < 2)
+
+  const trackingNoApply = [...best.entries()]
+    .filter(([, s]) => s === 'saved')
+    .map(([id]) => id)
+    .filter((id) => activated.has(id))
+
+  const appliedNoInterview = [...best.entries()]
+    .filter(([, s]) => s === 'applied')
+    .map(([id]) => id)
+
+  const northStarIdle = [...hasRoadmap].filter((id) => !skillActivity.has(id))
+
+  return [
+    {
+      key: 'never_tailored',
+      label: 'Signed up 3+ days ago, never tailored',
+      meaning: 'Onboarding or first-run friction.',
+      count: neverTailored.length,
+      users: pick(neverTailored),
+    },
+    {
+      key: 'one_and_done',
+      label: 'Tailored once, never returned',
+      meaning: 'Activated but no habit yet.',
+      count: oneAndDone.length,
+      users: pick(oneAndDone),
+    },
+    {
+      key: 'tracking_no_apply',
+      label: 'Tracking jobs, never marked applied',
+      meaning: 'Saved applications without pipeline movement.',
+      count: trackingNoApply.length,
+      users: pick(trackingNoApply),
+    },
+    {
+      key: 'applied_no_interview',
+      label: 'Applied, no interview progression',
+      meaning: 'Stuck at Applied — quality or follow-through.',
+      count: appliedNoInterview.length,
+      users: pick(appliedNoInterview),
+    },
+    {
+      key: 'north_star_idle',
+      label: 'North Star locked, no skill activity',
+      meaning: 'Path exists but nothing started.',
+      count: northStarIdle.length,
+      users: pick(northStarIdle),
+    },
+  ]
+}
+
+export function timeToFirstTailorHours(
   users: MetricsUser[],
   runs: MetricsRun[],
   days = 30,
-  now = new Date()
-): { rate: number; activated: number; total: number } {
-  const cutoff = now.getTime() - days * 86400000
-  const cohort = users.filter((u) => new Date(u.created_at).getTime() >= cutoff)
-
-  const firstRun = new Map<string, number>()
-  for (const r of runs) {
-    if (!r?.user_id || !r?.created_at) continue
-    const t = new Date(r.created_at).getTime()
-    const prev = firstRun.get(r.user_id)
-    if (prev === undefined || t < prev) firstRun.set(r.user_id, t)
+  now = new Date(),
+): number | null {
+  const cutoff = now.getTime() - days * DAY
+  const first = firstRunByUser(runs)
+  const hours: number[] = []
+  for (const u of users) {
+    const signup = new Date(u.created_at).getTime()
+    if (signup < cutoff) continue
+    const t = first.get(u.id)
+    if (t === undefined || t < signup) continue
+    hours.push((t - signup) / 3_600_000)
   }
-
-  const activated = cohort.filter((u) => {
-    const first = firstRun.get(u.id)
-    if (first === undefined) return false
-    return first - new Date(u.created_at).getTime() <= 7 * 86400000
-  }).length
-
-  return { rate: pct(activated, cohort.length), activated, total: cohort.length }
+  const m = median(hours)
+  return m === null ? null : Math.round(m * 10) / 10
 }
 
-/** Human-readable note about which numbers are 30-day-scoped. */
+export function thirtyDayReturnRate(
+  profiles: MetricsProfile[],
+  runs: MetricsRun[],
+  now = new Date(),
+): { rate: number; returned: number; activated: number } {
+  const cutoff = now.getTime() - 30 * DAY
+  const activated = profiles.filter((p) => (p.tailors_used ?? 0) >= 1).map((p) => p.id)
+  // Among users who had at least one run in the last 30d, who ran on 2+ days?
+  const recentRuns = runs.filter(
+    (r) => r.created_at && new Date(r.created_at).getTime() >= cutoff,
+  )
+  const days = distinctRunDaysByUser(recentRuns)
+  const activatedWithRecent = activated.filter((id) => days.has(id))
+  const returned = activatedWithRecent.filter((id) => (days.get(id) ?? 0) >= 2).length
+  return {
+    rate: pct(returned, activatedWithRecent.length),
+    returned,
+    activated: activatedWithRecent.length,
+  }
+}
+
+export function buildFeatureAdoption(input: {
+  eligibleUsers: number
+  roadmaps: Array<{ user_id: string; target_role?: string | null }>
+  roadmapItems: Array<{ user_id: string; status?: string }>
+  careerProfiles: Array<{ user_id: string }>
+  arcShares: number
+  evidenceUsers: number
+  firstCvs: Array<{ user_id: string; status?: string | null }>
+}): FeatureAdoption {
+  const pathUsers = new Set(input.roadmaps.map((r) => r.user_id))
+  const locked = new Set(
+    input.roadmaps
+      .filter((r) => (r.target_role ?? '').trim().length > 0)
+      .map((r) => r.user_id),
+  )
+  const completedSkills = input.roadmapItems.filter((i) => i.status === 'done').length
+  const arcProfiles = new Set(input.careerProfiles.map((p) => p.user_id)).size
+  const firstStarted = new Set(input.firstCvs.map((f) => f.user_id)).size
+  const firstCompleted = new Set(
+    input.firstCvs
+      .filter((f) => f.status === 'ready')
+      .map((f) => f.user_id),
+  ).size
+
+  return {
+    careerPathUsers: pathUsers.size,
+    northStarLocked: locked.size,
+    skillsCompleted: completedSkills,
+    careerArcProfiles: arcProfiles,
+    careerArcShared: input.arcShares,
+    evidenceUsers: input.evidenceUsers,
+    firstCvStarted: firstStarted,
+    firstCvCompleted: firstCompleted,
+    eligibleUsers: input.eligibleUsers,
+  }
+}
+
+function lastNDays(n: number, now: Date): string[] {
+  const out: string[] = []
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now)
+    d.setUTCHours(0, 0, 0, 0)
+    d.setUTCDate(d.getUTCDate() - i)
+    out.push(d.toISOString().slice(0, 10))
+  }
+  return out
+}
+
+function countByDay(isos: string[], days: string[]): DayCount[] {
+  const tally = new Map(days.map((d) => [d, 0]))
+  for (const iso of isos) {
+    const day = iso.slice(0, 10)
+    if (tally.has(day)) tally.set(day, (tally.get(day) ?? 0) + 1)
+  }
+  return days.map((label) => ({ label, value: tally.get(label) ?? 0 }))
+}
+
+export function buildVolumeMetrics(input: {
+  users: MetricsUser[]
+  profiles: Array<MetricsProfile & { plan?: string | null }>
+  runs30d: MetricsRun[]
+  tracked: MetricsTracked[]
+  loginAts?: string[]
+  now?: Date
+}): VolumeMetrics {
+  const now = input.now ?? new Date()
+  const nowMs = now.getTime()
+  const activeIn = (days: number) =>
+    input.users.filter((u) => {
+      if (!u.last_sign_in_at) return false
+      return nowMs - new Date(u.last_sign_in_at).getTime() < days * DAY
+    }).length
+
+  const days30 = lastNDays(30, now)
+  const days14 = lastNDays(14, now)
+
+  const top = [...input.profiles]
+    .sort((a, b) => (b.tailors_used ?? 0) - (a.tailors_used ?? 0))
+    .slice(0, 5)
+    .filter((p) => (p.tailors_used ?? 0) > 0)
+    .map((p) => ({ mask: maskUserId(p.id), tailors: p.tailors_used ?? 0 }))
+
+  return {
+    totalUsers: input.users.length,
+    neverTailored: input.profiles.filter((p) => (p.tailors_used ?? 0) === 0).length,
+    dau: activeIn(1),
+    wau: activeIn(7),
+    mau: activeIn(30),
+    tailorRuns30d: input.runs30d.length,
+    tailorRunsAllTime: input.profiles.reduce((s, p) => s + (p.tailors_used ?? 0), 0),
+    trackedJobs: input.tracked.length,
+    offers: input.tracked.filter((t) => t.status === 'offer').length,
+    proUsers: input.profiles.filter((p) => p.plan === 'pro').length,
+    signupsPerDay: countByDay(
+      input.users.map((u) => u.created_at),
+      days30,
+    ),
+    loginsPerDay: countByDay(input.loginAts ?? [], days30),
+    tailorsPerDay: countByDay(
+      input.runs30d.map((r) => r.created_at),
+      days14,
+    ),
+    topTailorers: top,
+  }
+}
+
+/** Assemble the full product-health payload for the admin API. */
+export function buildProductHealth(input: {
+  users: MetricsUser[]
+  profiles: Array<MetricsProfile & { plan?: string | null }>
+  runs: MetricsRun[]
+  runs30d?: MetricsRun[]
+  tracked: MetricsTracked[]
+  loginAts?: string[]
+  roadmaps?: Array<{ user_id: string; target_role?: string | null }>
+  roadmapItems?: Array<{ user_id: string; status?: string }>
+  careerProfiles?: Array<{ user_id: string }>
+  arcShares?: number
+  evidenceUsers?: number
+  firstCvs?: Array<{ user_id: string; status?: string | null }>
+  now?: Date
+  windowDays?: number
+}): ProductHealth {
+  const now = input.now ?? new Date()
+  const windowDays = input.windowDays ?? 30
+  const activated = activationRate(input.users, input.profiles)
+  const cohort7 = recentCohortActivation(input.users, input.runs, 7, now)
+  const return30 = thirtyDayReturnRate(input.profiles, input.runs, now)
+  const runs30d = input.runs30d ?? input.runs
+
+  const notes = [
+    `Outcome and quality metrics use the last ${windowDays} days of tailor runs unless labelled otherwise.`,
+    'Activation and feature adoption are all-time counts of distinct users.',
+    'Volume DAU/WAU/MAU use last_sign_in_at; weekly active tailorers count people who produced a CV.',
+    'Stuck buckets and top tailorers show masked ids only — never emails, CVs, or job text.',
+  ]
+  if (input.profiles.length !== input.users.length) {
+    notes.push(
+      `Auth users (${input.users.length}) and profiles (${input.profiles.length}) differ — counters may drift.`,
+    )
+  }
+
+  return {
+    headlines: {
+      sevenDayActivation: cohort7,
+      timeToFirstTailorHours: timeToFirstTailorHours(
+        input.users, input.runs, windowDays, now,
+      ),
+      weeklyActiveTailorers: weeklyActiveTailorers(input.runs, now),
+      thirtyDayReturnRate: return30,
+    },
+    volume: buildVolumeMetrics({
+      users: input.users,
+      profiles: input.profiles,
+      runs30d,
+      tracked: input.tracked,
+      loginAts: input.loginAts,
+      now,
+    }),
+    cohorts: buildWeeklyCohorts({
+      users: input.users,
+      runs: input.runs,
+      tracked: input.tracked,
+      weeks: 8,
+      now,
+    }),
+    outcomeFunnel: buildOutcomeFunnel({
+      users: input.users,
+      profiles: input.profiles,
+      runs: input.runs,
+      tracked: input.tracked,
+    }),
+    quality: buildQualityMetrics(input.runs, activated.activated),
+    features: buildFeatureAdoption({
+      eligibleUsers: input.users.length,
+      roadmaps: input.roadmaps ?? [],
+      roadmapItems: input.roadmapItems ?? [],
+      careerProfiles: input.careerProfiles ?? [],
+      arcShares: input.arcShares ?? 0,
+      evidenceUsers: input.evidenceUsers ?? 0,
+      firstCvs: input.firstCvs ?? [],
+    }),
+    stuck: buildStuckBuckets({
+      users: input.users,
+      profiles: input.profiles,
+      runs: input.runs,
+      tracked: input.tracked,
+      roadmaps: input.roadmaps,
+      roadmapItems: input.roadmapItems,
+      now,
+    }),
+    confidence: {
+      windowDays,
+      notes,
+      profilesVsAuth: {
+        profiles: input.profiles.length,
+        authUsers: input.users.length,
+      },
+    },
+  }
+}
+
 export const windowNote =
   'Run-level metrics cover the last 30 days; activation is all-time.'
