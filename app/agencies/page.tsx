@@ -18,11 +18,17 @@ interface CandidateStub { id: string; ref: string; full_name: string; role_id: s
 interface ClientAction { id: string; candidate_ref: string; candidate_name: string; action: string; message: string; created_at: string }
 interface RightsRequest { id: string; candidate_ref: string; kind: string; requested_at: string }
 interface Activity { id: number; entity_type: string; entity_ref: string; action: string; created_at: string }
+interface NextCall { id: string; ref: string; full_name: string; role_id: string; role_title: string; current: number; potential: number; uplift: number; gaps: string[] }
+interface HeatRow { recipient_id: string; contact_name: string; company: string; role_title: string; sent_at: string; last_opened_at: string | null }
+interface Suggestion { candidate_id: string; candidate_ref: string; full_name: string; from_role_id: string; from_role_title: string; to_role_id: string; to_role_title: string; covered: number; total: number }
 
 interface Dashboard {
   agency: { name: string; retention_days: number; notice_delay_days: number } | null
   caller_role: string
   needs_you: { client_actions: ClientAction[]; rights_requests: RightsRequest[] }
+  next_calls: NextCall[]
+  client_heat: { opened_silent: HeatRow[]; never_opened: HeatRow[] }
+  worth_a_look: Suggestion[]
   pipeline: {
     awaiting_screening: CandidateStub[]
     awaiting_decision: CandidateStub[]
@@ -183,6 +189,83 @@ export default function AgencyHomePage() {
                       <span className="ag-meta">{ago(a.created_at)}</span>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {data.next_calls.length > 0 && (
+                <div className="ag-card">
+                  <div className="ag-card-head">
+                    <span className="ag-card-title">Best next calls</span>
+                    <span className="ag-meta">Where a confirming call moves the score most</span>
+                  </div>
+                  {data.next_calls.map((call) => (
+                    <button
+                      key={call.id}
+                      className="ag-row"
+                      style={{ width: "100%", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid var(--ag-border)", cursor: "pointer" }}
+                      onClick={() => openRole(call.role_id)}
+                    >
+                      <div className="ag-grow">
+                        <div style={{ fontWeight: 500 }}>{call.full_name}</div>
+                        <div className="ag-meta">{call.role_title} · ask about {call.gaps.join(", ") || "the gaps"}</div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <span className="ag-delta" style={{ fontSize: 14 }}>{call.current} → {call.potential}</span>
+                        <div className="ag-meta" style={{ marginTop: 2 }}>if the call confirms</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {(data.client_heat.opened_silent.length > 0 || data.client_heat.never_opened.length > 0) && (
+                <div className="ag-card">
+                  <div className="ag-card-head">
+                    <span className="ag-card-title">Client heat</span>
+                    <span className="ag-meta">From your shortlist links</span>
+                  </div>
+                  {data.client_heat.opened_silent.map((row) => (
+                    <div className="ag-row" key={row.recipient_id}>
+                      <span className="ag-pill ag-pill-coral">Opened</span>
+                      <span className="ag-grow" style={{ fontSize: 13 }}>
+                        <b>{row.contact_name}</b>{row.company ? ` at ${row.company}` : ""} opened {row.role_title || "your shortlist"} {row.last_opened_at ? ago(row.last_opened_at) : ""} and has not acted. Worth a call.
+                      </span>
+                    </div>
+                  ))}
+                  {data.client_heat.never_opened.map((row) => (
+                    <div className="ag-row" key={row.recipient_id}>
+                      <span className="ag-pill">Unopened</span>
+                      <span className="ag-grow" style={{ fontSize: 13 }}>
+                        <b>{row.contact_name}</b>{row.company ? ` at ${row.company}` : ""} has not opened {row.role_title || "the shortlist"} yet · sent {ago(row.sent_at)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {data.worth_a_look.length > 0 && (
+                <div className="ag-card">
+                  <div className="ag-card-head">
+                    <span className="ag-card-title">Worth a look</span>
+                    <span className="ag-meta">Open roles only · nothing happens without you</span>
+                  </div>
+                  {data.worth_a_look.map((s) => (
+                    <button
+                      key={`${s.candidate_id}:${s.to_role_id}`}
+                      className="ag-row"
+                      style={{ width: "100%", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid var(--ag-border)", cursor: "pointer" }}
+                      onClick={() => router.push(`/agencies/roles/${s.from_role_id}/candidates/${s.candidate_id}`)}
+                    >
+                      <div className="ag-grow">
+                        <div style={{ fontWeight: 500 }}>{s.full_name} <span className="ag-meta">{s.candidate_ref}</span></div>
+                        <div className="ag-meta">On {s.from_role_title} · already evidences {s.covered} of {s.total} core requirements for {s.to_role_title}</div>
+                      </div>
+                      <span className="ag-btn">See their evidence →</span>
+                    </button>
+                  ))}
+                  <div style={{ padding: "10px 18px" }}>
+                    <span className="ag-meta">Uses assessments you already made. Suggestions never add or screen anyone automatically.</span>
+                  </div>
                 </div>
               )}
 
