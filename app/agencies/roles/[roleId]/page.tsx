@@ -47,6 +47,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [error, setError] = useState<string | null>(null)
   const [paste, setPaste] = useState("")
   const [submissionResult, setSubmissionResult] = useState<{ format: string; entries: number; links: Array<{ url: string }> } | null>(null)
+  const [contacts, setContacts] = useState<Array<{ id: string; company: string; email: string; full_name: string }>>([])
+  const [chosenContacts, setChosenContacts] = useState<string[]>([])
+  const [newContact, setNewContact] = useState({ company: "", email: "", full_name: "" })
 
   const loadCandidates = useCallback(async () => {
     const res = await fetch(`/api/agency/roles/${roleId}/candidates`)
@@ -104,12 +107,55 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
 
   async function saveIntake() {
     if (!role) return
+    // Intake fields only. Status changes go through closeRole so they are
+    // audit logged deliberately, never as a side effect of typing.
+    const { title, company, company_context, salary_band, location, seniority, jd_raw, recruiter_notes } = role
     await fetch(`/api/agency/roles/${roleId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(role),
+      body: JSON.stringify({ title, company, company_context, salary_band, location, seniority, jd_raw, recruiter_notes }),
     })
   }
+
+  async function setRoleStatus(status: string) {
+    const res = await fetch(`/api/agency/roles/${roleId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    })
+    if (res.ok) {
+      const body = await res.json()
+      patchRole({ status: body.role.status })
+    }
+  }
+
+  const loadContacts = useCallback(async () => {
+    const res = await fetch("/api/agency/contacts")
+    if (res.ok) {
+      const body = await res.json()
+      setContacts(body.contacts ?? [])
+    }
+  }, [])
+
+  async function createContact() {
+    if (!newContact.email.trim() || !newContact.company.trim()) {
+      return setError("A contact needs a company and an email address")
+    }
+    const res = await fetch("/api/agency/contacts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newContact),
+    })
+    const body = await res.json()
+    if (!res.ok) return setError(body.error ?? "Could not save the contact")
+    setNewContact({ company: "", email: "", full_name: "" })
+    setChosenContacts((prev) => [...prev, body.contact.id])
+    await loadContacts()
+  }
+
+  useEffect(() => {
+    if (step === "submission") loadContacts()
+  }, [step, loadContacts])
 
   async function extract() {
     if (!role) return
@@ -212,13 +258,19 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   }
 
   async function generateSubmission(format: string) {
+    if (format === "portal" && chosenContacts.length === 0) {
+      return setError("Choose at least one recipient. Portal links are personal, one per named person.")
+    }
     setBusy("submission")
     setError(null)
     try {
       const res = await fetch(`/api/agency/roles/${roleId}/submission`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ format }),
+        body: JSON.stringify({
+          format,
+          ...(format === "portal" ? { recipients: chosenContacts.map((id) => ({ contact_id: id })) } : {}),
+        }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? "Generation failed")
@@ -460,6 +512,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         ) : (
                           <span className="ag-pill">Parsing</span>
                         )}
+                        <button className="ag-btn" onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
+                          Evidence →
+                        </button>
                       </div>
                     )
                   })}
@@ -649,6 +704,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             <span className="ag-meta">{s.must_have_hit}/{s.must_have_total} musts</span>
                           </div>
                         )}
+                        <button className="ag-btn ag-btn-secondary" style={{ width: "100%", justifyContent: "center" }} onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
+                          Open evidence →
+                        </button>
                         <div className="ag-seg" style={{ width: "100%" }}>
                           {["shortlist", "hold", "reject"].map((d) => (
                             <button key={d} style={{ flex: 1 }} className={decisions[c.id] === d ? "on" : ""} onClick={() => decide(c.id, d)}>{d}</button>
@@ -676,7 +734,13 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         {candidates.map((c) => {
                           const strength = effectiveStrength(c.id, req.id)
                           return (
-                            <td key={c.id} className={strength === "strong" ? "wash" : ""}>
+                            <td
+                              key={c.id}
+                              className={strength === "strong" ? "wash" : ""}
+                              style={{ cursor: "pointer" }}
+                              title="Open the evidence for this candidate"
+                              onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}
+                            >
                               <span className={`ag-dot ${strength}`} style={{ marginRight: 6 }} />
                               <span className="ag-meta">{strength.slice(0, 4)}</span>
                             </td>
@@ -702,6 +766,40 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               {shortlisted > 0 && (
                 <div className="ag-stack">
                   <div className="ag-card">
+                    <div className="ag-card-head">
+                      <span className="ag-card-title">Who is receiving this</span>
+                      <span className="ag-meta">One link per person, individually revocable</span>
+                    </div>
+                    <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
+                      {contacts.length === 0 && (
+                        <span style={{ fontSize: 12.5, color: "var(--ag-ink-3)" }}>
+                          No client contacts yet. Add the hiring manager below.
+                        </span>
+                      )}
+                      {contacts.map((contact) => (
+                        <label key={contact.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={chosenContacts.includes(contact.id)}
+                            onChange={(e) =>
+                              setChosenContacts((prev) => (e.target.checked ? [...prev, contact.id] : prev.filter((id) => id !== contact.id)))
+                            }
+                          />
+                          <span className="ag-grow" style={{ fontSize: 13 }}>
+                            {contact.full_name || contact.email}
+                            <span className="ag-meta" style={{ marginLeft: 8 }}>{contact.company}</span>
+                          </span>
+                        </label>
+                      ))}
+                      <div style={{ display: "flex", gap: 8, borderTop: "1px solid var(--ag-border)", paddingTop: 12, flexWrap: "wrap" }}>
+                        <input className="ag-input" style={{ flex: 1, minWidth: 130 }} placeholder="Company" value={newContact.company} onChange={(e) => setNewContact({ ...newContact, company: e.target.value })} />
+                        <input className="ag-input" style={{ flex: 1, minWidth: 130 }} placeholder="Name" value={newContact.full_name} onChange={(e) => setNewContact({ ...newContact, full_name: e.target.value })} />
+                        <input className="ag-input" style={{ flex: 1, minWidth: 160 }} placeholder="Email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} />
+                        <button className="ag-btn ag-btn-secondary" onClick={createContact}>Add contact</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ag-card">
                     <div className="ag-card-head"><span className="ag-card-title">Generate</span><span className="ag-meta">Same content, different container</span></div>
                     <div className="ag-card-body" style={{ display: "flex", gap: 10 }}>
                       {["document", "email", "portal"].map((format) => (
@@ -721,14 +819,35 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       </p>
                       {submissionResult.links.length > 0 && (
                         <div style={{ marginTop: 14 }}>
-                          <div className="ag-meta" style={{ marginBottom: 6 }}>Portal links · shown once, one per recipient</div>
+                          <div className="ag-meta" style={{ marginBottom: 6 }}>Portal links · shown once, one per recipient · copy them now</div>
                           {submissionResult.links.map((l) => (
-                            <div key={l.url} className="ag-meta" style={{ color: "var(--ag-coral-deep)" }}>{l.url}</div>
+                            <div key={l.url} className="ag-meta" style={{ color: "var(--ag-coral-deep)", wordBreak: "break-all" }}>
+                              {typeof window !== "undefined" ? window.location.origin : ""}{l.url}
+                            </div>
                           ))}
                         </div>
                       )}
                     </div>
                   )}
+
+                  <div className="ag-card">
+                    <div className="ag-card-head">
+                      <span className="ag-card-title">Close this role</span>
+                      <span className="ag-pill">{role.status}</span>
+                    </div>
+                    <div className="ag-card-body">
+                      <p style={{ fontSize: 12.5, color: "var(--ag-ink-2)", maxWidth: "60ch" }}>
+                        Closing the role starts the retention clock on every candidate attached to it. Their CV data is erased automatically once the window passes, and the closure is audit logged. Reopening clears the clock again.
+                      </p>
+                      <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                        {role.status === "closed" ? (
+                          <button className="ag-btn ag-btn-secondary" onClick={() => setRoleStatus("open")}>Reopen role</button>
+                        ) : (
+                          <button className="ag-btn ag-btn-primary" onClick={() => setRoleStatus("closed")}>Close role and start retention</button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </>

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { getJobRole, requireAgencyContext } from "@/lib/agency/db"
+import { agencyAdmin, getJobRole, requireAgencyContext, writeAudit } from "@/lib/agency/db"
 
 export const maxDuration = 30
 
@@ -84,6 +84,19 @@ export async function PATCH(
     for (const [field, limit] of Object.entries(FIELD_LIMITS)) {
       if (typeof body?.[field] === "string") patch[field] = body[field].slice(0, limit)
     }
+
+    // Status is not a plain field edit. Closing a role starts the retention
+    // clock on every candidate attached to it (DB trigger), so the change is
+    // audit logged with the before value.
+    const nextStatus = ["draft", "open", "submitted", "closed"].includes(body?.status)
+      ? (body.status as string)
+      : null
+    const before = nextStatus ? await getJobRole(auth.db, auth.ctx, roleId) : null
+    if (nextStatus && !before) {
+      return NextResponse.json({ error: "Role not found" }, { status: 404 })
+    }
+    if (nextStatus) patch.status = nextStatus
+
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: "Nothing to update" }, { status: 400 })
     }
@@ -93,10 +106,27 @@ export async function PATCH(
       .update(patch)
       .eq("id", roleId)
       .eq("agency_id", auth.ctx.agencyId)
-      .select("id, ref, title, updated_at")
+      .select("id, ref, title, status, closed_at, updated_at")
       .maybeSingle()
     if (error) throw error
     if (!data) return NextResponse.json({ error: "Role not found" }, { status: 404 })
+
+    if (nextStatus && before && before.status !== nextStatus) {
+      await writeAudit(agencyAdmin(), {
+        agencyId: auth.ctx.agencyId,
+        roleId,
+        actorId: auth.ctx.userId,
+        entityType: "role",
+        entityRef: data.ref,
+        action: nextStatus === "closed" ? "closed" : "status_changed",
+        fromValue: { status: before.status },
+        toValue: { status: nextStatus, closed_at: data.closed_at },
+        reason:
+          nextStatus === "closed"
+            ? "retention clock started on all candidates for this role"
+            : undefined,
+      })
+    }
 
     return NextResponse.json({ role: data })
   } catch (error) {
