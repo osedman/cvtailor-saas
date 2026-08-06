@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-provider"
+import { isAdminEmail } from "@/lib/admin"
 import type { ProductHealth, FunnelStage, CohortWeek, StuckBucket } from "@/lib/admin-metrics"
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -324,12 +325,14 @@ export default function AdminPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Link
-              href="/admin/courses"
-              className="rounded-lg border border-[#eee6da] bg-white px-3 py-2 text-[13px] text-[#1e1813]/70 hover:border-[#dc4f33]/40"
-            >
-              Course review
-            </Link>
+            {isAdminEmail(user?.email) && (
+              <Link
+                href="/admin/courses"
+                className="rounded-lg border border-[#eee6da] bg-white px-3 py-2 text-[13px] text-[#1e1813]/70 hover:border-[#dc4f33]/40"
+              >
+                Course review
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => void load(true)}
