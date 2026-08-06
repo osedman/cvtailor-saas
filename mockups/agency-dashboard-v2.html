@@ -1,0 +1,496 @@
+<title>Tailr for Agencies &middot; Dashboard redesign</title>
+<style>
+:root{
+  --ink:#1E1813; --paper:#FFFDFA; --cream:#F9F6F0;
+  --coral:#DC4F33; --coral-deep:#B3341B;
+  --tint-1:#FFF7F4; --tint-2:#F5D9D0;
+  --line:#EEE6DA; --line-2:#DED4C1;
+  --ink-2:#4E463D; --ink-3:#7A7266; --ink-4:#A9A296;
+  --warn:#C97A2F; --calm:#6E7A63;
+  --bg:var(--cream); --surface:var(--paper); --surface-2:#F2EEE2;
+  --mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --sans:"Geist",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  --r:8px; --r-lg:12px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#F6F1E8; --paper:#221C17; --cream:#1A1511;
+    --line:#332A22; --line-2:#43382D;
+    --ink-2:#CFC5B7; --ink-3:#9C9184; --ink-4:#6C6357;
+    --tint-1:#2C1F1A; --tint-2:#4A2A21;
+    --coral:#F2664A; --coral-deep:#FF8368;
+    --warn:#D9973F; --calm:#93A186;
+    --bg:var(--cream); --surface:var(--paper); --surface-2:#251E19;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#F6F1E8; --paper:#221C17; --cream:#1A1511;
+  --line:#332A22; --line-2:#43382D;
+  --ink-2:#CFC5B7; --ink-3:#9C9184; --ink-4:#6C6357;
+  --tint-1:#2C1F1A; --tint-2:#4A2A21;
+  --coral:#F2664A; --coral-deep:#FF8368;
+  --warn:#D9973F; --calm:#93A186;
+  --bg:var(--cream); --surface:var(--paper); --surface-2:#251E19;
+}
+:root[data-theme="light"]{
+  --ink:#1E1813; --paper:#FFFDFA; --cream:#F9F6F0;
+  --line:#EEE6DA; --line-2:#DED4C1;
+  --ink-2:#4E463D; --ink-3:#7A7266; --ink-4:#A9A296;
+  --tint-1:#FFF7F4; --tint-2:#F5D9D0;
+  --coral:#DC4F33; --coral-deep:#B3341B;
+  --warn:#C97A2F; --calm:#6E7A63;
+  --bg:var(--cream); --surface:var(--paper); --surface-2:#F2EEE2;
+}
+
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:14px;line-height:1.55;letter-spacing:-0.005em;-webkit-font-smoothing:antialiased;}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:0.01em;}
+:focus-visible{outline:2px solid var(--coral);outline-offset:2px;border-radius:4px;}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+
+/* shell */
+.shell{display:grid;grid-template-columns:212px 1fr;min-height:100vh;}
+.rail{border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:26px;
+  position:sticky;top:0;height:100vh;overflow:auto;}
+.brand{display:flex;gap:10px;align-items:center;padding:0 6px;}
+.glyph{width:30px;height:30px;border-radius:7px;background:var(--ink);color:var(--paper);
+  display:grid;place-items:center;font-weight:600;font-size:15px;flex:none;}
+.brand b{display:block;font-size:15px;line-height:1.2;}
+.brand span{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:0.04em;}
+.navlabel{font-family:var(--mono);font-size:10px;letter-spacing:0.13em;color:var(--coral);
+  text-transform:uppercase;padding:0 6px;margin-bottom:8px;}
+nav{display:flex;flex-direction:column;gap:1px;}
+.nav{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:var(--r);
+  color:var(--ink-2);text-decoration:none;font-size:13.5px;transition:background .12s;}
+.nav:hover{background:var(--surface-2);}
+.nav[aria-current="page"]{background:var(--ink);color:var(--paper);}
+.nav .dot{width:15px;height:15px;border-radius:4px;border:1px solid var(--line-2);flex:none;}
+.nav[aria-current="page"] .dot{border-color:transparent;background:var(--coral);}
+.nav .count{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--coral);}
+.whoami{margin-top:auto;border:1px solid var(--line);border-radius:var(--r);padding:9px 11px;background:var(--surface);}
+.whoami b{font-size:13px;font-weight:500;}
+.whoami span{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);}
+.proto{font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--ink-3);
+  border-top:1px solid var(--line);padding-top:12px;}
+.proto b{color:var(--coral);letter-spacing:0.1em;display:block;margin-bottom:4px;}
+
+main{min-width:0;}
+.topbar{display:flex;align-items:center;gap:14px;padding:14px 30px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);z-index:5;}
+.crumb{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);letter-spacing:0.03em;}
+.topbar .spacer{flex:1;}
+.tbtn{border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);border-radius:var(--r);
+  padding:6px 12px;font:inherit;font-size:12.5px;cursor:pointer;transition:border-color .12s,color .12s;}
+.tbtn:hover{border-color:var(--ink-4);color:var(--ink);}
+.tbtn.primary{background:var(--ink);border-color:var(--ink);color:var(--paper);}
+.kbd{font-family:var(--mono);font-size:10px;border:1px solid currentColor;border-radius:3px;
+  padding:0 3px;margin-left:6px;opacity:.55;}
+.avatar{width:28px;height:28px;border-radius:6px;background:var(--ink);color:var(--paper);
+  display:grid;place-items:center;font-family:var(--mono);font-size:11px;flex:none;}
+
+.page{padding:34px 30px 70px;max-width:1180px;}
+.band{margin-bottom:44px;}
+.eyebrow{display:flex;align-items:baseline;gap:12px;margin-bottom:14px;}
+.eyebrow h2{font-size:12px;font-family:var(--mono);letter-spacing:0.14em;text-transform:uppercase;
+  color:var(--ink-3);margin:0;font-weight:500;}
+.eyebrow .rule{flex:1;height:1px;background:var(--line);}
+.eyebrow .aside{font-family:var(--mono);font-size:11px;color:var(--ink-4);}
+
+/* headline */
+.hello{margin-bottom:26px;}
+.date{font-family:var(--mono);font-size:11px;letter-spacing:0.14em;color:var(--coral);text-transform:uppercase;}
+.hello h1{font-size:38px;line-height:1.1;margin:8px 0 6px;font-weight:600;letter-spacing:-0.025em;text-wrap:balance;}
+.hello p{margin:0;color:var(--ink-2);font-size:15px;max-width:56ch;}
+.hello p b{font-weight:600;color:var(--ink);}
+.hellorow{display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap;justify-content:space-between;}
+
+/* attention cards */
+.attn{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:16px 16px 14px;display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden;
+  text-align:left;font:inherit;color:inherit;cursor:pointer;transition:border-color .14s,transform .14s;}
+.card:hover{border-color:var(--line-2);transform:translateY(-1px);}
+.card::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--line-2);}
+.card.now::before{background:var(--coral);}
+.card.soon::before{background:var(--warn);}
+.card.calm::before{background:var(--calm);}
+.card .when{font-family:var(--mono);font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;}
+.card.now .when{color:var(--coral);}
+.card.soon .when{color:var(--warn);}
+.card.calm .when{color:var(--calm);}
+.card h3{margin:0;font-size:16px;font-weight:600;line-height:1.3;letter-spacing:-0.015em;}
+.card .who{color:var(--ink-2);font-size:13px;margin:0;}
+.card .meta{margin-top:auto;padding-top:10px;border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-4);display:flex;gap:8px;align-items:center;}
+.card .go{margin-left:auto;color:var(--ink-3);}
+
+/* queue */
+.queue{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);overflow:hidden;}
+.qhead{display:flex;align-items:center;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line);}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:7px;padding:2px;gap:2px;}
+.seg button{border:0;background:transparent;font:inherit;font-size:12.5px;color:var(--ink-3);
+  padding:4px 11px;border-radius:5px;cursor:pointer;}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper);}
+.qhead .spacer{flex:1;}
+.qhead .n{font-family:var(--mono);font-size:11px;color:var(--ink-4);}
+.qrow{display:grid;grid-template-columns:64px 1fr auto;gap:14px;align-items:center;
+  padding:11px 14px;border-top:1px solid var(--line);cursor:pointer;}
+.qrow:first-of-type{border-top:0;}
+.qrow:hover{background:var(--tint-1);}
+.tag{font-family:var(--mono);font-size:9.5px;letter-spacing:0.09em;padding:3px 0;border-radius:4px;
+  text-align:center;text-transform:uppercase;border:1px solid transparent;}
+.tag.call{background:var(--coral);color:#fff;}
+.tag.send{background:var(--ink);color:var(--paper);}
+.tag.review{background:var(--tint-2);color:var(--coral-deep);}
+.tag.wait{border-color:var(--line-2);color:var(--ink-4);}
+.tag.done{border-color:var(--line-2);color:var(--calm);}
+.qrow .t{font-size:14px;}
+.qrow .s{font-family:var(--mono);font-size:10.5px;color:var(--ink-4);}
+.qrow .due{font-family:var(--mono);font-size:11px;color:var(--ink-3);text-align:right;}
+.qrow .due.hot{color:var(--coral);}
+.pane[hidden]{display:none;}
+
+/* pipeline */
+.filters{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.chip{border:1px solid var(--line-2);background:transparent;color:var(--ink-2);border-radius:20px;
+  padding:4px 12px;font:inherit;font-size:12.5px;cursor:pointer;}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper);}
+.roles{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+.role{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  display:grid;grid-template-columns:1.5fr 1.35fr auto;gap:20px;align-items:center;padding:14px 16px;
+  cursor:pointer;transition:border-color .14s;}
+.role:hover{border-color:var(--line-2);}
+.role[data-flag="due"]{border-color:var(--tint-2);background:var(--tint-1);}
+.role .id{display:flex;gap:11px;align-items:flex-start;min-width:0;}
+.role h3{margin:0;font-size:15px;font-weight:600;letter-spacing:-0.015em;}
+.role .sub{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);}
+.role .last{font-size:12.5px;color:var(--ink-2);margin:3px 0 0;}
+.mark{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;flex:none;
+  font-family:var(--mono);font-size:10px;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line);}
+
+/* stepper */
+.steps{display:flex;align-items:center;gap:0;}
+.step{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;
+  background:transparent;border:0;padding:0;cursor:pointer;font:inherit;}
+.step .bar{width:100%;height:4px;border-radius:2px;background:var(--line);}
+.step[data-s="done"] .bar{background:var(--ink-4);}
+.step[data-s="here"] .bar{background:var(--coral);}
+.step[data-s="block"] .bar{background:var(--warn);}
+.step .lb{font-family:var(--mono);font-size:9px;letter-spacing:0.05em;color:transparent;
+  white-space:nowrap;text-transform:uppercase;transition:color .12s;}
+.step[data-s="here"] .lb,.step[data-s="block"] .lb{color:var(--ink-2);}
+.steps:hover .lb{color:var(--ink-3);}
+.step+.step{margin-left:4px;}
+
+.score{display:flex;align-items:center;gap:10px;justify-content:flex-end;min-width:150px;}
+.big{width:44px;height:44px;border-radius:10px;background:var(--ink);color:var(--paper);
+  display:grid;place-items:center;font-family:var(--mono);font-size:16px;}
+.big.pale{background:var(--surface-2);color:var(--ink-3);border:1px solid var(--line);}
+.big.none{background:transparent;border:1px dashed var(--line-2);color:var(--ink-4);font-size:13px;}
+.delta{font-family:var(--mono);font-size:11px;}
+.delta.up{color:var(--coral);}
+.delta.down{color:var(--ink-4);}
+.delta small{display:block;color:var(--ink-4);font-size:10px;}
+svg.spark{display:block;}
+
+/* health */
+.health{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.stat{border:1px solid var(--line);border-radius:var(--r-lg);padding:15px 16px;background:var(--surface);}
+.stat .k{font-family:var(--mono);font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-3);}
+.stat .v{font-family:var(--mono);font-size:30px;line-height:1.2;margin-top:6px;}
+.stat .v em{font-style:normal;font-size:14px;color:var(--ink-3);}
+.stat .n{font-size:12.5px;color:var(--ink-2);margin-top:2px;}
+.stat .n b{color:var(--coral);font-weight:600;}
+
+.foot{font-family:var(--mono);font-size:11px;color:var(--ink-4);display:flex;gap:10px;
+  border-top:1px solid var(--line);padding-top:14px;}
+.foot b{color:var(--ink-3);letter-spacing:0.1em;}
+
+@media (max-width:1080px){
+  .attn{grid-template-columns:1fr;}
+  .role{grid-template-columns:1fr;gap:14px;}
+  .score{justify-content:flex-start;}
+  .health{grid-template-columns:1fr;}
+}
+@media (max-width:820px){
+  .shell{grid-template-columns:1fr;}
+  .rail{position:static;height:auto;flex-direction:row;align-items:center;overflow-x:auto;
+    border-right:0;border-bottom:1px solid var(--line);}
+  .rail nav{flex-direction:row;}
+  .navlabel,.whoami,.proto{display:none;}
+  .page{padding:22px 18px 60px;}
+  .hello h1{font-size:29px;}
+}
+</style>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="brand">
+      <div class="glyph">T</div>
+      <div><b>Tailr</b><span>for agencies</span></div>
+    </div>
+    <div>
+      <p class="navlabel">Agency</p>
+      <nav>
+        <a class="nav" href="#" aria-current="page"><span class="dot"></span>Today</a>
+        <a class="nav" href="#"><span class="dot"></span>Roles<span class="count mono">6</span></a>
+        <a class="nav" href="#"><span class="dot"></span>Candidates<span class="count mono">24</span></a>
+        <a class="nav" href="#"><span class="dot"></span>Clients</a>
+        <a class="nav" href="#"><span class="dot"></span>Reports</a>
+      </nav>
+    </div>
+    <div class="whoami">
+      <b>Rachel Morris</b>
+      <span>Whitfield &amp; Rowe</span>
+    </div>
+    <p class="proto"><b>PROTOTYPE</b>Decision support only. Every shortlist stays subject to recruiter judgment.</p>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <span class="crumb">Today</span>
+      <span class="spacer"></span>
+      <button class="tbtn" type="button">Search<span class="kbd">/</span></button>
+      <button class="tbtn primary" type="button">New role<span class="kbd">N</span></button>
+      <div class="avatar" title="Rachel Morris">RM</div>
+    </div>
+
+    <div class="page">
+
+      <section class="band hello">
+        <div class="hellorow">
+          <div>
+            <p class="date mono">Wednesday 6 August</p>
+            <h1>Three things need you before you log off.</h1>
+            <p>Everything else is running. <b>Halcyon</b> is the one that slips if you do nothing today.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
+        <div class="eyebrow">
+          <h2>Needs you now</h2><span class="rule"></span>
+          <span class="aside">sorted by what breaks first</span>
+        </div>
+        <div class="attn">
+          <button class="card now" type="button">
+            <span class="when mono">Promised end of day</span>
+            <h3>Send the Halcyon shortlist</h3>
+            <p class="who">Five candidates scored, top three ready. Nothing has gone out yet.</p>
+            <span class="meta mono">ROL-2401 &middot; Head of Growth<span class="go">Open shortlist &rarr;</span></span>
+          </button>
+          <button class="card soon" type="button">
+            <span class="when mono">In two hours</span>
+            <h3>Screening call with Priya Chandrasekhar</h3>
+            <p class="who">Script is prepared. Two probe questions still open from her CV.</p>
+            <span class="meta mono">ROL-2418 &middot; Meridian<span class="go">Open call sheet &rarr;</span></span>
+          </button>
+          <button class="card calm" type="button">
+            <span class="when mono">Waiting on you</span>
+            <h3>Three parsed CVs for Nine.co</h3>
+            <p class="who">Tailr read them an hour ago. They stay invisible to the client until you confirm.</p>
+            <span class="meta mono">ROL-2422 &middot; Senior PM<span class="go">Review parse &rarr;</span></span>
+          </button>
+        </div>
+      </section>
+
+      <section class="band">
+        <div class="eyebrow">
+          <h2>Queue</h2><span class="rule"></span>
+        </div>
+        <div class="queue">
+          <div class="qhead">
+            <div class="seg" role="group" aria-label="Queue view">
+              <button type="button" aria-pressed="true" data-pane="todo">Still to do</button>
+              <button type="button" aria-pressed="false" data-pane="done">Just happened</button>
+            </div>
+            <span class="spacer"></span>
+            <span class="n mono" id="qcount">5 open</span>
+          </div>
+
+          <div class="pane" id="pane-todo">
+            <div class="qrow"><span class="tag call mono">Call</span>
+              <div><p class="t" style="margin:0">Marcus Reinholt, follow up on relocation flexibility</p>
+                <span class="s">ROL-2418 &middot; Meridian &middot; Sr Backend Eng</span></div>
+              <span class="due mono">tomorrow</span></div>
+            <div class="qrow"><span class="tag wait mono">Chase</span>
+              <div><p class="t" style="margin:0">Client feedback overdue on Alex Chen, chase Priya at DataMinion</p>
+                <span class="s">ROL-2395 &middot; Senior ML Engineer</span></div>
+              <span class="due mono hot">2 days late</span></div>
+            <div class="qrow"><span class="tag review mono">Review</span>
+              <div><p class="t" style="margin:0">Kestrel Labs brief arrived, needs intake before parsing</p>
+                <span class="s">ROL-2372 &middot; VP Engineering</span></div>
+              <span class="due mono">today</span></div>
+            <div class="qrow"><span class="tag send mono">Send</span>
+              <div><p class="t" style="margin:0">Framewise expects a progress note, four calls still pending</p>
+                <span class="s">ROL-2388 &middot; Principal Designer &middot; owner Jamie</span></div>
+              <span class="due mono">Friday</span></div>
+            <div class="qrow"><span class="tag call mono">Call</span>
+              <div><p class="t" style="margin:0">Book the second Meridian panel slot with Ada Okafor</p>
+                <span class="s">ROL-2418 &middot; client asked for Thursday</span></div>
+              <span class="due mono">this week</span></div>
+          </div>
+
+          <div class="pane" id="pane-done" hidden>
+            <div class="qrow"><span class="tag done mono">Done</span>
+              <div><p class="t" style="margin:0">You marked Ada Okafor reviewed, her score moved 92 to 99</p>
+                <span class="s">12 min ago &middot; Meridian &middot; Sr Backend Eng</span></div>
+              <span class="due mono">12m</span></div>
+            <div class="qrow"><span class="tag done mono">Client</span>
+              <div><p class="t" style="margin:0">Halcyon opened your shortlist portal</p>
+                <span class="s">2 hours ago &middot; Head of Growth</span></div>
+              <span class="due mono">2h</span></div>
+            <div class="qrow"><span class="tag done mono">Tailr</span>
+              <div><p class="t" style="margin:0">Three CVs parsed for Nine.co, awaiting your confirmation</p>
+                <span class="s">3 hours ago &middot; Senior PM</span></div>
+              <span class="due mono">3h</span></div>
+            <div class="qrow"><span class="tag done mono">Team</span>
+              <div><p class="t" style="margin:0">Jamie completed the screening call with Rowan Blake</p>
+                <span class="s">yesterday &middot; Framewise &middot; Principal Designer</span></div>
+              <span class="due mono">1d</span></div>
+            <div class="qrow"><span class="tag done mono">Won</span>
+              <div><p class="t" style="margin:0">Offer accepted, Marina Petrova joins Marigold as Head of Data</p>
+                <span class="s">2 days ago &middot; role closed at 24 days</span></div>
+              <span class="due mono">2d</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
+        <div class="eyebrow">
+          <h2>Live roles</h2><span class="rule"></span>
+          <span class="aside">6 live &middot; 1 filled this week</span>
+        </div>
+        <div class="filters" role="group" aria-label="Filter roles">
+          <button class="chip" type="button" aria-pressed="true" data-f="all">All</button>
+          <button class="chip" type="button" aria-pressed="false" data-f="mine">Mine</button>
+          <button class="chip" type="button" aria-pressed="false" data-f="due">Needs action</button>
+          <button class="chip" type="button" aria-pressed="false" data-f="closed">Closed</button>
+        </div>
+        <div class="roles" id="roles"></div>
+      </section>
+
+      <section class="band">
+        <div class="eyebrow">
+          <h2>Desk health</h2><span class="rule"></span>
+          <span class="aside">rolling 90 days</span>
+        </div>
+        <div class="health">
+          <div class="stat">
+            <p class="k">Brief to first shortlist</p>
+            <p class="v">6.2<em> days</em></p>
+            <p class="n">Down from 9.1 last quarter. <b>Kestrel is at day 1</b> and has not been parsed.</p>
+          </div>
+          <div class="stat">
+            <p class="k">Shortlist to client reply</p>
+            <p class="v">3.4<em> days</em></p>
+            <p class="n">Two roles are past that today. <b>DataMinion is at 5</b>.</p>
+          </div>
+          <div class="stat">
+            <p class="k">Submitted candidates accepted</p>
+            <p class="v">82<em>%</em></p>
+            <p class="n">Four points above Q2. Overrides after a call explain most of the lift.</p>
+          </div>
+        </div>
+      </section>
+
+      <p class="foot mono"><b>NOTE</b> Only the Meridian role carries seeded data in this prototype. Other roles are illustrative and still open into the Meridian flow.</p>
+    </div>
+  </main>
+</div>
+
+<script>
+const STEPS=["Intake","Parse","Add","Calls","Compare","Detail","Submit"];
+const ROLES=[
+ {m:"H",t:"Head of Growth",c:"Halcyon",pay:"&pound;95k to &pound;120k plus equity",id:"ROL-2401",own:"Rachel",mine:true,
+  step:4,state:"block",flag:"due",age:12,score:91,d:3,hist:[71,74,80,84,88,91],
+  last:"Client asked for the shortlist by end of day, two hours ago"},
+ {m:"M",t:"Senior Backend Engineer, Payments",c:"Meridian",pay:"&pound;110k to &pound;135k",id:"ROL-2418",own:"Rachel",mine:true,
+  step:5,state:"here",age:6,score:99,d:7,hist:[78,83,86,90,92,99],
+  last:"You marked Ada Okafor reviewed, 12 minutes ago"},
+ {m:"D",t:"Senior ML Engineer",c:"DataMinion",pay:"&pound;130k to &pound;160k",id:"ROL-2395",own:"Rachel",mine:true,
+  step:7,state:"block",flag:"due",age:18,score:88,d:5,hist:[70,75,79,83,85,88],
+  last:"Sent to the client 5 days ago, no reply yet"},
+ {m:"F",t:"Principal Designer",c:"Framewise",pay:"&pound;120k to &pound;140k",id:"ROL-2388",own:"Jamie",mine:false,
+  step:4,state:"here",age:9,score:84,d:-2,hist:[88,87,86,86,85,84],
+  last:"Jamie completed the call with Rowan Blake, yesterday"},
+ {m:"N",t:"Senior Product Manager",c:"Nine.co",pay:"&pound;90k to &pound;110k",id:"ROL-2422",own:"Rachel",mine:true,
+  step:2,state:"here",age:3,score:null,hist:null,
+  last:"Three CVs parsed an hour ago, waiting on your review"},
+ {m:"K",t:"VP Engineering",c:"Kestrel Labs",pay:"&pound;180k to &pound;220k",id:"ROL-2372",own:"Rachel",mine:true,
+  step:1,state:"here",age:1,score:null,hist:null,
+  last:"Brief received yesterday, intake not started"},
+ {m:"M",t:"Head of Data",c:"Marigold",pay:"&pound;140k to &pound;170k",id:"ROL-2360",own:"Rachel",mine:true,closed:true,
+  step:7,state:"done",age:24,score:94,d:11,hist:[80,84,86,89,92,94],
+  last:"Marina Petrova accepted, closed at 24 days"}
+];
+
+function spark(h,rising){
+  if(!h) return "";
+  const w=52,ht=20,mn=Math.min(...h),mx=Math.max(...h),r=(mx-mn)||1;
+  const pts=h.map((v,i)=>[i*(w/(h.length-1)),ht-((v-mn)/r)*(ht-4)-2]);
+  const d=pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");
+  const col=rising?"var(--coral)":"var(--ink-4)";
+  return `<svg class="spark" width="${w}" height="${ht}" aria-hidden="true">
+    <path d="${d}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linejoin="round"/>
+    <circle cx="${pts.at(-1)[0].toFixed(1)}" cy="${pts.at(-1)[1].toFixed(1)}" r="2.4" fill="${col}"/></svg>`;
+}
+
+function stepper(step,state){
+  return `<div class="steps">`+STEPS.map((s,i)=>{
+    const n=i+1;
+    let st="todo";
+    if(n<step) st="done";
+    else if(n===step) st=(state==="block"?"block":state==="done"?"done":"here");
+    else if(state==="done") st="done";
+    return `<button class="step" type="button" data-s="${st}" title="${n}. ${s}">
+      <span class="bar"></span><span class="lb">${s}</span></button>`;
+  }).join("")+`</div>`;
+}
+
+function render(filter){
+  const list=ROLES.filter(r=>{
+    if(filter==="closed") return r.closed;
+    if(r.closed) return false;
+    if(filter==="mine") return r.mine;
+    if(filter==="due") return r.flag==="due";
+    return true;
+  });
+  document.getElementById("roles").innerHTML=list.map(r=>{
+    const sc = r.score==null
+      ? `<div class="big none mono">&mdash;</div><span class="delta"><small>no candidates scored</small></span>`
+      : `<div class="big ${r.closed?"pale":""} mono">${r.score}</div>
+         <span class="delta ${r.d>0?"up":"down"} mono">${r.d>0?"+":""}${r.d}<small>since parse</small></span>
+         ${spark(r.hist,r.d>0)}`;
+    return `<article class="role" ${r.flag?`data-flag="${r.flag}"`:""} tabindex="0">
+      <div class="id">
+        <span class="mark mono">${r.m}</span>
+        <div style="min-width:0">
+          <h3>${r.t}</h3>
+          <p class="sub mono">${r.id} &middot; ${r.c} &middot; ${r.pay} &middot; day ${r.age}${r.own!=="Rachel"?" &middot; "+r.own:""}</p>
+          <p class="last">${r.last}</p>
+        </div>
+      </div>
+      ${stepper(r.step,r.state)}
+      <div class="score">${sc}</div>
+    </article>`;
+  }).join("") || `<p class="mono" style="color:var(--ink-4)">Nothing here.</p>`;
+}
+render("all");
+
+document.querySelectorAll(".chip").forEach(c=>c.addEventListener("click",()=>{
+  document.querySelectorAll(".chip").forEach(o=>o.setAttribute("aria-pressed","false"));
+  c.setAttribute("aria-pressed","true");
+  render(c.dataset.f);
+}));
+
+document.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".seg button").forEach(o=>o.setAttribute("aria-pressed","false"));
+  b.setAttribute("aria-pressed","true");
+  const todo=b.dataset.pane==="todo";
+  document.getElementById("pane-todo").hidden=!todo;
+  document.getElementById("pane-done").hidden=todo;
+  document.getElementById("qcount").textContent=todo?"5 open":"5 in the last 2 days";
+}));
+</script>
