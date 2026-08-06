@@ -8,3 +8,12 @@
 -- runs again for the new target.
 alter table public.career_roadmaps
   add column if not exists plan_started_at timestamptz;
+
+-- Backfill EXISTING paths as already-reviewed. Without this, everyone with a
+-- live path gets sent back to a "review your plan" gate for a path they have
+-- been working for weeks — the review is for newly locked targets only.
+update public.career_roadmaps
+   set plan_started_at = coalesce(updated_at, created_at, now())
+ where plan_started_at is null
+   and target_role is not null
+   and target_role <> '';
