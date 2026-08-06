@@ -12,6 +12,7 @@ import {
   recentCohortActivation,
   distinctRunDaysByUser,
   maskUserId,
+  userLabel,
   median,
   weekStartUtc,
   timeToFirstTailorHours,
@@ -51,6 +52,15 @@ describe('distinctRunDaysByUser', () => {
 describe('maskUserId', () => {
   it('shows only the last four hex chars', () => {
     expect(maskUserId('aaaaaaaa-bbbb-cccc-dddd-eeeeffff1234')).toBe('User ··1234')
+  })
+})
+
+describe('userLabel', () => {
+  it('prefers email over masked id', () => {
+    expect(userLabel('aaaaaaaa-bbbb-cccc-dddd-eeeeffff1234', 'a@example.com')).toBe(
+      'a@example.com',
+    )
+    expect(userLabel('aaaaaaaa-bbbb-cccc-dddd-eeeeffff1234', '')).toBe('User ··1234')
   })
 })
 
@@ -228,9 +238,13 @@ describe('buildWeeklyCohorts', () => {
 })
 
 describe('buildStuckBuckets', () => {
-  it('masks ids and never exposes raw uuids as emails', () => {
+  it('shows email when available', () => {
     const stuck = buildStuckBuckets({
-      users: [{ id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeffff9999', created_at: iso(10) }],
+      users: [{
+        id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeffff9999',
+        created_at: iso(10),
+        email: 'stuck@example.com',
+      }],
       profiles: [{ id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeffff9999', tailors_used: 0 }],
       runs: [],
       tracked: [],
@@ -238,8 +252,18 @@ describe('buildStuckBuckets', () => {
     })
     const never = stuck.find((b) => b.key === 'never_tailored')!
     expect(never.count).toBe(1)
-    expect(never.users[0]).toBe('User ··9999')
-    expect(never.users[0]).not.toContain('@')
+    expect(never.users[0]).toBe('stuck@example.com')
+  })
+
+  it('falls back to masked id when email is missing', () => {
+    const stuck = buildStuckBuckets({
+      users: [{ id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeffff9999', created_at: iso(10) }],
+      profiles: [{ id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeffff9999', tailors_used: 0 }],
+      runs: [],
+      tracked: [],
+      now: new Date(),
+    })
+    expect(stuck.find((b) => b.key === 'never_tailored')!.users[0]).toBe('User ··9999')
   })
 })
 
@@ -352,24 +376,39 @@ describe('buildVolumeMetrics', () => {
     expect(v.offers).toBe(1)
     expect(v.signupsPerDay).toHaveLength(30)
     expect(v.tailorsPerDay).toHaveLength(14)
-    expect(v.topTailorers[0]).toEqual({ mask: 'User ··A', tailors: 3 })
+    expect(v.topTailorers[0]).toEqual({
+      label: 'User ··A',
+      email: null,
+      tailors: 3,
+    })
+  })
+
+  it('labels top tailorers with email when present', () => {
+    const v = buildVolumeMetrics({
+      users: [{ id: 'a', created_at: iso(1), email: 'top@example.com' }],
+      profiles: [{ id: 'a', tailors_used: 4, plan: 'free' }],
+      runs30d: [{ user_id: 'a', created_at: iso(1) }],
+      tracked: [],
+    })
+    expect(v.topTailorers[0].label).toBe('top@example.com')
+    expect(v.topTailorers[0].email).toBe('top@example.com')
   })
 })
 
 describe('buildProductHealth', () => {
-  it('returns a complete payload without PII fields', () => {
+  it('returns activity directory with emails for admin viewers', () => {
     const health = buildProductHealth({
-      users: [{ id: 'a', created_at: iso(5) }],
+      users: [{ id: 'a', created_at: iso(5), email: 'a@example.com', last_sign_in_at: iso(1) }],
       profiles: [{ id: 'a', tailors_used: 1 }],
       runs: [{ user_id: 'a', created_at: iso(4), match_score: 80 }],
       tracked: [{ user_id: 'a', status: 'saved' }],
+      recentLogins: [{ email: 'a@example.com', created_at: iso(1) }],
     })
     expect(health.headlines.weeklyActiveTailorers).toBeGreaterThanOrEqual(0)
     expect(health.volume.totalUsers).toBe(1)
+    expect(health.activity.users[0].email).toBe('a@example.com')
+    expect(health.activity.recentLogins[0].email).toBe('a@example.com')
     expect(health.outcomeFunnel.length).toBe(7)
-    expect(health.stuck.every((b) => b.users.every((u) => u.startsWith('User ··')))).toBe(true)
-    const json = JSON.stringify(health)
-    expect(json).not.toMatch(/@/)
-    expect(json).not.toMatch(/"email"/)
+    expect(JSON.stringify(health)).not.toMatch(/"ip"/)
   })
 })

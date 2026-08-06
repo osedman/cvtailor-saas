@@ -17,10 +17,11 @@ function daysAgo(n: number): string {
   return d.toISOString()
 }
 
-/** Paginate auth users — listUsers caps at 1000 per page. No emails returned. */
+/** Paginate auth users — listUsers caps at 1000 per page. Emails for admin drill-down. */
 async function listAllUsers(admin: ReturnType<typeof createAdminClient>) {
   const users: Array<{
     id: string
+    email: string
     created_at: string
     last_sign_in_at: string | null
   }> = []
@@ -32,6 +33,7 @@ async function listAllUsers(admin: ReturnType<typeof createAdminClient>) {
     for (const u of batch) {
       users.push({
         id: u.id,
+        email: u.email ?? '',
         created_at: u.created_at,
         last_sign_in_at: u.last_sign_in_at ?? null,
       })
@@ -82,11 +84,12 @@ export async function GET() {
         .select('user_id, created_at, match_score, feedback, edited_at, cover_letter')
         .gte('created_at', since30),
       admin.from('job_tracker').select('user_id, status, created_at, updated_at'),
-      // Timestamps only — never return email/IP/UA to the client
+      // Email + timestamp for admin activity (no IP / user-agent)
       admin
         .from('login_events')
-        .select('created_at')
+        .select('email, created_at')
         .gte('created_at', since30)
+        .order('created_at', { ascending: false })
         .limit(5000),
       admin.from('career_roadmaps').select('user_id, target_role'),
       admin.from('career_roadmap_items').select('user_id, status'),
@@ -119,7 +122,7 @@ export async function GET() {
       created_at: string
       updated_at: string | null
     }
-    type RowLogin = { created_at: string }
+    type RowLogin = { email: string | null; created_at: string }
 
     const roadmaps = (roadmapsRes.error ? [] : (roadmapsRes.data ?? [])) as RowRoadmap[]
     const roadmapItems = (roadmapItemsRes.error ? [] : (roadmapItemsRes.data ?? [])) as RowItem[]
@@ -129,9 +132,12 @@ export async function GET() {
       ? 0
       : new Set(((evidenceRes.data ?? []) as RowUser[]).map((r) => r.user_id)).size
     const arcShares = arcSharesRes.error ? 0 : (arcSharesRes.count ?? 0)
-    const loginAts = (loginsRes.error ? [] : (loginsRes.data ?? []) as RowLogin[])
-      .map((l) => l.created_at)
-      .filter(Boolean)
+    const loginRows = (loginsRes.error ? [] : (loginsRes.data ?? [])) as RowLogin[]
+    const loginAts = loginRows.map((l) => l.created_at).filter(Boolean)
+    const recentLogins = loginRows
+      .filter((l) => (l.email ?? '').trim().length > 0)
+      .slice(0, 30)
+      .map((l) => ({ email: (l.email ?? '').trim(), created_at: l.created_at }))
 
     const profiles = ((profilesRes.data ?? []) as RowProfile[]).map((p) => ({
       id: p.id,
@@ -172,6 +178,7 @@ export async function GET() {
       runs30d: runs30,
       tracked,
       loginAts,
+      recentLogins,
       roadmaps: roadmaps.map((r) => ({
         user_id: r.user_id,
         target_role: r.target_role,

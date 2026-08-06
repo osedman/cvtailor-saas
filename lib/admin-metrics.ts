@@ -2,8 +2,9 @@
  * Admin product-health metrics.
  *
  * Pure functions: the API loads rows, this module turns them into the
- * aggregates the dashboard renders. No PII leaves this layer — masked ids
- * only. Every stage in a funnel is a strict subset of the one above it.
+ * payload the dashboard renders. Admin viewers see emails on drill-downs
+ * (stuck, top tailorers, activity). IPs/CVs/JD text stay off the wire.
+ * Every stage in a funnel is a strict subset of the one above it.
  */
 
 export interface MetricsProfile { id: string; tailors_used: number }
@@ -25,6 +26,7 @@ export interface MetricsUser {
   id: string
   created_at: string
   last_sign_in_at?: string | null
+  email?: string | null
 }
 
 export interface FunnelStage {
@@ -54,7 +56,7 @@ export interface StuckBucket {
   label: string
   meaning: string
   count: number
-  /** Masked ids only — never emails. */
+  /** Email when known; otherwise a masked id fallback. */
   users: string[]
 }
 
@@ -88,7 +90,7 @@ export interface DayCount {
   value: number
 }
 
-/** Classic volume counters + activity series. Aggregates only — no emails. */
+/** Classic volume counters + activity series. */
 export interface VolumeMetrics {
   totalUsers: number
   neverTailored: number
@@ -103,8 +105,26 @@ export interface VolumeMetrics {
   signupsPerDay: DayCount[]
   loginsPerDay: DayCount[]
   tailorsPerDay: DayCount[]
-  /** Masked ids only. */
-  topTailorers: Array<{ mask: string; tailors: number }>
+  topTailorers: Array<{ label: string; email: string | null; tailors: number }>
+}
+
+export interface ActivityLogin {
+  email: string
+  created_at: string
+}
+
+export interface ActivityUser {
+  id: string
+  email: string
+  created_at: string
+  last_sign_in_at: string | null
+  tailors_used: number
+  plan: string
+}
+
+export interface ActivityDirectory {
+  recentLogins: ActivityLogin[]
+  users: ActivityUser[]
 }
 
 export interface ProductHealth {
@@ -115,6 +135,7 @@ export interface ProductHealth {
     thirtyDayReturnRate: { rate: number; returned: number; activated: number }
   }
   volume: VolumeMetrics
+  activity: ActivityDirectory
   cohorts: CohortWeek[]
   outcomeFunnel: FunnelStage[]
   quality: QualityMetrics
@@ -130,11 +151,17 @@ export interface ProductHealth {
 const pct = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 100))
 const DAY = 86_400_000
 
-/** Mask a UUID for admin drill-down: "User ··A7F2". Never reverse-able to email. */
+/** Fallback label when email is missing: "User ··A7F2". */
 export function maskUserId(id: string): string {
   const clean = (id ?? '').replace(/-/g, '').toUpperCase()
   const tail = clean.slice(-4) || '????'
   return `User ··${tail}`
+}
+
+/** Prefer email for admin drill-down; fall back to a masked id. */
+export function userLabel(id: string, email?: string | null): string {
+  const trimmed = (email ?? '').trim()
+  return trimmed || maskUserId(id)
 }
 
 export function distinctRunDaysByUser(runs: MetricsRun[]): Map<string, number> {
@@ -538,8 +565,11 @@ export function buildStuckBuckets(input: {
       .map((i) => i.user_id),
   )
 
+  const emailById = new Map(
+    input.users.map((u) => [u.id, u.email ?? null] as const),
+  )
   const pick = (ids: string[]) =>
-    ids.slice(0, max).map(maskUserId)
+    ids.slice(0, max).map((id) => userLabel(id, emailById.get(id)))
 
   const neverTailored = input.users
     .filter((u) => {
@@ -708,6 +738,9 @@ export function buildVolumeMetrics(input: {
 }): VolumeMetrics {
   const now = input.now ?? new Date()
   const nowMs = now.getTime()
+  const emailById = new Map(
+    input.users.map((u) => [u.id, u.email ?? null] as const),
+  )
   const activeIn = (days: number) =>
     input.users.filter((u) => {
       if (!u.last_sign_in_at) return false
@@ -721,7 +754,14 @@ export function buildVolumeMetrics(input: {
     .sort((a, b) => (b.tailors_used ?? 0) - (a.tailors_used ?? 0))
     .slice(0, 5)
     .filter((p) => (p.tailors_used ?? 0) > 0)
-    .map((p) => ({ mask: maskUserId(p.id), tailors: p.tailors_used ?? 0 }))
+    .map((p) => {
+      const email = emailById.get(p.id) ?? null
+      return {
+        label: userLabel(p.id, email),
+        email,
+        tailors: p.tailors_used ?? 0,
+      }
+    })
 
   return {
     totalUsers: input.users.length,
@@ -747,6 +787,39 @@ export function buildVolumeMetrics(input: {
   }
 }
 
+export function buildActivityDirectory(input: {
+  users: MetricsUser[]
+  profiles: Array<MetricsProfile & { plan?: string | null }>
+  recentLogins?: ActivityLogin[]
+}): ActivityDirectory {
+  const planById = new Map(
+    input.profiles.map((p) => [p.id, {
+      tailors_used: p.tailors_used ?? 0,
+      plan: p.plan ?? 'free',
+    }] as const),
+  )
+  const users: ActivityUser[] = [...input.users]
+    .sort((a, b) =>
+      (b.last_sign_in_at ?? '').localeCompare(a.last_sign_in_at ?? ''),
+    )
+    .map((u) => {
+      const p = planById.get(u.id)
+      return {
+        id: u.id,
+        email: (u.email ?? '').trim() || maskUserId(u.id),
+        created_at: u.created_at,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+        tailors_used: p?.tailors_used ?? 0,
+        plan: p?.plan ?? 'free',
+      }
+    })
+
+  return {
+    recentLogins: (input.recentLogins ?? []).slice(0, 30),
+    users,
+  }
+}
+
 /** Assemble the full product-health payload for the admin API. */
 export function buildProductHealth(input: {
   users: MetricsUser[]
@@ -755,6 +828,7 @@ export function buildProductHealth(input: {
   runs30d?: MetricsRun[]
   tracked: MetricsTracked[]
   loginAts?: string[]
+  recentLogins?: ActivityLogin[]
   roadmaps?: Array<{ user_id: string; target_role?: string | null }>
   roadmapItems?: Array<{ user_id: string; status?: string }>
   careerProfiles?: Array<{ user_id: string }>
@@ -775,7 +849,7 @@ export function buildProductHealth(input: {
     `Outcome and quality metrics use the last ${windowDays} days of tailor runs unless labelled otherwise.`,
     'Activation and feature adoption are all-time counts of distinct users.',
     'Volume DAU/WAU/MAU use last_sign_in_at; weekly active tailorers count people who produced a CV.',
-    'Stuck buckets and top tailorers show masked ids only — never emails, CVs, or job text.',
+    'Drill-downs show emails for admin viewers. IPs, CVs, and job text are never returned.',
   ]
   if (input.profiles.length !== input.users.length) {
     notes.push(
@@ -799,6 +873,11 @@ export function buildProductHealth(input: {
       tracked: input.tracked,
       loginAts: input.loginAts,
       now,
+    }),
+    activity: buildActivityDirectory({
+      users: input.users,
+      profiles: input.profiles,
+      recentLogins: input.recentLogins,
     }),
     cohorts: buildWeeklyCohorts({
       users: input.users,
