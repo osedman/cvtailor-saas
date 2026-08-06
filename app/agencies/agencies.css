@@ -123,4 +123,12 @@
 .ag-matrix td.wash { background: var(--ag-tint-1); }
 .ag-delta { font-family: var(--ag-mono); font-size: 10.5px; color: var(--ag-coral); }
 .ag-doc { background: var(--ag-paper); border-radius: 10px; box-shadow: 0 20px 60px -30px rgba(0, 0, 0, 0.2); padding: 40px 44px; max-width: 720px; margin: 0 auto; }
+.ag-mark { background: var(--ag-tint-2); color: var(--ag-ink); padding: 0 3px; border-radius: 2px; box-decoration-break: clone; }
+.ag-quote { background: var(--ag-paper); border-left: 3px solid var(--ag-coral); padding: 12px 16px; font-size: 13px; font-style: italic; line-height: 1.6; }
+.ag-req-btn { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: none; padding: 12px 18px; cursor: pointer; font-family: var(--ag-sans); border-top: 1px solid var(--ag-border); }
+.ag-req-btn:hover { background: var(--ag-tint-1); }
+.ag-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ag-bar { flex: 1; height: 6px; background: var(--ag-bg-2); border-radius: 3px; overflow: hidden; }
+.ag-bar-fill { height: 100%; background: var(--ag-coral); }
+.ag-tabstrip { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
 @media (max-width: 900px) { .ag-grid-2 { grid-template-columns: 1fr; } .ag-sidebar { display: none; } }
