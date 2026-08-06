@@ -534,6 +534,12 @@ export default function AdminPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              href="/admin/insights"
+              className="rounded-lg border border-[#eee6da] bg-white px-3 py-2 text-[13px] text-[#1e1813]/70 hover:border-[#dc4f33]/40"
+            >
+              Insights & ops
+            </Link>
             {isAdminEmail(user?.email) && (
               <Link
                 href="/admin/courses"

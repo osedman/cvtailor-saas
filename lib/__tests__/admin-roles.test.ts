@@ -30,8 +30,9 @@ describe("admin roles", () => {
 })
 
 describe("admin route gating", () => {
-  it("read-only stats accepts viewers", () => {
+  it("read-only stats and insights accept viewers", () => {
     expect(read("app/api/admin/stats/route.ts")).toContain("isAdminViewer(user.email)")
+    expect(read("app/api/admin/insights/route.ts")).toContain("isAdminViewer(user.email)")
   })
 
   // The boundary that matters: anything that CHANGES state — approving courses

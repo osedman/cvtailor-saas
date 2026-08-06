@@ -31,7 +31,7 @@ Requested in the 27 Jul sync: every feature, one line, where it actually is.
 | Pace forecast + weekly digest | Staging | Done | Not yet | Port with career path |
 | Career Arc | Staging | Done | Not yet | Hold — not in sync priorities |
 | Font/design-system consistency | Staging (this commit) | **Fixed + guardrail test** | Pending Oje re-check | Verify on staging |
-| Admin dashboard: product health + volume (aggregates, masked) | Prod (shipping) | **Done** | — | Viewer role for oje; no emails/IPs in API |
+| Admin dashboard: product health + volume + insights | Prod | **Done** | — | `/admin` + `/admin/insights`; viewers see emails, not IPs |
 | Sentry activation | — | Inert, needs DSN | — | Low |
 | Free-tier quota enforcement | — | Not started | — | Med (needs Stripe) |
 | Recruitment platform prototype | Separate | Ideation only | — | **Paused pending Y's feedback** — by decision |
@@ -68,7 +68,8 @@ North Star in one cut, backfill at cutover.
 
 | Item | Type | PR | Notes |
 |------|------|----|-------|
-| **Admin product health + volume + viewer role** | Feature | — | 6 Aug. `/admin` rebuilt: activation/return/funnel/quality/features/stuck + restored volume (users, DAU/WAU/MAU, tailors, tracked jobs, daily charts). API returns aggregates only — masked ids, no emails/IPs. `ADMIN_VIEWER_EMAILS` (oje) can read stats; write routes stay full-admin. No migration |
+| **Admin product health + volume + viewer role** | Feature | — | 6 Aug. `/admin` rebuilt: activation/return/funnel/quality/features/stuck + restored volume (users, DAU/WAU/MAU, tailors, tracked jobs, daily charts). Emails restored for admin viewers; no IPs. `ADMIN_VIEWER_EMAILS` (oje) can read stats; write routes stay full-admin. No migration |
+| **Admin insights & ops page** | Feature | — | 6 Aug. `/admin/insights`: ops alerts, quality-by-outcome, time-to-X, quota pressure, feature retention, course ops summary, quiet-user watchlist. Read-only for viewers. No migration |
 | **Beta gate moved to the DB (`beta_access`, migration 017)** | Feature | — | Shipped 28 Jul (`94f1077`). Adding a tester is an INSERT, not a redeploy. Ose, Oje and Daniel inserted in BOTH prod and staging; admins always pass; `BETA_EMAILS` survives as an emergency override. 9 unit tests pin the decisions incl. DB-failure fallback. `isMarketEnabled()` now needs only `REED_API_KEY` |
 | **Career-path era → production (private beta)** | Feature | [#30](https://github.com/osedman/cvtailor-saas/pull/30) | Shipped 28 Jul (`04f3f12`), endpoints verified live. Gated by `BETA_EMAILS` (Ose, Oje, Daniel): North Star path, quick wins, Reed market, evidence, Career Arc. Ungated for all: 6 CV templates as real .docx, inline editing, font fixes. Prod DB migrated 012–016 (016 backfill verified). Open: prod env vars (BETA_EMAILS, REED_API_KEY, MARKET_INSIGHTS_ENABLED) + close PRs #6/#19 |
 | Custom domain gettailr.com | Chore | [#1](https://github.com/osedman/cvtailor-saas/pull/1) | Brand URLs moved to gettailr.com |

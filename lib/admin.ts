@@ -4,8 +4,8 @@
  * - ADMIN_EMAILS: full admin. The dashboard plus every admin API, including
  *   course review (approving what goes live) and course sync. Admin also
  *   implies career-path beta access — see lib/feature-gate.ts.
- * - ADMIN_VIEWER_EMAILS: read-only. The product-health dashboard only —
- *   aggregates and recent activity. No course review, no sync, no market
+ * - ADMIN_VIEWER_EMAILS: read-only. Product health + insights/ops dashboards
+ *   (aggregates, emails, activity). No course review, no sync, no market
  *   checks, and no beta implication. Use this for people who should watch the
  *   numbers without being able to change anything.
  */
