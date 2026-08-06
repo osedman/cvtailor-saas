@@ -32,7 +32,7 @@ export async function GET(
       )
     }
 
-    const [candidates, scores, evidence] = await Promise.all([
+    const [candidates, scores, evidence, reviews, decisions] = await Promise.all([
       auth.db
         .from("candidates")
         .select(
@@ -44,6 +44,14 @@ export async function GET(
       auth.db
         .from("candidate_evidence")
         .select("candidate_id, requirement_id, strength, quote, source_cite, origin"),
+      auth.db
+        .from("candidate_reviews")
+        .select("candidate_id, status, communication, motivation, availability, salary_confirm, notice_period, notes")
+        .eq("role_id", roleId),
+      auth.db
+        .from("recruiter_reviews")
+        .select("candidate_id, decision, decision_note")
+        .eq("role_id", roleId),
     ])
     if (candidates.error) throw candidates.error
 
@@ -52,6 +60,8 @@ export async function GET(
       candidates: candidates.data ?? [],
       scores: (scores.data ?? []).filter((s) => candidateIds.has(s.candidate_id)),
       evidence: (evidence.data ?? []).filter((e) => candidateIds.has(e.candidate_id)),
+      reviews: reviews.data ?? [],
+      decisions: decisions.data ?? [],
     })
   } catch (error) {
     return NextResponse.json(
