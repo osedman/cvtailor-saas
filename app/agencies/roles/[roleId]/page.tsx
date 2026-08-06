@@ -46,6 +46,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [paste, setPaste] = useState("")
+  const [jdUrl, setJdUrl] = useState("")
   const [submissionResult, setSubmissionResult] = useState<{ format: string; entries: number; links: Array<{ url: string }> } | null>(null)
   const [contacts, setContacts] = useState<Array<{ id: string; company: string; email: string; full_name: string }>>([])
   const [chosenContacts, setChosenContacts] = useState<string[]>([])
@@ -157,17 +158,26 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     if (step === "submission") loadContacts()
   }, [step, loadContacts])
 
-  async function extract() {
+  async function extract(payload?: { file?: File; url?: string }) {
     if (!role) return
     setBusy("extract")
     setError(null)
     try {
       await saveIntake()
-      const res = await fetch(`/api/agency/roles/${roleId}/parse`, { method: "POST" })
+      let init: RequestInit = { method: "POST" }
+      if (payload?.file) {
+        const form = new FormData()
+        form.append("file", payload.file)
+        init = { method: "POST", body: form }
+      } else if (payload?.url) {
+        init = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: payload.url }) }
+      }
+      const res = await fetch(`/api/agency/roles/${roleId}/parse`, init)
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? "Extraction failed")
       setRequirements(body.requirements ?? [])
       setConstraints((body.constraints ?? []).map((c: Constraint, i: number) => ({ ...c, id: c.id ?? String(i), ref: c.ref ?? `C0${i + 1}` })))
+      if (body.role) setRole(body.role)
       setStep("parse")
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -355,15 +365,30 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   <h1 className="ag-title">Paste the brief.<br />We&apos;ll structure it with you.</h1>
                   <p className="ag-sub">The job description and your notes are the input everything downstream is scored against.</p>
                 </div>
-                <button className="ag-btn ag-btn-primary" onClick={extract} disabled={busy !== null || !role.jd_raw.trim()}>
+                <button className="ag-btn ag-btn-primary" onClick={() => extract()} disabled={busy !== null || !role.jd_raw.trim()}>
                   {busy === "extract" ? <><span className="ag-spin" /> Extracting requirements</> : "Extract requirements"}
                 </button>
               </div>
               <div className="ag-grid-2">
                 <div className="ag-card">
-                  <div className="ag-card-head"><span className="ag-card-title">Job description</span><span className="ag-meta">The main source</span></div>
+                  <div className="ag-card-head">
+                    <span className="ag-card-title">Job description</span>
+                    <label className="ag-btn ag-btn-secondary" style={{ cursor: "pointer" }}>
+                      Upload the JD
+                      <input type="file" accept=".pdf,.docx,.txt" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) extract({ file: f }) }} />
+                    </label>
+                  </div>
                   <div className="ag-card-body">
                     <textarea className="ag-textarea jd" placeholder="Paste the client's job description here" value={role.jd_raw} onChange={(e) => patchRole({ jd_raw: e.target.value })} onBlur={saveIntake} />
+                    <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                      <input className="ag-input" placeholder="Or a link to the posting" value={jdUrl} onChange={(e) => setJdUrl(e.target.value)} />
+                      <button className="ag-btn ag-btn-secondary" onClick={() => jdUrl.trim() && extract({ url: jdUrl.trim() })} disabled={busy !== null || !jdUrl.trim()}>
+                        Fetch and extract
+                      </button>
+                    </div>
+                    <p style={{ fontSize: 11.5, color: "var(--ag-ink-4)", marginTop: 8 }}>
+                      Extraction fills any empty fields on the right from the JD. It never overwrites what you typed, and never touches your notes.
+                    </p>
                   </div>
                 </div>
                 <div className="ag-stack">
