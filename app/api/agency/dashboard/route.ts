@@ -76,22 +76,28 @@ export async function GET() {
       submissionsRes,
       contactsRes,
     ] = await Promise.all([
-      db.from("job_roles").select("id, ref, title, company, status, created_at, closed_at").eq("agency_id", ctx.agencyId).order("created_at", { ascending: false }),
+      db.from("job_roles").select("id, ref, title, company, salary_band, status, created_by, created_at, closed_at").eq("agency_id", ctx.agencyId).order("created_at", { ascending: false }),
       db.from("candidates").select("id, ref, full_name, role_id, parse_status, retention_expires_at").eq("agency_id", ctx.agencyId),
       db.from("candidate_reviews").select("candidate_id, status, communication, motivation").eq("agency_id", ctx.agencyId),
       db.from("recruiter_reviews").select("candidate_id, decision").eq("agency_id", ctx.agencyId),
       db.from("client_actions").select("id, candidate_ref, action, message, created_at, recipient_id").eq("agency_id", ctx.agencyId).order("created_at", { ascending: false }).limit(20),
-      db.from("client_actions").select("recipient_id").eq("agency_id", ctx.agencyId).limit(500),
+      db.from("client_actions").select("recipient_id, action, created_at").eq("agency_id", ctx.agencyId).limit(500),
       db.from("submission_recipients").select("id, submission_id, contact_id, created_at, expires_at, revoked_at, first_opened_at, last_opened_at").eq("agency_id", ctx.agencyId),
       db.from("candidate_notices").select("candidate_id, status, scheduled_for").eq("agency_id", ctx.agencyId).eq("status", "scheduled"),
       db.from("rights_requests").select("id, candidate_ref, kind, status, requested_at").eq("agency_id", ctx.agencyId).eq("status", "pending"),
-      db.from("audit_log").select("id, entity_type, entity_ref, action, created_at").eq("agency_id", ctx.agencyId).order("created_at", { ascending: false }).limit(12),
+      db.from("audit_log").select("id, role_id, entity_type, entity_ref, action, created_at").eq("agency_id", ctx.agencyId).order("created_at", { ascending: false }).limit(40),
       db.from("agencies").select("name, retention_days, notice_delay_days").eq("id", ctx.agencyId).maybeSingle(),
       db.from("score_breakdowns").select("candidate_id, overall, original_overall, effective, baselines").eq("agency_id", ctx.agencyId),
       db.from("requirements").select("id, ref, text, weight, role_id").eq("agency_id", ctx.agencyId),
-      db.from("submissions").select("id, role_id").eq("agency_id", ctx.agencyId),
+      db.from("submissions").select("id, role_id, created_at").eq("agency_id", ctx.agencyId),
       db.from("client_contacts").select("id, full_name, company").eq("agency_id", ctx.agencyId),
     ])
+
+    // Caller identity for the signed-in card. Email only, and only the
+    // caller's own — members has no name column.
+    const {
+      data: { user: caller },
+    } = await db.auth.getUser()
 
     const roles = rolesRes.data ?? []
     const candidates = candidatesRes.data ?? []
@@ -265,6 +271,13 @@ export async function GET() {
     // showed it, so a role's position was invisible until you opened it.
     // Derived from data this route already loads: no extra queries.
     const submissionRoleIds = new Set((submissionsRes.data ?? []).map((s) => s.role_id))
+
+    // Latest audit row per role: the "last activity" line on role rows and
+    // the raw material for the queue's Just happened view.
+    const lastAuditByRole = new Map<string, { entity_ref: string; entity_type: string; action: string; created_at: string }>()
+    for (const entry of auditRes.data ?? []) {
+      if (entry.role_id && !lastAuditByRole.has(entry.role_id)) lastAuditByRole.set(entry.role_id, entry)
+    }
     const recipientsByRole = new Map<string, typeof activeRecipients>()
     for (const r of activeRecipients) {
       const roleId = submissionRole.get(r.submission_id)
@@ -316,6 +329,7 @@ export async function GET() {
 
       let top_score: number | null = null
       let top_delta: number | null = null
+      let top_original: number | null = null
       let top_name = ""
       for (const c of readable) {
         const sb = breakdownByCand.get(c.id)
@@ -323,21 +337,26 @@ export async function GET() {
         if (top_score === null || sb.overall > top_score) {
           top_score = sb.overall
           top_name = c.full_name
-          top_delta =
+          top_original =
             sb.original_overall === null || sb.original_overall === undefined
               ? null
-              : Math.round(sb.overall - sb.original_overall)
+              : Math.round(sb.original_overall)
+          top_delta = top_original === null ? null : Math.round(sb.overall - top_original)
         }
       }
 
+      const lastAudit = lastAuditByRole.get(role.id)
       return {
         id: role.id,
         ref: role.ref,
         title: role.title,
         company: role.company,
+        salary_band: role.salary_band,
         status: role.status,
         created_at: role.created_at,
         closed_at: role.closed_at,
+        mine: role.created_by === ctx.userId,
+        days_open: Math.max(1, Math.round((now - new Date(role.created_at).getTime()) / DAY)),
         candidate_count: mine.length,
         stage,
         stage_state,
@@ -345,7 +364,11 @@ export async function GET() {
         needs_action: stage_state === "blocked",
         top_score: top_score === null ? null : Math.round(top_score),
         top_delta,
+        top_original,
         top_name,
+        last_activity: lastAudit
+          ? { entity_ref: lastAudit.entity_ref, entity_type: lastAudit.entity_type, action: lastAudit.action, created_at: lastAudit.created_at }
+          : null,
       }
     })
 
@@ -362,9 +385,108 @@ export async function GET() {
       ? { role_id: focusRole.id, title: focusRole.title, company: focusRole.company, reason: focusRole.needs }
       : null
 
+    // ---- Desk health: three numbers that each name their breach ----------
+    // Rolling 90 days. Every stat carries the row currently violating it, so
+    // none of them is decoration.
+    const since = now - 90 * DAY
+    const recipientById = new Map((recipientsRes.data ?? []).map((r) => [r.id, r]))
+
+    // Brief to first shortlist: role created -> first submission.
+    const firstSubmissionByRole = new Map<string, number>()
+    for (const s of submissionsRes.data ?? []) {
+      const t = new Date(s.created_at).getTime()
+      const prev = firstSubmissionByRole.get(s.role_id)
+      if (prev === undefined || t < prev) firstSubmissionByRole.set(s.role_id, t)
+    }
+    const briefSamples: number[] = []
+    for (const role of roles) {
+      const first = firstSubmissionByRole.get(role.id)
+      if (first !== undefined && first >= since) briefSamples.push((first - new Date(role.created_at).getTime()) / DAY)
+    }
+    const unsentOldest = openCards
+      .filter((r) => !firstSubmissionByRole.has(r.id))
+      .sort((a, b) => b.days_open - a.days_open)[0]
+
+    // Shortlist to client reply: first send of a submission -> first action
+    // on any of its recipients.
+    const firstSendBySubmission = new Map<string, number>()
+    for (const r of recipientsRes.data ?? []) {
+      const t = new Date(r.created_at).getTime()
+      const prev = firstSendBySubmission.get(r.submission_id)
+      if (prev === undefined || t < prev) firstSendBySubmission.set(r.submission_id, t)
+    }
+    const firstActionBySubmission = new Map<string, number>()
+    for (const a of allActionRecipientsRes.data ?? []) {
+      const rec = recipientById.get(a.recipient_id)
+      if (!rec) continue
+      const t = new Date(a.created_at).getTime()
+      const prev = firstActionBySubmission.get(rec.submission_id)
+      if (prev === undefined || t < prev) firstActionBySubmission.set(rec.submission_id, t)
+    }
+    const replySamples: number[] = []
+    for (const [submissionId, sent] of firstSendBySubmission) {
+      const acted = firstActionBySubmission.get(submissionId)
+      if (acted !== undefined && acted >= since) replySamples.push((acted - sent) / DAY)
+    }
+    let silentDays = 0
+    let silentRoleTitle = ""
+    for (const [submissionId, sent] of firstSendBySubmission) {
+      if (firstActionBySubmission.has(submissionId)) continue
+      const days = (now - sent) / DAY
+      if (days > silentDays) {
+        silentDays = days
+        const roleId = submissionRole.get(submissionId)
+        silentRoleTitle = roleId ? roleById.get(roleId)?.title ?? "" : ""
+      }
+    }
+
+    // Positive client responses: of the client actions received, the share
+    // that moved a candidate forward. Signals only — declines change nothing.
+    const recent = (allActionRecipientsRes.data ?? []).filter((a) => new Date(a.created_at).getTime() >= since)
+    const positive = recent.filter((a) => a.action === "interview" || a.action === "approve").length
+    const avg = (xs: number[]) => (xs.length === 0 ? null : xs.reduce((s, x) => s + x, 0) / xs.length)
+
+    const health = {
+      brief_to_shortlist: {
+        days: avg(briefSamples) === null ? null : Math.round(avg(briefSamples)! * 10) / 10,
+        breach: unsentOldest ? `${unsentOldest.title} is at day ${unsentOldest.days_open} with nothing sent` : "",
+      },
+      shortlist_to_reply: {
+        days: avg(replySamples) === null ? null : Math.round(avg(replySamples)! * 10) / 10,
+        breach: silentDays >= 1 && silentRoleTitle ? `${silentRoleTitle} has waited ${Math.round(silentDays)} day${Math.round(silentDays) === 1 ? "" : "s"}` : "",
+      },
+      positive_response: {
+        pct: recent.length === 0 ? null : Math.round((positive / recent.length) * 100),
+        n: recent.length,
+      },
+    }
+
+    // Client actions with their role attached, so a card can open the right
+    // submission instead of leaving the recruiter to hunt for it.
+    const actionRole = (recipientId: string | null) => {
+      if (!recipientId) return null
+      const rec = recipientById.get(recipientId)
+      const roleId = rec ? submissionRole.get(rec.submission_id) : undefined
+      return roleId ? { role_id: roleId, role_title: roleById.get(roleId)?.title ?? "" } : null
+    }
+
+    // Notices inside their window, named: the personalisation chance.
+    const candidateById = new Map(candidates.map((c) => [c.id, c]))
+    const noticesDetail = noticesDue
+      .map((n) => {
+        const c = candidateById.get(n.candidate_id)
+        return c
+          ? { candidate_id: c.id, ref: c.ref, full_name: c.full_name, role_id: c.role_id, role_title: roleById.get(c.role_id)?.title ?? "", scheduled_for: n.scheduled_for }
+          : null
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((a, b) => new Date(a.scheduled_for).getTime() - new Date(b.scheduled_for).getTime())
+      .slice(0, 5)
+
     return NextResponse.json({
       agency: agencyRes.data ?? null,
       caller_role: ctx.role,
+      caller_email: caller?.email ?? "",
       needs_you: {
         client_actions: (actionsRes.data ?? []).slice(0, 8).map((a) => ({
           id: a.id,
@@ -373,9 +495,12 @@ export async function GET() {
           action: a.action,
           message: a.message,
           created_at: a.created_at,
+          ...(actionRole(a.recipient_id) ?? { role_id: null, role_title: "" }),
         })),
         rights_requests: rightsRes.data ?? [],
       },
+      health,
+      notices_detail: noticesDetail,
       next_calls: nextCalls,
       client_heat: { opened_silent: openedSilent, never_opened: neverOpened },
       worth_a_look: worthALook.slice(0, 3),
