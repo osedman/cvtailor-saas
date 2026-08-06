@@ -5,7 +5,7 @@ import Link from "next/link"
 import { LogOut, ChevronDown, Clock, Kanban, ShieldCheck, Target, TrendingUp } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { SignInModal } from "@/components/auth/sign-in-modal"
-import { isAdminEmail } from "@/lib/admin"
+import { isAdminViewer } from "@/lib/admin"
 import { useCareerBeta } from "@/hooks/use-career-beta"
 
 interface HeaderProps {
@@ -95,7 +95,7 @@ export function Header({ onSignInClick, onHistoryClick, enhanced = false }: Head
                   <span className="hidden sm:block">Career Arc</span>
                 </Link>
                 </>)}
-                {isAdminEmail(user.email) && (
+                {isAdminViewer(user.email) && (
                   <Link
                     href="/admin"
                     className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-[#dc4f33] hover:bg-[#ffeae4] rounded-lg transition-colors"
