@@ -485,6 +485,7 @@ _Last updated: 30 July 2026_
 
 | Item | Type | PR | Notes |
 |------|------|----|-------|
+| Tailor results discovery (score CTAs, job-kit tabs, auto-scroll) | UX | — | Branch `fix/tailor-results-discovery` → staging. Score bar launches Gaps/CV/Cover letter; primary tabs CV·Gaps·Letter·Prep + More; post-tailor scrolls to results (Gaps if score &lt; 75) |
 | Admin product-health dashboard | Feature | — | Branch `feat/admin-product-health`. Server aggregates only; masked stuck segments; cohorts + outcome funnel + quality + feature adoption. No migration. Staging verify next |
 | Long-CV handling (Pass 0 compression, higher limits) | Feature | [#6](https://github.com/osedman/cvtailor-saas/pull/6) | Adds a Haiku pre-compress pass; awaiting review |
 | Career-memory Phase 1: pattern-spotting banner | Feature | [#19](https://github.com/osedman/cvtailor-saas/pull/19) | `staging` only, not merged. Client-side aggregation of weak-evidence keywords across tailor history (`lib/career-signal.ts`), dismissible banner on `/tailor` |

@@ -412,6 +412,41 @@ function FeedbackBar({ historyId }: { historyId: string }) {
   )
 }
 
+// "Upskill" was removed here: the per-run plan it wrote to tailor_history.upskill
+// fed nothing else in the product. It returns in Phase 4 reading from
+// career_roadmap_items, so closing a gap actually counts. See
+// docs/PROJECT.md and the Quick Wins plan.
+const tabs = [
+  "Tailored CV",
+  "Compare",
+  "Cover Letter",
+  "Interview Prep",
+  "Company",
+  "Key Changes",
+  "Gaps",
+  "Follow-ups",
+  "ATS Notes",
+] as const
+
+export type ResultTabName = (typeof tabs)[number]
+type TabName = ResultTabName
+
+/** Primary “job kit” — everything else lives under More. */
+const PRIMARY_TABS: TabName[] = ["Tailored CV", "Gaps", "Cover Letter", "Interview Prep"]
+const MORE_TABS: TabName[] = ["Compare", "Company", "Key Changes", "Follow-ups", "ATS Notes"]
+
+const TAB_ICONS: Record<TabName, LucideIcon> = {
+  "Tailored CV": FileText,
+  "Compare": GitCompare,
+  "Cover Letter": Mail,
+  "Interview Prep": MessagesSquare,
+  "Company": Building2,
+  "Key Changes": Pencil,
+  "Gaps": ListChecks,
+  "Follow-ups": MessagesSquare,
+  "ATS Notes": CheckCircle,
+}
+
 interface ResultsTabsProps {
   results: TailorResult
   coverLetter: string | null
@@ -437,36 +472,9 @@ interface ResultsTabsProps {
   onSaveCoverLetter?: (text: string) => Promise<void>
   /** Enhanced (gated) workspace styling */
   enhanced?: boolean
-}
-
-// "Upskill" was removed here: the per-run plan it wrote to tailor_history.upskill
-// fed nothing else in the product. It returns in Phase 4 reading from
-// career_roadmap_items, so closing a gap actually counts. See
-// docs/PROJECT.md and the Quick Wins plan.
-const tabs = [
-  "Tailored CV",
-  "Compare",
-  "Cover Letter",
-  "Interview Prep",
-  "Company",
-  "Key Changes",
-  "Gaps",
-  "Follow-ups",
-  "ATS Notes",
-] as const
-
-type TabName = (typeof tabs)[number]
-
-const TAB_ICONS: Record<TabName, LucideIcon> = {
-  "Tailored CV": FileText,
-  "Compare": GitCompare,
-  "Cover Letter": Mail,
-  "Interview Prep": MessagesSquare,
-  "Company": Building2,
-  "Key Changes": Pencil,
-  "Gaps": ListChecks,
-  "Follow-ups": MessagesSquare,
-  "ATS Notes": CheckCircle,
+  /** Controlled tab — when set, parent owns which tab is open. */
+  activeTab?: ResultTabName
+  onActiveTabChange?: (tab: ResultTabName) => void
 }
 
 export function ResultsTabs({
@@ -488,6 +496,8 @@ export function ResultsTabs({
   onSaveTailoredCV,
   onSaveCoverLetter,
   enhanced = false,
+  activeTab: controlledTab,
+  onActiveTabChange,
 }: ResultsTabsProps) {
   // Interview Prep only appears where a generator is wired up (the tailor page).
   // There, Follow-ups live inside the prep tab; in the read-only history view
@@ -499,8 +509,18 @@ export function ResultsTabs({
     if (t === "Company") return !!onGenerateCompany
     return true
   })
-  const [activeTab, setActiveTab] = useState<TabName>("Tailored CV")
+  const primaryTabs = PRIMARY_TABS.filter((t) => visibleTabs.includes(t))
+  const moreTabs = MORE_TABS.filter((t) => visibleTabs.includes(t))
+
+  const [internalTab, setInternalTab] = useState<TabName>("Tailored CV")
+  const activeTab = controlledTab ?? internalTab
+  const setActiveTab = (tab: TabName) => {
+    if (controlledTab === undefined) setInternalTab(tab)
+    onActiveTabChange?.(tab)
+  }
+
   const [copied, setCopied] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   // Hand-editing. One editor open at a time; the draft lives up here so
   // switching tabs mid-edit doesn't throw the user's work away.
   const [editing, setEditing] = useState<"cv" | "letter" | null>(null)
@@ -510,17 +530,38 @@ export function ResultsTabs({
   // tailor page and the history view can never disagree about it.
   const { template, setTemplate } = useCvTemplate()
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 })
-  const tabRefs = useRef<Map<TabName, HTMLButtonElement>>(new Map())
+  const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
+  const moreWrapRef = useRef<HTMLDivElement>(null)
+  const moreActive = moreTabs.includes(activeTab)
 
   useEffect(() => {
-    const activeButton = tabRefs.current.get(activeTab)
+    // When the parent opens a tab that isn't visible (e.g. Interview Prep on
+    // history), fall back to Tailored CV.
+    if (!visibleTabs.includes(activeTab) && visibleTabs[0]) {
+      setActiveTab(visibleTabs[0])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleTabs.join("|"), activeTab])
+
+  useEffect(() => {
+    const key = moreActive ? "__more__" : activeTab
+    const activeButton = tabRefs.current.get(key)
     if (activeButton) {
       setUnderlineStyle({
         left: activeButton.offsetLeft,
         width: activeButton.offsetWidth,
       })
     }
-  }, [activeTab])
+  }, [activeTab, moreActive, primaryTabs.length, moreTabs.length])
+
+  useEffect(() => {
+    if (!moreOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (!moreWrapRef.current?.contains(e.target as Node)) setMoreOpen(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    return () => document.removeEventListener("mousedown", onDoc)
+  }, [moreOpen])
 
   // Evidence bank, fetched once and shared by the CV chips and the rail.
   // Stays empty (and everything evidence-related stays hidden) for users
@@ -609,10 +650,10 @@ export function ResultsTabs({
 
   return (
     <div className="animate-slide-up relative z-10 bg-white">
-      {/* Tab bar */}
+      {/* Tab bar — primary job kit + More */}
       <div className="relative border-b border-gray-100">
-        <div className="flex gap-1 flex-wrap">
-          {visibleTabs.map((tab) => {
+        <div className="flex gap-1 flex-wrap items-center">
+          {primaryTabs.map((tab) => {
             const Icon = TAB_ICONS[tab]
             return (
               <button
@@ -632,6 +673,59 @@ export function ResultsTabs({
               </button>
             )
           })}
+          {moreTabs.length > 0 && (
+            <div className="relative" ref={moreWrapRef}>
+              <button
+                ref={(el) => {
+                  if (el) tabRefs.current.set("__more__", el)
+                }}
+                type="button"
+                onClick={() => setMoreOpen((o) => !o)}
+                aria-expanded={moreOpen}
+                aria-haspopup="menu"
+                className={`inline-flex items-center gap-1 px-4 py-3 text-sm transition-colors duration-150 ${
+                  moreActive
+                    ? "text-[#1e1813] font-medium"
+                    : enhanced ? "text-gray-400 hover:text-[#dc4f33]" : "text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                More
+                {moreActive && (
+                  <span className="text-[11px] font-normal text-[#1e1813]/45">· {activeTab}</span>
+                )}
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${moreOpen ? "rotate-180" : ""}`} />
+              </button>
+              {moreOpen && (
+                <div
+                  role="menu"
+                  className="absolute left-0 top-full z-20 mt-1 min-w-[11rem] rounded-xl border border-[#eee6da] bg-white py-1 shadow-lg"
+                >
+                  {moreTabs.map((tab) => {
+                    const Icon = TAB_ICONS[tab]
+                    return (
+                      <button
+                        key={tab}
+                        role="menuitem"
+                        type="button"
+                        onClick={() => {
+                          setActiveTab(tab)
+                          setMoreOpen(false)
+                        }}
+                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors ${
+                          activeTab === tab
+                            ? "bg-[#fff7f4] font-medium text-[#1e1813]"
+                            : "text-[#1e1813]/70 hover:bg-[#f9f6f0]"
+                        }`}
+                      >
+                        <Icon className="h-3.5 w-3.5 text-[#dc4f33]" />
+                        {tab}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         {/* Animated underline */}
         <div
