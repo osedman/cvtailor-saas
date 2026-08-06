@@ -1,113 +1,97 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
-  ArrowLeft, Loader2, Users, LogIn, Sparkles, Kanban,
-  RefreshCw, ShieldCheck, UserX,
+  ArrowLeft, Loader2, RefreshCw, ShieldCheck,
+  TrendingUp, Clock, Users, RotateCcw, AlertTriangle,
+  LogIn, Sparkles, Kanban,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-provider"
 import { isAdminEmail } from "@/lib/admin"
-import {
-  buildFunnel, activationRate, weeklyActiveTailorers,
-  recentCohortActivation, windowNote, type FunnelStage,
+import type {
+  ProductHealth, FunnelStage, CohortWeek, StuckBucket, VolumeMetrics, DayCount,
 } from "@/lib/admin-metrics"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
-interface AdminUser {
-  id: string
-  email: string
-  created_at: string
-  last_sign_in_at: string | null
-}
-interface LoginEvent {
-  user_id: string
-  email: string
-  created_at: string
-  ip: string
-  user_agent: string
-}
-interface Profile {
-  id: string
-  email: string
-  tailors_used: number
-  plan: string
-  created_at: string
-}
-interface TailorRun { user_id: string; created_at: string; match_score: number }
-interface TrackerJob { user_id: string; status: string; created_at: string }
-
-interface Stats {
-  users: AdminUser[]
-  loginEvents: LoginEvent[]
-  profiles: Profile[]
-  tailorRuns: TailorRun[]
-  trackerJobs: TrackerJob[]
+interface StatsPayload {
+  health: ProductHealth
   generatedAt: string
+  env: string
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────
+// ── Small UI primitives ────────────────────────────────────────────────
 
-function dayKey(iso: string) {
-  return iso.slice(0, 10)
+function Kpi({
+  icon, label, value, sub, delta,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  sub?: string
+  delta?: number | null
+}) {
+  return (
+    <div className="rounded-xl border border-[#eee6da] bg-[#fdfcf9] p-5">
+      <div className="flex items-center gap-2 text-[#1e1813]/60">
+        {icon}
+        <span className="text-[11px] font-medium uppercase tracking-wide">{label}</span>
+      </div>
+      <p className="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-[#1e1813]">
+        {value}
+      </p>
+      {sub && <p className="mt-1 text-[12px] text-[#1e1813]/55">{sub}</p>}
+      {delta != null && (
+        <p className={`mt-1 text-[11px] font-medium tabular-nums ${
+          delta > 0 ? "text-emerald-700" : delta < 0 ? "text-[#b3341b]" : "text-[#1e1813]/45"
+        }`}>
+          {delta > 0 ? "+" : ""}{delta}pp vs prior week
+        </p>
+      )}
+    </div>
+  )
 }
 
-function lastNDays(n: number): string[] {
-  const out: string[] = []
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    out.push(d.toISOString().slice(0, 10))
-  }
-  return out
+function Section({
+  title, meaning, children,
+}: {
+  title: string
+  meaning: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="rounded-xl border border-[#eee6da] bg-[#fdfcf9] p-5 sm:p-6">
+      <header className="mb-5">
+        <h2 className="text-lg font-semibold tracking-tight text-[#1e1813]">{title}</h2>
+        <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-[#1e1813]/55">{meaning}</p>
+      </header>
+      {children}
+    </section>
+  )
 }
 
-function fmtDateTime(iso: string | null) {
-  if (!iso) return "—"
-  const d = new Date(iso)
-  return d.toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
-}
-
-function relDay(iso: string | null) {
-  if (!iso) return "Never"
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
-  if (diff === 0) return "Today"
-  if (diff === 1) return "Yesterday"
-  return `${diff}d ago`
-}
-
-function browserOf(ua: string) {
-  if (/edg/i.test(ua)) return "Edge"
-  if (/chrome/i.test(ua)) return "Chrome"
-  if (/safari/i.test(ua)) return "Safari"
-  if (/firefox/i.test(ua)) return "Firefox"
-  return "Other"
-}
-
-// ── Bar chart (hand-rolled, no deps) ───────────────────────────────────
-
-function BarChart({ data, color = "#dc4f33", height = 120 }: {
-  data: { label: string; value: number }[]
+function BarChart({
+  data, color = "#dc4f33", height = 100,
+}: {
+  data: DayCount[]
   color?: string
   height?: number
 }) {
-  const max = Math.max(1, ...data.map(d => d.value))
+  const max = Math.max(1, ...data.map((d) => d.value))
   const showEvery = data.length > 14 ? 7 : data.length > 7 ? 2 : 1
-
   return (
     <div className="w-full">
       <div className="flex items-end gap-[3px]" style={{ height }}>
-        {data.map((d, i) => (
-          <div key={d.label} className="flex-1 flex flex-col items-center justify-end h-full group relative">
-            {/* Tooltip */}
-            <div className="absolute -top-7 hidden group-hover:block bg-[#1e1813] text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10">
+        {data.map((d) => (
+          <div key={d.label} className="group relative flex h-full flex-1 flex-col items-center justify-end">
+            <div className="absolute -top-7 z-10 hidden whitespace-nowrap rounded bg-[#1e1813] px-2 py-1 text-[10px] text-white group-hover:block">
               {d.label.slice(5)}: {d.value}
             </div>
             <div
-              className="w-full rounded-t transition-all duration-200 group-hover:opacity-80"
+              className="w-full rounded-t transition-all group-hover:opacity-80"
               style={{
                 height: `${(d.value / max) * 100}%`,
                 minHeight: d.value > 0 ? 3 : 1,
@@ -117,10 +101,10 @@ function BarChart({ data, color = "#dc4f33", height = 120 }: {
           </div>
         ))}
       </div>
-      <div className="flex gap-[3px] mt-1.5">
+      <div className="mt-1.5 flex gap-[3px]">
         {data.map((d, i) => (
           <div key={d.label} className="flex-1 text-center">
-            <span className="text-[8px] text-gray-300">
+            <span className="text-[8px] text-[#1e1813]/30">
               {i % showEvery === 0 ? d.label.slice(8) : ""}
             </span>
           </div>
@@ -130,116 +114,259 @@ function BarChart({ data, color = "#dc4f33", height = 120 }: {
   )
 }
 
-// ── Stat card ──────────────────────────────────────────────────────────
-
-function StatCard({ icon, label, value, sub }: {
-  icon: React.ReactNode
-  label: string
-  value: string | number
-  sub?: string
-}) {
+function VolumeSection({ v }: { v: VolumeMetrics }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-center gap-2 text-gray-400">
-        {icon}
-        <span className="text-[11px] font-medium uppercase tracking-wide">{label}</span>
+    <Section
+      title="Volume & activity"
+      meaning="The old dashboard counters — useful for scale, not for whether the product works. Sign-ins are last_sign_in_at; tailor activity is runs."
+    >
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi
+          icon={<Users className="h-3.5 w-3.5" />}
+          label="Total users"
+          value={String(v.totalUsers)}
+          sub={`${v.neverTailored} never tailored · ${v.proUsers} pro`}
+        />
+        <Kpi
+          icon={<LogIn className="h-3.5 w-3.5" />}
+          label="Active users (sign-in)"
+          value={String(v.wau)}
+          sub={`DAU ${v.dau} · MAU ${v.mau}`}
+        />
+        <Kpi
+          icon={<Sparkles className="h-3.5 w-3.5" />}
+          label="Tailors (30d)"
+          value={String(v.tailorRuns30d)}
+          sub={`${v.tailorRunsAllTime} all-time`}
+        />
+        <Kpi
+          icon={<Kanban className="h-3.5 w-3.5" />}
+          label="Tracked jobs"
+          value={String(v.trackedJobs)}
+          sub={`${v.offers} at offer`}
+        />
       </div>
-      <p className="text-2xl font-bold text-[#1e1813] mt-2 tabular-nums">{value}</p>
-      {sub && <p className="text-[11px] text-gray-400 mt-1">{sub}</p>}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-lg border border-[#eee6da] bg-white p-4">
+          <p className="mb-1 text-[12px] font-medium text-[#1e1813]">Logins per day</p>
+          <p className="mb-3 text-[11px] text-[#1e1813]/45">Last 30 days · counts only</p>
+          <BarChart data={v.loginsPerDay} color="#dc4f33" />
+        </div>
+        <div className="rounded-lg border border-[#eee6da] bg-white p-4">
+          <p className="mb-1 text-[12px] font-medium text-[#1e1813]">Signups per day</p>
+          <p className="mb-3 text-[11px] text-[#1e1813]/45">Last 30 days</p>
+          <BarChart data={v.signupsPerDay} color="#1e1813" />
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <div className="rounded-lg border border-[#eee6da] bg-white p-4 lg:col-span-2">
+          <p className="mb-1 text-[12px] font-medium text-[#1e1813]">Tailoring runs per day</p>
+          <p className="mb-3 text-[11px] text-[#1e1813]/45">Last 14 days</p>
+          <BarChart data={v.tailorsPerDay} color="#b3341b" height={90} />
+        </div>
+        <div className="rounded-lg border border-[#eee6da] bg-white p-4">
+          <p className="mb-3 text-[12px] font-medium text-[#1e1813]">Top tailorers</p>
+          <div className="space-y-2.5">
+            {v.topTailorers.map((t, i) => (
+              <div key={`${t.mask}-${i}`} className="flex items-center gap-2">
+                <span className="w-4 text-[10px] font-bold text-[#1e1813]/30">#{i + 1}</span>
+                <span className="flex-1 truncate text-[12px] tabular-nums text-[#1e1813]/70">
+                  {t.mask}
+                </span>
+                <span className="text-[12px] font-semibold tabular-nums text-[#dc4f33]">
+                  {t.tailors}
+                </span>
+              </div>
+            ))}
+            {v.topTailorers.length === 0 && (
+              <p className="text-[12px] text-[#1e1813]/40">No usage yet</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </Section>
+  )
+}
+
+function CohortChart({ cohorts }: { cohorts: CohortWeek[] }) {
+  const max = Math.max(1, ...cohorts.map((c) => c.signedUp))
+  return (
+    <div className="space-y-3">
+      <div className="flex items-end gap-2" style={{ height: 140 }}>
+        {cohorts.map((c) => (
+          <div key={c.weekStart} className="group relative flex h-full flex-1 flex-col justify-end">
+            <div className="absolute -top-8 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded bg-[#1e1813] px-2 py-1 text-[10px] text-white group-hover:block">
+              {c.signedUp} signed · {c.tailoredRate}% tailored in 7d
+            </div>
+            <div
+              className="w-full rounded-t bg-[#f5d9d0]"
+              style={{ height: `${(c.signedUp / max) * 100}%`, minHeight: c.signedUp > 0 ? 4 : 2 }}
+            >
+              <div
+                className="w-full rounded-t bg-[#dc4f33]"
+                style={{
+                  height: c.signedUp === 0 ? 0 : `${(c.tailoredIn7d / c.signedUp) * 100}%`,
+                  minHeight: c.tailoredIn7d > 0 ? 3 : 0,
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        {cohorts.map((c) => (
+          <div key={c.weekStart} className="flex-1 text-center">
+            <p className="text-[10px] tabular-nums text-[#1e1813]/45">{c.label}</p>
+            <p className="text-[11px] font-medium tabular-nums text-[#1e1813]">
+              {c.tailoredRate}%
+            </p>
+            {c.delta != null && (
+              <p className={`text-[10px] tabular-nums ${
+                c.delta > 0 ? "text-emerald-700" : c.delta < 0 ? "text-[#b3341b]" : "text-[#1e1813]/40"
+              }`}>
+                {c.delta > 0 ? "+" : ""}{c.delta}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-[#1e1813]/45">
+        Coral = tailored within 7 days of signup. Tint = total signups that week.
+      </p>
     </div>
   )
 }
 
-// ── North star ─────────────────────────────────────────────────────────
-// One number, deliberately alone above everything else. Activation is the
-// honest headline: it cannot be inflated by traffic, and every roadmap
-// argument reduces to whether the work would move it.
-
-function NorthStar({ rate, activated, total, cohort, wat }: {
-  rate: number
-  activated: number
-  total: number
-  cohort: { rate: number; activated: number; total: number }
-  wat: number
-}) {
+function FunnelBars({ stages }: { stages: FunnelStage[] }) {
+  const max = Math.max(1, stages[0]?.count ?? 1)
   return (
-    <section className="bg-[#1e1813] rounded-xl p-6 sm:p-7 text-[#f9f6f0]">
-      <div className="flex flex-wrap items-end gap-x-10 gap-y-6">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#dc4f33]">
-            North star · Activation
-          </p>
-          <p className="mt-2 text-5xl font-extrabold tabular-nums leading-none">
-            {rate}<span className="text-3xl">%</span>
-          </p>
-          <p className="mt-2 text-xs text-[#f9f6f0]/60">
-            {activated} of {total} signups have finished a tailored CV
-          </p>
+    <div className="space-y-2.5">
+      {stages.map((s) => (
+        <div key={s.key} className="grid grid-cols-[7.5rem_1fr_auto] items-center gap-3">
+          <div>
+            <p className="text-[13px] font-medium text-[#1e1813]">{s.label}</p>
+            <p className="text-[10px] text-[#1e1813]/45" title={s.meaning}>
+              {s.shareOfTotal}% of signups
+            </p>
+          </div>
+          <div className="h-7 overflow-hidden rounded bg-[#fff7f4]">
+            <div
+              className="flex h-full items-center rounded bg-[#dc4f33] px-2 transition-all"
+              style={{ width: `${Math.max(s.count === 0 ? 0 : 4, (s.count / max) * 100)}%` }}
+            >
+              {s.count > 0 && (s.count / max) > 0.12 && (
+                <span className="text-[11px] font-medium tabular-nums text-white">{s.count}</span>
+              )}
+            </div>
+          </div>
+          <div className="min-w-[3.5rem] text-right">
+            <p className="text-[13px] font-semibold tabular-nums text-[#1e1813]">{s.count}</p>
+            {s.conversionFromPrev != null && (
+              <p className="text-[10px] tabular-nums text-[#1e1813]/45">
+                {s.conversionFromPrev}% ←
+              </p>
+            )}
+          </div>
         </div>
-
-        <div className="h-12 w-px bg-[#f9f6f0]/15 hidden sm:block" />
-
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-[#f9f6f0]/50">
-            Last 30d cohort
-          </p>
-          <p className="mt-1.5 text-2xl font-bold tabular-nums leading-none">
-            {cohort.rate}<span className="text-lg">%</span>
-          </p>
-          <p className="mt-1.5 text-[11px] text-[#f9f6f0]/45">
-            {cohort.activated}/{cohort.total} tailored within 7 days of signing up
-          </p>
-        </div>
-
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-[#f9f6f0]/50">
-            Weekly active
-          </p>
-          <p className="mt-1.5 text-2xl font-bold tabular-nums leading-none">{wat}</p>
-          <p className="mt-1.5 text-[11px] text-[#f9f6f0]/45">
-            produced a CV in the last 7 days
-          </p>
-        </div>
-      </div>
-    </section>
+      ))}
+    </div>
   )
 }
 
-// ── Activation funnel ──────────────────────────────────────────────────
-
-function Funnel({ stages }: { stages: FunnelStage[] }) {
-  const top = stages[0]?.count || 1
+function ScoreBars({ buckets, total }: {
+  buckets: { low: number; medium: number; strong: number }
+  total: number
+}) {
+  const rows = [
+    { label: "< 60", value: buckets.low, color: "#b3341b" },
+    { label: "60–79", value: buckets.medium, color: "#dc4f33" },
+    { label: "80+", value: buckets.strong, color: "#1e1813" },
+  ]
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-baseline justify-between mb-4">
-        <h2 className="text-xs font-semibold text-[#1e1813]">Activation funnel</h2>
-        <span className="text-[10px] text-gray-400">{windowNote}</span>
-      </div>
-      <div className="space-y-2.5">
-        {stages.map((s) => (
-          <div key={s.key} title={s.meaning}>
-            <div className="flex items-baseline justify-between gap-3 mb-1">
-              <span className="text-xs text-[#1e1813]">
-                {s.label}
-                {s.windowed && <span className="text-gray-300 ml-1.5">· 30d</span>}
-              </span>
-              <span className="text-xs text-gray-400 tabular-nums">
-                <span className="font-semibold text-[#1e1813]">{s.count}</span>
-                {s.conversionFromPrev !== null && (
-                  <span className="ml-2">{s.conversionFromPrev}% of previous</span>
-                )}
-              </span>
-            </div>
-            <div className="h-2 bg-[#f3efe7] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-[#dc4f33] rounded-full transition-all"
-                style={{ width: `${Math.max((s.count / top) * 100, s.count > 0 ? 1.5 : 0)}%` }}
-              />
-            </div>
-            <p className="text-[10px] text-gray-400 mt-1">{s.meaning}</p>
+    <div className="space-y-2">
+      {rows.map((r) => (
+        <div key={r.label} className="grid grid-cols-[3.5rem_1fr_2.5rem] items-center gap-2">
+          <span className="text-[12px] tabular-nums text-[#1e1813]/60">{r.label}</span>
+          <div className="h-2.5 overflow-hidden rounded-full bg-[#fff7f4]">
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${total === 0 ? 0 : (r.value / total) * 100}%`,
+                background: r.color,
+              }}
+            />
           </div>
-        ))}
+          <span className="text-right text-[12px] tabular-nums text-[#1e1813]">{r.value}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function AdoptionRow({
+  label, count, total, hint, unit,
+}: {
+  label: string
+  count: number
+  total?: number
+  hint?: string
+  /** When set, show as absolute count with this unit instead of % of users. */
+  unit?: string
+}) {
+  const rate = total == null || total === 0 ? null : Math.round((count / total) * 100)
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-[#eee6da] py-3 last:border-0">
+      <div>
+        <p className="text-[13px] font-medium text-[#1e1813]">{label}</p>
+        {hint && <p className="text-[11px] text-[#1e1813]/45">{hint}</p>}
       </div>
+      <div className="text-right">
+        <p className="text-[15px] font-semibold tabular-nums text-[#1e1813]">{count}</p>
+        <p className="text-[11px] tabular-nums text-[#1e1813]/45">
+          {unit ?? (rate == null ? "" : `${rate}% of users`)}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function StuckList({ buckets }: { buckets: StuckBucket[] }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {buckets.map((b) => (
+        <div key={b.key} className="rounded-lg border border-[#eee6da] bg-white p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[13px] font-medium text-[#1e1813]">{b.label}</p>
+              <p className="mt-0.5 text-[11px] text-[#1e1813]/50">{b.meaning}</p>
+            </div>
+            <span className="rounded-md bg-[#fff7f4] px-2 py-0.5 text-[13px] font-semibold tabular-nums text-[#b3341b]">
+              {b.count}
+            </span>
+          </div>
+          {b.users.length > 0 ? (
+            <ul className="mt-3 flex flex-wrap gap-1.5">
+              {b.users.map((u) => (
+                <li
+                  key={`${b.key}-${u}`}
+                  className="rounded bg-[#f9f6f0] px-2 py-0.5 text-[11px] tabular-nums text-[#1e1813]/70"
+                >
+                  {u}
+                </li>
+              ))}
+              {b.count > b.users.length && (
+                <li className="px-1 text-[11px] text-[#1e1813]/40">
+                  +{b.count - b.users.length} more
+                </li>
+              )}
+            </ul>
+          ) : (
+            <p className="mt-3 text-[12px] text-[#1e1813]/40">None — good.</p>
+          )}
+        </div>
+      ))}
     </div>
   )
 }
@@ -247,307 +374,287 @@ function Funnel({ stages }: { stages: FunnelStage[] }) {
 // ── Page ───────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const router = useRouter()
   const { user, loading: authLoading } = useAuth()
-  const [stats, setStats] = useState<Stats | null>(null)
+  const router = useRouter()
+  const [stats, setStats] = useState<StatsPayload | null>(null)
   const [loading, setLoading] = useState(true)
-  const [forbidden, setForbidden] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
-  const fetchStats = async () => {
-    setLoading(true)
+  async function load(isRefresh = false) {
+    if (isRefresh) setRefreshing(true)
+    else setLoading(true)
     try {
       const res = await fetch("/api/admin/stats")
-      if (res.status === 403) { setForbidden(true); return }
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setStats(data)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load stats")
+      if (res.status === 403) {
+        toast.error("Admin access required")
+        router.push("/tailor")
+        return
+      }
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to load")
+      setStats(await res.json())
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to load stats")
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
   useEffect(() => {
-    if (!authLoading && !user) { router.push("/tailor"); return }
-    if (user) fetchStats()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user])
-
-  // ── Derived metrics ──
-  const derived = useMemo(() => {
-    if (!stats) return null
-    const days30 = lastNDays(30)
-    const days14 = lastNDays(14)
-
-    const loginsPerDay = days30.map(day => ({
-      label: day,
-      value: stats.loginEvents.filter(e => dayKey(e.created_at) === day).length,
-    }))
-    const signupsPerDay = days30.map(day => ({
-      label: day,
-      value: stats.users.filter(u => dayKey(u.created_at) === day).length,
-    }))
-    const tailorsPerDay = days14.map(day => ({
-      label: day,
-      value: stats.tailorRuns.filter(r => dayKey(r.created_at) === day).length,
-    }))
-
-    const now = Date.now()
-    const activeIn = (days: number) =>
-      stats.users.filter(u => u.last_sign_in_at &&
-        now - new Date(u.last_sign_in_at).getTime() < days * 86400000).length
-
-    const neverTailored = stats.profiles.filter(p => p.tailors_used === 0).length
-
-    const topUsers = [...stats.profiles]
-      .sort((a, b) => b.tailors_used - a.tailors_used)
-      .slice(0, 5)
-
-    // The funnel and its headline. Pure functions in lib/admin-metrics.ts so
-    // the maths is unit tested rather than eyeballed in the browser.
-    const funnel = buildFunnel({
-      users: stats.users,
-      profiles: stats.profiles,
-      runs: stats.tailorRuns,
-      tracked: stats.trackerJobs,
-    })
-    const northStar = activationRate(stats.users, stats.profiles)
-    const cohort = recentCohortActivation(stats.users, stats.tailorRuns, 30)
-    const wat = weeklyActiveTailorers(stats.tailorRuns)
-
-    return {
-      loginsPerDay, signupsPerDay, tailorsPerDay,
-      dau: activeIn(1), wau: activeIn(7), mau: activeIn(30),
-      neverTailored, topUsers,
-      funnel, northStar, cohort, wat,
+    if (authLoading) return
+    if (!user) {
+      router.push("/tailor")
+      return
     }
-  }, [stats])
+    void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, authLoading])
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+      <div className="flex min-h-screen items-center justify-center bg-[#f9f6f0]">
+        <Loader2 className="h-6 w-6 animate-spin text-[#dc4f33]" />
       </div>
     )
   }
 
-  if (forbidden) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-3">
-        <UserX className="w-8 h-8 text-gray-300" />
-        <p className="text-sm text-gray-500">You don&apos;t have access to this page.</p>
-        <Link href="/tailor" className="text-sm text-[#dc4f33] hover:underline">Back to Tailr</Link>
-      </div>
-    )
-  }
-
-  if (!stats || !derived) return null
-
-  const sortedUsers = [...stats.users].sort((a, b) =>
-    (b.last_sign_in_at ?? "").localeCompare(a.last_sign_in_at ?? ""))
+  if (!stats) return null
+  const { health } = stats
+  const h = health.headlines
+  const q = health.quality
+  const f = health.features
+  const v = health.volume
+  const lastCohort = health.cohorts[health.cohorts.length - 1]
 
   return (
     <div className="min-h-screen bg-[#f9f6f0]">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
-          <Link href="/tailor" className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#1e1813] transition-colors">
-            <ArrowLeft className="w-4 h-4" />Back
-          </Link>
-          <div className="w-px h-4 bg-gray-200" />
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-[#dc4f33]" />
-            <h1 className="text-sm font-semibold text-[#1e1813]">Admin dashboard</h1>
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        {/* Header */}
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Link
+              href="/tailor"
+              className="mb-3 inline-flex items-center gap-1.5 text-[13px] text-[#1e1813]/55 hover:text-[#1e1813]"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" /> Back
+            </Link>
+            <h1 className="text-2xl font-semibold tracking-tight text-[#1e1813]">
+              Product health
+            </h1>
+            <p className="mt-1 text-[13px] text-[#1e1813]/55">
+              Activation, retention, outcomes, quality, and volume — aggregates only.
+            </p>
           </div>
-          <div className="w-px h-4 bg-gray-200" />
-          {isAdminEmail(user?.email) && (
-            <div className="flex items-center gap-2">
-              <Link href="/admin/courses" className="text-xs text-gray-400 hover:text-[#dc4f33] transition-colors">
+          <div className="flex items-center gap-3">
+            {isAdminEmail(user?.email) && (
+              <Link
+                href="/admin/courses"
+                className="rounded-lg border border-[#eee6da] bg-white px-3 py-2 text-[13px] text-[#1e1813]/70 hover:border-[#dc4f33]/40"
+              >
                 Course review
               </Link>
-            </div>
-          )}
-          <div className="flex-1" />
-          <span className="text-[10px] text-gray-300 hidden sm:block">
-            Updated {fmtDateTime(stats.generatedAt)}
-          </span>
-          <button
-            onClick={fetchStats}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#dc4f33] transition-colors"
+            )}
+            <button
+              type="button"
+              onClick={() => void load(true)}
+              disabled={refreshing}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#1e1813] px-3 py-2 text-[13px] font-medium text-white hover:bg-[#1e1813]/90 disabled:opacity-60"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Headlines */}
+        <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Kpi
+            icon={<TrendingUp className="h-3.5 w-3.5" />}
+            label="7-day activation"
+            value={`${h.sevenDayActivation.rate}%`}
+            sub={`${h.sevenDayActivation.activated} of ${h.sevenDayActivation.total} who signed up in the last 7 days tailored within 7d`}
+            delta={lastCohort?.delta}
+          />
+          <Kpi
+            icon={<Clock className="h-3.5 w-3.5" />}
+            label="Time to first tailor"
+            value={h.timeToFirstTailorHours == null ? "—" : `${h.timeToFirstTailorHours}h`}
+            sub="Median among users who activated in the last 30 days"
+          />
+          <Kpi
+            icon={<Users className="h-3.5 w-3.5" />}
+            label="Weekly active tailorers"
+            value={String(h.weeklyActiveTailorers)}
+            sub="Distinct users who tailored in the last 7 days"
+          />
+          <Kpi
+            icon={<RotateCcw className="h-3.5 w-3.5" />}
+            label="30-day return rate"
+            value={`${h.thirtyDayReturnRate.rate}%`}
+            sub={`${h.thirtyDayReturnRate.returned} of ${h.thirtyDayReturnRate.activated} recent activators tailored on 2+ days`}
+          />
+        </div>
+
+        <div className="space-y-5">
+          <VolumeSection v={v} />
+
+          <Section
+            title="Weekly cohorts"
+            meaning="Each week of signups: how many tailored within 7 days, returned, and started tracking. Compare week-over-week — not vanity volume."
           >
-            <RefreshCw className="w-3.5 h-3.5" />Refresh
-          </button>
-        </div>
-      </header>
+            <CohortChart cohorts={health.cohorts} />
+          </Section>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Section
+              title="Outcome funnel"
+              meaning="Strict subsets. Each stage is contained in the one above it — conversions cannot exceed 100%."
+            >
+              <FunnelBars stages={health.outcomeFunnel} />
+            </Section>
 
-        {/* ── North star ── */}
-        <NorthStar
-          rate={derived.northStar.rate}
-          activated={derived.northStar.activated}
-          total={derived.northStar.total}
-          cohort={derived.cohort}
-          wat={derived.wat}
-        />
-
-        {/* ── Activation funnel ── */}
-        <Funnel stages={derived.funnel} />
-
-        {/* ── Stat cards ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            icon={<Users className="w-3.5 h-3.5" />}
-            label="Total users"
-            value={stats.users.length}
-            sub={`${derived.neverTailored} never tailored`}
-          />
-          <StatCard
-            icon={<LogIn className="w-3.5 h-3.5" />}
-            label="Active users"
-            value={derived.wau}
-            sub={`DAU ${derived.dau} · MAU ${derived.mau}`}
-          />
-          <StatCard
-            icon={<Sparkles className="w-3.5 h-3.5" />}
-            label="Tailors (30d)"
-            value={stats.tailorRuns.length}
-            sub={`${stats.profiles.reduce((s, p) => s + p.tailors_used, 0)} all-time`}
-          />
-          <StatCard
-            icon={<Kanban className="w-3.5 h-3.5" />}
-            label="Tracked jobs"
-            value={stats.trackerJobs.length}
-            sub={`${stats.trackerJobs.filter(j => j.status === "offer").length} offers`}
-          />
-        </div>
-
-        {/* ── Charts row ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-xs font-semibold text-[#1e1813] mb-1">Logins per day</h2>
-            <p className="text-[10px] text-gray-400 mb-4">
-              Last 30 days · {stats.loginEvents.length} events
-              {stats.loginEvents.length === 0 && " — collecting from now on; check back after the next sign-in"}
-            </p>
-            <BarChart data={derived.loginsPerDay} color="#dc4f33" />
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-xs font-semibold text-[#1e1813] mb-1">Signups per day</h2>
-            <p className="text-[10px] text-gray-400 mb-4">Last 30 days</p>
-            <BarChart data={derived.signupsPerDay} color="#16a34a" />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Tailor runs chart */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5 lg:col-span-2">
-            <h2 className="text-xs font-semibold text-[#1e1813] mb-1">Tailoring runs per day</h2>
-            <p className="text-[10px] text-gray-400 mb-4">Last 14 days</p>
-            <BarChart data={derived.tailorsPerDay} color="#7c3aed" height={100} />
-          </div>
-
-          {/* Top users */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-xs font-semibold text-[#1e1813] mb-4">Top users by tailors</h2>
-            <div className="space-y-3">
-              {derived.topUsers.map((p, i) => (
-                <div key={p.id} className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold text-gray-300 w-4">#{i + 1}</span>
-                  <span className="text-xs text-[#1e1813] truncate flex-1">{p.email}</span>
-                  <span className="text-xs font-semibold text-[#dc4f33] tabular-nums">{p.tailors_used}</span>
+            <Section
+              title="Quality"
+              meaning="Last 30 days of tailor runs. Match score, feedback, edits, and cover-letter use."
+            >
+              <div className="grid gap-5 sm:grid-cols-2">
+                <div>
+                  <p className="mb-1 text-[11px] uppercase tracking-wide text-[#1e1813]/45">
+                    Median match score
+                  </p>
+                  <p className="text-3xl font-semibold tabular-nums text-[#1e1813]">
+                    {q.medianScore ?? "—"}
+                  </p>
+                  <p className="mt-4 mb-2 text-[11px] uppercase tracking-wide text-[#1e1813]/45">
+                    Score distribution
+                  </p>
+                  <ScoreBars buckets={q.scoreBuckets} total={q.runs} />
                 </div>
-              ))}
-              {derived.topUsers.length === 0 && (
-                <p className="text-xs text-gray-300">No usage yet</p>
-              )}
+                <div className="space-y-3 text-[13px]">
+                  <div className="flex justify-between border-b border-[#eee6da] pb-2">
+                    <span className="text-[#1e1813]/60">Feedback thumbs-up</span>
+                    <span className="font-medium tabular-nums">
+                      {q.feedbackRate == null ? "—" : `${q.feedbackRate}%`}
+                      <span className="ml-1 font-normal text-[#1e1813]/40">
+                        ({q.feedbackUp}/{q.feedbackUp + q.feedbackDown})
+                      </span>
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b border-[#eee6da] pb-2">
+                    <span className="text-[#1e1813]/60">Edited after tailor</span>
+                    <span className="font-medium tabular-nums">{q.editRate}%</span>
+                  </div>
+                  <div className="flex justify-between border-b border-[#eee6da] pb-2">
+                    <span className="text-[#1e1813]/60">Cover letter used</span>
+                    <span className="font-medium tabular-nums">{q.coverLetterRate}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#1e1813]/60">Runs / activated user</span>
+                    <span className="font-medium tabular-nums">
+                      {q.runsPerActivated ?? "—"}
+                      <span className="ml-1 font-normal text-[#1e1813]/40">
+                        ({q.runs} runs)
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </Section>
+          </div>
+
+          <Section
+            title="Feature adoption"
+            meaning="All-time distinct users who touched each surface. Share is of all signed-up accounts."
+          >
+            <div className="grid gap-x-8 sm:grid-cols-2">
+              <div>
+                <AdoptionRow
+                  label="Career Path"
+                  count={f.careerPathUsers}
+                  total={f.eligibleUsers}
+                  hint="Has a roadmap row"
+                />
+                <AdoptionRow
+                  label="North Star locked"
+                  count={f.northStarLocked}
+                  total={f.eligibleUsers}
+                  hint="Target role set"
+                />
+                <AdoptionRow
+                  label="Skills completed"
+                  count={f.skillsCompleted}
+                  unit="items marked done"
+                  hint="Across all users"
+                />
+                <AdoptionRow
+                  label="First CV started"
+                  count={f.firstCvStarted}
+                  total={f.eligibleUsers}
+                />
+              </div>
+              <div>
+                <AdoptionRow
+                  label="Career Arc profile"
+                  count={f.careerArcProfiles}
+                  total={f.eligibleUsers}
+                />
+                <AdoptionRow
+                  label="Career Arc shared"
+                  count={f.careerArcShared}
+                  total={f.eligibleUsers}
+                  hint="Share links created"
+                />
+                <AdoptionRow
+                  label="Evidence Bank"
+                  count={f.evidenceUsers}
+                  total={f.eligibleUsers}
+                  hint="At least one evidence item"
+                />
+                <AdoptionRow
+                  label="First CV ready"
+                  count={f.firstCvCompleted}
+                  total={f.eligibleUsers}
+                />
+              </div>
             </div>
-          </div>
-        </div>
+          </Section>
 
-        {/* ── Recent logins feed ── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="text-xs font-semibold text-[#1e1813]">Recent logins</h2>
-            <p className="text-[10px] text-gray-400 mt-0.5">
-              From login_events — captures magic-link sign-ins from today onward
-            </p>
-          </div>
-          {stats.loginEvents.length === 0 ? (
-            <p className="text-xs text-gray-300 px-5 py-8 text-center">
-              No login events recorded yet. The next magic-link sign-in will appear here.
-            </p>
-          ) : (
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-[10px] text-gray-400 uppercase tracking-wide border-b border-gray-50">
-                  <th className="px-5 py-2.5 font-medium">User</th>
-                  <th className="px-5 py-2.5 font-medium">When</th>
-                  <th className="px-5 py-2.5 font-medium hidden sm:table-cell">IP</th>
-                  <th className="px-5 py-2.5 font-medium hidden md:table-cell">Browser</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.loginEvents.slice(0, 20).map((e, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-                    <td className="px-5 py-2.5 text-xs text-[#1e1813]">{e.email}</td>
-                    <td className="px-5 py-2.5 text-xs text-gray-500">{fmtDateTime(e.created_at)}</td>
-                    <td className="px-5 py-2.5 text-xs text-gray-400 hidden sm:table-cell font-mono">{e.ip || "—"}</td>
-                    <td className="px-5 py-2.5 text-xs text-gray-400 hidden md:table-cell">{browserOf(e.user_agent)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+          <Section
+            title="Stuck segments"
+            meaning="Where users stop. Masked ids only — no emails, CVs, or job text."
+          >
+            <StuckList buckets={health.stuck} />
+          </Section>
 
-        {/* ── All users table ── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="text-xs font-semibold text-[#1e1813]">All users ({stats.users.length})</h2>
-            <p className="text-[10px] text-gray-400 mt-0.5">Sorted by most recent sign-in · from Supabase auth</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-[10px] text-gray-400 uppercase tracking-wide border-b border-gray-50">
-                  <th className="px-5 py-2.5 font-medium">Email</th>
-                  <th className="px-5 py-2.5 font-medium">Last sign-in</th>
-                  <th className="px-5 py-2.5 font-medium hidden sm:table-cell">Joined</th>
-                  <th className="px-5 py-2.5 font-medium text-right">Tailors</th>
-                  <th className="px-5 py-2.5 font-medium hidden md:table-cell">Plan</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedUsers.map(u => {
-                  const profile = stats.profiles.find(p => p.id === u.id)
-                  return (
-                    <tr key={u.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-                      <td className="px-5 py-2.5 text-xs text-[#1e1813]">{u.email}</td>
-                      <td className="px-5 py-2.5 text-xs">
-                        <span className={`${relDay(u.last_sign_in_at) === "Today" ? "text-green-600 font-medium" : "text-gray-500"}`}>
-                          {relDay(u.last_sign_in_at)}
-                        </span>
-                        <span className="text-gray-300 ml-1.5 hidden lg:inline">{fmtDateTime(u.last_sign_in_at)}</span>
-                      </td>
-                      <td className="px-5 py-2.5 text-xs text-gray-400 hidden sm:table-cell">{fmtDateTime(u.created_at)}</td>
-                      <td className="px-5 py-2.5 text-xs text-gray-500 text-right tabular-nums">{profile?.tailors_used ?? 0}</td>
-                      <td className="px-5 py-2.5 hidden md:table-cell">
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-                          profile?.plan === "pro" ? "bg-violet-50 text-violet-600" : "bg-gray-100 text-gray-500"
-                        }`}>
-                          {profile?.plan ?? "free"}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          {/* Confidence footer */}
+          <footer className="rounded-xl border border-[#eee6da] bg-white p-5">
+            <div className="mb-3 flex items-center gap-2 text-[#1e1813]">
+              <ShieldCheck className="h-4 w-4 text-[#dc4f33]" />
+              <h3 className="text-[13px] font-semibold uppercase tracking-wide">
+                Confidence
+              </h3>
+            </div>
+            <ul className="space-y-1.5 text-[12px] leading-relaxed text-[#1e1813]/60">
+              {health.confidence.notes.map((n) => (
+                <li key={n}>· {n}</li>
+              ))}
+            </ul>
+            {health.confidence.profilesVsAuth.profiles !==
+              health.confidence.profilesVsAuth.authUsers && (
+              <p className="mt-3 flex items-start gap-2 text-[12px] text-[#b3341b]">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                Auth users ({health.confidence.profilesVsAuth.authUsers}) ≠ profiles (
+                {health.confidence.profilesVsAuth.profiles}). Prefer funnel stages that use
+                the same source.
+              </p>
+            )}
+            <p className="mt-3 text-[11px] tabular-nums text-[#1e1813]/40">
+              Generated {new Date(stats.generatedAt).toLocaleString()} · env {stats.env} ·
+              window {health.confidence.windowDays}d
+            </p>
+          </footer>
         </div>
-      </main>
+      </div>
     </div>
   )
 }
