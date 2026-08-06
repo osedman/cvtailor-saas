@@ -7,7 +7,7 @@
  * one. Overrides, decisions and submissions are audit coupled server side.
  */
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
 type Step = "intake" | "parse" | "candidates" | "screening" | "compare" | "submission"
@@ -101,11 +101,18 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     })()
   }, [roleId, router, loadCandidates])
 
+  // Review detail is fetched once per candidate, not once per click. This
+  // effect re-runs whenever activeCandidate changes (it sets it), so the old
+  // unconditional loop fired one request per candidate on every switch: eight
+  // candidates meant eight requests each time the recruiter changed tile.
+  const loadedDetail = useRef<Set<string>>(new Set())
   useEffect(() => {
-    if (step === "screening" && candidates.length > 0) {
-      const first = activeCandidate ?? candidates[0].id
-      setActiveCandidate(first)
-      for (const c of candidates) loadReviewDetail(c.id)
+    if (step !== "screening" || candidates.length === 0) return
+    if (!activeCandidate) setActiveCandidate(candidates[0].id)
+    for (const c of candidates) {
+      if (loadedDetail.current.has(c.id)) continue
+      loadedDetail.current.add(c.id)
+      loadReviewDetail(c.id)
     }
   }, [step, candidates, activeCandidate, loadReviewDetail])
 
@@ -230,54 +237,119 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     }
   }
 
-  async function patchReview(candidateId: string, patch: Record<string, unknown>) {
-    const res = await fetch(`/api/agency/candidates/${candidateId}/review`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    })
-    if (res.ok) {
+  /**
+   * Review edits paint immediately, then persist.
+   *
+   * This used to await three sequential round trips before the star or the
+   * strength button changed colour: the PATCH, a review refetch, then a full
+   * candidate-list refetch. On a call that reads as a broken control, so the
+   * recruiter clicks again and toggles their own answer back off. Now the
+   * local state moves first and the server is the reconciler: the PATCH
+   * response already carries the recomputed score, which is the only thing
+   * we could not have known locally. A failure re-reads the truth and says so
+   * rather than leaving the UI showing an edit that never landed.
+   */
+  async function patchReview(candidateId: string, patch: Record<string, unknown>, optimistic?: Partial<Review>) {
+    const rollback = reviews[candidateId]
+    if (optimistic) {
+      setReviews((prev) => {
+        const base: Review = prev[candidateId] ?? {
+          candidate_id: candidateId, status: "unreviewed",
+          communication: null, motivation: null,
+          availability: "", salary_confirm: "", notice_period: "", notes: "",
+        }
+        return { ...prev, [candidateId]: { ...base, ...optimistic } }
+      })
+    }
+    try {
+      const res = await fetch(`/api/agency/candidates/${candidateId}/review`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      })
+      if (!res.ok) throw new Error(res.status === 403 ? "You have view-only access to this agency." : "That change did not save.")
       const body = await res.json()
       if (body.score) {
         setScores((prev) => ({ ...prev, [candidateId]: { ...prev[candidateId], ...body.score, candidate_id: candidateId } }))
       }
-      await loadReviewDetail(candidateId)
-      const listRes = await fetch(`/api/agency/roles/${roleId}/candidates`)
-      if (listRes.ok) {
-        const list = await listRes.json()
-        const rMap: Record<string, Review> = {}
-        for (const r of list.reviews ?? []) rMap[r.candidate_id] = r
-        setReviews(rMap)
+      if (!optimistic) await loadReviewDetail(candidateId)
+      setError(null)
+    } catch (e) {
+      if (optimistic) {
+        setReviews((prev) => {
+          const next = { ...prev }
+          if (rollback) next[candidateId] = rollback
+          else delete next[candidateId]
+          return next
+        })
       }
+      await loadReviewDetail(candidateId)
+      setError(e instanceof Error ? e.message : "That change did not save.")
     }
   }
 
   async function setOverride(candidateId: string, requirementId: string, strength: Strength | null) {
+    const rollback = overrides[candidateId] ?? {}
     setOverrides((prev) => {
       const mine = { ...(prev[candidateId] ?? {}) }
       if (strength === null) delete mine[requirementId]
       else mine[requirementId] = strength
       return { ...prev, [candidateId]: mine }
     })
-    await patchReview(candidateId, { overrides: { [requirementId]: strength } })
+    try {
+      const res = await fetch(`/api/agency/candidates/${candidateId}/review`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overrides: { [requirementId]: strength } }),
+      })
+      if (!res.ok) throw new Error(res.status === 403 ? "You have view-only access to this agency." : "That override did not save.")
+      const body = await res.json()
+      if (body.score) {
+        setScores((prev) => ({ ...prev, [candidateId]: { ...prev[candidateId], ...body.score, candidate_id: candidateId } }))
+      }
+      setError(null)
+    } catch (e) {
+      // An override that never persisted must not keep showing as "Your call".
+      setOverrides((prev) => ({ ...prev, [candidateId]: rollback }))
+      setError(e instanceof Error ? e.message : "That override did not save.")
+    }
   }
 
   async function resetCall(candidateId: string) {
+    // Destructive, and the button lives one click away from "Reviewed":
+    // wiping soft signals, notes and every override deserves a breath first.
+    if (!window.confirm("Reset this call? Soft signals, notes and every override go, and the score returns to the CV parse. The audit log keeps the history.")) return
     const res = await fetch(`/api/agency/candidates/${candidateId}/review`, { method: "DELETE" })
     if (res.ok) {
       setOverrides((prev) => ({ ...prev, [candidateId]: {} }))
+      setReviews((prev) => {
+        const nextMap = { ...prev }
+        delete nextMap[candidateId]
+        return nextMap
+      })
       await loadCandidates()
+    } else {
+      setError("The reset did not go through.")
     }
   }
 
   async function decide(candidateId: string, decision: string | null) {
+    const rollback = decisions[candidateId] ?? null
     const next = decisions[candidateId] === decision ? null : decision
     setDecisions((prev) => ({ ...prev, [candidateId]: next }))
-    await fetch(`/api/agency/candidates/${candidateId}/decision`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decision: next }),
-    })
+    try {
+      const res = await fetch(`/api/agency/candidates/${candidateId}/decision`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: next }),
+      })
+      if (!res.ok) throw new Error(res.status === 403 ? "You have view-only access to this agency." : "That decision did not save.")
+    } catch (e) {
+      // A decision that never persisted must not stay lit — a recruiter would
+      // shortlist on the strength of it.
+      setDecisions((prev) => ({ ...prev, [candidateId]: rollback }))
+      setError(e instanceof Error ? e.message : "That decision did not save.")
+    }
   }
 
   async function generateSubmission(format: string) {
@@ -664,7 +736,13 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           </div>
                         )}
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          <button className={`ag-btn ${activeReview?.status === "reviewed" ? "ag-btn-coral" : "ag-btn-primary"}`} onClick={() => patchReview(active.id, { status: activeReview?.status === "reviewed" ? "unreviewed" : "reviewed" })}>
+                          <button
+                            className={`ag-btn ${activeReview?.status === "reviewed" ? "ag-btn-coral" : "ag-btn-primary"}`}
+                            onClick={() => {
+                              const next = activeReview?.status === "reviewed" ? "unreviewed" : "reviewed"
+                              patchReview(active.id, { status: next }, { status: next })
+                            }}
+                          >
                             {activeReview?.status === "reviewed" ? "Reviewed" : "Mark reviewed"}
                           </button>
                           <button className="ag-btn" onClick={() => resetCall(active.id)}>Reset call</button>
@@ -711,14 +789,36 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             {(["communication", "motivation"] as const).map((signal) => (
                               <div key={signal} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                 <span style={{ fontSize: 12.5, width: 110, textTransform: "capitalize" }}>{signal}</span>
-                                {[1, 2, 3, 4, 5].map((n) => (
-                                  <button key={n} className={`ag-star${(activeReview?.[signal] ?? 0) >= n ? " on" : ""}`} onClick={() => patchReview(active.id, { [signal]: activeReview?.[signal] === n ? null : n })} />
-                                ))}
+                                {[1, 2, 3, 4, 5].map((n) => {
+                                  const next = activeReview?.[signal] === n ? null : n
+                                  return (
+                                    <button
+                                      key={n}
+                                      type="button"
+                                      aria-label={`${signal} ${n} of 5`}
+                                      aria-pressed={(activeReview?.[signal] ?? 0) >= n}
+                                      className={`ag-star${(activeReview?.[signal] ?? 0) >= n ? " on" : ""}`}
+                                      onClick={() => patchReview(active.id, { [signal]: next }, { [signal]: next })}
+                                    />
+                                  )
+                                })}
                               </div>
                             ))}
                             <div style={{ display: "grid", gap: 10, borderTop: "1px solid var(--ag-border)", paddingTop: 12 }}>
                               {(["availability", "salary_confirm", "notice_period"] as const).map((field) => (
-                                <input key={field} className="ag-input" placeholder={field.replace("_", " ")} defaultValue={activeReview?.[field] ?? ""} onBlur={(e) => patchReview(active.id, { [field]: e.target.value })} />
+                                /* Keyed by candidate: an uncontrolled input keeps the
+                                   previous candidate's text when you switch, and the
+                                   next blur would write it onto the wrong review. */
+                                <input
+                                  key={`${active.id}:${field}`}
+                                  className="ag-input"
+                                  placeholder={field.replace("_", " ")}
+                                  defaultValue={activeReview?.[field] ?? ""}
+                                  onBlur={(e) => {
+                                    if (e.target.value === (activeReview?.[field] ?? "")) return
+                                    patchReview(active.id, { [field]: e.target.value }, { [field]: e.target.value })
+                                  }}
+                                />
                               ))}
                             </div>
                           </div>
@@ -726,7 +826,17 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         <div className="ag-card">
                           <div className="ag-card-head"><span className="ag-card-title">Call notes</span><span className="ag-pill">Private</span></div>
                           <div className="ag-card-body">
-                            <textarea className="ag-textarea" style={{ minHeight: 120 }} placeholder="What they said, in your words. This feeds the client narrative." defaultValue={activeReview?.notes ?? ""} onBlur={(e) => patchReview(active.id, { notes: e.target.value })} />
+                            <textarea
+                              key={`${active.id}:notes`}
+                              className="ag-textarea"
+                              style={{ minHeight: 120 }}
+                              placeholder="What they said, in your words. This feeds the client narrative."
+                              defaultValue={activeReview?.notes ?? ""}
+                              onBlur={(e) => {
+                                if (e.target.value === (activeReview?.notes ?? "")) return
+                                patchReview(active.id, { notes: e.target.value }, { notes: e.target.value })
+                              }}
+                            />
                             <p className="ag-meta" style={{ marginTop: 8 }}>Attached to {active.ref} · feeds submission narrative</p>
                           </div>
                         </div>
