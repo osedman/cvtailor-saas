@@ -87,7 +87,7 @@ export async function GET() {
       db.from("rights_requests").select("id, candidate_ref, kind, status, requested_at").eq("agency_id", ctx.agencyId).eq("status", "pending"),
       db.from("audit_log").select("id, entity_type, entity_ref, action, created_at").eq("agency_id", ctx.agencyId).order("created_at", { ascending: false }).limit(12),
       db.from("agencies").select("name, retention_days, notice_delay_days").eq("id", ctx.agencyId).maybeSingle(),
-      db.from("score_breakdowns").select("candidate_id, overall, effective, baselines").eq("agency_id", ctx.agencyId),
+      db.from("score_breakdowns").select("candidate_id, overall, original_overall, effective, baselines").eq("agency_id", ctx.agencyId),
       db.from("requirements").select("id, ref, text, weight, role_id").eq("agency_id", ctx.agencyId),
       db.from("submissions").select("id, role_id").eq("agency_id", ctx.agencyId),
       db.from("client_contacts").select("id, full_name, company").eq("agency_id", ctx.agencyId),
@@ -260,6 +260,108 @@ export async function GET() {
     )
     const candidateName = (ref: string) => candidates.find((c) => c.ref === ref)?.full_name ?? ref
 
+    // ---- Where each role actually is --------------------------
+    // The six step rail is the product's spine, but the dashboard never
+    // showed it, so a role's position was invisible until you opened it.
+    // Derived from data this route already loads: no extra queries.
+    const submissionRoleIds = new Set((submissionsRes.data ?? []).map((s) => s.role_id))
+    const recipientsByRole = new Map<string, typeof activeRecipients>()
+    for (const r of activeRecipients) {
+      const roleId = submissionRole.get(r.submission_id)
+      if (!roleId) continue
+      const list = recipientsByRole.get(roleId) ?? []
+      list.push(r)
+      recipientsByRole.set(roleId, list)
+    }
+
+    const roleCards = roles.map((role) => {
+      const mine = candidates.filter((c) => c.role_id === role.id)
+      const readable = mine.filter((c) => c.parse_status !== "failed")
+      const failures = mine.filter((c) => c.parse_status === "failed").length
+      const reviewed = readable.filter((c) => reviewByCand.get(c.id)?.status === "reviewed")
+      const undecided = reviewed.filter((c) => !decisionFor.get(c.id))
+      const hasReqs = (reqsByRole.get(role.id) ?? []).length > 0
+      const sent = submissionRoleIds.has(role.id)
+      const roleRecipients = recipientsByRole.get(role.id) ?? []
+      const silentClient = roleRecipients.some((r) => !actedRecipientIds.has(r.id))
+
+      // 1 intake · 2 parse · 3 candidates · 4 screening · 5 compare · 6 submission
+      let stage = 1
+      if (sent) stage = 6
+      else if (readable.length > 0 && reviewed.length === readable.length) stage = 5
+      else if (readable.length > 0) stage = 4
+      else if (hasReqs) stage = 3
+      else stage = 1
+
+      let stage_state: "here" | "blocked" | "waiting" | "done" = "here"
+      let needs = ""
+      if (role.status === "closed") {
+        stage_state = "done"
+      } else if (failures > 0) {
+        stage_state = "blocked"
+        needs = `${failures} CV${failures === 1 ? "" : "s"} would not read`
+      } else if (sent && silentClient) {
+        stage_state = "waiting"
+        needs = "Sent, no client reply yet"
+      } else if (undecided.length > 0) {
+        stage_state = "blocked"
+        needs = `${undecided.length} screened, no decision yet`
+      } else if (readable.length > reviewed.length) {
+        needs = `${readable.length - reviewed.length} waiting on a call`
+      } else if (!hasReqs) {
+        needs = "No requirements yet"
+      } else if (readable.length === 0) {
+        needs = "No candidates yet"
+      }
+
+      let top_score: number | null = null
+      let top_delta: number | null = null
+      let top_name = ""
+      for (const c of readable) {
+        const sb = breakdownByCand.get(c.id)
+        if (!sb) continue
+        if (top_score === null || sb.overall > top_score) {
+          top_score = sb.overall
+          top_name = c.full_name
+          top_delta =
+            sb.original_overall === null || sb.original_overall === undefined
+              ? null
+              : Math.round(sb.overall - sb.original_overall)
+        }
+      }
+
+      return {
+        id: role.id,
+        ref: role.ref,
+        title: role.title,
+        company: role.company,
+        status: role.status,
+        created_at: role.created_at,
+        closed_at: role.closed_at,
+        candidate_count: mine.length,
+        stage,
+        stage_state,
+        needs,
+        needs_action: stage_state === "blocked",
+        top_score: top_score === null ? null : Math.round(top_score),
+        top_delta,
+        top_name,
+      }
+    })
+
+    // The one thing worth doing first, named. Ranked the way a recruiter
+    // would rank it: broken before stalled, stalled before merely waiting.
+    const openCards = roleCards.filter((r) => r.status !== "closed")
+    const focusRole =
+      openCards.find((r) => r.stage_state === "blocked" && r.needs.includes("would not read")) ??
+      openCards.find((r) => r.stage_state === "blocked") ??
+      openCards.find((r) => r.stage_state === "waiting") ??
+      openCards.find((r) => r.needs.includes("waiting on a call")) ??
+      null
+    const focus = focusRole
+      ? { role_id: focusRole.id, title: focusRole.title, company: focusRole.company, reason: focusRole.needs }
+      : null
+
     return NextResponse.json({
       agency: agencyRes.data ?? null,
       caller_role: ctx.role,
@@ -294,10 +396,8 @@ export async function GET() {
         retention_soon: retentionSoon.length,
         rights_pending: (rightsRes.data ?? []).length,
       },
-      roles: roles.map((r) => ({
-        ...r,
-        candidate_count: candidates.filter((c) => c.role_id === r.id).length,
-      })),
+      focus,
+      roles: roleCards,
       activity: auditRes.data ?? [],
     })
   } catch (error) {

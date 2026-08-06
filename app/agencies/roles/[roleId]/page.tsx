@@ -91,7 +91,13 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       setRequirements(body.requirements ?? [])
       setConstraints(body.constraints ?? [])
       const count = (await loadCandidates()) ?? 0
-      setStep(count > 0 ? "candidates" : (body.requirements ?? []).length > 0 ? "parse" : "intake")
+      // The dashboard deep links into a specific step (?step=screening).
+      // Read it off the URL rather than useSearchParams so this page needs
+      // no Suspense boundary. An unknown value falls back to the auto pick.
+      const asked = new URLSearchParams(window.location.search).get("step")
+      const valid: Step[] = ["intake", "parse", "candidates", "screening", "compare", "submission"]
+      if (asked && (valid as string[]).includes(asked)) setStep(asked as Step)
+      else setStep(count > 0 ? "candidates" : (body.requirements ?? []).length > 0 ? "parse" : "intake")
     })()
   }, [roleId, router, loadCandidates])
 

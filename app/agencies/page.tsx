@@ -13,7 +13,12 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
-interface RoleRow { id: string; ref: string; title: string; company: string; status: string; candidate_count: number }
+type StageState = "here" | "blocked" | "waiting" | "done"
+interface RoleRow {
+  id: string; ref: string; title: string; company: string; status: string; candidate_count: number
+  stage: number; stage_state: StageState; needs: string; needs_action: boolean
+  top_score: number | null; top_delta: number | null; top_name: string
+}
 interface CandidateStub { id: string; ref: string; full_name: string; role_id: string; role_title: string }
 interface ClientAction { id: string; candidate_ref: string; candidate_name: string; action: string; message: string; created_at: string }
 interface RightsRequest { id: string; candidate_ref: string; kind: string; requested_at: string }
@@ -36,6 +41,7 @@ interface Dashboard {
     parse_failures: number
   }
   compliance: { notices_due: number; retention_soon: number; rights_pending: number }
+  focus: { role_id: string; title: string; company: string; reason: string } | null
   roles: RoleRow[]
   activity: Activity[]
 }
@@ -47,12 +53,25 @@ const ACTION_WORDS: Record<string, string> = {
   question: "asked about",
 }
 
+// The six step rail, in the order the role page runs them.
+const STAGES = ["Intake", "Parse", "Add", "Calls", "Compare", "Send"]
+
+// Urgency ladder. Coral is already "strong evidence" in this product, so it
+// is spent only on things that are actually breaking.
+const ACTION_SEVERITY: Record<string, "now" | "soon" | "calm"> = {
+  decline: "now",
+  question: "soon",
+  interview: "calm",
+  approve: "calm",
+}
+
 export default function AgencyHomePage() {
   const router = useRouter()
   const [state, setState] = useState<"loading" | "unauthed" | "no_agency" | "ready">("loading")
   const [data, setData] = useState<Dashboard | null>(null)
   const [creating, setCreating] = useState(false)
   const [actioning, setActioning] = useState<string | null>(null)
+  const [roleFilter, setRoleFilter] = useState<"live" | "attention" | "closed">("live")
 
   useEffect(() => {
     fetch("/api/agency/dashboard")
@@ -82,7 +101,8 @@ export default function AgencyHomePage() {
     }
   }
 
-  const openRole = (roleId: string) => router.push(`/agencies/roles/${roleId}`)
+  const openRole = (roleId: string, step?: string) =>
+    router.push(step ? `/agencies/roles/${roleId}?step=${step}` : `/agencies/roles/${roleId}`)
   const ago = (iso: string) => {
     const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
     if (mins < 60) return `${Math.max(mins, 1)}m ago`
@@ -91,6 +111,81 @@ export default function AgencyHomePage() {
   }
 
   const needsCount = data ? data.needs_you.client_actions.length + data.needs_you.rights_requests.length : 0
+
+  /**
+   * Pipeline counts and compliance clocks were two banks of tiles, seven
+   * boxes competing at equal weight, most of them reading zero most days.
+   * One strip: anything with a number gets a tile, everything at zero
+   * collapses into a single line that names what is clear.
+   */
+  const clocks = data
+    ? [
+        {
+          key: "screening",
+          n: data.pipeline.awaiting_screening.length,
+          label: "Awaiting a screening call",
+          sub: data.pipeline.awaiting_screening.slice(0, 2).map((c) => c.full_name).join(", "),
+          clear: "screening calls",
+          go: () => data.pipeline.awaiting_screening[0] && openRole(data.pipeline.awaiting_screening[0].role_id, "screening"),
+        },
+        {
+          key: "decision",
+          n: data.pipeline.awaiting_decision.length,
+          label: "Screened, no decision yet",
+          sub: data.pipeline.awaiting_decision.slice(0, 2).map((c) => c.full_name).join(", "),
+          clear: "decisions",
+          go: () => data.pipeline.awaiting_decision[0] && openRole(data.pipeline.awaiting_decision[0].role_id, "compare"),
+        },
+        {
+          key: "client",
+          n: data.pipeline.awaiting_client,
+          label: "Sent, no client reply",
+          sub: "Live shortlist links with no action yet",
+          clear: "client replies",
+          go: null,
+        },
+        {
+          key: "parse",
+          n: data.pipeline.parse_failures,
+          label: "CVs that would not read",
+          sub: "Re upload or paste the text instead",
+          clear: "CV parsing",
+          go: null,
+        },
+        {
+          key: "notices",
+          n: data.compliance.notices_due,
+          label: `Notices sending within ${data.agency?.notice_delay_days ?? 7} days`,
+          sub: "Add a personal line before they go",
+          clear: "candidate notices",
+          go: null,
+        },
+        {
+          key: "retention",
+          n: data.compliance.retention_soon,
+          label: "Candidates erased within 30 days",
+          sub: `Retention is ${data.agency?.retention_days ?? 180} days from role close`,
+          clear: "retention",
+          go: null,
+        },
+        {
+          key: "rights",
+          n: data.compliance.rights_pending,
+          label: "Open rights requests",
+          sub: "Access, correction, erasure, objection",
+          clear: "rights requests",
+          go: null,
+        },
+      ]
+    : []
+  const liveClocks = clocks.filter((c) => c.n > 0)
+  const clearClocks = clocks.filter((c) => c.n === 0)
+
+  const visibleRoles = (data?.roles ?? []).filter((r) =>
+    roleFilter === "closed" ? r.status === "closed"
+      : roleFilter === "attention" ? r.status !== "closed" && r.needs_action
+      : r.status !== "closed"
+  )
 
   return (
     <>
@@ -124,11 +219,19 @@ export default function AgencyHomePage() {
           <div className="ag-screen-head">
             <div>
               <div className="ag-eyebrow">{data?.agency?.name ?? "Your agency"}</div>
-              <h1 className="ag-title">{needsCount > 0 ? "A few things need you." : "Nothing is waiting on you."}</h1>
+              <h1 className="ag-title">
+                {needsCount > 0
+                  ? "A few things need you."
+                  : data?.focus
+                    ? "One thing worth doing first."
+                    : "Nothing is waiting on you."}
+              </h1>
               <p className="ag-sub">
                 {needsCount > 0
                   ? "Client signals and candidate requests come first. Everything else is below."
-                  : "No client signals and no outstanding requests. The pipeline view is below."}
+                  : data?.focus
+                    ? `${data.focus.title}${data.focus.company ? ` at ${data.focus.company}` : ""}: ${data.focus.reason.toLowerCase()}.`
+                    : "No client signals and no outstanding requests. The pipeline view is below."}
               </p>
             </div>
             {state === "ready" && (
@@ -172,7 +275,11 @@ export default function AgencyHomePage() {
                     <span className="ag-meta">{needsCount} item{needsCount === 1 ? "" : "s"}</span>
                   </div>
                   {data.needs_you.rights_requests.map((r) => (
-                    <div className="ag-attention-row" key={r.id}>
+                    <div
+                      className="ag-attention-row"
+                      data-sev={r.kind === "erasure" || r.kind === "objection" ? "now" : "soon"}
+                      key={r.id}
+                    >
                       <span className="ag-pill ag-pill-coral">{r.kind}</span>
                       <span className="ag-grow" style={{ fontSize: 13 }}>
                         A candidate has asked to {r.kind === "erasure" ? "have their data deleted" : r.kind === "access" ? "see the data you hold" : r.kind === "objection" ? "stop being processed" : "correct their data"} · {r.candidate_ref}
@@ -200,8 +307,8 @@ export default function AgencyHomePage() {
                     </div>
                   ))}
                   {data.needs_you.client_actions.map((a) => (
-                    <div className="ag-attention-row" key={a.id}>
-                      <span className="ag-pill">{a.action}</span>
+                    <div className="ag-attention-row" data-sev={ACTION_SEVERITY[a.action] ?? "soon"} key={a.id}>
+                      <span className={`ag-pill${ACTION_SEVERITY[a.action] === "now" ? " ag-pill-coral" : ""}`}>{a.action}</span>
                       <span className="ag-grow" style={{ fontSize: 13 }}>
                         Your client {ACTION_WORDS[a.action] ?? a.action} <b>{a.candidate_name}</b>
                         {a.message ? <span style={{ color: "var(--ag-ink-2)" }}> · &ldquo;{a.message}&rdquo;</span> : null}
@@ -290,86 +397,116 @@ export default function AgencyHomePage() {
               )}
 
               <div>
-                <div className="ag-rail-label" style={{ padding: 0, marginBottom: 10 }}>Pipeline</div>
-                <div className="ag-tiles">
-                  <button
-                    className="ag-tile-stat"
-                    data-quiet={data.pipeline.awaiting_screening.length === 0}
-                    onClick={() => data.pipeline.awaiting_screening[0] && openRole(data.pipeline.awaiting_screening[0].role_id)}
-                  >
-                    <div className={`ag-stat${data.pipeline.awaiting_screening.length === 0 ? " zero" : ""}`}>{data.pipeline.awaiting_screening.length}</div>
-                    <div className="ag-stat-label">Awaiting a screening call</div>
-                    <div className="ag-stat-sub">
-                      {data.pipeline.awaiting_screening.slice(0, 2).map((c) => c.full_name).join(", ") || "Everyone has been called"}
-                    </div>
-                  </button>
-                  <button
-                    className="ag-tile-stat"
-                    data-quiet={data.pipeline.awaiting_decision.length === 0}
-                    onClick={() => data.pipeline.awaiting_decision[0] && openRole(data.pipeline.awaiting_decision[0].role_id)}
-                  >
-                    <div className={`ag-stat${data.pipeline.awaiting_decision.length === 0 ? " zero" : ""}`}>{data.pipeline.awaiting_decision.length}</div>
-                    <div className="ag-stat-label">Screened, no decision yet</div>
-                    <div className="ag-stat-sub">
-                      {data.pipeline.awaiting_decision.slice(0, 2).map((c) => c.full_name).join(", ") || "Every call has a decision"}
-                    </div>
-                  </button>
-                  <div className="ag-tile-stat" data-quiet="true">
-                    <div className={`ag-stat${data.pipeline.awaiting_client === 0 ? " zero" : ""}`}>{data.pipeline.awaiting_client}</div>
-                    <div className="ag-stat-label">Sent, no client reply</div>
-                    <div className="ag-stat-sub">Live shortlist links with no action yet</div>
+                <div className="ag-rail-label" style={{ padding: 0, marginBottom: 10 }}>Counts and clocks</div>
+                {liveClocks.length > 0 && (
+                  <div className="ag-tiles" style={{ marginBottom: clearClocks.length > 0 ? 12 : 0 }}>
+                    {liveClocks.map((c) => (
+                      <button
+                        key={c.key}
+                        className="ag-tile-stat"
+                        data-quiet={c.go === null}
+                        onClick={() => c.go?.()}
+                      >
+                        <div className="ag-stat">{c.n}</div>
+                        <div className="ag-stat-label">{c.label}</div>
+                        <div className="ag-stat-sub">{c.sub}</div>
+                      </button>
+                    ))}
                   </div>
-                  <div className="ag-tile-stat" data-quiet="true">
-                    <div className={`ag-stat${data.pipeline.parse_failures === 0 ? " zero" : ""}`}>{data.pipeline.parse_failures}</div>
-                    <div className="ag-stat-label">CVs that would not read</div>
-                    <div className="ag-stat-sub">Re upload or paste the text instead</div>
+                )}
+                {clearClocks.length > 0 && (
+                  <div className="ag-clear">
+                    <span className="tick" aria-hidden="true">&#10003;</span>
+                    <span>
+                      {clearClocks.length === clocks.length ? "Everything is clear: " : "Also clear: "}
+                      {clearClocks.map((c) => c.clear).join(", ")}.
+                    </span>
                   </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="ag-rail-label" style={{ padding: 0, marginBottom: 10 }}>Clocks that run on their own</div>
-                <div className="ag-tiles">
-                  <div className="ag-tile-stat" data-quiet="true">
-                    <div className={`ag-stat${data.compliance.notices_due === 0 ? " zero" : ""}`}>{data.compliance.notices_due}</div>
-                    <div className="ag-stat-label">Notices sending within {data.agency?.notice_delay_days ?? 7} days</div>
-                    <div className="ag-stat-sub">Add a personal line before they go</div>
-                  </div>
-                  <div className="ag-tile-stat" data-quiet="true">
-                    <div className={`ag-stat${data.compliance.retention_soon === 0 ? " zero" : ""}`}>{data.compliance.retention_soon}</div>
-                    <div className="ag-stat-label">Candidates erased within 30 days</div>
-                    <div className="ag-stat-sub">Retention is {data.agency?.retention_days ?? 180} days from role close</div>
-                  </div>
-                  <div className="ag-tile-stat" data-quiet="true">
-                    <div className={`ag-stat${data.compliance.rights_pending === 0 ? " zero" : ""}`}>{data.compliance.rights_pending}</div>
-                    <div className="ag-stat-label">Open rights requests</div>
-                    <div className="ag-stat-sub">Access, correction, erasure, objection</div>
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="ag-card">
                 <div className="ag-card-head">
                   <span className="ag-card-title">Roles</span>
-                  <span className="ag-meta">{data.roles.length} total</span>
+                  <div className="ag-filters">
+                    {([
+                      ["live", "Live"],
+                      ["attention", "Needs action"],
+                      ["closed", "Closed"],
+                    ] as const).map(([key, label]) => (
+                      <button
+                        key={key}
+                        className="ag-filter"
+                        aria-pressed={roleFilter === key}
+                        onClick={() => setRoleFilter(key)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                {data.roles.length === 0 && (
-                  <div className="ag-quiet">No roles yet. Create one and paste the client brief.</div>
+                {visibleRoles.length === 0 && (
+                  <div className="ag-quiet">
+                    {data.roles.length === 0
+                      ? "No roles yet. Create one and paste the client brief."
+                      : roleFilter === "attention"
+                        ? "No role is blocked. Nothing here needs you right now."
+                        : roleFilter === "closed"
+                          ? "No closed roles yet."
+                          : "No live roles. Every role you have is closed."}
+                  </div>
                 )}
-                {data.roles.map((role) => (
+                {visibleRoles.map((role) => (
                   <button
                     key={role.id}
-                    className="ag-row"
-                    style={{ width: "100%", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid var(--ag-border)", cursor: "pointer" }}
+                    className="ag-role-row"
+                    data-flag={role.stage_state === "blocked" ? "blocked" : undefined}
                     onClick={() => openRole(role.id)}
                   >
-                    <div className="ag-grow">
-                      <div style={{ fontWeight: 500 }}>{role.title}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="ag-role-title">{role.title}</div>
                       <div className="ag-meta">
                         {role.ref} · {role.company || "No company yet"} · {role.candidate_count} candidate{role.candidate_count === 1 ? "" : "s"}
                       </div>
+                      {role.needs && (
+                        <div
+                          className="ag-role-needs"
+                          data-tone={role.stage_state === "blocked" ? "blocked" : role.stage_state === "waiting" ? "waiting" : undefined}
+                        >
+                          {role.needs}
+                        </div>
+                      )}
                     </div>
-                    <span className={`ag-pill${role.status === "open" ? " ag-pill-coral" : ""}`}>{role.status}</span>
+                    <div className="ag-stage" aria-label={`Step ${role.stage} of 6: ${STAGES[role.stage - 1]}`}>
+                      {STAGES.map((name, i) => {
+                        const n = i + 1
+                        const s =
+                          role.stage_state === "done" ? "done"
+                            : n < role.stage ? "done"
+                              : n === role.stage ? role.stage_state
+                                : "todo"
+                        return (
+                          <span className="ag-stage-seg" key={name} data-s={s} title={`${n}. ${name}`}>
+                            <span className="ag-stage-bar" />
+                            <span className="ag-stage-label">{name}</span>
+                          </span>
+                        )
+                      })}
+                    </div>
+                    <div className="ag-role-score">
+                      {role.top_score === null ? (
+                        <span className="none">no score yet</span>
+                      ) : (
+                        <>
+                          <span className="num">{role.top_score}</span>
+                          {role.top_delta !== null && role.top_delta !== 0 && (
+                            <span className={`ag-delta${role.top_delta < 0 ? " down" : ""}`}>
+                              {role.top_delta > 0 ? "+" : ""}{role.top_delta} since parse
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </button>
                 ))}
               </div>
