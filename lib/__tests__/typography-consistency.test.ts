@@ -79,6 +79,9 @@ const ALLOWLIST: Record<string, string> = {
     'Client portal shell (same agencies design system): mono carries refs, ' +
     'scores, must have counts and the viewer attribution line. Narratives, ' +
     'quotes and all prose stay in the sans.',
+  'app/rights/layout.tsx:Geist_Mono':
+    'Candidate rights page (same agency design system): mono carries the ' +
+    'held since date, request kinds and status chips. All prose stays sans.',
   'app/agencies/layout.tsx:Geist_Mono':
     'Tailr for Agencies (approved handoff design, mono-heavy by intent): ' +
     'loads the face for .ag-meta chrome — refs (ROL/CAN/R0N), counts, ' +

@@ -52,6 +52,7 @@ export default function AgencyHomePage() {
   const [state, setState] = useState<"loading" | "unauthed" | "no_agency" | "ready">("loading")
   const [data, setData] = useState<Dashboard | null>(null)
   const [creating, setCreating] = useState(false)
+  const [actioning, setActioning] = useState<string | null>(null)
 
   useEffect(() => {
     fetch("/api/agency/dashboard")
@@ -177,6 +178,25 @@ export default function AgencyHomePage() {
                         A candidate has asked to {r.kind === "erasure" ? "have their data deleted" : r.kind === "access" ? "see the data you hold" : r.kind === "objection" ? "stop being processed" : "correct their data"} · {r.candidate_ref}
                       </span>
                       <span className="ag-meta">{ago(r.requested_at)}</span>
+                      <button
+                        className="ag-btn ag-btn-secondary"
+                        disabled={actioning === r.id}
+                        onClick={async () => {
+                          const strong = r.kind === "erasure" || r.kind === "objection"
+                          if (strong && !window.confirm(`Completing this ${r.kind} request erases ${r.candidate_ref}'s CV and their assessment. The audit record of the decision survives. This cannot be undone.`)) return
+                          setActioning(r.id)
+                          await fetch("/api/agency/rights", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ request_id: r.id, outcome: "completed" }),
+                          })
+                          setActioning(null)
+                          const res = await fetch("/api/agency/dashboard")
+                          if (res.ok) setData(await res.json())
+                        }}
+                      >
+                        {actioning === r.id ? <span className="ag-spin" /> : "Action it"}
+                      </button>
                     </div>
                   ))}
                   {data.needs_you.client_actions.map((a) => (

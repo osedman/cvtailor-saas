@@ -30,7 +30,7 @@ export async function sendOneNotice(admin: AgencyClient, noticeId: string): Prom
 
   const { data: candidate } = await admin
     .from("candidates")
-    .select("id, agency_id, role_id, ref, full_name, email")
+    .select("id, agency_id, role_id, ref, full_name, email, rights_token")
     .eq("id", notice.candidate_id)
     .maybeSingle()
   if (!candidate) {
@@ -103,6 +103,9 @@ export async function sendOneNotice(admin: AgencyClient, noticeId: string): Prom
       roleLocation: role?.location ?? "",
       retentionDays: agency?.retention_days ?? 180,
       personalNote: notice.personal_note ?? "",
+      rightsUrl: candidate.rights_token
+        ? `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://gettailr.com"}/rights/${candidate.rights_token}`
+        : "",
     }),
     from: `${agencyName} via Tailr <notices@gettailr.com>`,
     replyTo: agency?.notice_reply_to || undefined,
@@ -131,6 +134,7 @@ export function noticeHtml(opts: {
   roleLocation: string
   retentionDays: number
   personalNote: string
+  rightsUrl?: string
 }): string {
   const firstName = opts.candidateName.split(" ")[0] || "there"
   const where = opts.roleLocation ? ` in ${opts.roleLocation}` : ""
@@ -149,7 +153,15 @@ export function noticeHtml(opts: {
   ${note}
   <p style="margin:0 0 16px;line-height:1.6;">Because ${escapeHtml(
     opts.agencyName
-  )} holds your CV, UK data protection law gives you rights over that information. You can ask to see the data they hold, correct it, or have it deleted at any time. Reply to this email to reach your recruiter directly with any of those requests.</p>
+  )} holds your CV, UK data protection law gives you rights over that information. You can ask to see the data they hold, correct it, or have it deleted at any time.${
+    opts.rightsUrl ? "" : " Reply to this email to reach your recruiter directly with any of those requests."
+  }</p>
+  ${
+    opts.rightsUrl
+      ? `<p style="margin:0 0 16px;"><a href="${opts.rightsUrl}" style="display:inline-block;background:#1e1813;color:#fffdfa;border-radius:8px;padding:10px 16px;font-weight:600;text-decoration:none;">See what they hold, or ask them to delete it</a></p>
+  <p style="margin:0 0 16px;line-height:1.6;font-size:13px;color:#4e463d;">No account needed, and you can reply to this email instead if you prefer.</p>`
+      : ""
+  }
   <p style="margin:0 0 16px;line-height:1.6;">If nothing comes of this role, your CV data is kept for ${
     opts.retentionDays
   } days after the role closes and is then deleted automatically.</p>
