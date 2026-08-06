@@ -75,6 +75,12 @@ const ALLOWLIST: Record<string, string> = {
     'Tailor sidebar chrome (screen 05): panel labels and EV·NN chips — ' +
     'machine references into the evidence bank. Requirements and gap prose ' +
     'stay in the sans.',
+  'app/agencies/layout.tsx:Geist_Mono':
+    'Tailr for Agencies (approved handoff design, mono-heavy by intent): ' +
+    'loads the face for .ag-meta chrome — refs (ROL/CAN/R0N), counts, ' +
+    'states, scores. All prose and every recruiter-typed field, including ' +
+    'the JD paste box, stays in the sans; the handoff wanted the JD box in ' +
+    'mono and that deviation is deliberate, per the 27 Jul lesson.',
 }
 
 /** Source files we typeset; ignore build output and vendored code. */
