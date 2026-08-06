@@ -1,23 +1,27 @@
 "use client"
 
 /**
- * The role workflow: intake → parse review → candidates, live against the
- * real APIs. Screening, compare and submission ship next; their rail steps
- * render locked so the seven step shape is already true to the handoff.
+ * The role workflow, all six steps live against the real APIs:
+ * intake → parse review → candidates → screening calls → compare → submission.
+ * Every score on this page came from the server; the browser never computes
+ * one. Overrides, decisions and submissions are audit coupled server side.
  */
 
 import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
-type Step = "intake" | "parse" | "candidates"
-const LOCKED_STEPS = ["Screening calls", "Compare", "Client submission"]
+type Step = "intake" | "parse" | "candidates" | "screening" | "compare" | "submission"
 
 interface Requirement { id: string; ref: string; text: string; weight: "must" | "important" | "nice" }
 interface Constraint { id: string; ref: string; text: string; kind: string }
 interface Role { id: string; ref: string; title: string; company: string; company_context: string; salary_band: string; location: string; seniority: string; jd_raw: string; recruiter_notes: string; status: string }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; parse_status: string; duplicate_of: string | null }
-interface Score { candidate_id: string; overall: number; must_have_hit: number; must_have_total: number; original_overall: number | null }
+interface Score { candidate_id: string; overall: number; must_have_hit: number; must_have_total: number; original_overall: number | null; confidence_level: number; effective: Record<string, string> }
+interface Review { candidate_id: string; status: string; communication: number | null; motivation: number | null; availability: string; salary_confirm: string; notice_period: string; notes: string }
+interface Evidence { candidate_id: string; requirement_id: string; strength: string; quote: string | null }
 
+type Strength = "strong" | "transferable" | "partial" | "missing"
+const STRENGTHS: Strength[] = ["strong", "transferable", "partial", "missing"]
 const WEIGHT_ORDER: Record<string, "must" | "important" | "nice"> = { must: "important", important: "nice", nice: "must" }
 const GROUPS: Array<{ weight: "must" | "important" | "nice"; label: string; hint: string }> = [
   { weight: "must", label: "Must have", hint: "Weight about 45% of the score. Zero here is a hard fail." },
@@ -33,21 +37,44 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [constraints, setConstraints] = useState<Constraint[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [scores, setScores] = useState<Record<string, Score>>({})
+  const [reviews, setReviews] = useState<Record<string, Review>>({})
+  const [decisions, setDecisions] = useState<Record<string, string | null>>({})
+  const [evidence, setEvidence] = useState<Evidence[]>([])
+  const [overrides, setOverrides] = useState<Record<string, Record<string, Strength>>>({})
   const [step, setStep] = useState<Step>("intake")
+  const [activeCandidate, setActiveCandidate] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [paste, setPaste] = useState("")
+  const [submissionResult, setSubmissionResult] = useState<{ format: string; entries: number; links: Array<{ url: string }> } | null>(null)
 
   const loadCandidates = useCallback(async () => {
     const res = await fetch(`/api/agency/roles/${roleId}/candidates`)
-    if (!res.ok) return
+    if (!res.ok) return 0
     const body = await res.json()
     setCandidates(body.candidates ?? [])
-    const map: Record<string, Score> = {}
-    for (const s of body.scores ?? []) map[s.candidate_id] = s
-    setScores(map)
+    const sMap: Record<string, Score> = {}
+    for (const s of body.scores ?? []) sMap[s.candidate_id] = s
+    setScores(sMap)
+    const rMap: Record<string, Review> = {}
+    for (const r of body.reviews ?? []) rMap[r.candidate_id] = r
+    setReviews(rMap)
+    const dMap: Record<string, string | null> = {}
+    for (const d of body.decisions ?? []) dMap[d.candidate_id] = d.decision
+    setDecisions(dMap)
+    setEvidence(body.evidence ?? [])
     return (body.candidates ?? []).length as number
   }, [roleId])
+
+  const loadReviewDetail = useCallback(async (candidateId: string) => {
+    const res = await fetch(`/api/agency/candidates/${candidateId}/review`)
+    if (!res.ok) return
+    const body = await res.json()
+    const map: Record<string, Strength> = {}
+    for (const o of body.overrides ?? []) map[o.requirement_id] = o.to_strength
+    setOverrides((prev) => ({ ...prev, [candidateId]: map }))
+    if (body.review) setReviews((prev) => ({ ...prev, [candidateId]: body.review }))
+  }, [])
 
   useEffect(() => {
     ;(async () => {
@@ -63,19 +90,25 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     })()
   }, [roleId, router, loadCandidates])
 
+  useEffect(() => {
+    if (step === "screening" && candidates.length > 0) {
+      const first = activeCandidate ?? candidates[0].id
+      setActiveCandidate(first)
+      for (const c of candidates) loadReviewDetail(c.id)
+    }
+  }, [step, candidates, activeCandidate, loadReviewDetail])
+
   function patchRole(fields: Partial<Role>) {
     setRole((r) => (r ? { ...r, ...fields } : r))
   }
 
   async function saveIntake() {
     if (!role) return
-    setBusy("save")
     await fetch(`/api/agency/roles/${roleId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(role),
     })
-    setBusy(null)
   }
 
   async function extract() {
@@ -112,16 +145,11 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     await fetch(`/api/agency/requirements/${req.id}`, { method: "DELETE" })
   }
 
-  async function ingestPaste() {
-    if (paste.trim().length < 100) return setError("Paste at least a few paragraphs of CV text")
+  async function ingest(bodyInit: RequestInit) {
     setBusy("ingest")
     setError(null)
     try {
-      const res = await fetch(`/api/agency/roles/${roleId}/candidates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cvText: paste }),
-      })
+      const res = await fetch(`/api/agency/roles/${roleId}/candidates`, { method: "POST", ...bodyInit })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? "Ingestion failed")
       setPaste("")
@@ -133,16 +161,68 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     }
   }
 
-  async function ingestFile(file: File) {
-    setBusy("ingest")
+  async function patchReview(candidateId: string, patch: Record<string, unknown>) {
+    const res = await fetch(`/api/agency/candidates/${candidateId}/review`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    })
+    if (res.ok) {
+      const body = await res.json()
+      if (body.score) {
+        setScores((prev) => ({ ...prev, [candidateId]: { ...prev[candidateId], ...body.score, candidate_id: candidateId } }))
+      }
+      await loadReviewDetail(candidateId)
+      const listRes = await fetch(`/api/agency/roles/${roleId}/candidates`)
+      if (listRes.ok) {
+        const list = await listRes.json()
+        const rMap: Record<string, Review> = {}
+        for (const r of list.reviews ?? []) rMap[r.candidate_id] = r
+        setReviews(rMap)
+      }
+    }
+  }
+
+  async function setOverride(candidateId: string, requirementId: string, strength: Strength | null) {
+    setOverrides((prev) => {
+      const mine = { ...(prev[candidateId] ?? {}) }
+      if (strength === null) delete mine[requirementId]
+      else mine[requirementId] = strength
+      return { ...prev, [candidateId]: mine }
+    })
+    await patchReview(candidateId, { overrides: { [requirementId]: strength } })
+  }
+
+  async function resetCall(candidateId: string) {
+    const res = await fetch(`/api/agency/candidates/${candidateId}/review`, { method: "DELETE" })
+    if (res.ok) {
+      setOverrides((prev) => ({ ...prev, [candidateId]: {} }))
+      await loadCandidates()
+    }
+  }
+
+  async function decide(candidateId: string, decision: string | null) {
+    const next = decisions[candidateId] === decision ? null : decision
+    setDecisions((prev) => ({ ...prev, [candidateId]: next }))
+    await fetch(`/api/agency/candidates/${candidateId}/decision`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: next }),
+    })
+  }
+
+  async function generateSubmission(format: string) {
+    setBusy("submission")
     setError(null)
     try {
-      const form = new FormData()
-      form.append("file", file)
-      const res = await fetch(`/api/agency/roles/${roleId}/candidates`, { method: "POST", body: form })
+      const res = await fetch(`/api/agency/roles/${roleId}/submission`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format }),
+      })
       const body = await res.json()
-      if (!res.ok) throw new Error(body.error ?? "Ingestion failed")
-      await loadCandidates()
+      if (!res.ok) throw new Error(body.error ?? "Generation failed")
+      setSubmissionResult({ format, entries: body.submission?.snapshot?.shortlisted?.length ?? 0, links: body.links ?? [] })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -153,11 +233,25 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const initials = (name: string) =>
     name.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?"
   const tier = (n: number) => (n >= 80 ? "hi" : n >= 60 ? "med" : "lo")
+  const parsedStrength = (candidateId: string, requirementId: string): Strength =>
+    ((evidence.find((e) => e.candidate_id === candidateId && e.requirement_id === requirementId)?.strength ?? "missing") as Strength)
+  const effectiveStrength = (candidateId: string, requirementId: string): Strength =>
+    (overrides[candidateId]?.[requirementId] ?? scores[candidateId]?.effective?.[requirementId] ?? parsedStrength(candidateId, requirementId)) as Strength
+  const reviewedCount = Object.values(reviews).filter((r) => r.status === "reviewed").length
+  const shortlisted = Object.values(decisions).filter((d) => d === "shortlist").length
+  const decisionTotals = ["shortlist", "hold", "reject"].map((d) => `${Object.values(decisions).filter((x) => x === d).length} ${d}`).join(" · ")
+
   const steps: Array<{ key: Step; label: string }> = [
     { key: "intake", label: "Role intake" },
     { key: "parse", label: "Parse review" },
     { key: "candidates", label: "Add candidates" },
+    { key: "screening", label: "Screening calls" },
+    { key: "compare", label: "Compare" },
+    { key: "submission", label: "Client submission" },
   ]
+  const active = activeCandidate ? candidates.find((c) => c.id === activeCandidate) : null
+  const activeScore = activeCandidate ? scores[activeCandidate] : null
+  const activeReview = activeCandidate ? reviews[activeCandidate] : null
 
   return (
     <>
@@ -175,11 +269,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             <button key={s.key} className={`ag-step${step === s.key ? " on" : ""}`} onClick={() => setStep(s.key)}>
               <span className="ag-step-num">{`0${i + 1}`}</span> {s.label}
             </button>
-          ))}
-          {LOCKED_STEPS.map((label, i) => (
-            <div key={label} className="ag-step locked">
-              <span className="ag-step-num">{`0${i + 4}`}</span> {label}
-            </div>
           ))}
         </div>
         {role && (
@@ -263,18 +352,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                   <button className="ag-btn" onClick={() => setStep("intake")}>Back</button>
-                  <button className="ag-btn ag-btn-primary" onClick={() => setStep("candidates")} disabled={requirements.length === 0}>
-                    Continue to candidates
-                  </button>
+                  <button className="ag-btn ag-btn-primary" onClick={() => setStep("candidates")} disabled={requirements.length === 0}>Continue to candidates</button>
                 </div>
               </div>
               <div className="ag-grid-2" style={{ gridTemplateColumns: "1.5fr 1fr" }}>
                 <div className="ag-card">
                   <div className="ag-card-head">
                     <span className="ag-card-title">Requirements</span>
-                    <span className="ag-meta">
-                      {(["must", "important", "nice"] as const).map((w) => `${requirements.filter((r) => r.weight === w).length} ${w}`).join(" · ")}
-                    </span>
+                    <span className="ag-meta">{(["must", "important", "nice"] as const).map((w) => `${requirements.filter((r) => r.weight === w).length} ${w}`).join(" · ")}</span>
                   </div>
                   <div className="ag-card-body ag-stack" style={{ gap: 20 }}>
                     {GROUPS.map((group) => (
@@ -331,7 +416,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   <h1 className="ag-title">Add candidates.</h1>
                   <p className="ag-sub">PDF, DOCX or pasted text, up to 10 per role. Scoring runs on the server the moment a CV lands.</p>
                 </div>
-                <button className="ag-btn" onClick={() => setStep("parse")}>Back</button>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button className="ag-btn" onClick={() => setStep("parse")}>Back</button>
+                  <button className="ag-btn ag-btn-primary" onClick={() => setStep("screening")} disabled={candidates.length === 0}>Continue to screening</button>
+                </div>
               </div>
               <div className="ag-grid-2">
                 <div className="ag-card">
@@ -339,16 +427,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     <span className="ag-card-title">Candidates ({candidates.length})</span>
                     <label className="ag-btn ag-btn-secondary" style={{ cursor: "pointer" }}>
                       Upload CV
-                      <input type="file" accept=".pdf,.docx,.txt" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) ingestFile(f) }} />
+                      <input type="file" accept=".pdf,.docx,.txt" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) { const form = new FormData(); form.append("file", f); ingest({ body: form }) } }} />
                     </label>
                   </div>
                   {candidates.length === 0 && (
                     <div className="ag-card-body">
                       <div className="ag-drop">
                         <div style={{ fontWeight: 600, fontSize: 15 }}>No candidates yet for {role.ref}.</div>
-                        <p style={{ fontSize: 12.5, color: "var(--ag-ink-3)", margin: "6px 0 0" }}>
-                          {requirements.length} requirements ready. Nothing scored yet.
-                        </p>
+                        <p style={{ fontSize: 12.5, color: "var(--ag-ink-3)", margin: "6px 0 0" }}>{requirements.length} requirements ready. Nothing scored yet.</p>
                       </div>
                     </div>
                   )}
@@ -362,9 +448,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             {c.full_name}
                             {c.duplicate_of && <span className="ag-pill ag-pill-warn" style={{ marginLeft: 8 }}>Also in your pipeline</span>}
                           </div>
-                          <div className="ag-meta">
-                            {c.ref} · {c.current_title || "Unknown role"}{c.years ? ` · ${c.years} yrs` : ""}{c.location ? ` · ${c.location}` : ""}
-                          </div>
+                          <div className="ag-meta">{c.ref} · {c.current_title || "Unknown role"}{c.years ? ` · ${c.years} yrs` : ""}{c.location ? ` · ${c.location}` : ""}</div>
                         </div>
                         {c.parse_status === "failed" ? (
                           <span className="ag-pill ag-pill-failed">Failed</span>
@@ -385,7 +469,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     <div className="ag-card-head"><span className="ag-card-title">Paste a CV</span></div>
                     <div className="ag-card-body">
                       <textarea className="ag-textarea" style={{ minHeight: 180 }} placeholder="Paste CV text for candidates who sent a document you cannot upload" value={paste} onChange={(e) => setPaste(e.target.value)} />
-                      <button className="ag-btn ag-btn-primary" style={{ marginTop: 12 }} onClick={ingestPaste} disabled={busy !== null}>
+                      <button
+                        className="ag-btn ag-btn-primary"
+                        style={{ marginTop: 12 }}
+                        onClick={() => { if (paste.trim().length < 100) setError("Paste at least a few paragraphs of CV text"); else ingest({ headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cvText: paste }) }) }}
+                        disabled={busy !== null}
+                      >
                         {busy === "ingest" ? <><span className="ag-spin" /> Reading the CV</> : "Add candidate"}
                       </button>
                     </div>
@@ -404,6 +493,244 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   </div>
                 </div>
               </div>
+            </>
+          )}
+
+          {role && step === "screening" && (
+            <>
+              <div className="ag-screen-head">
+                <div>
+                  <h1 className="ag-title">What did they actually say?</h1>
+                  <p className="ag-sub">The CV parse is provisional. Confirm or override it from the call; the score updates as you type.</p>
+                </div>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <span className="ag-meta">{reviewedCount}/{candidates.length} reviewed</span>
+                  <button className="ag-btn" onClick={() => setStep("candidates")}>Back</button>
+                  <button className="ag-btn ag-btn-primary" onClick={() => setStep("compare")} disabled={reviewedCount === 0}>Finalize scoring</button>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 20, alignItems: "start" }}>
+                <div className="ag-stack" style={{ gap: 10 }}>
+                  <div className="ag-rail-label" style={{ padding: 0 }}>Candidates</div>
+                  {candidates.map((c) => {
+                    const s = scores[c.id]
+                    const r = reviews[c.id]
+                    return (
+                      <button key={c.id} className={`ag-tile${activeCandidate === c.id ? " on" : ""}`} onClick={() => setActiveCandidate(c.id)}>
+                        {r?.status === "reviewed" && <span className="ag-reviewed">Call done</span>}
+                        <div style={{ fontWeight: 500, fontSize: 13 }}>{c.full_name}</div>
+                        <div className="ag-meta">{c.ref}{s ? ` · ${Math.round(s.overall)}` : ""}{s?.original_overall != null && s.original_overall !== s.overall ? ` (was ${Math.round(s.original_overall)})` : ""}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+                {active && (
+                  <div className="ag-stack">
+                    <div className="ag-card">
+                      <div className="ag-card-body" style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                        <div className="ag-avatar" style={{ width: 48, height: 48 }}>{initials(active.full_name)}</div>
+                        <div className="ag-grow">
+                          <div style={{ fontWeight: 700, fontSize: 18 }}>{active.full_name}</div>
+                          <div className="ag-meta">{active.ref} · {activeScore ? `${activeScore.must_have_hit}/${activeScore.must_have_total} musts` : ""}</div>
+                        </div>
+                        {activeScore && (
+                          <div style={{ textAlign: "right" }}>
+                            <span className={`ag-score ${tier(activeScore.overall)}`}>{Math.round(activeScore.overall)}</span>
+                            {activeScore.original_overall != null && activeScore.original_overall !== activeScore.overall && (
+                              <div className="ag-delta">{Math.round(activeScore.original_overall)} → {Math.round(activeScore.overall)} after call</div>
+                            )}
+                          </div>
+                        )}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          <button className={`ag-btn ${activeReview?.status === "reviewed" ? "ag-btn-coral" : "ag-btn-primary"}`} onClick={() => patchReview(active.id, { status: activeReview?.status === "reviewed" ? "unreviewed" : "reviewed" })}>
+                            {activeReview?.status === "reviewed" ? "Reviewed" : "Mark reviewed"}
+                          </button>
+                          <button className="ag-btn" onClick={() => resetCall(active.id)}>Reset call</button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="ag-grid-2" style={{ gridTemplateColumns: "1.3fr 1fr" }}>
+                      <div className="ag-card">
+                        <div className="ag-card-head">
+                          <span className="ag-card-title">Confirm or override the CV assessment</span>
+                          <span className="ag-meta">{Object.keys(overrides[active.id] ?? {}).length} overridden</span>
+                        </div>
+                        {requirements.map((req) => {
+                          const parsed = parsedStrength(active.id, req.id)
+                          const mine = overrides[active.id]?.[req.id] ?? null
+                          return (
+                            <div key={req.id} style={{ padding: "10px 18px", borderTop: "1px solid var(--ag-border)" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                                <span className="ag-meta">{req.ref}</span>
+                                <span className="ag-grow" style={{ fontSize: 13 }}>{req.text}</span>
+                                {mine && <span className="ag-reviewed" style={{ position: "static" }}>Your call</span>}
+                                <span className="ag-pill">{req.weight}</span>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <span className="ag-meta" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                  CV <span className={`ag-dot ${parsed}`} /> {parsed}
+                                </span>
+                                <div className="ag-seg">
+                                  {STRENGTHS.map((s) => (
+                                    <button key={s} className={mine === s ? "on" : ""} onClick={() => setOverride(active.id, req.id, mine === s ? null : s)}>
+                                      {s.slice(0, 4)}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <div className="ag-stack">
+                        <div className="ag-card">
+                          <div className="ag-card-head"><span className="ag-card-title">Soft signals</span><span className="ag-meta">Affects context fit</span></div>
+                          <div className="ag-card-body ag-stack" style={{ gap: 14 }}>
+                            {(["communication", "motivation"] as const).map((signal) => (
+                              <div key={signal} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <span style={{ fontSize: 12.5, width: 110, textTransform: "capitalize" }}>{signal}</span>
+                                {[1, 2, 3, 4, 5].map((n) => (
+                                  <button key={n} className={`ag-star${(activeReview?.[signal] ?? 0) >= n ? " on" : ""}`} onClick={() => patchReview(active.id, { [signal]: activeReview?.[signal] === n ? null : n })} />
+                                ))}
+                              </div>
+                            ))}
+                            <div style={{ display: "grid", gap: 10, borderTop: "1px solid var(--ag-border)", paddingTop: 12 }}>
+                              {(["availability", "salary_confirm", "notice_period"] as const).map((field) => (
+                                <input key={field} className="ag-input" placeholder={field.replace("_", " ")} defaultValue={activeReview?.[field] ?? ""} onBlur={(e) => patchReview(active.id, { [field]: e.target.value })} />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="ag-card">
+                          <div className="ag-card-head"><span className="ag-card-title">Call notes</span><span className="ag-pill">Private</span></div>
+                          <div className="ag-card-body">
+                            <textarea className="ag-textarea" style={{ minHeight: 120 }} placeholder="What they said, in your words. This feeds the client narrative." defaultValue={activeReview?.notes ?? ""} onBlur={(e) => patchReview(active.id, { notes: e.target.value })} />
+                            <p className="ag-meta" style={{ marginTop: 8 }}>Attached to {active.ref} · feeds submission narrative</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {role && step === "compare" && (
+            <>
+              <div className="ag-screen-head">
+                <div>
+                  <h1 className="ag-title">{candidates.length} candidates, ranked with evidence.</h1>
+                  <p className="ag-sub">{decisionTotals || "No decisions yet"} · clicking an active decision clears it. Nothing is hidden, whatever the score.</p>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button className="ag-btn" onClick={() => setStep("screening")}>Back</button>
+                  <button className="ag-btn ag-btn-primary" onClick={() => setStep("submission")} disabled={shortlisted === 0}>Generate submission · {shortlisted} shortlisted</button>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(candidates.length, 1)}, 1fr)`, gap: 14, marginBottom: 20 }}>
+                {[...candidates].sort((a, b) => (scores[b.id]?.overall ?? 0) - (scores[a.id]?.overall ?? 0)).map((c, rank) => {
+                  const s = scores[c.id]
+                  return (
+                    <div className="ag-card" key={c.id}>
+                      <div className="ag-card-body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span className="ag-meta">#{rank + 1}</span>
+                          <div className="ag-avatar">{initials(c.full_name)}</div>
+                          {reviews[c.id]?.status === "reviewed" && <span className="ag-reviewed" style={{ position: "static", marginLeft: "auto" }}>Call done</span>}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600 }}>{c.full_name}</div>
+                          <div className="ag-meta">{c.current_title || c.ref}</div>
+                        </div>
+                        {s && (
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                            <span className={`ag-score ${tier(s.overall)}`}>{Math.round(s.overall)}</span>
+                            <span className="ag-meta">{s.must_have_hit}/{s.must_have_total} musts</span>
+                          </div>
+                        )}
+                        <div className="ag-seg" style={{ width: "100%" }}>
+                          {["shortlist", "hold", "reject"].map((d) => (
+                            <button key={d} style={{ flex: 1 }} className={decisions[c.id] === d ? "on" : ""} onClick={() => decide(c.id, d)}>{d}</button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="ag-card" style={{ overflowX: "auto" }}>
+                <table className="ag-matrix">
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "left" }} className="ag-meta">Requirement</th>
+                      {candidates.map((c) => <th key={c.id} className="ag-meta">{initials(c.full_name)}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requirements.map((req) => (
+                      <tr key={req.id}>
+                        <td className="req">
+                          <span className="ag-meta">{req.ref}</span> <span style={{ fontSize: 12.5 }}>{req.text}</span>
+                        </td>
+                        {candidates.map((c) => {
+                          const strength = effectiveStrength(c.id, req.id)
+                          return (
+                            <td key={c.id} className={strength === "strong" ? "wash" : ""}>
+                              <span className={`ag-dot ${strength}`} style={{ marginRight: 6 }} />
+                              <span className="ag-meta">{strength.slice(0, 4)}</span>
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {role && step === "submission" && (
+            <>
+              <div className="ag-screen-head">
+                <div>
+                  <h1 className="ag-title">{shortlisted > 0 ? `Ready to send to ${role.company || "the client"}.` : "Nothing shortlisted yet."}</h1>
+                  <p className="ag-sub">{shortlisted > 0 ? `${shortlisted} shortlisted. Scores are recomputed on the server at the moment of generation.` : "Shortlist at least one candidate on the compare board first."}</p>
+                </div>
+                <button className="ag-btn" onClick={() => setStep("compare")}>Back</button>
+              </div>
+              {shortlisted > 0 && (
+                <div className="ag-stack">
+                  <div className="ag-card">
+                    <div className="ag-card-head"><span className="ag-card-title">Generate</span><span className="ag-meta">Same content, different container</span></div>
+                    <div className="ag-card-body" style={{ display: "flex", gap: 10 }}>
+                      {["document", "email", "portal"].map((format) => (
+                        <button key={format} className="ag-btn ag-btn-secondary" onClick={() => generateSubmission(format)} disabled={busy !== null} style={{ textTransform: "capitalize" }}>
+                          {busy === "submission" ? <span className="ag-spin" /> : null} {format}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {submissionResult && (
+                    <div className="ag-doc">
+                      <div className="ag-eyebrow">Candidate shortlist</div>
+                      <h2 style={{ fontSize: 22, fontWeight: 500, margin: "6px 0 4px" }}>{role.title}</h2>
+                      <div className="ag-meta">{role.ref} · prepared by your agency · {submissionResult.entries} candidate{submissionResult.entries === 1 ? "" : "s"} · {submissionResult.format}</div>
+                      <p style={{ fontSize: 13, color: "var(--ag-ink-2)", marginTop: 14 }}>
+                        The submission snapshot is stored and immutable: later overrides never rewrite what the client received. Your private notes on the role are not in it.
+                      </p>
+                      {submissionResult.links.length > 0 && (
+                        <div style={{ marginTop: 14 }}>
+                          <div className="ag-meta" style={{ marginBottom: 6 }}>Portal links · shown once, one per recipient</div>
+                          {submissionResult.links.map((l) => (
+                            <div key={l.url} className="ag-meta" style={{ color: "var(--ag-coral-deep)" }}>{l.url}</div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
