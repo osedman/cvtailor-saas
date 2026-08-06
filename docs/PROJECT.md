@@ -31,7 +31,7 @@ Requested in the 27 Jul sync: every feature, one line, where it actually is.
 | Pace forecast + weekly digest | Staging | Done | Not yet | Port with career path |
 | Career Arc | Staging | Done | Not yet | Hold — not in sync priorities |
 | Font/design-system consistency | Staging (this commit) | **Fixed + guardrail test** | Pending Oje re-check | Verify on staging |
-| Admin dashboard: north star + activation funnel | Staging (this commit) | **Done** | — | Use it to pick next month's work |
+| Admin dashboard: product health (aggregates + masked drill-down) | Branch `feat/admin-product-health` | **In progress** | — | Staging verify → port to prod on approval |
 | Sentry activation | — | Inert, needs DSN | — | Low |
 | Free-tier quota enforcement | — | Not started | — | Med (needs Stripe) |
 | Recruitment platform prototype | Separate | Ideation only | — | **Paused pending Y's feedback** — by decision |
@@ -39,6 +39,17 @@ Requested in the 27 Jul sync: every feature, one line, where it actually is.
 **Standing rule:** gap referencing and all generated CV text are governed by
 [docs/EVIDENCE-RULE.md](EVIDENCE-RULE.md) — *Tailr reframes evidence; it never
 manufactures it. Empty beats invented.* (Decided 28 Jul.)
+
+### Admin product health (6 Aug 2026) — in progress on `feat/admin-product-health`
+
+Rebuilt `/admin` around product health, not volume + PII tables. `/api/admin/stats`
+now returns server-side aggregates only (no emails/IPs/CV/JD). Dashboard: 7-day
+activation, median time-to-first-tailor, weekly active tailorers, 30-day return;
+weekly signup cohorts; strict outcome funnel through Offer; quality (match score,
+feedback, edit rate, cover letters); feature adoption (Path, North Star, Arc,
+Evidence, First CV); stuck segments with masked ids (`User ··A7F2`). No migration.
+Figma skipped by request (MCP rate-limited). Notion card owed — no Notion connector
+in this session. Staging verify next; prod port only on explicit approval.
 
 **Descoped / retired:** Upskill tab (merged into Quick Wins) · migration 009 ·
 long university programmes in roadmaps (focused, free OCW modules may enter
@@ -474,6 +485,7 @@ _Last updated: 30 July 2026_
 
 | Item | Type | PR | Notes |
 |------|------|----|-------|
+| Admin product-health dashboard | Feature | — | Branch `feat/admin-product-health`. Server aggregates only; masked stuck segments; cohorts + outcome funnel + quality + feature adoption. No migration. Staging verify next |
 | Long-CV handling (Pass 0 compression, higher limits) | Feature | [#6](https://github.com/osedman/cvtailor-saas/pull/6) | Adds a Haiku pre-compress pass; awaiting review |
 | Career-memory Phase 1: pattern-spotting banner | Feature | [#19](https://github.com/osedman/cvtailor-saas/pull/19) | `staging` only, not merged. Client-side aggregation of weak-evidence keywords across tailor history (`lib/career-signal.ts`), dismissible banner on `/tailor` |
 | Career-memory Phase 2/3: generated roadmap + checklist | Feature | — | `staging` only, not merged. New `/career-path` page + `/api/career-path` route: Sonnet + web search finds free resources per skill gap, project brief, CV phrasing; progress checklist persisted in `career_roadmaps` table (migration 004). Entry point is the Phase 1 banner's "See your career path" link |
