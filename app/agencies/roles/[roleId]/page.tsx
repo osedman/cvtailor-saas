@@ -47,6 +47,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [error, setError] = useState<string | null>(null)
   const [paste, setPaste] = useState("")
   const [jdUrl, setJdUrl] = useState("")
+  const [extractResult, setExtractResult] = useState<{ requirements: number; constraints: number; filled: string[] } | null>(null)
   const [submissionResult, setSubmissionResult] = useState<{ format: string; entries: number; links: Array<{ url: string }> } | null>(null)
   const [contacts, setContacts] = useState<Array<{ id: string; company: string; email: string; full_name: string }>>([])
   const [chosenContacts, setChosenContacts] = useState<string[]>([])
@@ -178,7 +179,13 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       setRequirements(body.requirements ?? [])
       setConstraints((body.constraints ?? []).map((c: Constraint, i: number) => ({ ...c, id: c.id ?? String(i), ref: c.ref ?? `C0${i + 1}` })))
       if (body.role) setRole(body.role)
-      setStep("parse")
+      // Stay on intake: the recruiter reviews what was extracted here, then
+      // moves to parse review deliberately.
+      setExtractResult({
+        requirements: (body.requirements ?? []).length,
+        constraints: (body.constraints ?? []).length,
+        filled: body.filled ?? [],
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -365,10 +372,39 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   <h1 className="ag-title">Paste the brief.<br />We&apos;ll structure it with you.</h1>
                   <p className="ag-sub">The job description and your notes are the input everything downstream is scored against.</p>
                 </div>
-                <button className="ag-btn ag-btn-primary" onClick={() => extract()} disabled={busy !== null || !role.jd_raw.trim()}>
-                  {busy === "extract" ? <><span className="ag-spin" /> Extracting requirements</> : "Extract requirements"}
-                </button>
+                <div style={{ display: "flex", gap: 10 }}>
+                  {requirements.length > 0 ? (
+                    <>
+                      <button className="ag-btn ag-btn-secondary" onClick={() => extract()} disabled={busy !== null || !role.jd_raw.trim()}>
+                        {busy === "extract" ? <><span className="ag-spin" /> Extracting</> : "Extract again"}
+                      </button>
+                      <button className="ag-btn ag-btn-primary" onClick={() => setStep("parse")} disabled={busy !== null}>
+                        Continue to parse review
+                      </button>
+                    </>
+                  ) : (
+                    <button className="ag-btn ag-btn-primary" onClick={() => extract()} disabled={busy !== null || !role.jd_raw.trim()}>
+                      {busy === "extract" ? <><span className="ag-spin" /> Extracting requirements</> : "Extract requirements"}
+                    </button>
+                  )}
+                </div>
               </div>
+              {extractResult && (
+                <div className="ag-banner" style={{ marginBottom: 20 }}>
+                  <div className="ag-grow">
+                    <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                      {extractResult.requirements} requirements and {extractResult.constraints} constraints extracted.
+                    </div>
+                    <div style={{ fontSize: 12.5, color: "var(--ag-ink-2)" }}>
+                      {extractResult.filled.length > 0
+                        ? `Filled from the JD: ${extractResult.filled.map((f) => f.replace(/_/g, " ")).join(", ")}. Your typed fields and notes were left alone.`
+                        : "Every intake field already had your own text, so nothing was overwritten."}
+                      {" "}Check the fields, then continue to parse review to adjust weights.
+                    </div>
+                  </div>
+                  <button className="ag-btn ag-btn-coral" onClick={() => setStep("parse")}>Continue</button>
+                </div>
+              )}
               <div className="ag-grid-2">
                 <div className="ag-card">
                   <div className="ag-card-head">
