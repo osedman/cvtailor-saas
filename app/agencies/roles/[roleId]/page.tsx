@@ -11,6 +11,10 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "@/lib/agency/probes"
 import { WORKFLOW_STEPS, stepNumber } from "@/lib/agency/steps"
+import {
+  ArrowUpRight, Banknote, Briefcase, ChevronUp, FileText,
+  Flame, Highlighter, MapPin, Tag, Target, Users,
+} from "lucide-react"
 
 type Step = "intake" | "parse" | "candidates" | "screening" | "compare" | "submission"
 
@@ -930,39 +934,42 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             ) : (
                               <span className="ag-meta">{snippets} snippets</span>
                             )}
-                            <span className="ag-prof-chevron" aria-hidden="true">{isOpen ? "\u2212" : "+"}</span>
+                            <span className="ag-prof-chevron" data-open={isOpen} aria-hidden="true"><ChevronUp size={18} /></span>
                           </span>
                         </button>
                         {isOpen && (
                           <div className="ag-prof-body">
                             <div className="ag-prof-row">
-                              <span className="ag-prof-key">CV source</span>
+                              <span className="ag-prof-key"><FileText size={16} />CV source</span>
                               <span className="ag-mix-chip" style={{ textTransform: "none", letterSpacing: 0, fontSize: 11 }}>
-                                {c.source === "paste" ? "Pasted text" : c.source_detail || c.cv_storage_path?.split("/").pop() || "Uploaded CV"}
+                                <Highlighter size={12} style={{ flex: "none" }} />
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {c.source === "paste" ? "Pasted text" : c.source_detail || c.cv_storage_path?.split("/").pop() || "Uploaded CV"}
+                                </span>
                               </span>
                             </div>
-                            <div className="ag-prof-row"><span className="ag-prof-key">Evidence snippets</span><span className="ag-prof-val mono">{snippets} sourced</span></div>
+                            <div className="ag-prof-row"><span className="ag-prof-key"><Highlighter size={16} />Evidence snippets</span><span className="ag-prof-val mono">{snippets} sourced</span></div>
                             <div className="ag-prof-row">
-                              <span className="ag-prof-key">Overall fit</span>
-                              {s ? <span className="ag-prof-fit">{Math.round(s.overall)} \u2197</span> : <span className="ag-meta">Not scored yet</span>}
+                              <span className="ag-prof-key"><Flame size={16} />Overall fit</span>
+                              {s ? <span className="ag-prof-fit">{Math.round(s.overall)} <ArrowUpRight size={13} strokeWidth={2} /></span> : <span className="ag-meta">Not scored yet</span>}
                             </div>
                             <div className="ag-prof-row">
-                              <span className="ag-prof-key">Must-have coverage</span>
+                              <span className="ag-prof-key"><Target size={16} />Must-have coverage</span>
                               <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
                                 <span className="ag-prof-val mono">{s ? `${s.must_have_hit}/${s.must_have_total}` : "Pending"}</span>
-                                {delta !== 0 && <span className="ag-delta-pill">{Math.round(s!.original_overall!)} \u2192 {Math.round(s!.overall)}</span>}
+                                {delta !== 0 && <span className="ag-delta-pill">{Math.round(s!.original_overall!)} → {Math.round(s!.overall)}</span>}
                               </span>
                             </div>
-                            <div className="ag-prof-row"><span className="ag-prof-key">Location</span><span className="ag-prof-val">{c.location || "Not parsed"}</span></div>
-                            <div className="ag-prof-row"><span className="ag-prof-key">Experience</span><span className="ag-prof-val">{c.years ? `${c.years} years` : "Not parsed"}</span></div>
+                            <div className="ag-prof-row"><span className="ag-prof-key"><MapPin size={16} />Location</span><span className="ag-prof-val">{c.location || "Not parsed"}</span></div>
+                            <div className="ag-prof-row"><span className="ag-prof-key"><Briefcase size={16} />Experience</span><span className="ag-prof-val">{c.years ? `${c.years} years` : "Not parsed"}</span></div>
                             {c.salary_text && (
                               <div className="ag-prof-row">
-                                <span className="ag-prof-key">Comp expectation</span>
+                                <span className="ag-prof-key"><Banknote size={16} />Comp expectation</span>
                                 <span className="ag-mix-chip" style={{ textTransform: "none", letterSpacing: 0, fontSize: 11.5, background: "var(--ag-bg-2)" }}>{c.salary_text}</span>
                               </div>
                             )}
                             <div className="ag-prof-row">
-                              <span className="ag-prof-key">Evidence mix</span>
+                              <span className="ag-prof-key"><Tag size={16} />Evidence mix</span>
                               <span style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                 {tally.map(({ st, n }) => (
                                   <span key={st} className="ag-mix-chip" data-missing={st === "missing"}>
@@ -976,7 +983,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                               if (strongs.length === 0) return null
                               return (
                                 <div className="ag-prof-row" style={{ alignItems: "flex-start" }}>
-                                  <span className="ag-prof-key">Top strengths</span>
+                                  <span className="ag-prof-key"><Users size={16} />Top strengths</span>
                                   <span style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                     {strongs.slice(0, 2).map((t) => (
                                       <span key={t} className="ag-strength-chip">{t}</span>
@@ -988,7 +995,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             })()}
                             <div className="ag-prof-foot">
                               <button className="ag-btn ag-btn-secondary" onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
-                                Open the evidence map \u2192
+                                Open the evidence map →
                               </button>
                             </div>
                           </div>
