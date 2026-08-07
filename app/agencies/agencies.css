@@ -243,6 +243,54 @@
 .ag-script-opt:hover { background: rgba(255, 253, 250, 0.08); }
 .ag-script-why { grid-column: 2; font-family: var(--ag-mono); font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase; color: rgba(255, 253, 250, 0.4); }
 
+/* ---------- client submission, to the handoff's shortlist screen ----------
+ * Three containers over one snapshot. The document sits on a mat so it
+ * reads as a piece of paper the client will receive, not another panel. */
+.ag-formatbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ag-doc-mat { background: var(--ag-bg-2); padding: 40px; border-radius: 10px; }
+.ag-doc { max-width: 720px; margin: 0 auto; background: var(--ag-paper); border: 1px solid var(--ag-border); box-shadow: 0 20px 60px -30px rgba(0, 0, 0, 0.2); border-radius: 4px; padding: 48px 56px; font-size: 13.5px; line-height: 1.6; }
+.ag-doc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 32px; }
+.ag-doc-eyebrow { font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ag-ink-3); }
+.ag-doc-role { font-family: var(--ag-display); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin-top: 4px; }
+.ag-doc-rule { border-top: 2px solid var(--ag-ink); padding-top: 24px; margin-bottom: 32px; }
+.ag-doc-cand { margin-bottom: 36px; }
+.ag-doc-cand-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; border-bottom: 1px solid var(--ag-border); padding-bottom: 10px; margin-bottom: 14px; }
+.ag-doc-name { font-family: var(--ag-display); font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin-top: 2px; }
+.ag-doc-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.ag-doc-list { padding: 0; margin: 0; list-style: none; }
+.ag-doc-list li { padding: 3px 0; font-size: 12.5px; }
+.ag-doc-quote { color: var(--ag-ink-3); font-style: italic; }
+/* The interview focus block: the probe questions the recruiter actually
+ * picked, handed to the client as where to dig. */
+.ag-doc-focus { margin-top: 16px; padding: 12px; background: var(--ag-bg-2); border-radius: 4px; }
+.ag-doc-foot { border-top: 1px solid var(--ag-border); padding-top: 20px; font-size: 11px; color: var(--ag-ink-3); line-height: 1.6; }
+
+.ag-mail-head { display: grid; grid-template-columns: 70px 1fr; gap: 8px 12px; font-size: 12.5px; padding-bottom: 20px; border-bottom: 1px solid var(--ag-border); align-items: baseline; }
+.ag-mail-body { padding-top: 20px; font-size: 13.5px; line-height: 1.7; }
+.ag-mail-cand { margin: 20px 0; padding-left: 14px; border-left: 3px solid var(--ag-coral); }
+
+.ag-link-row { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: 6px; margin-bottom: 10px; }
+.ag-link-url { font-family: var(--ag-mono); font-size: 12px; flex: 1; word-break: break-all; color: var(--ag-coral-deep); }
+
+/* The portal mockup: what the named recipient actually opens. */
+.ag-portal-mock { background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: 10px; overflow: hidden; box-shadow: 0 20px 60px -30px rgba(0, 0, 0, 0.15); margin: 14px 0; }
+.ag-portal-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 20px 24px; background: var(--ag-ink); color: var(--ag-paper); }
+.ag-portal-eyebrow { font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ag-coral); }
+.ag-portal-role { font-family: var(--ag-display); font-size: 18px; font-weight: 600; margin-top: 4px; }
+.ag-portal-mark { width: 28px; height: 28px; border-radius: 6px; background: var(--ag-coral); color: var(--ag-ink); display: flex; align-items: center; justify-content: center; font-weight: 800; flex: none; }
+.ag-portal-glance { padding: 20px 24px; border-bottom: 1px solid var(--ag-border); }
+.ag-portal-glance-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.ag-portal-glance-card { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--ag-bg-2); border-radius: 6px; }
+.ag-portal-cand { padding: 24px; border-bottom: 1px solid var(--ag-border); }
+.ag-portal-cand-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.ag-portal-foot { display: flex; justify-content: space-between; gap: 12px; padding: 16px 24px; background: var(--ag-cream); font-size: 11px; color: var(--ag-ink-3); }
+
+@media (max-width: 760px) {
+  .ag-doc-mat { padding: 16px; }
+  .ag-doc { padding: 28px 22px; }
+  .ag-doc-cols { grid-template-columns: 1fr; }
+}
+
 .ag-decisions-bar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 18px; background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: 12px; box-shadow: 0 -8px 24px -18px rgba(0, 0, 0, 0.35); z-index: 4; }
 .ag-decisions-bar .ag-field-label { margin-bottom: 0; }
 .ag-decisions-tally { font-size: 13px; color: var(--ag-ink-2); }

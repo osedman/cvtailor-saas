@@ -22,6 +22,7 @@ import {
   writeAudit,
 } from "@/lib/agency/db"
 import { recomputeAndStore } from "@/lib/agency/rescore"
+import { probeAreasForClient } from "@/lib/agency/probes"
 
 export const maxDuration = 60
 
@@ -121,7 +122,7 @@ export async function POST(
           .eq("candidate_id", decision.candidate_id),
         admin
           .from("candidate_reviews")
-          .select("status, notes")
+          .select("status, notes, call_answers")
           .eq("candidate_id", decision.candidate_id)
           .maybeSingle(),
       ])
@@ -165,6 +166,13 @@ export async function POST(
         narrative: review?.notes ?? "",
         strengths,
         gaps,
+        // "Suggested interview focus" in the client document: the questions
+        // the recruiter actually put on the call script for this person,
+        // resolved from call_answers keys back into readable text.
+        probe_areas: probeAreasForClient(
+          review?.call_answers as Record<string, string> | null,
+          (requirements ?? []).map((r) => ({ ref: r.ref, text: r.text }))
+        ),
       })
     }
 

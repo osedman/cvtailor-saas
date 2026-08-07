@@ -40,7 +40,7 @@ export async function GET(
     const role = await getJobRole(auth.db, auth.ctx, roleId)
     if (!role) return NextResponse.json({ error: "Role not found" }, { status: 404 })
 
-    const [requirements, constraints] = await Promise.all([
+    const [requirements, constraints, agency] = await Promise.all([
       auth.db
         .from("requirements")
         .select("id, ref, text, weight, category, origin, sort_order")
@@ -51,12 +51,16 @@ export async function GET(
         .select("id, ref, text, kind, sort_order")
         .eq("role_id", roleId)
         .order("sort_order"),
+      // The client document signs itself "prepared by <agency>", so the
+      // workflow needs the agency's own name, not just the client's.
+      auth.db.from("agencies").select("name").eq("id", auth.ctx.agencyId).maybeSingle(),
     ])
 
     return NextResponse.json({
       role,
       requirements: requirements.data ?? [],
       constraints: constraints.data ?? [],
+      agency: agency.data ?? null,
       caller_role: auth.ctx.role,
     })
   } catch (error) {
