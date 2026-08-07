@@ -122,7 +122,7 @@ export async function POST(
           .eq("candidate_id", decision.candidate_id),
         admin
           .from("candidate_reviews")
-          .select("status, notes, call_answers")
+          .select("status, notes, call_answers, availability, salary_confirm")
           .eq("candidate_id", decision.candidate_id)
           .maybeSingle(),
       ])
@@ -160,6 +160,8 @@ export async function POST(
         must_have_total: score.must_have_total,
         confidence_level: score.confidence_level,
         reviewed: review?.status === "reviewed",
+        availability: review?.availability ?? "",
+        salary_confirm: review?.salary_confirm ?? "",
         // The recruiter's own words, written for the client. Never
         // recruiter_notes from the role (private) — this is the screening
         // narrative the recruiter chose to record.
@@ -184,6 +186,9 @@ export async function POST(
      * different later, which is exactly what an immutable snapshot exists to
      * prevent — so the choice is part of the record, not a view setting.
      */
+    // The recruiter's greeting, written in their words, capped like every
+    // other recruiter-typed field.
+    const intro = typeof body?.intro === "string" ? body.intro.slice(0, 1200) : ""
     const d = (body?.disclosure ?? {}) as Record<string, unknown>
     const disclosure = {
       scores: d.scores !== false,
@@ -196,6 +201,7 @@ export async function POST(
     const snapshot = {
       generated_at: new Date().toISOString(),
       disclosure,
+      intro,
       role: {
         ref: role.ref,
         title: role.title,

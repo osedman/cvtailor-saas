@@ -647,3 +647,21 @@
 .ag-audit-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .ag-audit-val { font-family: var(--ag-mono); font-size: 12px; font-weight: 600; }
 .ag-doc-logistics { display: flex; gap: 18px; flex-wrap: wrap; border-top: 1px solid var(--ag-border); padding-top: 10px; margin-bottom: 12px; font-size: 12.5px; }
+
+/* ---------- client-facing preview (submission, live before generation) ---- */
+.ag-cfp-head { background: var(--ag-ink); color: var(--ag-paper); border-radius: 10px; padding: 20px; }
+.ag-cfp-company { font-family: var(--ag-display); font-size: 22px; font-weight: 600; letter-spacing: -0.02em; margin-top: 6px; }
+.ag-cfp-intro { width: 100%; margin-top: 12px; border-radius: 8px; background: rgba(255, 253, 250, 0.06); color: var(--ag-paper); border: 1px solid rgba(255, 253, 250, 0.18); font-family: var(--ag-sans); font-size: 13px; line-height: 1.6; padding: 10px 12px; resize: vertical; }
+.ag-cfp-intro:focus { outline: none; border-color: var(--ag-coral); }
+.ag-cfp-stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 14px; }
+.ag-cfp-stats > span { display: flex; flex-direction: column; gap: 2px; }
+.ag-cfp-stat-k { font-family: var(--ag-mono); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.6; }
+.ag-cfp-stat-v { font-family: var(--ag-mono); font-size: 17px; font-weight: 600; }
+.ag-cfp-cand { border: 1px solid var(--ag-border); border-radius: 10px; background: var(--ag-paper); overflow: hidden; }
+.ag-cfp-cand-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px; background: var(--ag-cream); border-bottom: 1px solid var(--ag-border); }
+.ag-cfp-body { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
+.ag-cfp-ev { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.5; }
+.ag-cfp-quote { color: var(--ag-ink-3); font-style: italic; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; min-width: 0; }
+.ag-cfp-logistics { display: flex; gap: 24px; flex-wrap: wrap; border-top: 1px solid var(--ag-border); padding-top: 12px; font-size: 12.5px; }
+.ag-cfp-logistics > span { display: flex; flex-direction: column; }
+.ag-strength-chip { display: inline-flex; align-items: center; border: 1px solid var(--ag-border); background: var(--ag-bg-2); border-radius: 999px; padding: 4px 12px; font-size: 11.5px; font-weight: 500; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

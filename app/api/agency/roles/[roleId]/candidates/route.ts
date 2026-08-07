@@ -36,7 +36,7 @@ export async function GET(
       auth.db
         .from("candidates")
         .select(
-          "id, ref, full_name, current_title, years, location, salary_text, source, ingested_at, redacted, parse_status, parse_error, duplicate_of, cv_storage_path"
+          "id, ref, full_name, current_title, years, location, salary_text, source, source_detail, ingested_at, redacted, parse_status, parse_error, duplicate_of, cv_storage_path"
         )
         .eq("role_id", roleId)
         .order("ref"),
