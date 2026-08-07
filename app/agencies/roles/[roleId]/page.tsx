@@ -25,6 +25,55 @@ interface Score {
   seniority_calibration: number; context_fit: number; confidence_completeness: number
 }
 
+/**
+ * Probe questions.
+ *
+ * Two sources, no model call and no new table. Gap questions are derived
+ * from the role's own requirements wherever the CV did not evidence one
+ * outright, which is exactly the thing a screening call is for. Library
+ * questions are the standard recruiter probes that apply to any role.
+ *
+ * Answers live in the `call_answers` jsonb that has been on
+ * candidate_reviews since the scoring migration and had no UI. Keys are the
+ * question id (requirement ref like R02, or a library id like L03) and the
+ * API caps them at 10 characters, so ids stay short by design. A selected
+ * but unanswered question is stored as an empty string, which is how the
+ * card knows it was picked.
+ */
+interface Probe { id: string; text: string; why: string; source: "gap" | "library" }
+
+/** The immutable submission snapshot, exactly as the portal reads it. */
+interface SnapshotEntry {
+  ref: string; full_name: string; current_title: string | null; years: number | null
+  location: string | null; redacted?: boolean
+  overall: number; original_overall: number | null
+  must_have_hit: number; must_have_total: number; confidence_level: number; reviewed: boolean
+  narrative: string
+  strengths: Array<{ requirement: string; quote: string | null }>
+  gaps: Array<{ requirement: string; weight: string }>
+}
+interface Snapshot {
+  generated_at: string
+  role: { ref: string; title: string; company: string; location: string; salary_band: string }
+  shortlisted: SnapshotEntry[]
+  not_submitted_count: number
+}
+
+const PROBE_LIBRARY: Array<{ id: string; text: string; why: string }> = [
+  { id: "L01", text: "How much hands-on delivery versus management are they looking for next?", why: "Seniority calibration" },
+  { id: "L02", text: "What does the next step in their career actually look like to them?", why: "Motivation" },
+  { id: "L03", text: "Why are they open to moving right now?", why: "Motivation" },
+  { id: "L04", text: "What would have to be true for them to turn this down?", why: "Motivation" },
+  { id: "L05", text: "Is the notice period negotiable, and does garden leave overlap?", why: "Logistics" },
+  { id: "L06", text: "Where are they in any other processes?", why: "Logistics" },
+  { id: "L07", text: "How firm is the salary expectation, and what sits behind the number?", why: "Logistics" },
+  { id: "L08", text: "What does their week look like on site versus at home?", why: "Ways of working" },
+  { id: "L09", text: "Walk me through the hardest problem they owned end to end.", why: "Depth" },
+  { id: "L10", text: "What did they inherit versus what did they build?", why: "Depth" },
+  { id: "L11", text: "How do they handle disagreement with a stakeholder who outranks them?", why: "Ways of working" },
+  { id: "L12", text: "Which part of this role would stretch them most?", why: "Self awareness" },
+]
+
 // Weighted category rows for the compare cards, handoff order.
 const FIT_ROWS: Array<{ key: keyof Score; label: string; weight: number }> = [
   { key: "requirement_coverage", label: "Requirement coverage", weight: 45 },
@@ -33,7 +82,7 @@ const FIT_ROWS: Array<{ key: keyof Score; label: string; weight: number }> = [
   { key: "context_fit", label: "Context fit", weight: 10 },
   { key: "confidence_completeness", label: "Confidence / completeness", weight: 10 },
 ]
-interface Review { candidate_id: string; status: string; communication: number | null; motivation: number | null; availability: string; salary_confirm: string; notice_period: string; notes: string }
+interface Review { candidate_id: string; status: string; communication: number | null; motivation: number | null; availability: string; salary_confirm: string; notice_period: string; notes: string; call_answers?: Record<string, string> }
 interface Evidence { candidate_id: string; requirement_id: string; strength: string; quote: string | null }
 
 type Strength = "strong" | "transferable" | "partial" | "missing"
@@ -64,10 +113,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [paste, setPaste] = useState("")
   const [jdUrl, setJdUrl] = useState("")
   const [extractResult, setExtractResult] = useState<{ requirements: number; constraints: number; filled: string[] } | null>(null)
-  const [submissionResult, setSubmissionResult] = useState<{ format: string; entries: number; links: Array<{ url: string }> } | null>(null)
+  const [submissionResult, setSubmissionResult] = useState<{ format: string; entries: number; links: Array<{ url: string }>; snapshot: Snapshot | null } | null>(null)
   const [contacts, setContacts] = useState<Array<{ id: string; company: string; email: string; full_name: string }>>([])
   const [chosenContacts, setChosenContacts] = useState<string[]>([])
   const [newContact, setNewContact] = useState({ company: "", email: "", full_name: "" })
+  const [probePicker, setProbePicker] = useState(false)
+  const [previewFormat, setPreviewFormat] = useState<"document" | "email" | "portal">("document")
 
   const loadCandidates = useCallback(async () => {
     const res = await fetch(`/api/agency/roles/${roleId}/candidates`)
@@ -385,7 +436,15 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? "Generation failed")
-      setSubmissionResult({ format, entries: body.submission?.snapshot?.shortlisted?.length ?? 0, links: body.links ?? [] })
+      setSubmissionResult({
+        format,
+        entries: body.submission?.snapshot?.shortlisted?.length ?? 0,
+        links: body.links ?? [],
+        // The whole immutable snapshot, so the preview renders exactly what
+        // the client will get rather than a re-derivation of it.
+        snapshot: body.submission?.snapshot ?? null,
+      })
+      setPreviewFormat(format as "document" | "email" | "portal")
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -415,6 +474,39 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const active = activeCandidate ? candidates.find((c) => c.id === activeCandidate) : null
   const activeScore = activeCandidate ? scores[activeCandidate] : null
   const activeReview = activeCandidate ? reviews[activeCandidate] : null
+
+  // Every probe this candidate could be asked: their own unmet requirements
+  // first (weighted ones only, the nice-to-haves are not worth call time),
+  // then the standard library.
+  const activeAnswers: Record<string, string> = activeReview?.call_answers ?? {}
+  const probeCatalogue: Probe[] = active
+    ? [
+        ...requirements
+          .filter((req) => {
+            if (req.weight === "nice") return false
+            const s = effectiveStrength(active.id, req.id)
+            return s === "missing" || s === "partial" || s === "transferable"
+          })
+          .map((req) => ({
+            id: req.ref,
+            text: `On ${req.text.toLowerCase()}: what have they actually done here?`,
+            why: `${req.ref} reads ${effectiveStrength(active.id, req.id)} from the CV`,
+            source: "gap" as const,
+          })),
+        ...PROBE_LIBRARY.map((q) => ({ ...q, source: "library" as const })),
+      ]
+    : []
+  const chosenProbes = probeCatalogue.filter((q) => q.id in activeAnswers)
+  const answeredProbes = chosenProbes.filter((q) => (activeAnswers[q.id] ?? "").trim().length > 0).length
+  const suggestedProbes = probeCatalogue.filter((q) => !(q.id in activeAnswers))
+
+  function setProbe(candidateId: string, id: string, value: string | null) {
+    const current = reviews[candidateId]?.call_answers ?? {}
+    const next = { ...current }
+    if (value === null) delete next[id]
+    else next[id] = value
+    patchReview(candidateId, { call_answers: next }, { call_answers: next })
+  }
 
   // Handoff chrome: which steps are behind you (checkmark in the rail),
   // where you are (breadcrumb + eyebrow), and Back / Next at the top.
@@ -876,6 +968,75 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         })}
                       </div>
                       <div className="ag-stack">
+                        <div className="ag-script">
+                          <div className="ag-script-head">
+                            <span className="ag-script-title">Call script · probe questions</span>
+                            <span className="ag-script-count">{answeredProbes}/{chosenProbes.length} answered</span>
+                          </div>
+                          <div className="ag-script-body">
+                            {chosenProbes.length === 0 && (
+                              <p className="ag-script-empty">
+                                No questions picked yet. Tailr suggests the ones your requirements leave open; add any of them or a standard probe below.
+                              </p>
+                            )}
+                            {chosenProbes.map((q) => (
+                              <div className="ag-script-q" key={q.id}>
+                                <div className="ag-script-qhead">
+                                  <span className="ag-script-qid">{q.id}</span>
+                                  <span className="ag-script-qtext">{q.text}</span>
+                                  <button
+                                    className="ag-script-drop"
+                                    title="Remove this question"
+                                    aria-label={`Remove question ${q.id}`}
+                                    onClick={() => setProbe(active.id, q.id, null)}
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                                <textarea
+                                  key={`${active.id}:${q.id}`}
+                                  className="ag-script-answer"
+                                  placeholder="What they said"
+                                  defaultValue={activeAnswers[q.id] ?? ""}
+                                  onBlur={(e) => {
+                                    if (e.target.value === (activeAnswers[q.id] ?? "")) return
+                                    setProbe(active.id, q.id, e.target.value)
+                                  }}
+                                />
+                              </div>
+                            ))}
+                            <button className="ag-script-add" onClick={() => setProbePicker((v) => !v)}>
+                              {probePicker ? "Close" : "+ Add a question"}
+                            </button>
+                            {probePicker && (
+                              <div className="ag-script-picker">
+                                {suggestedProbes.length === 0 && (
+                                  <p className="ag-script-empty">Every question is already on the script.</p>
+                                )}
+                                {suggestedProbes.some((q) => q.source === "gap") && (
+                                  <p className="ag-script-group">From this candidate&apos;s open requirements</p>
+                                )}
+                                {suggestedProbes.filter((q) => q.source === "gap").map((q) => (
+                                  <button className="ag-script-opt" key={q.id} onClick={() => setProbe(active.id, q.id, "")}>
+                                    <span className="ag-script-qid">{q.id}</span>
+                                    <span className="ag-grow">{q.text}</span>
+                                    <span className="ag-script-why">{q.why}</span>
+                                  </button>
+                                ))}
+                                {suggestedProbes.some((q) => q.source === "library") && (
+                                  <p className="ag-script-group">Standard probes</p>
+                                )}
+                                {suggestedProbes.filter((q) => q.source === "library").map((q) => (
+                                  <button className="ag-script-opt" key={q.id} onClick={() => setProbe(active.id, q.id, "")}>
+                                    <span className="ag-script-qid">{q.id}</span>
+                                    <span className="ag-grow">{q.text}</span>
+                                    <span className="ag-script-why">{q.why}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                         <div className="ag-card">
                           <div className="ag-card-head"><span className="ag-card-title">Soft signals</span><span className="ag-meta">Affects context fit</span></div>
                           <div className="ag-card-body ag-stack" style={{ gap: 14 }}>
@@ -1126,24 +1287,217 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       ))}
                     </div>
                   </div>
-                  {submissionResult && (
-                    <div className="ag-doc">
-                      <div className="ag-eyebrow">Candidate shortlist</div>
-                      <h2 style={{ fontSize: 22, fontWeight: 500, margin: "6px 0 4px" }}>{role.title}</h2>
-                      <div className="ag-meta">{role.ref} · prepared by your agency · {submissionResult.entries} candidate{submissionResult.entries === 1 ? "" : "s"} · {submissionResult.format}</div>
-                      <p style={{ fontSize: 13, color: "var(--ag-ink-2)", marginTop: 14 }}>
-                        The submission snapshot is stored and immutable: later overrides never rewrite what the client received. Your private notes on the role are not in it.
-                      </p>
-                      {submissionResult.links.length > 0 && (
-                        <div style={{ marginTop: 14 }}>
-                          <div className="ag-meta" style={{ marginBottom: 6 }}>Portal links · shown once, one per recipient · copy them now</div>
-                          {submissionResult.links.map((l) => (
-                            <div key={l.url} className="ag-meta" style={{ color: "var(--ag-coral-deep)", wordBreak: "break-all" }}>
-                              {typeof window !== "undefined" ? window.location.origin : ""}{l.url}
-                            </div>
+                  {submissionResult?.snapshot && (
+                    <div className="ag-card">
+                      <div className="ag-card-head">
+                        <div className="ag-seg">
+                          {(["document", "email", "portal"] as const).map((f) => (
+                            <button key={f} className={previewFormat === f ? "on" : ""} onClick={() => setPreviewFormat(f)} style={{ textTransform: "capitalize" }}>
+                              {f === "portal" ? "Portal link" : f}
+                            </button>
                           ))}
                         </div>
-                      )}
+                        <span className="ag-meta">
+                          Generated as {submissionResult.format} · same snapshot, different container
+                        </span>
+                      </div>
+                      <div className="ag-card-body" style={{ background: "var(--ag-bg-2)" }}>
+                        {previewFormat === "document" && (
+                          <div className="ag-doc">
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20 }}>
+                              <div>
+                                <div className="ag-field-label">Candidate shortlist</div>
+                                <h2 style={{ fontFamily: "var(--ag-display)", fontSize: 22, fontWeight: 600, margin: "4px 0" }}>{submissionResult.snapshot.role.title}</h2>
+                                <div className="ag-meta">
+                                  {submissionResult.snapshot.role.company}
+                                  {submissionResult.snapshot.role.location ? ` · ${submissionResult.snapshot.role.location}` : ""}
+                                </div>
+                              </div>
+                              <div style={{ textAlign: "right" }}>
+                                <div className="ag-field-label">Prepared by</div>
+                                <div style={{ fontSize: 13, fontWeight: 600 }}>Your agency</div>
+                                <div className="ag-meta">
+                                  {submissionResult.snapshot.role.ref} · {new Date(submissionResult.snapshot.generated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                                </div>
+                              </div>
+                            </div>
+                            <hr style={{ border: "none", borderTop: "2px solid var(--ag-ink)", margin: "18px 0" }} />
+                            <div className="ag-field-label">Summary</div>
+                            <p style={{ fontSize: 13.5, color: "var(--ag-ink-2)", maxWidth: "64ch" }}>
+                              We reviewed {submissionResult.snapshot.shortlisted.length + submissionResult.snapshot.not_submitted_count} candidates against your requirements and are putting <b>{submissionResult.snapshot.shortlisted.length}</b> forward. Every line below traces to CV evidence or to what the candidate said on a call. Known gaps are stated, not hidden.
+                            </p>
+                            {submissionResult.snapshot.shortlisted.map((entry, i) => (
+                              <div key={entry.ref} style={{ marginTop: 22, paddingTop: 18, borderTop: "1px solid var(--ag-border)" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+                                  <div>
+                                    <div className="ag-field-label">Candidate {String(i + 1).padStart(2, "0")} of {String(submissionResult.snapshot!.shortlisted.length).padStart(2, "0")}</div>
+                                    <div style={{ fontFamily: "var(--ag-display)", fontSize: 18, fontWeight: 600 }}>{entry.full_name}</div>
+                                    <div className="ag-meta">
+                                      {[entry.current_title, entry.years ? `${entry.years} years` : "", entry.location].filter(Boolean).join(" · ")}
+                                    </div>
+                                  </div>
+                                  <div style={{ textAlign: "right" }}>
+                                    <span className={`ag-score ${tier(entry.overall)}`}>{Math.round(entry.overall)}</span>
+                                    <div className="ag-meta" style={{ marginTop: 4 }}>
+                                      {entry.must_have_hit}/{entry.must_have_total} musts{entry.reviewed ? " · call done" : ""}
+                                    </div>
+                                  </div>
+                                </div>
+                                {entry.narrative && (
+                                  <>
+                                    <div className="ag-field-label" style={{ marginTop: 12 }}>Why this candidate</div>
+                                    <p style={{ fontSize: 13, color: "var(--ag-ink-2)", maxWidth: "64ch", margin: 0 }}>{entry.narrative}</p>
+                                  </>
+                                )}
+                                <div className="ag-grid-2" style={{ gridTemplateColumns: "1fr 1fr", gap: 18, marginTop: 12 }}>
+                                  <div>
+                                    <div className="ag-field-label">Strengths</div>
+                                    {entry.strengths.length === 0 && <span className="ag-meta">None recorded</span>}
+                                    <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12.5, color: "var(--ag-ink-2)" }}>
+                                      {entry.strengths.map((s, j) => (
+                                        <li key={j} style={{ marginBottom: 4 }}>
+                                          {s.requirement}
+                                          {s.quote && <div className="ag-quote" style={{ marginTop: 4 }}>&ldquo;{s.quote}&rdquo;</div>}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <div className="ag-field-label" style={{ color: "var(--ag-warn)" }}>Known gaps</div>
+                                    {entry.gaps.length === 0 && <span className="ag-meta">No unmet requirements</span>}
+                                    <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12.5, color: "var(--ag-ink-2)" }}>
+                                      {entry.gaps.map((g, j) => (
+                                        <li key={j} style={{ marginBottom: 4 }}>{g.requirement} <span className="ag-meta">({g.weight})</span></li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                            <p className="ag-meta" style={{ marginTop: 20, paddingTop: 12, borderTop: "1px solid var(--ag-border)" }}>
+                              Powered by Tailr · evidence first matching · {submissionResult.snapshot.not_submitted_count} candidate{submissionResult.snapshot.not_submitted_count === 1 ? "" : "s"} reviewed and not put forward
+                            </p>
+                          </div>
+                        )}
+
+                        {previewFormat === "email" && (
+                          <div className="ag-doc" style={{ maxWidth: 720 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "70px 1fr", gap: "6px 12px", fontSize: 12.5, paddingBottom: 14, borderBottom: "1px solid var(--ag-border)" }}>
+                              <span className="ag-meta">To</span>
+                              <span>{chosenContacts.length > 0 ? contacts.filter((c) => chosenContacts.includes(c.id)).map((c) => c.email).join(", ") : "the hiring contact"}</span>
+                              <span className="ag-meta">Subject</span>
+                              <b>Shortlist: {submissionResult.snapshot.role.title} · {submissionResult.snapshot.shortlisted.length} candidate{submissionResult.snapshot.shortlisted.length === 1 ? "" : "s"}</b>
+                            </div>
+                            <div style={{ fontSize: 13, color: "var(--ag-ink-2)", marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+                              <p style={{ margin: 0 }}>Hi,</p>
+                              <p style={{ margin: 0 }}>
+                                Following your brief on the {submissionResult.snapshot.role.title} role, here is our shortlist of <b>{submissionResult.snapshot.shortlisted.length}</b> candidate{submissionResult.snapshot.shortlisted.length === 1 ? "" : "s"}. Every claim is backed by CV evidence or by what they told us on a screening call.
+                              </p>
+                              {submissionResult.snapshot.shortlisted.map((entry, i) => (
+                                <div key={entry.ref} style={{ paddingLeft: 12, borderLeft: "2px solid var(--ag-tint-2)" }}>
+                                  <p style={{ margin: 0 }}>
+                                    <b>{i + 1}. {entry.full_name}</b>
+                                    {entry.current_title ? ` · ${entry.current_title}` : ""}
+                                    <span className="ag-meta" style={{ marginLeft: 8 }}>fit {Math.round(entry.overall)} · {entry.must_have_hit}/{entry.must_have_total} musts</span>
+                                  </p>
+                                  {entry.narrative && <p style={{ margin: "4px 0 0" }}>{entry.narrative}</p>}
+                                  {entry.strengths.length > 0 && (
+                                    <p style={{ margin: "4px 0 0", fontSize: 12.5 }}>
+                                      <span className="ag-meta">Strengths</span> {entry.strengths.map((s) => s.requirement).join("; ")}
+                                    </p>
+                                  )}
+                                  {entry.gaps.length > 0 && (
+                                    <p style={{ margin: "2px 0 0", fontSize: 12.5 }}>
+                                      <span className="ag-meta" style={{ color: "var(--ag-warn)" }}>Gaps</span> {entry.gaps.map((g) => g.requirement).join("; ")}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                              <p style={{ margin: 0 }}>Happy to walk through the ranking or set up first conversations.</p>
+                              <p style={{ margin: 0 }}>Best,<br />Your agency</p>
+                            </div>
+                            <button
+                              className="ag-btn ag-btn-secondary"
+                              style={{ marginTop: 16 }}
+                              onClick={() => {
+                                const s = submissionResult.snapshot!
+                                const text = [
+                                  `Shortlist: ${s.role.title} · ${s.shortlisted.length} candidates`,
+                                  "",
+                                  "Hi,",
+                                  "",
+                                  `Following your brief on the ${s.role.title} role, here is our shortlist of ${s.shortlisted.length} candidate${s.shortlisted.length === 1 ? "" : "s"}. Every claim is backed by CV evidence or by what they told us on a screening call.`,
+                                  "",
+                                  ...s.shortlisted.flatMap((e, i) => [
+                                    `${i + 1}. ${e.full_name}${e.current_title ? ` · ${e.current_title}` : ""} (fit ${Math.round(e.overall)}, ${e.must_have_hit}/${e.must_have_total} musts)`,
+                                    e.narrative ? `   ${e.narrative}` : "",
+                                    e.strengths.length ? `   Strengths: ${e.strengths.map((x) => x.requirement).join("; ")}` : "",
+                                    e.gaps.length ? `   Gaps: ${e.gaps.map((x) => x.requirement).join("; ")}` : "",
+                                    "",
+                                  ]),
+                                  "Happy to walk through the ranking or set up first conversations.",
+                                  "",
+                                  "Best,",
+                                  "Your agency",
+                                ].filter((l) => l !== "").join("\n")
+                                navigator.clipboard?.writeText(text)
+                                setError(null)
+                              }}
+                            >
+                              Copy email text
+                            </button>
+                          </div>
+                        )}
+
+                        {previewFormat === "portal" && (
+                          <div className="ag-doc" style={{ maxWidth: 720 }}>
+                            <div className="ag-field-label">Client portal</div>
+                            <p style={{ fontSize: 13, color: "var(--ag-ink-2)", maxWidth: "60ch" }}>
+                              Each recipient gets their own link. Opens are recorded, every link is revocable on its own, and the client sees this same snapshot with Accept for interview and Ask a question on each candidate. Client actions are signals; they never change a candidate&apos;s state here.
+                            </p>
+                            {submissionResult.links.length > 0 ? (
+                              <div style={{ marginTop: 14 }}>
+                                <div className="ag-field-label">Links · shown once · copy them now</div>
+                                {submissionResult.links.map((l) => (
+                                  <div key={l.url} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                                    <code className="ag-meta" style={{ color: "var(--ag-coral-deep)", wordBreak: "break-all", flex: 1 }}>
+                                      {typeof window !== "undefined" ? window.location.origin : ""}{l.url}
+                                    </code>
+                                    <button
+                                      className="ag-btn ag-btn-secondary"
+                                      onClick={() => navigator.clipboard?.writeText(`${window.location.origin}${l.url}`)}
+                                    >
+                                      Copy
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="ag-meta" style={{ marginTop: 12 }}>
+                                No links on this submission. Pick recipients above and generate as portal to mint them.
+                              </p>
+                            )}
+                            <div style={{ marginTop: 16 }}>
+                              <div className="ag-field-label">What they will see</div>
+                              {submissionResult.snapshot.shortlisted.map((entry) => (
+                                <div key={entry.ref} className="ag-row" style={{ padding: "10px 0" }}>
+                                  <div className="ag-avatar">{initials(entry.full_name)}</div>
+                                  <div className="ag-grow">
+                                    <div style={{ fontWeight: 600, fontSize: 13.5 }}>{entry.full_name}</div>
+                                    <div className="ag-meta">{entry.current_title || entry.ref}</div>
+                                  </div>
+                                  <span className={`ag-score ${tier(entry.overall)}`}>{Math.round(entry.overall)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="ag-card-body" style={{ borderTop: "1px solid var(--ag-border)", paddingTop: 12 }}>
+                        <p className="ag-meta" style={{ margin: 0 }}>
+                          This snapshot is stored and immutable. Later overrides never rewrite what the client received, and your private notes on the role are not in it.
+                        </p>
+                      </div>
                     </div>
                   )}
 

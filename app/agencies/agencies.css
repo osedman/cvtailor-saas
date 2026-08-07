@@ -190,6 +190,34 @@
 .ag-fit-num b { color: var(--ag-ink); font-weight: 500; }
 .ag-fit-row .ag-bar { grid-column: 1 / -1; height: 4px; }
 
+/* Call script: the handoff's dark card. Inverted on purpose — it is the
+ * thing the recruiter reads off while a person is on the phone, so it wins
+ * the screen even against the coral. */
+.ag-script { background: var(--ag-ink); color: var(--ag-paper); border-radius: 12px; overflow: hidden; }
+.ag-script-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid rgba(255, 253, 250, 0.14); }
+.ag-script-title { font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ag-coral); }
+.ag-script-count { font-family: var(--ag-mono); font-size: 10px; color: rgba(255, 253, 250, 0.55); }
+.ag-script-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.ag-script-empty { font-size: 12.5px; color: rgba(255, 253, 250, 0.55); margin: 0; max-width: 46ch; line-height: 1.5; }
+.ag-script-q { display: flex; flex-direction: column; gap: 6px; }
+.ag-script-qhead { display: flex; align-items: flex-start; gap: 8px; }
+.ag-script-qid { font-family: var(--ag-mono); font-size: 9.5px; letter-spacing: 0.06em; color: var(--ag-coral); flex: none; padding-top: 2px; }
+.ag-script-qtext { flex: 1; font-size: 13px; line-height: 1.45; }
+.ag-script-drop { border: none; background: none; color: rgba(255, 253, 250, 0.45); font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; flex: none; }
+.ag-script-drop:hover { color: var(--ag-coral); }
+.ag-script-answer { width: 100%; min-height: 54px; resize: vertical; border-radius: 8px; border: 1px solid rgba(255, 253, 250, 0.18); background: rgba(255, 253, 250, 0.06); color: var(--ag-paper); font-family: var(--ag-sans); font-size: 12.5px; line-height: 1.5; padding: 8px 10px; }
+.ag-script-answer::placeholder { color: rgba(255, 253, 250, 0.35); }
+.ag-script-answer:focus { outline: none; border-color: var(--ag-coral); }
+.ag-script-add { align-self: flex-start; border: 1px dashed rgba(255, 253, 250, 0.3); background: none; color: var(--ag-paper); border-radius: 8px; padding: 6px 12px; font-family: var(--ag-sans); font-size: 12.5px; cursor: pointer; }
+.ag-script-add:hover { border-color: var(--ag-coral); color: var(--ag-coral); }
+.ag-script-picker { border-top: 1px solid rgba(255, 253, 250, 0.14); padding-top: 10px; display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; }
+.ag-script-group { font-family: var(--ag-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 253, 250, 0.45); margin: 8px 0 2px; }
+/* Two rows, not three columns: the reason sat beside the question and
+ * squeezed long requirement text into a narrow ribbon. */
+.ag-script-opt { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; width: 100%; text-align: left; border: none; background: none; color: var(--ag-paper); border-radius: 6px; padding: 7px 8px; font-family: var(--ag-sans); font-size: 12.5px; line-height: 1.4; cursor: pointer; }
+.ag-script-opt:hover { background: rgba(255, 253, 250, 0.08); }
+.ag-script-why { grid-column: 2; font-family: var(--ag-mono); font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase; color: rgba(255, 253, 250, 0.4); }
+
 .ag-decisions-bar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 18px; background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: 12px; box-shadow: 0 -8px 24px -18px rgba(0, 0, 0, 0.35); z-index: 4; }
 .ag-decisions-bar .ag-field-label { margin-bottom: 0; }
 .ag-decisions-tally { font-size: 13px; color: var(--ag-ink-2); }

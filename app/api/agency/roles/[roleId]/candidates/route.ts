@@ -46,7 +46,7 @@ export async function GET(
         .select("candidate_id, requirement_id, strength, quote, source_cite, origin"),
       auth.db
         .from("candidate_reviews")
-        .select("candidate_id, status, communication, motivation, availability, salary_confirm, notice_period, notes")
+        .select("candidate_id, status, communication, motivation, availability, salary_confirm, notice_period, notes, call_answers")
         .eq("role_id", roleId),
       auth.db
         .from("recruiter_reviews")
