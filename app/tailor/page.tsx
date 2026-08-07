@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
+import { ChevronDown } from "lucide-react"
 import { Header } from "@/components/cv-tailor/header"
 import { ArcAnnouncement } from "@/components/cv-tailor/arc-announcement"
 import { CareerPathAnnouncement } from "@/components/cv-tailor/career-path-announcement"
@@ -102,6 +103,8 @@ export default function CVTailorPage() {
   const [tailoredFromCv, setTailoredFromCv] = useState<string | null>(null)
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
   const [resultsTab, setResultsTab] = useState<ResultTabName>("Tailored CV")
+  /** Inputs fold away once a result lands; "Tailor another" reopens them. */
+  const [inputsCollapsed, setInputsCollapsed] = useState(false)
   const [focusResults, setFocusResults] = useState(false)
   const resultsSectionRef = useRef<HTMLDivElement>(null)
 
@@ -190,6 +193,7 @@ export default function CVTailorPage() {
       setTailoredFromCv(cvText)
       setResultsTab(defaultResultsTab(data.result.matchScore))
       setFocusResults(true)
+      setInputsCollapsed(true)
       markOnboardingStep("tailor")
 
       if (data.cached) {
@@ -240,6 +244,21 @@ export default function CVTailorPage() {
       setLoadingCoverLetter(false)
     }
   }, [cvText, jobDescription, historyId])
+
+  /**
+   * Auto-generate the cover letter as soon as a run lands, so the tab is ready
+   * when the user opens it instead of making them click Generate. Guarded by a
+   * ref keyed on the run, so a re-render (or reopening the tab) never fires a
+   * second billable call, and a letter restored from History is left alone.
+   */
+  const autoCoverRunRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!results || coverLetter || loadingCoverLetter) return
+    const runKey = historyId ?? "unsaved"
+    if (autoCoverRunRef.current === runKey) return
+    autoCoverRunRef.current = runKey
+    void handleGenerateCoverLetter()
+  }, [results, coverLetter, loadingCoverLetter, historyId, handleGenerateCoverLetter])
 
   /**
    * Hand-edits to the generated output. Persisted first, then applied locally —
@@ -359,18 +378,40 @@ export default function CVTailorPage() {
             <CareerSignalBanner />
           </div>
         )}
-        {/* Workspace panels */}
-        <div className={`flex-1 flex flex-col min-h-[60vh] ${enhanced ? "pt-5" : ""}`}>
-          <ResizablePanels
-            enhanced={enhanced}
-            guideStep={guideStep}
-            cvText={cvText}
-            setCvText={setCvText}
-            jobDescription={jobDescription}
-            setJobDescription={setJobDescription}
-            onJobUrlScraped={setScrapedJobUrl}
-          />
-        </div>
+        {/* Workspace panels — fold into a summary bar once a result exists */}
+        {results && inputsCollapsed ? (
+          <div className={enhanced ? "pt-5" : ""}>
+            <button
+              onClick={() => setInputsCollapsed(false)}
+              aria-expanded={false}
+              className="flex w-full items-center gap-3 rounded-xl border border-[#e0d6c9] bg-[#f9f6f0] px-4 py-3 text-left transition-colors hover:border-[#dc4f33]/50 focus-visible:ring-2 focus-visible:ring-[#dc4f33]/40 focus-visible:ring-offset-1"
+            >
+              <FileText className="h-4 w-4 shrink-0 text-[#8a8178]" aria-hidden="true" />
+              <span className="min-w-0 truncate text-[13px] font-semibold text-[#1e1813]">
+                {[results.jobTitle, results.companyName].filter(Boolean).join(" · ") || "Your tailored CV"}
+              </span>
+              <span className="hidden shrink-0 text-[12px] text-[#a89e93] sm:inline">
+                {cvText.trim().split(/\s+/).length.toLocaleString()} words in
+              </span>
+              <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[12.5px] font-semibold text-[#dc4f33]">
+                Tailor another
+                <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
+            </button>
+          </div>
+        ) : (
+          <div className={`flex-1 flex flex-col min-h-[60vh] ${enhanced ? "pt-5" : ""}`}>
+            <ResizablePanels
+              enhanced={enhanced}
+              guideStep={guideStep}
+              cvText={cvText}
+              setCvText={setCvText}
+              jobDescription={jobDescription}
+              setJobDescription={setJobDescription}
+              onJobUrlScraped={setScrapedJobUrl}
+            />
+          </div>
+        )}
 
         {/* Match score (shown once results are ready) */}
         {results && (

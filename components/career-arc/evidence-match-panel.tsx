@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { Loader2 } from "lucide-react"
+import { ChevronDown, Loader2 } from "lucide-react"
 import type { RequirementMapping } from "@/lib/anthropic"
 import type { EvidenceRow } from "@/lib/career-arc-ledger"
 import { matchEvidenceToRequirements, type NamedGap } from "@/lib/career-arc-tailor-match"
@@ -57,6 +57,8 @@ export function EvidenceMatchPanel({
   const [evidence, setEvidence] = useState<EvidenceRow[] | null>(providedEvidence ?? null)
   const [addingSkill, setAddingSkill] = useState<string | null>(null)
   const [added, setAdded] = useState<Set<string>>(new Set())
+  /** Matched requirements collapse by default — gaps are the actionable part. */
+  const [showMatched, setShowMatched] = useState(false)
 
   useEffect(() => {
     if (providedEvidence) { setEvidence(providedEvidence); return }
@@ -130,9 +132,52 @@ export function EvidenceMatchPanel({
         </p>
       </div>
 
-      <div className="border-b px-5 py-4" style={{ borderColor: SAND_LT }}>
-        <h3 className="font-mono text-[11px] font-bold tracking-[0.2em]" style={{ color: INK }}>REQUIREMENTS — MATCHED</h3>
-        <ul className="mt-2.5 space-y-2.5">
+      {summary.gaps.length > 0 && !compact && (
+        <div className="border-b px-5 py-4" style={{ borderColor: SAND_LT }}>
+          <h3 className="font-mono text-[11px] font-bold tracking-[0.2em]" style={{ color: ACCENT }}>
+            NAMED GAPS · {summary.gaps.length}
+          </h3>
+          <p className="mt-0.5 text-[11.5px] text-[#a89e93]">Real gaps, not writing problems — Tailr won&apos;t paper over them.</p>
+          <div className="mt-2.5 space-y-2">
+            {summary.gaps.map((gap, i) => (
+              <GapCard
+                key={i}
+                gap={gap}
+                busy={addingSkill === gap.skill}
+                added={added.has(gap.skill)}
+                onAdd={() => addToPath(gap)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className={showMatched ? "border-b px-5 py-4" : "px-5 py-3"} style={{ borderColor: SAND_LT }}>
+        <button
+          onClick={() => setShowMatched((v) => !v)}
+          aria-expanded={showMatched}
+          className={`flex w-full items-center gap-2 rounded-lg text-left ${FOCUS_RING}`}
+        >
+          <span
+            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+            style={{ background: ACCENT }}
+            aria-hidden="true"
+          >
+            ✓
+          </span>
+          <span className="text-[12.5px] font-semibold" style={{ color: INK }}>
+            {summary.covered} requirement{summary.covered === 1 ? "" : "s"} matched
+          </span>
+          <span className="text-[11.5px] text-[#a89e93]">
+            {summary.pulled} from your bank · {summary.implied} implied
+          </span>
+          <span className="ml-auto flex items-center gap-1 text-[11.5px] text-[#8a8178]">
+            {showMatched ? "hide" : "view detail"}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showMatched ? "rotate-180" : ""}`} aria-hidden="true" />
+          </span>
+        </button>
+        {showMatched && (
+        <ul className="mt-3 space-y-2.5">
           {summary.rows.filter((r) => r.covered).map((row, i) => (
             <li key={i} className="flex items-start gap-2.5">
               <span
@@ -162,27 +207,8 @@ export function EvidenceMatchPanel({
             </li>
           ))}
         </ul>
+        )}
       </div>
-
-      {summary.gaps.length > 0 && !compact && (
-        <div className="px-5 py-4">
-          <h3 className="font-mono text-[11px] font-bold tracking-[0.2em]" style={{ color: INK }}>
-            NAMED GAPS · {summary.gaps.length}
-          </h3>
-          <p className="mt-0.5 text-[11.5px] text-[#a89e93]">Real gaps, not writing problems — Tailr won&apos;t paper over them.</p>
-          <div className="mt-2.5 space-y-2.5">
-            {summary.gaps.map((gap, i) => (
-              <GapCard
-                key={i}
-                gap={gap}
-                busy={addingSkill === gap.skill}
-                added={added.has(gap.skill)}
-                onAdd={() => addToPath(gap)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
