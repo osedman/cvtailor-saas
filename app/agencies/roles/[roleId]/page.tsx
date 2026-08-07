@@ -60,6 +60,10 @@ interface Snapshot {
 }
 
 
+// Must first, then important, then nice: the compare matrix reads down in
+// the order the client actually cares about.
+const WEIGHT_RANK = ["must", "important", "nice"]
+
 // Weighted category rows for the compare cards, handoff order.
 const FIT_ROWS: Array<{ key: keyof Score; label: string; weight: number }> = [
   { key: "requirement_coverage", label: "Requirement coverage", weight: 45 },
@@ -69,7 +73,7 @@ const FIT_ROWS: Array<{ key: keyof Score; label: string; weight: number }> = [
   { key: "confidence_completeness", label: "Confidence / completeness", weight: 10 },
 ]
 interface Review { candidate_id: string; status: string; communication: number | null; motivation: number | null; availability: string; salary_confirm: string; notice_period: string; notes: string; call_answers?: Record<string, string> }
-interface Evidence { candidate_id: string; requirement_id: string; strength: string; quote: string | null }
+interface Evidence { candidate_id: string; requirement_id: string; strength: string; quote: string | null; source_cite?: string }
 
 type Strength = "strong" | "transferable" | "partial" | "missing"
 const STRENGTHS: Strength[] = ["strong", "transferable", "partial", "missing"]
@@ -110,6 +114,11 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // card under the pointer or keyboard focus, falling back to the top ranked
   // candidate with no decision yet.
   const [focusedCandidate, setFocusedCandidate] = useState<string | null>(null)
+  const [compareSort, setCompareSort] = useState<"score" | "must" | "name">("score")
+  const [mustOnly, setMustOnly] = useState(false)
+  // Hiding is a view control on the compare board only. It never touches the
+  // candidate, the score or any decision — the product does not remove people.
+  const [hiddenCandidates, setHiddenCandidates] = useState<string[]>([])
 
   const loadCandidates = useCallback(async () => {
     const res = await fetch(`/api/agency/roles/${roleId}/candidates`)
@@ -1150,162 +1159,228 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             </>
           )}
 
-          {role && step === "compare" && (
-            <>
-              <div className="ag-screen-head">
-                <div>
-                  <h1 className="ag-title">{candidates.length} candidates, ranked with evidence.</h1>
-                  <p className="ag-sub">{decisionTotals || "No decisions yet"} · clicking an active decision clears it. Nothing is hidden, whatever the score.</p>
+          {role && step === "compare" && (() => {
+            const shownCandidates = rankedCandidates
+              .filter((c) => !hiddenCandidates.includes(c.id))
+              .sort((a, b) =>
+                compareSort === "name" ? a.full_name.localeCompare(b.full_name)
+                  : compareSort === "must" ? (scores[b.id]?.must_have_hit ?? 0) - (scores[a.id]?.must_have_hit ?? 0)
+                    : (scores[b.id]?.overall ?? 0) - (scores[a.id]?.overall ?? 0)
+              )
+            const shownReqs = (mustOnly ? requirements.filter((r) => r.weight === "must") : requirements)
+              .slice()
+              .sort((a, b) => WEIGHT_RANK.indexOf(a.weight) - WEIGHT_RANK.indexOf(b.weight))
+            const cols = `minmax(240px, 1.4fr) repeat(${Math.max(shownCandidates.length, 1)}, minmax(160px, 1fr))`
+            return (
+              <>
+                <div className="ag-screen-head">
+                  <div>
+                    <h1 className="ag-title">Every candidate, every<br />requirement, side by side.</h1>
+                    <p className="ag-sub">
+                      The matrix shows post call evidence. Coral cells are your overrides. Decide here; nothing is decided for you.
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <span className="ag-meta">{shortlisted} shortlisted</span>
+                    <button className="ag-btn" onClick={() => setStep("screening")}>Back</button>
+                    <button className="ag-btn ag-btn-primary" onClick={() => setStep("submission")} disabled={shortlisted === 0}>
+                      Build submission
+                    </button>
+                  </div>
                 </div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button className="ag-btn" onClick={() => setStep("screening")}>Back</button>
-                  <button className="ag-btn ag-btn-primary" onClick={() => setStep("submission")} disabled={shortlisted === 0}>Generate submission · {shortlisted} shortlisted</button>
+
+                <div className="ag-legend">
+                  <span className="ag-field-label" style={{ marginBottom: 0, marginRight: 4 }}>Legend</span>
+                  <span><span className="ag-dot strong" /> Strong evidence — 1.0</span>
+                  <span><span className="ag-dot transferable" /> Transferable — 0.7</span>
+                  <span><span className="ag-dot partial" /> Partial — 0.4</span>
+                  <span><span className="ag-dot missing" /> Missing — 0.0</span>
+                  <span className="ag-legend-trailing">
+                    <span className="ag-field-label" style={{ marginBottom: 0 }}>Sort</span>
+                    <div className="ag-seg">
+                      {([["score", "Score"], ["must", "Must-haves"], ["name", "Name"]] as const).map(([k, l]) => (
+                        <button key={k} aria-pressed={compareSort === k} className={compareSort === k ? "on" : ""} onClick={() => setCompareSort(k)}>{l}</button>
+                      ))}
+                    </div>
+                    <button className="ag-filter" aria-pressed={mustOnly} onClick={() => setMustOnly((v) => !v)}>Must-haves only</button>
+                    {hiddenCandidates.length > 0 && (
+                      <button className="ag-btn" onClick={() => setHiddenCandidates([])}>Restore {hiddenCandidates.length} hidden</button>
+                    )}
+                  </span>
                 </div>
-              </div>
-              <div className="ag-legend">
-                <span className="ag-field-label" style={{ marginRight: 4 }}>Legend</span>
-                <span><span className="ag-dot strong" /> Strong evidence — 1.0</span>
-                <span><span className="ag-dot transferable" /> Transferable — 0.7</span>
-                <span><span className="ag-dot partial" /> Partial — 0.4</span>
-                <span><span className="ag-dot missing" /> Missing — 0.0</span>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(candidates.length, 1)}, 1fr)`, gap: 14, marginBottom: 20 }}>
-                {rankedCandidates.map((c, rank) => {
-                  const s = scores[c.id]
-                  return (
-                    <div
-                      className="ag-card ag-cmp-card"
-                      key={c.id}
-                      data-focused={focusedCandidate === c.id}
-                      tabIndex={0}
-                      onMouseEnter={() => setFocusedCandidate(c.id)}
-                      onFocus={() => setFocusedCandidate(c.id)}
-                    >
-                      <div className="ag-card-body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <span className="ag-meta" style={{ fontSize: 14 }}>#{rank + 1}</span>
-                          <div className="ag-avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{initials(c.full_name)}</div>
-                          <span style={{ marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                            {s && (
-                              <span className="ag-conf-bars" title={`Confidence ${s.confidence_level} of 4`}>
-                                {[1, 2, 3, 4].map((n) => (
-                                  <span key={n} className="ag-conf-bar" data-on={n <= s.confidence_level} style={{ height: 4 + n * 3 }} />
-                                ))}
-                              </span>
-                            )}
-                            {reviews[c.id]?.status === "reviewed" && <span className="ag-reviewed" style={{ position: "static" }}>Call done</span>}
-                          </span>
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 600 }}>{c.full_name}</div>
-                          <div className="ag-meta">{c.current_title || c.ref}</div>
-                        </div>
-                        {s && s.original_overall != null && Math.round(s.original_overall) !== Math.round(s.overall) && (
-                          <span className="ag-delta-pill">
-                            {Math.round(s.original_overall)} → {Math.round(s.overall)}{" "}
-                            {Math.round(s.overall - s.original_overall) > 0 ? "+" : ""}{Math.round(s.overall - s.original_overall)}
-                          </span>
-                        )}
-                        {s && (
-                          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
-                            <span className="ag-field-label" style={{ color: "var(--ag-ink-3)" }}>Overall fit</span>
-                            <span className={`ag-score ${tier(s.overall)}`}>{Math.round(s.overall)}</span>
-                          </div>
-                        )}
-                        {s && (
-                          <div className="ag-fit-rows">
-                            {FIT_ROWS.map((row) => {
-                              const v = Math.round(Number(s[row.key] ?? 0))
-                              return (
-                                <div key={row.key} className="ag-fit-row">
-                                  <span className="ag-fit-label">{row.label}</span>
-                                  <span className="ag-fit-num">{row.weight}% · <b>{v}</b></span>
-                                  <div className="ag-bar"><div className="ag-bar-fill" style={{ width: `${v}%` }} /></div>
-                                </div>
-                              )
-                            })}
-                            <div className="ag-fit-row" style={{ borderTop: "1px solid var(--ag-border)", paddingTop: 8 }}>
-                              <span className="ag-fit-label">Must-have coverage</span>
-                              <span className="ag-fit-num"><b>{s.must_have_hit}/{s.must_have_total}</b></span>
+
+                <div className="ag-cmp-grid">
+                  {shownCandidates.map((c, rank) => {
+                    const s = scores[c.id]
+                    const topRisk = requirements.find((r) => r.weight !== "nice" && effectiveStrength(c.id, r.id) === "missing")
+                    return (
+                      <div
+                        className="ag-card ag-cmp-card"
+                        key={c.id}
+                        data-focused={focusedCandidate === c.id}
+                        data-shortlisted={decisions[c.id] === "shortlist"}
+                        tabIndex={0}
+                        onMouseEnter={() => setFocusedCandidate(c.id)}
+                        onFocus={() => setFocusedCandidate(c.id)}
+                      >
+                        <div className="ag-card-head" style={{ alignItems: "flex-start" }}>
+                          <div style={{ display: "flex", gap: 10, minWidth: 0 }}>
+                            <div className="ag-avatar" style={{ width: 34, height: 34, fontSize: 12 }}>{initials(c.full_name)}</div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
+                                <span className="ag-meta">#{rank + 1}</span>
+                                <span style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.full_name}</span>
+                              </div>
+                              <div className="ag-meta">{c.current_title || c.ref}</div>
                             </div>
                           </div>
-                        )}
-                        <button className="ag-btn ag-btn-secondary" style={{ width: "100%", justifyContent: "center" }} onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
-                          Open evidence →
-                        </button>
-                        <div className="ag-seg" style={{ width: "100%" }}>
-                          {["shortlist", "hold", "reject"].map((d) => (
-                            <button key={d} style={{ flex: 1 }} className={decisions[c.id] === d ? "on" : ""} onClick={() => decide(c.id, d)}>{d}</button>
-                          ))}
+                          <button
+                            className="ag-icon-btn"
+                            title={`Hide ${c.full_name} from the comparison`}
+                            aria-label={`Hide ${c.full_name} from the comparison`}
+                            onClick={() => setHiddenCandidates((h) => [...h, c.id])}
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                            {reviews[c.id]?.status === "reviewed" && <span className="ag-reviewed" style={{ position: "static" }}>Call done</span>}
+                            {s?.original_overall != null && Math.round(s.original_overall) !== Math.round(s.overall) && (
+                              <span className="ag-delta-pill">{Math.round(s.original_overall)} → {Math.round(s.overall)}</span>
+                            )}
+                          </div>
+                          {s && (
+                            <>
+                              <div className="ag-nutrition-top">
+                                <span className="ag-field-label" style={{ marginBottom: 0, color: "var(--ag-ink-3)" }}>Overall fit</span>
+                                <span className="ag-nutrition-score">{Math.round(s.overall)}</span>
+                              </div>
+                              <div className="ag-nutrition-rule" />
+                              {FIT_ROWS.map((row) => {
+                                const v = Math.round(Number(s[row.key] ?? 0))
+                                return (
+                                  <div key={row.key} className="ag-fit-row">
+                                    <span className="ag-fit-label">{row.label}</span>
+                                    <span className="ag-fit-num">{row.weight}% · <b>{v}</b></span>
+                                    <div className="ag-bar"><div className="ag-bar-fill" style={{ width: `${v}%` }} /></div>
+                                  </div>
+                                )
+                              })}
+                              <div className="ag-nutrition-foot">
+                                <span className="ag-fit-label">Must-have coverage</span>
+                                <span className="ag-fit-num"><b>{s.must_have_hit}/{s.must_have_total}</b></span>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span className="ag-conf-bars" title={`Confidence ${s.confidence_level} of 4`}>
+                                  {[1, 2, 3, 4].map((n) => (
+                                    <span key={n} className="ag-conf-bar" data-on={n <= s.confidence_level} style={{ height: 4 + n * 3 }} />
+                                  ))}
+                                </span>
+                                <span className="ag-meta">{["", "LOW", "MEDIUM", "HIGH", "HIGH"][s.confidence_level] ?? "MEDIUM"} CONFIDENCE</span>
+                              </div>
+                            </>
+                          )}
+                          <div>
+                            <span className="ag-field-label">Top risk</span>
+                            <span className="ag-toprisk">
+                              {topRisk ? `${topRisk.ref} unevidenced: ${topRisk.text}` : "No unmet must or important requirement."}
+                            </span>
+                          </div>
+                          <div className="ag-seg" style={{ width: "100%" }}>
+                            {["shortlist", "hold", "reject"].map((d) => (
+                              <button key={d} style={{ flex: 1 }} className={decisions[c.id] === d ? "on" : ""} onClick={() => decide(c.id, d)}>{d}</button>
+                            ))}
+                          </div>
+                          <button className="ag-btn ag-btn-secondary" style={{ width: "100%", justifyContent: "center" }} onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
+                            Open full profile
+                          </button>
                         </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-              <div className="ag-card">
-                <div className="ag-card-head">
-                  <span className="ag-card-title">Requirement &times; candidate matrix</span>
-                  <span className="ag-meta">Click any cell for evidence</span>
+                    )
+                  })}
                 </div>
-                <div style={{ overflowX: "auto" }}>
-                  <table className="ag-matrix">
-                    <thead>
-                      <tr>
-                        <th className="req">Requirement</th>
-                        {candidates.map((c) => (
-                          <th key={c.id} title={c.full_name}>{initials(c.full_name)}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {requirements.map((req) => (
-                        <tr key={req.id}>
-                          <td className="req">
-                            <span className="ag-matrix-ref">{req.ref}</span>
-                            <span>
-                              <span className="ag-matrix-text">{req.text}</span>
-                              <span className="ag-matrix-weight">{req.weight}</span>
+
+                <div className="ag-card" style={{ overflow: "hidden" }}>
+                  <div className="ag-card-head">
+                    <span className="ag-card-title">Requirement matrix</span>
+                    <span className="ag-meta">{shownReqs.length} requirements × {shownCandidates.length} candidates</span>
+                  </div>
+                  <div style={{ overflowX: "auto" }}>
+                    <div style={{ minWidth: 240 + shownCandidates.length * 160 }}>
+                      <div className="ag-mx-head" style={{ gridTemplateColumns: cols }}>
+                        <div style={{ padding: "10px 16px" }}><span className="ag-field-label" style={{ marginBottom: 0 }}>Requirement</span></div>
+                        {shownCandidates.map((c) => {
+                          const s = scores[c.id]
+                          return (
+                            <button key={c.id} className="ag-mx-cand" onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
+                              <span style={{ display: "flex", gap: 7, alignItems: "center", minWidth: 0 }}>
+                                <span className="ag-avatar" style={{ width: 22, height: 22, fontSize: 9 }}>{initials(c.full_name)}</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.full_name.split(" ")[0]}</span>
+                              </span>
+                              <span style={{ display: "flex", gap: 7, alignItems: "baseline" }}>
+                                <span className="ag-mx-score">{s ? Math.round(s.overall) : "—"}</span>
+                                {s && <span className="ag-meta">{s.must_have_hit}/{s.must_have_total} must</span>}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {shownReqs.map((req, ri) => (
+                        <div key={req.id} className="ag-mx-row" data-zebra={ri % 2 === 1} style={{ gridTemplateColumns: cols }}>
+                          <div className="ag-mx-req">
+                            <span style={{ display: "flex", gap: 7, alignItems: "baseline" }}>
+                              <span className="ag-meta">{req.ref}</span>
+                              <span className="ag-mx-weight" data-must={req.weight === "must"}>{req.weight}</span>
                             </span>
-                          </td>
-                          {candidates.map((c) => {
+                            <span style={{ fontSize: 12.5, fontWeight: 500 }}>{req.text}</span>
+                          </div>
+                          {shownCandidates.map((c) => {
                             const strength = effectiveStrength(c.id, req.id)
+                            const isOverride = Boolean(overrides[c.id]?.[req.id])
+                            const ev = evidence.find((e) => e.candidate_id === c.id && e.requirement_id === req.id)
                             return (
-                              <td
-                                key={c.id}
-                                className={strength === "strong" ? "wash" : strength === "missing" ? "faded" : ""}
-                                title={`${c.full_name} · ${req.ref} reads ${strength}. Open the evidence.`}
+                              <div
+                                key={c.id + req.id}
+                                className="ag-mx-cell"
+                                data-override={isOverride}
+                                title={ev?.quote ? `${ev.quote}${ev.source_cite ? ` — ${ev.source_cite}` : ""}` : strength}
                                 onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}
                               >
-                                <span className={`ag-dot ${strength}`} />
-                                <span className="ag-matrix-cell-label">{strength.slice(0, 4)}</span>
-                              </td>
+                                <span style={{ display: "flex", gap: 7, alignItems: "center" }}>
+                                  <span className={`ag-dot ${strength}`} />
+                                  <span className="ag-mx-strength" data-missing={strength === "missing"}>{strength}</span>
+                                </span>
+                                {ev?.quote && <span className="ag-mx-quote">{ev.quote}</span>}
+                                {isOverride && <span className="ag-mx-override">Recruiter override</span>}
+                              </div>
                             )
                           })}
-                        </tr>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="ag-decisions-bar">
-                <span className="ag-field-label">Decisions</span>
-                <span className="ag-decisions-tally">
-                  {decisionTotals || "none yet"} · <b>{candidates.filter((c) => !decisions[c.id]).length} undecided</b>
-                </span>
-                <span className="ag-grow" />
-                <span className="ag-kbd-hints">
-                  <span className="ag-meta">Keyboard</span>
-                  <span><kbd className="ag-kbd">S</kbd> shortlist</span>
-                  <span><kbd className="ag-kbd">H</kbd> hold</span>
-                  <span><kbd className="ag-kbd">R</kbd> reject</span>
-                </span>
-                <button className="ag-btn ag-btn-primary" onClick={() => setStep("submission")} disabled={shortlisted === 0}>
-                  Continue to submission
-                </button>
-              </div>
-            </>
-          )}
+
+                <div className="ag-decisions-bar">
+                  <span className="ag-field-label">Decisions</span>
+                  <span className="ag-decisions-tally">
+                    {decisionTotals || "none yet"} · <b>{candidates.filter((c) => !decisions[c.id]).length} undecided</b>
+                  </span>
+                  <span className="ag-grow" />
+                  <span className="ag-kbd-hints">
+                    <span className="ag-meta">Keyboard</span>
+                    <span><kbd className="ag-kbd">S</kbd> shortlist</span>
+                    <span><kbd className="ag-kbd">H</kbd> hold</span>
+                    <span><kbd className="ag-kbd">R</kbd> reject</span>
+                  </span>
+                  <button className="ag-btn ag-btn-primary" onClick={() => setStep("submission")} disabled={shortlisted === 0}>
+                    Continue to submission
+                  </button>
+                </div>
+              </>
+            )
+          })()}
 
           {role && step === "submission" && (
             <>
