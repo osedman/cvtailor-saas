@@ -40,6 +40,23 @@ Requested in the 27 Jul sync: every feature, one line, where it actually is.
 [docs/EVIDENCE-RULE.md](EVIDENCE-RULE.md) — *Tailr reframes evidence; it never
 manufactures it. Empty beats invented.* (Decided 28 Jul.)
 
+### Landing page scroll story (7 Aug 2026) — on staging
+
+Replaced the three-card "How it works" section with a pinned, scroll-driven 3D
+card sequence (`components/landing/scroll-story.tsx`, no new dependencies, CSS
+3D + rAF, no WebGL). One candidate's application moves through four beats:
+tailor (card lifts off a deck, coral lines draw), match score (87 ring + the
+hero mock's evidence chips), interview prep (question-card carousel), tracker
+(cards snap into Applied/Interview/Offer with the "Moved to Interview" toast),
+ending on a Tailor my CV CTA. Desktop + motion-safe only; small screens and
+reduced-motion get a static four-beat fallback (`motion-safe:lg:` gating).
+`#how-it-works` anchor preserved. **Retired with disclosure:** the old 3-step
+copy ("Drop in your CV / Paste the job / Tailor & apply") and its FileText/Link2
+icons. Verified locally beat-by-beat at 1280px + mobile 375px (no console
+errors, no horizontal overflow). Figma skipped — Ose said ship straight to
+staging from the approved artifact prototype. Watch after ship: hero CTA
+clickthrough + tailor-start rate.
+
 ### Admin product health (6 Aug 2026) — in progress on `feat/admin-product-health`
 
 Rebuilt `/admin` around product health, not volume + PII tables. `/api/admin/stats`
