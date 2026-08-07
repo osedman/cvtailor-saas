@@ -106,6 +106,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [agencyName, setAgencyName] = useState("Your agency")
   const [probePicker, setProbePicker] = useState(false)
   const [previewFormat, setPreviewFormat] = useState<"document" | "email" | "portal">("document")
+  // The compare board advertises S / H / R in the handoff; they act on the
+  // card under the pointer or keyboard focus, falling back to the top ranked
+  // candidate with no decision yet.
+  const [focusedCandidate, setFocusedCandidate] = useState<string | null>(null)
 
   const loadCandidates = useCallback(async () => {
     const res = await fetch(`/api/agency/roles/${roleId}/candidates`)
@@ -170,6 +174,27 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       loadReviewDetail(c.id)
     }
   }, [step, candidates, activeCandidate, loadReviewDetail])
+
+  // S / H / R on the compare board, exactly as the action bar advertises.
+  // Ignored while typing so notes and requirement text are never eaten.
+  useEffect(() => {
+    if (step !== "compare") return
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const map: Record<string, string> = { s: "shortlist", h: "hold", r: "reject" }
+      const next = map[e.key.toLowerCase()]
+      if (!next) return
+      const target = focusedCandidate ?? rankedCandidates.find((c) => !decisions[c.id])?.id
+      if (!target) return
+      e.preventDefault()
+      decide(target, next)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, focusedCandidate, decisions, candidates, scores])
 
   function patchRole(fields: Partial<Role>) {
     setRole((r) => (r ? { ...r, ...fields } : r))
@@ -492,6 +517,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // submission screen. Present so the recruiter can see the whole field,
   // never sent to the client.
   const notShortlisted = candidates.filter((c) => decisions[c.id] !== "shortlist")
+  const rankedCandidates = [...candidates].sort((a, b) => (scores[b.id]?.overall ?? 0) - (scores[a.id]?.overall ?? 0))
 
   function setProbe(candidateId: string, id: string, value: string | null) {
     const current = reviews[candidateId]?.call_answers ?? {}
@@ -632,6 +658,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 <div className="ag-card">
                   <div className="ag-card-head">
                     <span className="ag-card-title">Job description</span>
+                    <span className="ag-meta">{(role.jd_raw ?? "").length} chars · autosaved</span>
                     <label className="ag-btn ag-btn-secondary" style={{ cursor: "pointer" }}>
                       Upload the JD
                       <input type="file" accept=".pdf,.docx,.txt" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) extract({ file: f }) }} />
@@ -672,9 +699,15 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   </div>
                 </div>
               </div>
-              <div className="ag-callout" style={{ marginTop: 24 }}>
-                <div className="ag-eyebrow" style={{ marginBottom: 4 }}>Evidence first</div>
-                Every score traces to CV evidence, your override, or an explicit MISSING. Nothing is inferred and nobody is rejected automatically.
+              <div className="ag-principle">
+                <span className="ag-principle-bar" />
+                <div>
+                  <div className="ag-field-label">Evidence first principle</div>
+                  <p className="ag-principle-text">
+                    Every score you see later points back to something in this brief or your notes. Where we have no proof we say{" "}
+                    <span className="ag-missing-chip">MISSING</span> rather than invent it, nobody is rejected automatically, and you stay in control of every decision.
+                  </p>
+                </div>
               </div>
             </>
           )}
@@ -858,7 +891,15 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       <button key={c.id} className={`ag-tile${activeCandidate === c.id ? " on" : ""}`} onClick={() => setActiveCandidate(c.id)}>
                         {r?.status === "reviewed" && <span className="ag-reviewed">Call done</span>}
                         <div style={{ fontWeight: 500, fontSize: 13 }}>{c.full_name}</div>
-                        <div className="ag-meta">{c.ref}{s ? ` · ${Math.round(s.overall)}` : ""}{s?.original_overall != null && s.original_overall !== s.overall ? ` (was ${Math.round(s.original_overall)})` : ""}</div>
+                        <div className="ag-meta">{c.ref}</div>
+                        <div className="ag-rail-score">
+                          <span className="ag-rail-num">{s ? Math.round(s.overall) : "—"}</span>
+                          {r?.status === "reviewed" && s?.original_overall != null && Math.round(s.original_overall) !== Math.round(s.overall) ? (
+                            <span className="ag-delta-pill">{Math.round(s.original_overall)} → {Math.round(s.overall)}</span>
+                          ) : r?.status !== "reviewed" ? (
+                            <span className="ag-notcalled">Not called</span>
+                          ) : null}
+                        </div>
                       </button>
                     )
                   })}
@@ -870,7 +911,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         <div className="ag-avatar" style={{ width: 48, height: 48 }}>{initials(active.full_name)}</div>
                         <div className="ag-grow">
                           <div style={{ fontWeight: 700, fontSize: 18 }}>{active.full_name}</div>
-                          <div className="ag-meta">{active.ref} · {activeScore ? `${activeScore.must_have_hit}/${activeScore.must_have_total} musts` : ""}</div>
+                          <div style={{ color: "var(--ag-ink-2)", fontSize: 13 }}>
+                            {[active.current_title, active.years ? `${active.years} yrs` : "", active.location].filter(Boolean).join(" · ")}
+                          </div>
+                          <div className="ag-meta" style={{ marginTop: 4 }}>{active.ref}{role.salary_band ? ` · ${role.salary_band}` : ""}</div>
                         </div>
                         {activeScore && (
                           <div className="ag-callscore">
@@ -915,6 +959,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         <div className="ag-conf-strip">
                           <span className="ag-field-label">Must-have coverage</span>
                           <b className="ag-conf-val">{activeScore.must_have_hit}/{activeScore.must_have_total}</b>
+                          {activeReview?.status === "reviewed" && Object.keys(overrides[active.id] ?? {}).length > 0 && (
+                            <span className="ag-conf-note" style={{ color: "var(--ag-ink-3)" }}>after your overrides</span>
+                          )}
                           <span className="ag-field-label" style={{ marginLeft: 18 }}>Confidence</span>
                           <span className="ag-conf-bars" aria-label={`Confidence level ${activeScore.confidence_level} of 4`}>
                             {[1, 2, 3, 4].map((n) => (
@@ -939,10 +986,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           return (
                             <div key={req.id} style={{ padding: "10px 18px", borderTop: "1px solid var(--ag-border)" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                                <span className="ag-meta">{req.ref}</span>
-                                <span className="ag-grow" style={{ fontSize: 13 }}>{req.text}</span>
+                                <span className="ag-meta" style={{ paddingTop: 2 }}>{req.ref}</span>
+                                <span className="ag-grow" style={{ minWidth: 0 }}>
+                                  <span style={{ display: "block", fontSize: 12.5, fontWeight: 500 }}>{req.text}</span>
+                                  <span className="ag-matrix-weight">{req.weight}</span>
+                                </span>
                                 {mine && <span className="ag-reviewed" style={{ position: "static" }}>Your call</span>}
-                                <span className="ag-pill">{req.weight}</span>
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                 <span className="ag-meta" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -1121,15 +1170,31 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 <span><span className="ag-dot missing" /> Missing — 0.0</span>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(candidates.length, 1)}, 1fr)`, gap: 14, marginBottom: 20 }}>
-                {[...candidates].sort((a, b) => (scores[b.id]?.overall ?? 0) - (scores[a.id]?.overall ?? 0)).map((c, rank) => {
+                {rankedCandidates.map((c, rank) => {
                   const s = scores[c.id]
                   return (
-                    <div className="ag-card" key={c.id}>
+                    <div
+                      className="ag-card ag-cmp-card"
+                      key={c.id}
+                      data-focused={focusedCandidate === c.id}
+                      tabIndex={0}
+                      onMouseEnter={() => setFocusedCandidate(c.id)}
+                      onFocus={() => setFocusedCandidate(c.id)}
+                    >
                       <div className="ag-card-body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <span className="ag-meta">#{rank + 1}</span>
-                          <div className="ag-avatar">{initials(c.full_name)}</div>
-                          {reviews[c.id]?.status === "reviewed" && <span className="ag-reviewed" style={{ position: "static", marginLeft: "auto" }}>Call done</span>}
+                          <span className="ag-meta" style={{ fontSize: 14 }}>#{rank + 1}</span>
+                          <div className="ag-avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{initials(c.full_name)}</div>
+                          <span style={{ marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                            {s && (
+                              <span className="ag-conf-bars" title={`Confidence ${s.confidence_level} of 4`}>
+                                {[1, 2, 3, 4].map((n) => (
+                                  <span key={n} className="ag-conf-bar" data-on={n <= s.confidence_level} style={{ height: 4 + n * 3 }} />
+                                ))}
+                              </span>
+                            )}
+                            {reviews[c.id]?.status === "reviewed" && <span className="ag-reviewed" style={{ position: "static" }}>Call done</span>}
+                          </span>
                         </div>
                         <div>
                           <div style={{ fontWeight: 600 }}>{c.full_name}</div>
@@ -1229,6 +1294,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   {decisionTotals || "none yet"} · <b>{candidates.filter((c) => !decisions[c.id]).length} undecided</b>
                 </span>
                 <span className="ag-grow" />
+                <span className="ag-kbd-hints">
+                  <span className="ag-meta">Keyboard</span>
+                  <span><kbd className="ag-kbd">S</kbd> shortlist</span>
+                  <span><kbd className="ag-kbd">H</kbd> hold</span>
+                  <span><kbd className="ag-kbd">R</kbd> reject</span>
+                </span>
                 <button className="ag-btn ag-btn-primary" onClick={() => setStep("submission")} disabled={shortlisted === 0}>
                   Continue to submission
                 </button>

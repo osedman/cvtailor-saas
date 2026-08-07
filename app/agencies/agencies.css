@@ -243,6 +243,47 @@
 .ag-script-opt:hover { background: rgba(255, 253, 250, 0.08); }
 .ag-script-why { grid-column: 2; font-family: var(--ag-mono); font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase; color: rgba(255, 253, 250, 0.4); }
 
+/* ---------- remaining handoff details across the workflow ---------- */
+/* MISSING is a chip in the handoff, not a word in a sentence: the whole
+ * evidence-first promise hangs on it reading as a state. */
+.ag-missing-chip { font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.06em; background: var(--ag-bg-2); color: var(--ag-ink-2); padding: 1px 5px; border-radius: 3px; }
+.ag-principle { display: flex; gap: 16px; align-items: flex-start; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--ag-border); }
+.ag-principle-bar { width: 4px; height: 40px; background: var(--ag-coral); border-radius: 2px; flex: none; }
+.ag-principle-text { font-size: 13px; color: var(--ag-ink-2); max-width: 72ch; line-height: 1.55; margin: 4px 0 0; }
+
+/* Strength as a labelled pill on the detail evidence rows. */
+.ag-strength { display: inline-flex; align-items: center; gap: 6px; font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ag-ink-2); border: 1px solid var(--ag-line-2); border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
+.ag-strength.missing { color: var(--ag-ink-4); border-style: dashed; }
+
+/* Screening rail: the score and its movement, or an explicit not-called. */
+.ag-rail-score { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.ag-rail-num { font-family: var(--ag-mono); font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+.ag-notcalled { font-family: var(--ag-mono); font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ag-ink-4); }
+.ag-tile.on .ag-notcalled, .ag-tile.on .ag-meta { color: var(--ag-tint-2); }
+
+/* Score breakdown in the handoff's nutrition form. */
+.ag-nutrition-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ag-nutrition-score { font-family: var(--ag-mono); font-size: 22px; font-weight: 500; letter-spacing: -0.03em; line-height: 1; }
+.ag-nutrition-rule { border-top: 2px solid var(--ag-ink); margin: 10px 0 12px; }
+.ag-nutrition-foot { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--ag-border); padding-top: 10px; margin-top: 4px; }
+
+/* Probe lines on the detail page's dark card. */
+.ag-qnum { font-family: var(--ag-mono); font-size: 9.5px; font-weight: 600; color: var(--ag-coral); padding-top: 2px; flex: none; }
+.ag-probe-line { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; }
+.ag-probe-text { flex: 1; font-size: 13px; line-height: 1.5; }
+.ag-probe-line[data-answered="true"] { opacity: 0.45; }
+.ag-probe-line[data-answered="true"] .ag-probe-text { text-decoration: line-through; }
+.ag-probe-done { font-family: var(--ag-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ag-coral); flex: none; padding-top: 3px; }
+.ag-probe-gap { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 253, 250, 0.14); font-size: 11.5px; line-height: 1.5; color: rgba(255, 253, 250, 0.55); }
+
+/* Compare board: the focused card the keyboard acts on, and the hints. */
+.ag-cmp-card { transition: box-shadow 0.12s, border-color 0.12s; }
+.ag-cmp-card[data-focused="true"] { border-color: var(--ag-coral); box-shadow: 0 0 0 3px var(--ag-tint-1); }
+.ag-cmp-card:focus { outline: none; }
+.ag-kbd-hints { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--ag-ink-3); flex-wrap: wrap; }
+.ag-kbd-hints > span { display: inline-flex; align-items: center; gap: 5px; }
+.ag-kbd { font-family: var(--ag-mono); font-size: 10px; border: 1px solid var(--ag-line-2); border-radius: 4px; padding: 1px 5px; color: var(--ag-ink-2); background: var(--ag-paper); }
+
 /* ---------- client submission, to the handoff's shortlist screen ----------
  * Three containers over one snapshot. The document sits on a mat so it
  * reads as a piece of paper the client will receive, not another panel. */
