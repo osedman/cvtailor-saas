@@ -52,8 +52,10 @@ interface SnapshotEntry {
   gaps: Array<{ requirement: string; weight: string }>
   probe_areas?: string[]
 }
+interface Disclosure { scores: boolean; evidence: boolean; probes: boolean; notes: boolean; logistics: boolean }
 interface Snapshot {
   generated_at: string
+  disclosure?: Disclosure
   role: { ref: string; title: string; company: string; location: string; salary_band: string }
   shortlisted: SnapshotEntry[]
   not_submitted_count: number
@@ -109,6 +111,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [newContact, setNewContact] = useState({ company: "", email: "", full_name: "" })
   const [agencyName, setAgencyName] = useState("Your agency")
   const [probePicker, setProbePicker] = useState(false)
+  const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
+  const [disclosure, setDisclosure] = useState<Disclosure>({ scores: true, evidence: true, probes: true, notes: false, logistics: true })
   const [previewFormat, setPreviewFormat] = useState<"document" | "email" | "portal">("document")
   // The compare board advertises S / H / R in the handoff; they act on the
   // card under the pointer or keyboard focus, falling back to the top ranked
@@ -453,6 +457,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           format,
+          disclosure,
           ...(format === "portal" ? { recipients: chosenContacts.map((id) => ({ contact_id: id })) } : {}),
         }),
       })
@@ -855,29 +860,86 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   )}
                   {candidates.map((c) => {
                     const s = scores[c.id]
+                    const isOpen = expandedCandidate === c.id
+                    const snippets = evidence.filter((e) => e.candidate_id === c.id && e.strength !== "missing").length
+                    const tally = (["strong", "transferable", "partial", "missing"] as const).map((st) => ({
+                      st,
+                      n: requirements.filter((r) => effectiveStrength(c.id, r.id) === st).length,
+                    }))
+                    const delta = s?.original_overall != null ? Math.round(s.overall - s.original_overall) : 0
                     return (
-                      <div className="ag-row" key={c.id}>
-                        <div className="ag-avatar">{initials(c.full_name)}</div>
-                        <div className="ag-grow">
-                          <div style={{ fontWeight: 500 }}>
-                            {c.full_name}
-                            {c.duplicate_of && <span className="ag-pill ag-pill-warn" style={{ marginLeft: 8 }}>Also in your pipeline</span>}
-                          </div>
-                          <div className="ag-meta">{c.ref} · {c.current_title || "Unknown role"}{c.years ? ` · ${c.years} yrs` : ""}{c.location ? ` · ${c.location}` : ""}</div>
-                        </div>
-                        {c.parse_status === "failed" ? (
-                          <span className="ag-pill ag-pill-failed">Failed</span>
-                        ) : s ? (
-                          <div style={{ textAlign: "right" }}>
-                            <span className={`ag-score ${tier(s.overall)}`}>{Math.round(s.overall)}</span>
-                            <div className="ag-meta" style={{ marginTop: 4 }}>{s.must_have_hit}/{s.must_have_total} musts</div>
-                          </div>
-                        ) : (
-                          <span className="ag-pill">Parsing</span>
-                        )}
-                        <button className="ag-btn" onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
-                          Evidence →
+                      <div className="ag-prof" key={c.id} data-open={isOpen}>
+                        <button
+                          className="ag-prof-head"
+                          aria-expanded={isOpen}
+                          onClick={() => setExpandedCandidate(isOpen ? null : c.id)}
+                        >
+                          <span style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+                            <span className="ag-avatar" style={{ width: 40, height: 40 }}>{initials(c.full_name)}</span>
+                            <span style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
+                              <span className="ag-prof-name">
+                                {c.full_name}
+                                {c.duplicate_of && <span className="ag-pill ag-pill-warn" style={{ marginLeft: 8 }}>Also in your pipeline</span>}
+                              </span>
+                              <span className="ag-meta">{c.ref} · {c.current_title || "Unknown role"}</span>
+                            </span>
+                          </span>
+                          <span style={{ display: "flex", gap: 12, alignItems: "center", flex: "none" }}>
+                            {reviews[c.id]?.status === "reviewed" && <span className="ag-reviewed" style={{ position: "static" }}>Call done</span>}
+                            {c.parse_status === "failed" ? (
+                              <span className="ag-pill ag-pill-failed">Failed</span>
+                            ) : s ? (
+                              <>
+                                <svg width="64" height="20" aria-hidden="true" style={{ display: "block" }}>
+                                  <path
+                                    d={delta >= 0 ? "M2 17C14 14 24 6 40 8C54 10 58 3 62 3" : "M2 3C14 5 24 7 40 11C54 15 58 16 62 17"}
+                                    fill="none"
+                                    stroke={delta === 0 ? "var(--ag-ink-4)" : delta > 0 ? "var(--ag-coral)" : "var(--ag-warn)"}
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                  />
+                                </svg>
+                                <span className="ag-prof-score">{Math.round(s.overall)}</span>
+                              </>
+                            ) : (
+                              <span className="ag-meta">{snippets} snippets</span>
+                            )}
+                            <span className="ag-prof-chevron" aria-hidden="true">{isOpen ? "\u2212" : "+"}</span>
+                          </span>
                         </button>
+                        {isOpen && (
+                          <div className="ag-prof-body">
+                            <div className="ag-prof-row"><span className="ag-prof-key">Evidence snippets</span><span className="ag-prof-val mono">{snippets} sourced</span></div>
+                            <div className="ag-prof-row">
+                              <span className="ag-prof-key">Overall fit</span>
+                              {s ? <span className="ag-prof-fit">{Math.round(s.overall)}</span> : <span className="ag-meta">Not scored yet</span>}
+                            </div>
+                            <div className="ag-prof-row">
+                              <span className="ag-prof-key">Must-have coverage</span>
+                              <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                <span className="ag-prof-val mono">{s ? `${s.must_have_hit}/${s.must_have_total}` : "Pending"}</span>
+                                {delta !== 0 && <span className="ag-delta-pill">{Math.round(s!.original_overall!)} \u2192 {Math.round(s!.overall)}</span>}
+                              </span>
+                            </div>
+                            <div className="ag-prof-row"><span className="ag-prof-key">Location</span><span className="ag-prof-val">{c.location || "Not parsed"}</span></div>
+                            <div className="ag-prof-row"><span className="ag-prof-key">Experience</span><span className="ag-prof-val">{c.years ? `${c.years} years` : "Not parsed"}</span></div>
+                            <div className="ag-prof-row">
+                              <span className="ag-prof-key">Evidence mix</span>
+                              <span style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                {tally.map(({ st, n }) => (
+                                  <span key={st} className="ag-mix-chip" data-missing={st === "missing"}>
+                                    <span className={`ag-dot ${st}`} />{n} {st.slice(0, 4)}
+                                  </span>
+                                ))}
+                              </span>
+                            </div>
+                            <div className="ag-prof-foot">
+                              <button className="ag-btn ag-btn-secondary" onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
+                                Open the evidence map \u2192
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -1523,6 +1585,52 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </div>
                   </div>
                   <div className="ag-card">
+                    <div className="ag-card-head">
+                      <span className="ag-card-title">What the client sees</span>
+                      <span className="ag-meta">frozen into the submission</span>
+                    </div>
+                    <div className="ag-card-body ag-stack" style={{ gap: 2 }}>
+                      {([
+                        ["scores", "Fit scores and confidence"],
+                        ["evidence", "Strengths and known gaps"],
+                        ["probes", "Suggested interview focus"],
+                        ["notes", "Your call notes"],
+                        ["logistics", "Location, experience and band"],
+                      ] as const).map(([key, label]) => (
+                        <button
+                          key={key}
+                          role="switch"
+                          aria-checked={disclosure[key]}
+                          className="ag-toggle-row"
+                          onClick={() => setDisclosure((d) => ({ ...d, [key]: !d[key] }))}
+                        >
+                          <span style={{ fontSize: 12.5 }}>{label}</span>
+                          <span className="ag-switch" data-on={disclosure[key]}><span className="ag-switch-knob" /></span>
+                        </button>
+                      ))}
+                      <p className="ag-meta" style={{ margin: "8px 0 0" }}>
+                        These choices are written into the submission when you generate it, so what the client received can never change afterwards.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="ag-card">
+                    <div className="ag-card-head"><span className="ag-card-title">Audit trail</span><span className="ag-meta">logged against your name</span></div>
+                    <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
+                      <div className="ag-audit-row"><span className="ag-field-label" style={{ marginBottom: 0 }}>Role</span><span className="ag-audit-val">{role.ref}</span></div>
+                      <div className="ag-audit-row"><span className="ag-field-label" style={{ marginBottom: 0 }}>Requirements</span><span className="ag-audit-val">{requirements.length}</span></div>
+                      <div className="ag-audit-row"><span className="ag-field-label" style={{ marginBottom: 0 }}>Calls logged</span><span className="ag-audit-val">{reviewedCount}/{candidates.length}</span></div>
+                      <div className="ag-audit-row">
+                        <span className="ag-field-label" style={{ marginBottom: 0 }}>Overrides</span>
+                        <span className="ag-audit-val">{candidates.reduce((n, c) => n + Object.keys(overrides[c.id] ?? {}).length, 0)}</span>
+                      </div>
+                      <p className="ag-meta" style={{ margin: 0 }}>
+                        Every score, override and decision on this role is logged. Nothing here was decided automatically.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="ag-card">
                     <div className="ag-card-head"><span className="ag-card-title">Generate</span><span className="ag-meta">Same content, different container</span></div>
                     <div className="ag-card-body" style={{ display: "flex", gap: 10 }}>
                       {["document", "email", "portal"].map((format) => (
@@ -1591,10 +1699,16 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                       </div>
                                     </div>
                                     <div style={{ textAlign: "right" }}>
-                                      <span className={`ag-score ${tier(entry.overall)}`} style={{ fontSize: 18, padding: "4px 10px" }}>{Math.round(entry.overall)}</span>
-                                      <div className="ag-doc-eyebrow" style={{ marginTop: 4, color: "var(--ag-ink-3)" }}>
-                                        {entry.must_have_hit}/{entry.must_have_total} MUSTS · {["", "LOW", "MEDIUM", "HIGH", "HIGH"][entry.confidence_level] ?? "MEDIUM"} CONF.
-                                      </div>
+                                      {snap.disclosure?.scores !== false ? (
+                                        <>
+                                          <span className={`ag-score ${tier(entry.overall)}`} style={{ fontSize: 18, padding: "4px 10px" }}>{Math.round(entry.overall)}</span>
+                                          <div className="ag-doc-eyebrow" style={{ marginTop: 4, color: "var(--ag-ink-3)" }}>
+                                            {entry.must_have_hit}/{entry.must_have_total} MUSTS · {["", "LOW", "MEDIUM", "HIGH", "HIGH"][entry.confidence_level] ?? "MEDIUM"} CONF.
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <span className="ag-doc-eyebrow">Scores withheld</span>
+                                      )}
                                     </div>
                                   </div>
 
@@ -1604,7 +1718,15 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                       <p style={{ margin: 0 }}>{entry.narrative}</p>
                                     </div>
                                   )}
+                                  {snap.disclosure?.logistics !== false && (entry.location || entry.years) && (
+                                    <div className="ag-doc-logistics">
+                                      {entry.location && <span><span className="ag-meta">Location</span> {entry.location}</span>}
+                                      {entry.years != null && <span><span className="ag-meta">Experience</span> {entry.years} years</span>}
+                                      {snap.role.salary_band && <span><span className="ag-meta">Role band</span> {snap.role.salary_band}</span>}
+                                    </div>
+                                  )}
 
+                                  {snap.disclosure?.evidence !== false && (
                                   <div className="ag-doc-cols">
                                     <div>
                                       <div className="ag-field-label">Strengths</div>
@@ -1623,8 +1745,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                       </ul>
                                     </div>
                                   </div>
+                                  )}
 
-                                  {(entry.probe_areas?.length ?? 0) > 0 && (
+                                  {snap.disclosure?.probes !== false && (entry.probe_areas?.length ?? 0) > 0 && (
                                     <div className="ag-doc-focus">
                                       <div className="ag-field-label">Suggested interview focus</div>
                                       <div style={{ fontSize: 12.5 }}>{entry.probe_areas!.join(" · ")}</div>

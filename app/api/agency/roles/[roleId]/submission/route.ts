@@ -178,8 +178,24 @@ export async function POST(
 
     entries.sort((a, b) => b.overall - a.overall)
 
+    /**
+     * What the recruiter chose to disclose, frozen with everything else.
+     * Applying these at render time would let a stored submission look
+     * different later, which is exactly what an immutable snapshot exists to
+     * prevent — so the choice is part of the record, not a view setting.
+     */
+    const d = (body?.disclosure ?? {}) as Record<string, unknown>
+    const disclosure = {
+      scores: d.scores !== false,
+      evidence: d.evidence !== false,
+      probes: d.probes !== false,
+      notes: d.notes === true,
+      logistics: d.logistics !== false,
+    }
+
     const snapshot = {
       generated_at: new Date().toISOString(),
+      disclosure,
       role: {
         ref: role.ref,
         title: role.title,

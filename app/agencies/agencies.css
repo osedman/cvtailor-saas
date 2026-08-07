@@ -617,3 +617,33 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------- candidate profile cards + disclosure controls ---------- */
+.ag-prof { border: 1px solid var(--ag-border); border-radius: 12px; background: var(--ag-cream); overflow: hidden; transition: border-color 0.14s ease; }
+.ag-prof[data-open="true"] { border-color: var(--ag-line-2); }
+.ag-prof-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; padding: 14px; border: none; background: var(--ag-cream); cursor: pointer; font-family: var(--ag-sans); color: inherit; }
+.ag-prof-head:hover { background: var(--ag-bg-2); }
+.ag-prof-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-prof-score { font-family: var(--ag-mono); font-size: 17px; font-weight: 600; letter-spacing: -0.03em; min-width: 24px; text-align: right; }
+.ag-prof-chevron { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--ag-line-2); background: var(--ag-paper); color: var(--ag-ink-3); font-family: var(--ag-mono); font-size: 14px; flex: none; }
+/* Expansion animates height without JS: the grid-rows trick keeps it at
+ * auto height while still being animatable, so no measurement pass. */
+.ag-prof-body { display: flex; flex-direction: column; gap: 14px; padding: 20px; background: var(--ag-paper); border-top: 1px solid var(--ag-border); animation: ag-expand 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes ag-expand { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.ag-prof-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.ag-prof-key { font-size: 12.5px; font-weight: 500; color: var(--ag-ink-3); flex: none; }
+.ag-prof-val { font-size: 13.5px; font-weight: 500; color: var(--ag-ink-2); text-align: right; }
+.ag-prof-val.mono { font-family: var(--ag-mono); font-weight: 600; }
+.ag-prof-fit { font-family: var(--ag-mono); font-size: 12px; font-weight: 700; border-radius: 999px; border: 1px solid var(--ag-coral); background: var(--ag-tint-1); color: var(--ag-coral-deep); padding: 2px 10px; }
+.ag-mix-chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid var(--ag-line-2); background: var(--ag-paper); border-radius: 999px; padding: 2px 9px; color: var(--ag-ink-2); white-space: nowrap; }
+.ag-mix-chip[data-missing="true"] { color: var(--ag-ink-4); }
+.ag-prof-foot { border-top: 1px solid var(--ag-border); padding-top: 14px; }
+
+.ag-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 8px 0; border: none; border-bottom: 1px solid var(--ag-border); background: none; cursor: pointer; text-align: left; font-family: var(--ag-sans); color: inherit; }
+.ag-switch { width: 34px; height: 18px; border-radius: 999px; background: var(--ag-line-2); position: relative; flex: none; transition: background-color 0.15s ease; }
+.ag-switch[data-on="true"] { background: var(--ag-coral); }
+.ag-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 999px; background: var(--ag-paper); transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1); }
+.ag-switch[data-on="true"] .ag-switch-knob { transform: translateX(16px); }
+.ag-audit-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ag-audit-val { font-family: var(--ag-mono); font-size: 12px; font-weight: 600; }
+.ag-doc-logistics { display: flex; gap: 18px; flex-wrap: wrap; border-top: 1px solid var(--ag-border); padding-top: 10px; margin-bottom: 12px; font-size: 12.5px; }
