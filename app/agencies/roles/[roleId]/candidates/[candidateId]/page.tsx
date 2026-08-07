@@ -380,7 +380,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                           <div className="ag-fit-row" key={bar.key} style={{ marginBottom: 8 }}>
                             <span className="ag-fit-label">{bar.label}</span>
                             <span className="ag-fit-num">{bar.weight}% · <b>{Math.round(Number(score[bar.key]) || 0)}</b></span>
-                            <div className="ag-bar"><div className="ag-bar-fill" style={{ width: `${Math.min(100, Number(score[bar.key]) || 0)}%` }} /></div>
+                            <div className="ag-bar"><div className="ag-bar-fill" data-weak={(Number(score[bar.key]) || 0) < 60} style={{ width: `${Math.min(100, Number(score[bar.key]) || 0)}%` }} /></div>
                           </div>
                         ))}
                         <div className="ag-nutrition-foot">
@@ -405,7 +405,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                   )}
 
                   <div className="ag-card">
-                    <div className="ag-card-head"><span className="ag-card-title">Your decision</span><span className="ag-pill">Audit logged</span></div>
+                    <div className="ag-card-head"><span className="ag-card-title">Your decision</span></div>
                     <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
                       <div className="ag-seg" style={{ width: "100%" }}>
                         {["shortlist", "hold", "reject"].map((d) => (
@@ -431,7 +431,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                   </div>
 
                   <div className="ag-card">
-                    <div className="ag-card-head"><span className="ag-card-title">Soft signals</span><span className="ag-meta">from the call</span></div>
+                    <div className="ag-card-head"><span className="ag-card-title">Soft signals</span></div>
                     <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
                       {!review?.status && <span style={{ fontSize: 12.5, color: "var(--ag-ink-4)" }}>No call logged yet.</span>}
                       {review?.availability && <div className="ag-kv"><span>Availability</span><b>{review.availability}</b></div>}
@@ -443,7 +443,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                   </div>
 
                   <div className="ag-card">
-                    <div className="ag-card-head"><span className="ag-card-title">Logistics</span><span className="ag-meta">from the CV</span></div>
+                    <div className="ag-card-head"><span className="ag-card-title">Logistics</span></div>
                     <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
                       <div className="ag-kv"><span>Comp expectation</span><b>{candidate.salary_text || "Not parsed"}</b></div>
                       <div className="ag-kv"><span>Location</span><b>{candidate.location || "Not parsed"}</b></div>
