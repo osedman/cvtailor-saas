@@ -149,6 +149,52 @@
 .ag-attention-row:last-child { border-bottom: none; }
 .ag-quiet { text-align: center; padding: 28px; color: var(--ag-ink-3); font-size: 13px; }
 
+/* ---------- workflow chrome from the handoff (7 Aug recording review) ----
+ * Breadcrumb + step controls, step eyebrows, rail checkmarks, compare
+ * legend and sub-score bars, screening score-pair, decisions strip. */
+.ag-crumbbar { display: flex; align-items: center; gap: 10px; margin: -6px 0 18px; padding-bottom: 12px; border-bottom: 1px solid var(--ag-border); }
+.ag-crumb { font-family: var(--ag-mono); font-size: 11px; letter-spacing: 0.03em; color: var(--ag-ink-3); }
+.ag-crumb b { color: var(--ag-ink); font-weight: 500; }
+.ag-crumb-link { border: none; background: none; padding: 0; font: inherit; color: var(--ag-ink-3); cursor: pointer; }
+.ag-crumb-link:hover { color: var(--ag-ink); }
+.ag-step-eyebrow { font-family: var(--ag-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ag-coral); margin: 0 0 10px; }
+.ag-step-num.done { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); }
+.ag-step.on .ag-step-num.done { border-color: var(--ag-coral); }
+.ag-field-label { display: block; font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ag-coral); margin-bottom: 5px; }
+
+.ag-callscore { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.ag-callscore-pair { display: flex; align-items: flex-end; gap: 12px; }
+.ag-callscore-col { display: flex; flex-direction: column; align-items: flex-end; }
+.ag-callscore-col .ag-field-label { margin-bottom: 2px; }
+.ag-callscore-was { font-family: var(--ag-mono); font-size: 20px; color: var(--ag-ink-3); padding: 5px 0; }
+.ag-callscore-arrow { color: var(--ag-ink-4); padding-bottom: 8px; }
+.ag-delta-pill { display: inline-block; font-family: var(--ag-mono); font-size: 10.5px; color: var(--ag-coral-deep); background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); border-radius: 999px; padding: 2px 9px; align-self: flex-start; }
+.ag-callscore .ag-delta-pill { align-self: flex-end; }
+
+.ag-conf-strip { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-top: 1px solid var(--ag-border); }
+.ag-conf-strip .ag-field-label { margin-bottom: 0; }
+.ag-conf-val { font-family: var(--ag-mono); font-size: 13px; }
+.ag-conf-bars { display: inline-flex; align-items: flex-end; gap: 2px; }
+.ag-conf-bar { width: 4px; border-radius: 1px; background: var(--ag-line-2); }
+.ag-conf-bar[data-on="true"] { background: var(--ag-ink); }
+.ag-conf-note { font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.04em; color: var(--ag-coral); text-transform: uppercase; }
+
+.ag-legend { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--ag-ink-2); border: 1px solid var(--ag-border); background: var(--ag-paper); border-radius: 10px; padding: 9px 14px; margin-bottom: 16px; }
+.ag-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.ag-legend .ag-field-label { margin-bottom: 0; }
+
+.ag-fit-rows { display: flex; flex-direction: column; gap: 7px; }
+.ag-fit-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; }
+.ag-fit-label { font-size: 11.5px; color: var(--ag-ink-2); }
+.ag-fit-num { font-family: var(--ag-mono); font-size: 10.5px; color: var(--ag-ink-3); }
+.ag-fit-num b { color: var(--ag-ink); font-weight: 500; }
+.ag-fit-row .ag-bar { grid-column: 1 / -1; height: 4px; }
+
+.ag-decisions-bar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 18px; background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: 12px; box-shadow: 0 -8px 24px -18px rgba(0, 0, 0, 0.35); z-index: 4; }
+.ag-decisions-bar .ag-field-label { margin-bottom: 0; }
+.ag-decisions-tally { font-size: 13px; color: var(--ag-ink-2); }
+.ag-decisions-tally b { color: var(--ag-ink); }
+
 /* ---------- dashboard (agd-) — the approved dashboard design ----------
  * Ported from mockups/agency-dashboard-v2.html. Coral already means
  * "strong evidence" everywhere else in the product, so urgency has its own

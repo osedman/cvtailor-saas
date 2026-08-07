@@ -16,7 +16,23 @@ interface Requirement { id: string; ref: string; text: string; weight: "must" | 
 interface Constraint { id: string; ref: string; text: string; kind: string }
 interface Role { id: string; ref: string; title: string; company: string; company_context: string; salary_band: string; location: string; seniority: string; jd_raw: string; recruiter_notes: string; status: string }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; parse_status: string; duplicate_of: string | null }
-interface Score { candidate_id: string; overall: number; must_have_hit: number; must_have_total: number; original_overall: number | null; confidence_level: number; effective: Record<string, string> }
+interface Score {
+  candidate_id: string; overall: number; must_have_hit: number; must_have_total: number
+  original_overall: number | null; confidence_level: number; effective: Record<string, string>
+  // Category sub-scores, 0-100 pre-weight — the API has always sent them
+  // (select *), the compare cards just never drew them.
+  requirement_coverage: number; evidence_strength: number
+  seniority_calibration: number; context_fit: number; confidence_completeness: number
+}
+
+// Weighted category rows for the compare cards, handoff order.
+const FIT_ROWS: Array<{ key: keyof Score; label: string; weight: number }> = [
+  { key: "requirement_coverage", label: "Requirement coverage", weight: 45 },
+  { key: "evidence_strength", label: "Evidence strength", weight: 25 },
+  { key: "seniority_calibration", label: "Seniority calibration", weight: 10 },
+  { key: "context_fit", label: "Context fit", weight: 10 },
+  { key: "confidence_completeness", label: "Confidence / completeness", weight: 10 },
+]
 interface Review { candidate_id: string; status: string; communication: number | null; motivation: number | null; availability: string; salary_confirm: string; notice_period: string; notes: string }
 interface Evidence { candidate_id: string; requirement_id: string; strength: string; quote: string | null }
 
@@ -400,6 +416,18 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const activeScore = activeCandidate ? scores[activeCandidate] : null
   const activeReview = activeCandidate ? reviews[activeCandidate] : null
 
+  // Handoff chrome: which steps are behind you (checkmark in the rail),
+  // where you are (breadcrumb + eyebrow), and Back / Next at the top.
+  const stepIndex = steps.findIndex((s) => s.key === step)
+  const stepDone: Record<Step, boolean> = {
+    intake: requirements.length > 0,
+    parse: candidates.length > 0,
+    candidates: candidates.length > 0,
+    screening: candidates.length > 0 && reviewedCount === candidates.length && reviewedCount > 0,
+    compare: candidates.length > 0 && candidates.every((c) => decisions[c.id]),
+    submission: role?.status === "submitted" || submissionResult !== null,
+  }
+
   return (
     <>
       <aside className="ag-sidebar">
@@ -414,7 +442,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
           <div className="ag-rail-label">Role workflow</div>
           {steps.map((s, i) => (
             <button key={s.key} className={`ag-step${step === s.key ? " on" : ""}`} onClick={() => setStep(s.key)}>
-              <span className="ag-step-num">{`0${i + 1}`}</span> {s.label}
+              <span className={`ag-step-num${stepDone[s.key] && step !== s.key ? " done" : ""}`}>
+                {stepDone[s.key] && step !== s.key ? "✓" : `0${i + 1}`}
+              </span>{" "}
+              {s.label}
             </button>
           ))}
         </div>
@@ -434,6 +465,35 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
 
       <main className="ag-main">
         <div className="ag-screen">
+          {role && (
+            <div className="ag-crumbbar">
+              <span className="ag-crumb">
+                <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Roles</button>
+                {" / "}
+                <b>{role.company ? `${role.company} — ${role.title}` : role.title}</b>
+                {" / "}
+                {`0${stepIndex + 1}. ${steps[stepIndex]?.label ?? ""}`}
+              </span>
+              <span className="ag-grow" />
+              <button
+                className="ag-btn ag-btn-secondary"
+                disabled={stepIndex <= 0}
+                onClick={() => setStep(steps[stepIndex - 1].key)}
+              >
+                ← Back
+              </button>
+              <button
+                className="ag-btn ag-btn-secondary"
+                disabled={stepIndex >= steps.length - 1}
+                onClick={() => setStep(steps[stepIndex + 1].key)}
+              >
+                Next →
+              </button>
+            </div>
+          )}
+          {role && (
+            <p className="ag-step-eyebrow">Step 0{stepIndex + 1} · {steps[stepIndex]?.label}</p>
+          )}
           {error && (
             <div className="ag-banner" style={{ marginBottom: 16 }}>
               <div className="ag-grow" style={{ fontSize: 12.5, color: "var(--ag-coral-deep)" }}>{error}</div>
@@ -538,7 +598,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             <>
               <div className="ag-screen-head">
                 <div>
-                  <h1 className="ag-title">Check what we extracted.</h1>
+                  <h1 className="ag-title">Here&apos;s what we extracted.<br />Tune it before we score.</h1>
                   <p className="ag-sub">Click a chip to cycle its weight. This is the human in the loop moment before anything is scored.</p>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
@@ -728,10 +788,28 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           <div className="ag-meta">{active.ref} · {activeScore ? `${activeScore.must_have_hit}/${activeScore.must_have_total} musts` : ""}</div>
                         </div>
                         {activeScore && (
-                          <div style={{ textAlign: "right" }}>
-                            <span className={`ag-score ${tier(activeScore.overall)}`}>{Math.round(activeScore.overall)}</span>
-                            {activeScore.original_overall != null && activeScore.original_overall !== activeScore.overall && (
-                              <div className="ag-delta">{Math.round(activeScore.original_overall)} → {Math.round(activeScore.overall)} after call</div>
+                          <div className="ag-callscore">
+                            {activeScore.original_overall != null && Math.round(activeScore.original_overall) !== Math.round(activeScore.overall) ? (
+                              <>
+                                <div className="ag-callscore-pair">
+                                  <span className="ag-callscore-col">
+                                    <span className="ag-field-label" style={{ color: "var(--ag-ink-3)" }}>CV score</span>
+                                    <span className="ag-callscore-was mono">{Math.round(activeScore.original_overall)}</span>
+                                  </span>
+                                  <span className="ag-callscore-arrow">→</span>
+                                  <span className="ag-callscore-col">
+                                    <span className="ag-field-label">Post-call</span>
+                                    <span className={`ag-score ${tier(activeScore.overall)}`}>{Math.round(activeScore.overall)}</span>
+                                  </span>
+                                </div>
+                                <span className="ag-delta-pill">
+                                  {Math.round(activeScore.original_overall)} → {Math.round(activeScore.overall)}{" "}
+                                  {Math.round(activeScore.overall - activeScore.original_overall) > 0 ? "+" : ""}
+                                  {Math.round(activeScore.overall - activeScore.original_overall)}
+                                </span>
+                              </>
+                            ) : (
+                              <span className={`ag-score ${tier(activeScore.overall)}`}>{Math.round(activeScore.overall)}</span>
                             )}
                           </div>
                         )}
@@ -748,6 +826,21 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           <button className="ag-btn" onClick={() => resetCall(active.id)}>Reset call</button>
                         </div>
                       </div>
+                      {activeScore && (
+                        <div className="ag-conf-strip">
+                          <span className="ag-field-label">Must-have coverage</span>
+                          <b className="ag-conf-val">{activeScore.must_have_hit}/{activeScore.must_have_total}</b>
+                          <span className="ag-field-label" style={{ marginLeft: 18 }}>Confidence</span>
+                          <span className="ag-conf-bars" aria-label={`Confidence level ${activeScore.confidence_level} of 4`}>
+                            {[1, 2, 3, 4].map((n) => (
+                              <span key={n} className="ag-conf-bar" data-on={n <= activeScore.confidence_level} style={{ height: 4 + n * 3 }} />
+                            ))}
+                          </span>
+                          {activeReview?.status === "reviewed" && (
+                            <span className="ag-conf-note">↑ raised by call</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="ag-grid-2" style={{ gridTemplateColumns: "1.3fr 1fr" }}>
                       <div className="ag-card">
@@ -805,20 +898,26 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                               </div>
                             ))}
                             <div style={{ display: "grid", gap: 10, borderTop: "1px solid var(--ag-border)", paddingTop: 12 }}>
-                              {(["availability", "salary_confirm", "notice_period"] as const).map((field) => (
+                              {([
+                                ["availability", "Availability", "Available in 8 weeks"],
+                                ["salary_confirm", "Salary confirmation", "Flex to £125k confirmed"],
+                                ["notice_period", "Notice period", "Can negotiate to 8 wks (from 12)"],
+                              ] as const).map(([field, label, hint]) => (
                                 /* Keyed by candidate: an uncontrolled input keeps the
                                    previous candidate's text when you switch, and the
                                    next blur would write it onto the wrong review. */
-                                <input
-                                  key={`${active.id}:${field}`}
-                                  className="ag-input"
-                                  placeholder={field.replace("_", " ")}
-                                  defaultValue={activeReview?.[field] ?? ""}
-                                  onBlur={(e) => {
-                                    if (e.target.value === (activeReview?.[field] ?? "")) return
-                                    patchReview(active.id, { [field]: e.target.value }, { [field]: e.target.value })
-                                  }}
-                                />
+                                <div key={`${active.id}:${field}`}>
+                                  <span className="ag-field-label">{label}</span>
+                                  <input
+                                    className="ag-input"
+                                    placeholder={hint}
+                                    defaultValue={activeReview?.[field] ?? ""}
+                                    onBlur={(e) => {
+                                      if (e.target.value === (activeReview?.[field] ?? "")) return
+                                      patchReview(active.id, { [field]: e.target.value }, { [field]: e.target.value })
+                                    }}
+                                  />
+                                </div>
                               ))}
                             </div>
                           </div>
@@ -860,6 +959,13 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   <button className="ag-btn ag-btn-primary" onClick={() => setStep("submission")} disabled={shortlisted === 0}>Generate submission · {shortlisted} shortlisted</button>
                 </div>
               </div>
+              <div className="ag-legend">
+                <span className="ag-field-label" style={{ marginRight: 4 }}>Legend</span>
+                <span><span className="ag-dot strong" /> Strong evidence — 1.0</span>
+                <span><span className="ag-dot transferable" /> Transferable — 0.7</span>
+                <span><span className="ag-dot partial" /> Partial — 0.4</span>
+                <span><span className="ag-dot missing" /> Missing — 0.0</span>
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(candidates.length, 1)}, 1fr)`, gap: 14, marginBottom: 20 }}>
                 {[...candidates].sort((a, b) => (scores[b.id]?.overall ?? 0) - (scores[a.id]?.overall ?? 0)).map((c, rank) => {
                   const s = scores[c.id]
@@ -875,10 +981,34 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           <div style={{ fontWeight: 600 }}>{c.full_name}</div>
                           <div className="ag-meta">{c.current_title || c.ref}</div>
                         </div>
+                        {s && s.original_overall != null && Math.round(s.original_overall) !== Math.round(s.overall) && (
+                          <span className="ag-delta-pill">
+                            {Math.round(s.original_overall)} → {Math.round(s.overall)}{" "}
+                            {Math.round(s.overall - s.original_overall) > 0 ? "+" : ""}{Math.round(s.overall - s.original_overall)}
+                          </span>
+                        )}
                         {s && (
-                          <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
+                            <span className="ag-field-label" style={{ color: "var(--ag-ink-3)" }}>Overall fit</span>
                             <span className={`ag-score ${tier(s.overall)}`}>{Math.round(s.overall)}</span>
-                            <span className="ag-meta">{s.must_have_hit}/{s.must_have_total} musts</span>
+                          </div>
+                        )}
+                        {s && (
+                          <div className="ag-fit-rows">
+                            {FIT_ROWS.map((row) => {
+                              const v = Math.round(Number(s[row.key] ?? 0))
+                              return (
+                                <div key={row.key} className="ag-fit-row">
+                                  <span className="ag-fit-label">{row.label}</span>
+                                  <span className="ag-fit-num">{row.weight}% · <b>{v}</b></span>
+                                  <div className="ag-bar"><div className="ag-bar-fill" style={{ width: `${v}%` }} /></div>
+                                </div>
+                              )
+                            })}
+                            <div className="ag-fit-row" style={{ borderTop: "1px solid var(--ag-border)", paddingTop: 8 }}>
+                              <span className="ag-fit-label">Must-have coverage</span>
+                              <span className="ag-fit-num"><b>{s.must_have_hit}/{s.must_have_total}</b></span>
+                            </div>
                           </div>
                         )}
                         <button className="ag-btn ag-btn-secondary" style={{ width: "100%", justifyContent: "center" }} onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
@@ -927,6 +1057,16 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="ag-decisions-bar">
+                <span className="ag-field-label">Decisions</span>
+                <span className="ag-decisions-tally">
+                  {decisionTotals || "none yet"} · <b>{candidates.filter((c) => !decisions[c.id]).length} undecided</b>
+                </span>
+                <span className="ag-grow" />
+                <button className="ag-btn ag-btn-primary" onClick={() => setStep("submission")} disabled={shortlisted === 0}>
+                  Continue to submission
+                </button>
               </div>
             </>
           )}
