@@ -14,7 +14,8 @@ import { resolveProbes } from "@/lib/agency/probes"
 import { WORKFLOW_STEPS, stepNumber } from "@/lib/agency/steps"
 
 interface Requirement { id: string; ref: string; text: string; weight: string; category?: string }
-interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; redacted: boolean }
+interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; salary_text?: string; redacted: boolean }
+interface Role { id: string; ref: string; title: string; company: string }
 interface Score {
   candidate_id: string; overall: number; must_have_hit: number; must_have_total: number
   original_overall: number | null; confidence_level: number; effective: Record<string, string>
@@ -35,6 +36,8 @@ const CATEGORY_BARS: Array<{ key: keyof Score; label: string; weight: number }> 
 export default function CandidateDetailPage({ params }: { params: Promise<{ roleId: string; candidateId: string }> }) {
   const { roleId, candidateId } = use(params)
   const router = useRouter()
+  const [role, setRole] = useState<Role | null>(null)
+  const [narrative, setNarrative] = useState("")
   const [requirements, setRequirements] = useState<Requirement[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [scores, setScores] = useState<Record<string, Score>>({})
@@ -56,6 +59,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
     if (!roleRes.ok || !candRes.ok) return setError("Not found in your agency")
     const roleBody = await roleRes.json()
     const candBody = await candRes.json()
+    setRole(roleBody.role ?? null)
     setRequirements(roleBody.requirements ?? [])
     setCandidates(candBody.candidates ?? [])
     const sMap: Record<string, Score> = {}
@@ -64,6 +68,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
     const rMap: Record<string, Review> = {}
     for (const r of candBody.reviews ?? []) rMap[r.candidate_id] = r
     setReviews(rMap)
+    setNarrative(rMap[candidateId]?.notes ?? "")
     setEvidence(candBody.evidence ?? [])
     const mine = (candBody.decisions ?? []).find((d: { candidate_id: string }) => d.candidate_id === candidateId)
     setDecision(mine?.decision ?? null)
@@ -75,6 +80,18 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
   }, [roleId, candidateId, router])
 
   useEffect(() => { load() }, [load])
+
+  /** The client-facing write up. Same field the submission narrative reads,
+   *  so what you type here is what the hiring manager gets. */
+  async function saveNarrative(text: string) {
+    setNarrative(text)
+    setReviews((prev) => ({ ...prev, [candidateId]: { ...(prev[candidateId] ?? ({} as Review)), notes: text } }))
+    await fetch(`/api/agency/candidates/${candidateId}/review`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes: text }),
+    })
+  }
 
   async function decide(next: string | null) {
     const value = decision === next ? null : next
@@ -98,6 +115,16 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
   const allProbes = resolveProbes(Object.keys(review?.call_answers ?? {}), requirements)
   const answeredProbes = allProbes.filter((q) => (review?.call_answers?.[q.id] ?? "").trim().length > 0)
   const unevidenced = requirements.filter((r) => r.weight !== "nice" && ["missing", "partial"].includes(effective(r.id)))
+
+  const idx = candidates.findIndex((c) => c.id === candidateId)
+  const prev = idx > 0 ? candidates[idx - 1] : null
+  const next = idx >= 0 && idx < candidates.length - 1 ? candidates[idx + 1] : null
+  const delta = score?.original_overall != null ? Math.round(score.overall - score.original_overall) : 0
+  // Weight multipliers from the scoring engine: must 3, important 2, nice 1.
+  const weightPoints: Record<string, string> = { must: "+3.0", important: "+2.0", nice: "+1.0" }
+  const strengthsList = requirements.filter((r) => effective(r.id) === "strong")
+  const risksList = requirements.filter((r) => ["missing", "partial"].includes(effective(r.id)))
+  const confWord = ["", "LOW", "MEDIUM", "HIGH", "HIGH"][score?.confidence_level ?? 2] ?? "MEDIUM"
 
   return (
     <>
@@ -127,15 +154,18 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
             </button>
           ))}
         </div>
-        {candidate && (
+        {role && (
           <div className="ag-active-role">
-            <div className="ag-rail-label" style={{ padding: 0 }}>Viewing</div>
-            <div style={{ fontWeight: 600, fontSize: 13 }}>{candidate.full_name}</div>
-            <div className="ag-meta">{candidate.ref}</div>
+            <div className="ag-rail-label" style={{ padding: 0 }}>Active role</div>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>{role.title}</div>
+            <div className="ag-meta">{role.company || "No company"} · {role.ref}</div>
           </div>
         )}
         <div className="ag-sidebar-foot">
-          <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>Missing means missing. Nothing on this page is inferred.</div>
+          <div className="ag-eyebrow" style={{ marginBottom: 6 }}>Decision support only</div>
+          <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>
+            No candidate is ever auto-rejected. All shortlists are subject to recruiter judgment.
+          </div>
         </div>
       </aside>
 
@@ -145,118 +175,201 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
             <span className="ag-crumb">
               <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Roles</button>
               {" / "}
-              <button className="ag-crumb-link" onClick={() => router.push(`/agencies/roles/${roleId}`)}>Role workflow</button>
+              <button className="ag-crumb-link" onClick={() => router.push(`/agencies/roles/${roleId}`)}>
+                {role ? `${role.company || "Role"} — ${role.title}` : "Role workflow"}
+              </button>
               {" / "}
               <b>{stepNumber("detail")}. Candidate detail</b>
             </span>
-            <span className="ag-grow" />
-            <button className="ag-btn ag-btn-secondary" onClick={() => router.push(`/agencies/roles/${roleId}?step=compare`)}>← Compare</button>
-            <button className="ag-btn ag-btn-secondary" onClick={() => router.push(`/agencies/roles/${roleId}?step=submission`)}>Submission →</button>
           </div>
           <p className="ag-step-eyebrow">Step {stepNumber("detail")} · Candidate detail</p>
+
           {error && <div className="ag-banner"><span style={{ color: "var(--ag-coral-deep)", fontSize: 12.5 }}>{error}</span></div>}
           {!candidate && !error && <div className="ag-card"><div className="ag-card-body"><span className="ag-spin" /></div></div>}
 
           {candidate && (
             <>
-              <div className="ag-tabstrip">
-                {candidates.map((c) => (
-                  <button
-                    key={c.id}
-                    className={`ag-btn ${c.id === candidateId ? "ag-btn-primary" : "ag-btn-secondary"}`}
-                    onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}
-                  >
-                    {c.full_name.split(" ")[0]}{scores[c.id] ? ` · ${Math.round(scores[c.id].overall)}` : ""}
-                  </button>
-                ))}
-              </div>
-
-              <div className="ag-screen-head">
-                <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-                  <div className="ag-avatar" style={{ width: 54, height: 54, fontSize: 17 }}>{initials(candidate.full_name)}</div>
-                  <div>
-                    <h1 className="ag-title" style={{ fontSize: 28 }}>{candidate.full_name}</h1>
-                    <div style={{ color: "var(--ag-ink-2)", fontSize: 14 }}>
-                      {[candidate.current_title, candidate.years ? `${candidate.years} years` : "", candidate.location].filter(Boolean).join(" · ")}
-                    </div>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
-                      {score && <span className={`ag-score ${tier(score.overall)}`}>{Math.round(score.overall)}</span>}
-                      {score?.original_overall != null && score.original_overall !== score.overall && (
-                        <span className="ag-delta">{Math.round(score.original_overall)} → {Math.round(score.overall)} after call</span>
-                      )}
-                      {score && (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                          <span className="ag-conf-bars" title={`Confidence ${score.confidence_level} of 4`}>
-                            {[1, 2, 3, 4].map((n) => (
-                              <span key={n} className="ag-conf-bar" data-on={n <= score.confidence_level} style={{ height: 4 + n * 3 }} />
-                            ))}
-                          </span>
-                          <span className="ag-meta">{["", "LOW", "MEDIUM", "HIGH", "HIGH"][score.confidence_level] ?? "MEDIUM"} CONFIDENCE</span>
-                        </span>
-                      )}
-                      {score && <span className="ag-meta">{score.must_have_hit}/{score.must_have_total} musts · {candidate.ref}</span>}
-                      {review?.status === "reviewed" && <span className="ag-reviewed" style={{ position: "static" }}>Call done</span>}
-                      {candidate.redacted && <span className="ag-pill ag-pill-warn">Partial CV</span>}
+              <div className="ag-screen-head" style={{ alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 14, alignItems: "center", minWidth: 0 }}>
+                  <div className="ag-avatar" style={{ width: 44, height: 44, fontSize: 15 }}>{initials(candidate.full_name)}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <h1 className="ag-title" style={{ fontSize: 30, margin: 0 }}>{candidate.full_name}</h1>
+                    <div className="ag-meta">
+                      {[candidate.ref, candidate.current_title, candidate.years ? `${candidate.years} yrs` : "", candidate.location].filter(Boolean).join(" · ")}
                     </div>
                   </div>
                 </div>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", flex: "none" }}>
+                  <button className="ag-btn" disabled={!prev} onClick={() => prev && router.push(`/agencies/roles/${roleId}/candidates/${prev.id}`)}>← Prev</button>
+                  <button className="ag-btn" disabled={!next} onClick={() => next && router.push(`/agencies/roles/${roleId}/candidates/${next.id}`)}>Next →</button>
+                  <button className="ag-btn ag-btn-primary" onClick={() => decide("shortlist")}>
+                    {decision === "shortlist" ? "✓ On the shortlist" : "Add to submission"}
+                  </button>
+                </div>
               </div>
 
-              <div className="ag-grid-2" style={{ gridTemplateColumns: "1.5fr 1fr" }}>
-                <div className="ag-card">
-                  <div className="ag-card-head">
-                    <span className="ag-card-title">Requirement × evidence</span>
-                    <span className="ag-meta">Click a row for the quote</span>
+              <div className="ag-det-grid">
+                <div className="ag-stack" style={{ minWidth: 0 }}>
+                  <div className="ag-card">
+                    <div className="ag-card-head">
+                      <span className="ag-card-title">Recruiter narrative</span>
+                      <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        {review?.status === "reviewed" && <span className="ag-reviewed" style={{ position: "static" }}>Call done</span>}
+                        {delta !== 0 && score?.original_overall != null && (
+                          <span className="ag-delta-pill">
+                            {Math.round(score.original_overall)} → {Math.round(score.overall)} {delta > 0 ? `+${delta}` : delta}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="ag-card-body ag-stack" style={{ gap: 14 }}>
+                      {narrative ? (
+                        <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.65 }}>{narrative}</p>
+                      ) : (
+                        <p style={{ margin: 0, fontSize: 12.5, color: "var(--ag-ink-4)", fontStyle: "italic" }}>
+                          No narrative written yet. Whatever you record here travels to the client as this candidate&apos;s write up.
+                        </p>
+                      )}
+                      <textarea
+                        key={`${candidateId}:narrative`}
+                        className="ag-textarea"
+                        style={{ minHeight: 70 }}
+                        placeholder="Your write up for the client. This is the paragraph the hiring manager reads first."
+                        defaultValue={narrative}
+                        onBlur={(e) => {
+                          if (e.target.value === narrative) return
+                          saveNarrative(e.target.value)
+                        }}
+                      />
+                      {review?.notes && (
+                        <div className="ag-callout">
+                          <div className="ag-field-label">From your screening call</div>
+                          <div style={{ fontSize: 12.5, lineHeight: 1.6 }}>{review.notes}</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {requirements.map((req) => {
-                    const ev = evidenceFor(req.id)
-                    const strength = effective(req.id)
-                    const isOpen = open === req.id
-                    return (
-                      <div key={req.id}>
-                        <button className="ag-req-btn" onClick={() => setOpen(isOpen ? null : req.id)}>
-                          <span className="ag-meta" style={{ paddingTop: 2 }}>{req.ref}</span>
-                          <span className="ag-grow" style={{ minWidth: 0 }}>
-                            <span style={{ display: "block", fontSize: 13, fontWeight: 500 }}>
-                              {req.text}
-                              {overridden.has(req.id) && <span className="ag-reviewed" style={{ position: "static", marginLeft: 8 }}>Your call</span>}
-                            </span>
-                            <span className="ag-matrix-weight">{req.weight}{req.category ? ` · ${req.category}` : ""}</span>
-                          </span>
-                          <span className={`ag-strength ${strength}`}>
-                            <span className={`ag-dot ${strength}`} />{strength}
-                          </span>
-                          <span className="ag-meta">{isOpen ? "−" : "+"}</span>
-                        </button>
-                        {isOpen && (
-                          <div style={{ padding: "0 18px 14px 48px" }}>
-                            {ev?.quote ? (
-                              <div>
-                                <div className="ag-quote"><span className="ag-mark">{ev.quote}</span></div>
-                                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 8 }}>
-                                  <span className="ag-meta">Source · {ev.source_cite || "CV"}{ev.origin === "tailr_profile" ? " · Tailr profile" : ""}</span>
-                                  <span className="ag-meta">{strength === "strong" ? "Verbatim from the CV" : "Recorded as " + strength}</span>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="ag-drop" style={{ padding: 18, textAlign: "left" }}>
-                                <span style={{ fontSize: 13, color: "var(--ag-ink-3)" }}>
-                                  No evidence found in the CV for this requirement. Marked{" "}
-                                  <span className="ag-missing-chip">MISSING</span>. Confirm during the screening call rather than assuming either way.
-                                </span>
+
+                  <div className="ag-card">
+                    <div className="ag-card-head">
+                      <span className="ag-card-title">Evidence by requirement</span>
+                      <span className="ag-meta">Click a row to see the source</span>
+                    </div>
+                    <div className="ag-card-body ag-stack" style={{ gap: 8 }}>
+                      <div className="ag-legend" style={{ marginBottom: 0 }}>
+                        <span className="ag-field-label" style={{ marginBottom: 0, marginRight: 4 }}>Legend</span>
+                        <span><span className="ag-dot strong" /> Strong evidence — 1.0</span>
+                        <span><span className="ag-dot transferable" /> Transferable — 0.7</span>
+                        <span><span className="ag-dot partial" /> Partial — 0.4</span>
+                        <span><span className="ag-dot missing" /> Missing — 0.0</span>
+                      </div>
+                      {requirements.map((req) => {
+                        const ev = evidenceFor(req.id)
+                        const strength = effective(req.id)
+                        const isOpen = open === req.id
+                        const mine = overridden.has(req.id)
+                        return (
+                          <div key={req.id} className="ag-evrow" data-override={mine} data-open={isOpen}>
+                            <button className="ag-evrow-head" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : req.id)}>
+                              <span className={`ag-dot ${strength}`} />
+                              <span className="ag-meta" style={{ flex: "none" }}>{req.ref}</span>
+                              <span className="ag-evrow-text">{req.text}</span>
+                              {mine && <span className="ag-reviewed" style={{ position: "static", flex: "none" }}>Your call</span>}
+                              <span className="ag-evrow-weight" data-must={req.weight === "must"}>{req.weight}</span>
+                              <span className="ag-evrow-pts">{weightPoints[req.weight] ?? ""}</span>
+                              <span className="ag-evrow-chev">{isOpen ? "⌃" : "⌄"}</span>
+                            </button>
+                            {isOpen && (
+                              <div className="ag-evrow-body">
+                                {ev?.quote ? (
+                                  <>
+                                    <div className="ag-quote"><span className="ag-mark">{ev.quote}</span></div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 8 }}>
+                                      <span className="ag-meta">Source · {ev.source_cite || "CV"}{ev.origin === "tailr_profile" ? " · Tailr profile" : ""}</span>
+                                      <span className="ag-meta">{strength === "strong" ? "Verbatim from the CV" : `Recorded as ${strength}`}</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <span style={{ fontSize: 13, color: "var(--ag-ink-3)" }}>
+                                    No evidence found in the CV for this requirement. Marked{" "}
+                                    <span className="ag-missing-chip">MISSING</span>. Confirm on the screening call rather than assuming either way.
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>
-                        )}
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="ag-det-cols">
+                    <div className="ag-card">
+                      <div className="ag-card-head"><span className="ag-card-title">Strengths</span><span className="ag-meta">{strengthsList.length}</span></div>
+                      <div className="ag-card-body ag-stack" style={{ gap: 8 }}>
+                        {strengthsList.length === 0 && <span style={{ fontSize: 12.5, color: "var(--ag-ink-4)" }}>Nothing reads strong yet.</span>}
+                        {strengthsList.map((r) => (
+                          <div key={r.id} className="ag-sr-row">
+                            <span className="ag-dot strong" />
+                            <span>{r.text}</span>
+                          </div>
+                        ))}
                       </div>
-                    )
-                  })}
+                    </div>
+                    <div className="ag-card">
+                      <div className="ag-card-head"><span className="ag-card-title">Risks and gaps</span><span className="ag-meta">{risksList.length}</span></div>
+                      <div className="ag-card-body ag-stack" style={{ gap: 8 }}>
+                        {risksList.length === 0 && <span style={{ fontSize: 12.5, color: "var(--ag-ink-4)" }}>Every requirement has evidence.</span>}
+                        {risksList.map((r) => (
+                          <div key={r.id} className="ag-sr-row">
+                            <span className={`ag-dot ${effective(r.id)}`} />
+                            <span>{r.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="ag-card">
+                    <div className="ag-card-head">
+                      <span className="ag-card-title">Call answers</span>
+                      <span className="ag-meta">{answeredProbes.length}/{allProbes.length} answered</span>
+                    </div>
+                    <div className="ag-card-body ag-stack" style={{ gap: 14 }}>
+                      {allProbes.length === 0 && (
+                        <span style={{ fontSize: 12.5, color: "var(--ag-ink-4)" }}>
+                          No questions were put on the call script for this candidate.
+                        </span>
+                      )}
+                      {allProbes.map((q, i) => {
+                        const answer = (review?.call_answers?.[q.id] ?? "").trim()
+                        return (
+                          <div key={q.id} className="ag-qa">
+                            <div className="ag-qa-q">
+                              <span className="ag-qnum">Q{String(i + 1).padStart(2, "0")}</span>
+                              <span>{q.text}</span>
+                            </div>
+                            {answer ? (
+                              <div className="ag-qa-a"><span style={{ color: "var(--ag-ink-4)" }}>— </span>{answer}</div>
+                            ) : (
+                              <div className="ag-qa-a" style={{ color: "var(--ag-ink-4)", fontStyle: "italic" }}>Not answered on the call.</div>
+                            )}
+                          </div>
+                        )
+                      })}
+                      {unevidenced.length > 0 && (
+                        <p className="ag-meta" style={{ margin: 0, textTransform: "none", letterSpacing: 0 }}>
+                          Still unevidenced: {unevidenced.map((r) => r.ref).join(", ")}. Worth asking if the call has not covered them.
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="ag-stack">
+                <div className="ag-det-side">
                   {score && (
                     <div className="ag-card">
-                      <div className="ag-card-head"><span className="ag-card-title">Score breakdown</span><span className="ag-meta">Server computed</span></div>
+                      <div className="ag-card-head"><span className="ag-card-title">Score breakdown</span></div>
                       <div className="ag-card-body">
                         <div className="ag-nutrition-top">
                           <span className="ag-field-label" style={{ marginBottom: 0, color: "var(--ag-ink-3)" }}>Overall fit</span>
@@ -274,81 +387,68 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                           <span className="ag-fit-label">Must-have coverage</span>
                           <span className="ag-fit-num"><b>{score.must_have_hit}/{score.must_have_total}</b></span>
                         </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+                          <span className="ag-conf-bars" title={`Confidence ${score.confidence_level} of 4`}>
+                            {[1, 2, 3, 4].map((n) => (
+                              <span key={n} className="ag-conf-bar" data-on={n <= score.confidence_level} style={{ height: 4 + n * 3 }} />
+                            ))}
+                          </span>
+                          <span className="ag-meta">{confWord} confidence</span>
+                        </div>
+                        {delta !== 0 && (
+                          <p className="ag-score-moved">
+                            Score moved {delta > 0 ? "up" : "down"} {Math.abs(delta)} point{Math.abs(delta) === 1 ? "" : "s"} after your screening call.
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
-
-                  {review?.status === "reviewed" && (
-                    <div className="ag-card">
-                      <div className="ag-card-head">
-                        <span className="ag-card-title">From the screening call</span>
-                        <span className="ag-meta">{overridden.size} override{overridden.size === 1 ? "" : "s"} · {answeredProbes.length} answer{answeredProbes.length === 1 ? "" : "s"}</span>
-                      </div>
-                      <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
-                        {review.notes && <div className="ag-callout" style={{ fontSize: 12.5 }}>&ldquo;{review.notes}&rdquo;</div>}
-                        {answeredProbes.map((q, i) => (
-                          <div key={q.id}>
-                            <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 4 }}>
-                              <span className="ag-qnum">Q{String(i + 1).padStart(2, "0")}</span>
-                              <span style={{ fontSize: 12, color: "var(--ag-ink-2)", fontWeight: 500, flex: 1 }}>{q.text}</span>
-                            </div>
-                            <div style={{ marginLeft: 26, fontSize: 12.5, lineHeight: 1.5 }}>
-                              <span style={{ color: "var(--ag-ink-4)" }}>&mdash; </span>{review.call_answers?.[q.id]}
-                            </div>
-                          </div>
-                        ))}
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--ag-border)", paddingTop: 10 }}>
-                          {review.communication != null && <span className="ag-pill">Comms {review.communication}/5</span>}
-                          {review.motivation != null && <span className="ag-pill">Motivation {review.motivation}/5</span>}
-                          {review.availability && <span className="ag-pill">{review.availability}</span>}
-                          {review.salary_confirm && <span className="ag-pill">{review.salary_confirm}</span>}
-                          {review.notice_period && <span className="ag-pill">{review.notice_period}</span>}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="ag-script">
-                    <div className="ag-script-head">
-                      <span className="ag-script-title">{review?.status === "reviewed" ? "Still to probe in interview" : "What to probe in interview"}</span>
-                      <span className="ag-script-count">{answeredProbes.length}/{allProbes.length} answered</span>
-                    </div>
-                    <div className="ag-script-body">
-                      {allProbes.length === 0 && (
-                        <p className="ag-script-empty">
-                          No questions on the call script yet, and every requirement has evidence. Add questions from the screening step.
-                        </p>
-                      )}
-                      {allProbes.map((q, i) => {
-                        const answered = ((review?.call_answers?.[q.id] ?? "").trim().length > 0)
-                        return (
-                          <div key={q.id} className="ag-probe-line" data-answered={answered}>
-                            <span className="ag-qnum">Q{String(i + 1).padStart(2, "0")}</span>
-                            <span className="ag-probe-text">{q.text}</span>
-                            {answered && <span className="ag-probe-done">Answered</span>}
-                          </div>
-                        )
-                      })}
-                      {unevidenced.length > 0 && (
-                        <div className="ag-probe-gap">
-                          Still unevidenced: {unevidenced.map((r) => r.ref).join(", ")}. Worth a question if the call has not covered them.
-                        </div>
-                      )}
-                    </div>
-                  </div>
 
                   <div className="ag-card">
-                    <div className="ag-card-head"><span className="ag-card-title">Recruiter override</span><span className="ag-pill">Audit logged</span></div>
-                    <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
-                      <div className="ag-field-label" style={{ marginBottom: -4 }}>Your decision</div>
+                    <div className="ag-card-head"><span className="ag-card-title">Your decision</span><span className="ag-pill">Audit logged</span></div>
+                    <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
                       <div className="ag-seg" style={{ width: "100%" }}>
                         {["shortlist", "hold", "reject"].map((d) => (
                           <button key={d} style={{ flex: 1 }} className={decision === d ? "on" : ""} onClick={() => decide(d)}>{d}</button>
                         ))}
                       </div>
-                      <div className="ag-field-label" style={{ marginBottom: -4 }}>Note for the record</div>
-                      <textarea className="ag-textarea" style={{ minHeight: 70 }} placeholder="Why, in a sentence. Visible to your team, never the client." value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => decision && decide(decision)} />
+                      <p className="ag-meta" style={{ margin: 0, textTransform: "none", letterSpacing: 0 }}>
+                        Decisions are yours and reversible. Tailr never rejects a candidate.
+                      </p>
+                      <div>
+                        <div className="ag-field-label">Note for the record</div>
+                        <textarea
+                          className="ag-textarea"
+                          style={{ minHeight: 64 }}
+                          placeholder="Why, in a sentence. Visible to your team, never the client."
+                          value={note}
+                          onChange={(e) => setNote(e.target.value)}
+                          onBlur={() => decision && decide(decision)}
+                        />
+                      </div>
                       <span className="ag-meta">Attached to {candidate.ref} · visible to team · not shared with client</span>
+                    </div>
+                  </div>
+
+                  <div className="ag-card">
+                    <div className="ag-card-head"><span className="ag-card-title">Soft signals</span><span className="ag-meta">from the call</span></div>
+                    <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
+                      {!review?.status && <span style={{ fontSize: 12.5, color: "var(--ag-ink-4)" }}>No call logged yet.</span>}
+                      {review?.availability && <div className="ag-kv"><span>Availability</span><b>{review.availability}</b></div>}
+                      {review?.salary_confirm && <div className="ag-kv"><span>Comp position</span><b>{review.salary_confirm}</b></div>}
+                      {review?.notice_period && <div className="ag-kv"><span>Notice</span><b>{review.notice_period}</b></div>}
+                      {review?.communication != null && <div className="ag-kv"><span>Communication</span><b>{review.communication}/5</b></div>}
+                      {review?.motivation != null && <div className="ag-kv"><span>Motivation</span><b>{review.motivation}/5</b></div>}
+                    </div>
+                  </div>
+
+                  <div className="ag-card">
+                    <div className="ag-card-head"><span className="ag-card-title">Logistics</span><span className="ag-meta">from the CV</span></div>
+                    <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
+                      <div className="ag-kv"><span>Comp expectation</span><b>{candidate.salary_text || "Not parsed"}</b></div>
+                      <div className="ag-kv"><span>Location</span><b>{candidate.location || "Not parsed"}</b></div>
+                      <div className="ag-kv"><span>Experience</span><b>{candidate.years ? `${candidate.years} years` : "Not parsed"}</b></div>
+                      {candidate.redacted && <span className="ag-pill ag-pill-warn">Partial CV</span>}
                     </div>
                   </div>
                 </div>
