@@ -214,7 +214,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                     <div className="ag-card-head">
                       <span className="ag-card-title">Recruiter narrative</span>
                       <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        {review?.status === "reviewed" && <span className="ag-reviewed" style={{ position: "static" }}>Call done</span>}
+                        {review?.status === "reviewed" && <span className="ag-reviewed inline">Call done</span>}
                         {delta !== 0 && score?.original_overall != null && (
                           <span className="ag-delta-pill">
                             {Math.round(score.original_overall)} → {Math.round(score.overall)} {delta > 0 ? `+${delta}` : delta}
@@ -226,7 +226,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                       {narrative ? (
                         <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.65 }}>{narrative}</p>
                       ) : (
-                        <p style={{ margin: 0, fontSize: 12.5, color: "var(--ag-ink-4)", fontStyle: "italic" }}>
+                        <p className="ag-note ag-note-quiet">
                           No narrative written yet. Whatever you record here travels to the client as this candidate&apos;s write up.
                         </p>
                       )}
@@ -274,7 +274,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                               <span className={`ag-dot ${strength}`} />
                               <span className="ag-meta" style={{ flex: "none" }}>{req.ref}</span>
                               <span className="ag-evrow-text">{req.text}</span>
-                              {mine && <span className="ag-reviewed" style={{ position: "static", flex: "none" }}>Your call</span>}
+                              {mine && <span className="ag-reviewed inline" style={{ flex: "none" }}>Your call</span>}
                               <span className="ag-evrow-weight" data-must={req.weight === "must"}>{req.weight}</span>
                               <span className="ag-evrow-pts">{weightPoints[req.weight] ?? ""}</span>
                               <span className="ag-evrow-chev">{isOpen ? "⌃" : "⌄"}</span>
@@ -307,7 +307,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                     <div className="ag-card">
                       <div className="ag-card-head"><span className="ag-card-title">Strengths</span><span className="ag-meta">{strengthsList.length}</span></div>
                       <div className="ag-card-body ag-stack" style={{ gap: 8 }}>
-                        {strengthsList.length === 0 && <span style={{ fontSize: 12.5, color: "var(--ag-ink-4)" }}>Nothing reads strong yet.</span>}
+                        {strengthsList.length === 0 && <span className="ag-note">Nothing reads strong yet.</span>}
                         {strengthsList.map((r) => (
                           <div key={r.id} className="ag-sr-row">
                             <span className="ag-dot strong" />
@@ -319,7 +319,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                     <div className="ag-card">
                       <div className="ag-card-head"><span className="ag-card-title">Risks and gaps</span><span className="ag-meta">{risksList.length}</span></div>
                       <div className="ag-card-body ag-stack" style={{ gap: 8 }}>
-                        {risksList.length === 0 && <span style={{ fontSize: 12.5, color: "var(--ag-ink-4)" }}>Every requirement has evidence.</span>}
+                        {risksList.length === 0 && <span className="ag-note">Every requirement has evidence.</span>}
                         {risksList.map((r) => (
                           <div key={r.id} className="ag-sr-row">
                             <span className={`ag-dot ${effective(r.id)}`} />
@@ -337,7 +337,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                     </div>
                     <div className="ag-card-body ag-stack" style={{ gap: 14 }}>
                       {allProbes.length === 0 && (
-                        <span style={{ fontSize: 12.5, color: "var(--ag-ink-4)" }}>
+                        <span className="ag-note">
                           No questions were put on the call script for this candidate.
                         </span>
                       )}
@@ -350,15 +350,15 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                               <span>{q.text}</span>
                             </div>
                             {answer ? (
-                              <div className="ag-qa-a"><span style={{ color: "var(--ag-ink-4)" }}>— </span>{answer}</div>
+                              <div className="ag-qa-a"><span className="ag-qa-dash">— </span>{answer}</div>
                             ) : (
-                              <div className="ag-qa-a" style={{ color: "var(--ag-ink-4)", fontStyle: "italic" }}>Not answered on the call.</div>
+                              <div className="ag-qa-a ag-note-quiet">Not answered on the call.</div>
                             )}
                           </div>
                         )
                       })}
                       {unevidenced.length > 0 && (
-                        <p className="ag-meta" style={{ margin: 0, textTransform: "none", letterSpacing: 0 }}>
+                        <p className="ag-note">
                           Still unevidenced: {unevidenced.map((r) => r.ref).join(", ")}. Worth asking if the call has not covered them.
                         </p>
                       )}
@@ -412,7 +412,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                           <button key={d} style={{ flex: 1 }} className={decision === d ? "on" : ""} onClick={() => decide(d)}>{d}</button>
                         ))}
                       </div>
-                      <p className="ag-meta" style={{ margin: 0, textTransform: "none", letterSpacing: 0 }}>
+                      <p className="ag-note">
                         Decisions are yours and reversible. Tailr never rejects a candidate.
                       </p>
                       <div>
@@ -433,7 +433,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                   <div className="ag-card">
                     <div className="ag-card-head"><span className="ag-card-title">Soft signals</span></div>
                     <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
-                      {!review?.status && <span style={{ fontSize: 12.5, color: "var(--ag-ink-4)" }}>No call logged yet.</span>}
+                      {!review?.status && <span className="ag-note">No call logged yet.</span>}
                       {review?.availability && <div className="ag-kv"><span>Availability</span><b>{review.availability}</b></div>}
                       {review?.salary_confirm && <div className="ag-kv"><span>Comp position</span><b>{review.salary_confirm}</b></div>}
                       {review?.notice_period && <div className="ag-kv"><span>Notice</span><b>{review.notice_period}</b></div>}

@@ -748,7 +748,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         Fetch and extract
                       </button>
                     </div>
-                    <p style={{ fontSize: 11.5, color: "var(--ag-ink-4)", marginTop: 8 }}>
+                    <p className="ag-note" style={{ marginTop: 8 }}>
                       Extraction fills any empty fields on the right from the JD. It never overwrites what you typed, and never touches your notes.
                     </p>
                   </div>
@@ -770,7 +770,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     <div className="ag-card-head"><span className="ag-card-title">Recruiter notes</span><span className="ag-pill">Private</span></div>
                     <div className="ag-card-body">
                       <textarea className="ag-textarea" placeholder="What the client said that never made the JD" value={role.recruiter_notes} onChange={(e) => patchRole({ recruiter_notes: e.target.value })} onBlur={saveIntake} />
-                      <p style={{ fontSize: 11.5, color: "var(--ag-ink-4)", marginTop: 8 }}>Notes feed the scoring and never reach the client.</p>
+                      <p className="ag-note" style={{ marginTop: 8 }}>Notes feed the scoring and never reach the client.</p>
                     </div>
                   </div>
                 </div>
@@ -827,7 +827,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   <div className="ag-card">
                     <div className="ag-card-head"><span className="ag-card-title">Constraints</span></div>
                     <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
-                      {constraints.length === 0 && <span style={{ fontSize: 12.5, color: "var(--ag-ink-4)" }}>None extracted.</span>}
+                      {constraints.length === 0 && <span className="ag-note">None extracted.</span>}
                       {constraints.map((c, i) => (
                         <div key={c.id ?? i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <span className="ag-meta">{c.ref}</span>
@@ -883,7 +883,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   {candidates.length === 0 && (
                     <div className="ag-card-body">
                       <div className="ag-drop">
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>No candidates yet for {role.ref}.</div>
+                        <div className="ag-name">No candidates yet for {role.ref}.</div>
                         <p style={{ fontSize: 12.5, color: "var(--ag-ink-3)", margin: "6px 0 0" }}>{requirements.length} requirements ready. Nothing scored yet.</p>
                       </div>
                     </div>
@@ -915,7 +915,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             </span>
                           </span>
                           <span style={{ display: "flex", gap: 12, alignItems: "center", flex: "none" }}>
-                            {reviews[c.id]?.status === "reviewed" && <span className="ag-reviewed" style={{ position: "static" }}>Call done</span>}
+                            {reviews[c.id]?.status === "reviewed" && <span className="ag-reviewed inline">Call done</span>}
                             {c.parse_status === "failed" ? (
                               <span className="ag-pill ag-pill-failed">Failed</span>
                             ) : s ? (
@@ -1098,7 +1098,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                          {activeReview?.status === "reviewed" && <span className="ag-reviewed" style={{ position: "static" }}>Call logged</span>}
+                          {activeReview?.status === "reviewed" && <span className="ag-reviewed inline">Call logged</span>}
                           <button className="ag-btn" onClick={() => resetCall(active.id)}>Reset</button>
                           <button
                             className="ag-btn"
@@ -1476,7 +1476,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         </div>
                         <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
                           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                            {reviews[c.id]?.status === "reviewed" && <span className="ag-reviewed" style={{ position: "static" }}>Call done</span>}
+                            {reviews[c.id]?.status === "reviewed" && <span className="ag-reviewed inline">Call done</span>}
                             {s?.original_overall != null && Math.round(s.original_overall) !== Math.round(s.overall) && (
                               <span className="ag-delta-pill">{Math.round(s.original_overall)} → {Math.round(s.overall)}</span>
                             )}
@@ -1768,7 +1768,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                                       <span className="ag-meta">{String(i + 1).padStart(2, "0")}</span>
                                       <span style={{ fontSize: 14.5, fontWeight: 600 }}>{r.name}</span>
-                                      {r.reviewed && <span className="ag-reviewed" style={{ position: "static" }}>Call done</span>}
+                                      {r.reviewed && <span className="ag-reviewed inline">Call done</span>}
                                     </div>
                                     <span className="ag-meta">{[r.title, r.years ? `${r.years} yrs` : ""].filter(Boolean).join(" · ")}</span>
                                   </div>
@@ -1788,7 +1788,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                 {r.narrative ? (
                                   <p style={{ margin: 0, fontSize: 13, lineHeight: 1.65 }}>{r.narrative}</p>
                                 ) : (
-                                  <p style={{ margin: 0, fontSize: 12.5, color: "var(--ag-ink-4)", fontStyle: "italic" }}>
+                                  <p className="ag-note ag-note-quiet">
                                     No narrative yet. Your call notes from screening become this candidate&apos;s write up.
                                   </p>
                                 )}
@@ -2035,7 +2035,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                 {scores[c.id] && <span className="ag-audit-val">{Math.round(scores[c.id].overall)}</span>}
                               </div>
                             ))}
-                            <p className="ag-meta" style={{ margin: 0, textTransform: "none", letterSpacing: 0 }}>
+                            <p className="ag-note">
                               Held candidates stay in the role, visible to you only.
                             </p>
                           </div>
@@ -2080,7 +2080,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           <div><div className="ag-field-label">Recruiter</div><div className="ag-audit-val">You</div></div>
                           <div><div className="ag-field-label">Requirements</div><div className="ag-audit-val">{requirements.length}</div></div>
                           <div><div className="ag-field-label">Overrides</div><div className="ag-audit-val">{candidates.reduce((n, c) => n + Object.keys(overrides[c.id] ?? {}).length, 0)}</div></div>
-                          <p className="ag-meta" style={{ margin: 0, textTransform: "none", letterSpacing: 0 }}>
+                          <p className="ag-note">
                             Every score, override and decision on this role is logged against your name.
                           </p>
                         </div>

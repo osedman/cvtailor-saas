@@ -723,3 +723,24 @@
   .ag-det-side > * { flex: 1 1 280px; }
 }
 @media (max-width: 760px) { .ag-det-cols { grid-template-columns: 1fr; } }
+
+/* ---------- components the call sites were re-inventing ----------
+ * Each of these existed as an inline style repeated across the product,
+ * which is how thirteen of them ended up carrying --ag-ink-4 as TEXT at
+ * 2.2:1 long after the stylesheet had stopped doing that. A value written
+ * at the call site cannot be fixed centrally, so these are now components. */
+
+/* The quiet explanatory line under a control, and the empty-state sentence.
+ * ink-3, because it is prose and prose has to be readable. */
+.ag-note { margin: 0; font-size: var(--t-small); line-height: 1.55; color: var(--ag-ink-3); }
+.ag-note-quiet { font-size: var(--t-small); line-height: 1.55; color: var(--ag-ink-3); font-style: italic; }
+
+/* .ag-reviewed pins itself to a card corner. Every other use had to undo
+ * that with position: static at the call site; now it is a variant. */
+.ag-reviewed.inline { position: static; top: auto; right: auto; }
+
+/* A person's name, set once. */
+.ag-name { font-size: var(--t-lead); font-weight: 600; letter-spacing: var(--track-tight); }
+
+/* Punctuation, not content: the only thing still allowed to sit light. */
+.ag-qa-dash { color: var(--ag-ink-4); }
