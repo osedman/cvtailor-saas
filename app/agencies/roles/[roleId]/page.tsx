@@ -1185,39 +1185,50 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   )
                 })}
               </div>
-              <div className="ag-card" style={{ overflowX: "auto" }}>
-                <table className="ag-matrix">
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: "left" }} className="ag-meta">Requirement</th>
-                      {candidates.map((c) => <th key={c.id} className="ag-meta">{initials(c.full_name)}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {requirements.map((req) => (
-                      <tr key={req.id}>
-                        <td className="req">
-                          <span className="ag-meta">{req.ref}</span> <span style={{ fontSize: 12.5 }}>{req.text}</span>
-                        </td>
-                        {candidates.map((c) => {
-                          const strength = effectiveStrength(c.id, req.id)
-                          return (
-                            <td
-                              key={c.id}
-                              className={strength === "strong" ? "wash" : ""}
-                              style={{ cursor: "pointer" }}
-                              title="Open the evidence for this candidate"
-                              onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}
-                            >
-                              <span className={`ag-dot ${strength}`} style={{ marginRight: 6 }} />
-                              <span className="ag-meta">{strength.slice(0, 4)}</span>
-                            </td>
-                          )
-                        })}
+              <div className="ag-card">
+                <div className="ag-card-head">
+                  <span className="ag-card-title">Requirement &times; candidate matrix</span>
+                  <span className="ag-meta">Click any cell for evidence</span>
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table className="ag-matrix">
+                    <thead>
+                      <tr>
+                        <th className="req">Requirement</th>
+                        {candidates.map((c) => (
+                          <th key={c.id} title={c.full_name}>{initials(c.full_name)}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {requirements.map((req) => (
+                        <tr key={req.id}>
+                          <td className="req">
+                            <span className="ag-matrix-ref">{req.ref}</span>
+                            <span>
+                              <span className="ag-matrix-text">{req.text}</span>
+                              <span className="ag-matrix-weight">{req.weight}</span>
+                            </span>
+                          </td>
+                          {candidates.map((c) => {
+                            const strength = effectiveStrength(c.id, req.id)
+                            return (
+                              <td
+                                key={c.id}
+                                className={strength === "strong" ? "wash" : strength === "missing" ? "faded" : ""}
+                                title={`${c.full_name} · ${req.ref} reads ${strength}. Open the evidence.`}
+                                onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}
+                              >
+                                <span className={`ag-dot ${strength}`} />
+                                <span className="ag-matrix-cell-label">{strength.slice(0, 4)}</span>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
               <div className="ag-decisions-bar">
                 <span className="ag-field-label">Decisions</span>

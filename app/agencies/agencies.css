@@ -120,10 +120,35 @@
 .ag-reviewed { position: absolute; top: 8px; right: 8px; font-family: var(--ag-mono); font-size: 9px; letter-spacing: 0.05em; color: var(--ag-coral); border: 1px solid var(--ag-coral); border-radius: 999px; padding: 1px 6px; text-transform: uppercase; }
 .ag-star { width: 22px; height: 22px; border: 1px solid var(--ag-coral); border-radius: 5px; background: transparent; cursor: pointer; }
 .ag-star.on { background: var(--ag-coral); }
+/* Requirement × candidate matrix, to the handoff drawing: the requirement
+ * reads as a labelled row (ref, text, weight underneath), every cell stacks
+ * its dot over the strength word, columns are ruled, strong cells take a
+ * coral wash and missing cells recede to paper. */
 .ag-matrix { width: 100%; border-collapse: collapse; font-size: 12px; }
-.ag-matrix th, .ag-matrix td { border-top: 1px solid var(--ag-border); padding: 8px 10px; text-align: center; }
-.ag-matrix td.req { text-align: left; }
+.ag-matrix th, .ag-matrix td { border-top: 1px solid var(--ag-border); padding: 12px 14px; text-align: center; vertical-align: middle; }
+.ag-matrix thead th { border-top: none; font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ag-ink-3); font-weight: 400; padding-top: 10px; padding-bottom: 10px; }
+/* Proportions from the drawing: the requirement column takes a bit over a
+ * third and the candidates share the rest, so a cell is a column you can
+ * read down rather than a narrow gutter. min-width keeps that true past
+ * five candidates by letting the container scroll instead of crushing. */
+.ag-matrix th.req, .ag-matrix td.req { text-align: left; width: 38%; }
+.ag-matrix th:not(.req), .ag-matrix td:not(.req) { border-left: 1px solid var(--ag-border); min-width: 140px; }
+.ag-matrix td.req { display: table-cell; }
+.ag-matrix td.req > span:first-child { display: inline-block; vertical-align: top; width: 34px; }
+.ag-matrix td.req > span:last-child { display: inline-block; vertical-align: top; max-width: 30ch; }
+.ag-matrix-ref { font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.05em; color: var(--ag-ink-4); text-transform: uppercase; }
+.ag-matrix-text { display: block; font-size: 13px; font-weight: 600; line-height: 1.35; letter-spacing: -0.005em; }
+.ag-matrix-weight { display: block; font-family: var(--ag-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ag-ink-4); margin-top: 3px; }
+.ag-matrix tbody td:not(.req) { cursor: pointer; }
+.ag-matrix tbody td:not(.req):hover { outline: 1px solid var(--ag-coral); outline-offset: -1px; }
+.ag-matrix td .ag-dot { display: block; margin: 0 auto 5px; }
+.ag-matrix-cell-label { font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ag-ink-3); }
 .ag-matrix td.wash { background: var(--ag-tint-1); }
+.ag-matrix td.faded { background: var(--ag-paper); }
+.ag-matrix td.faded .ag-matrix-cell-label { color: var(--ag-ink-4); }
+/* Hollow ring, per the drawing — a transferable is evidence you can see
+ * through, not a filled claim. */
+.ag-dot.transferable { background: transparent; border: 1px solid var(--ag-coral); }
 .ag-delta { font-family: var(--ag-mono); font-size: 10.5px; color: var(--ag-coral); }
 .ag-doc { background: var(--ag-paper); border-radius: 10px; box-shadow: 0 20px 60px -30px rgba(0, 0, 0, 0.2); padding: 40px 44px; max-width: 720px; margin: 0 auto; }
 .ag-mark { background: var(--ag-tint-2); color: var(--ag-ink); padding: 0 3px; border-radius: 2px; box-decoration-break: clone; }
