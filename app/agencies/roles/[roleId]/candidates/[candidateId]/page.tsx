@@ -11,6 +11,7 @@
 import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { resolveProbes } from "@/lib/agency/probes"
+import { WORKFLOW_STEPS, stepNumber } from "@/lib/agency/steps"
 
 interface Requirement { id: string; ref: string; text: string; weight: string; category?: string }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; redacted: boolean }
@@ -108,7 +109,31 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
             <div className="ag-brand-sub">For agencies</div>
           </div>
         </button>
-        <button className="ag-btn ag-btn-secondary" onClick={() => router.push(`/agencies/roles/${roleId}`)}>Back to the workflow</button>
+        <div>
+          <div className="ag-rail-label">Role workflow</div>
+          {WORKFLOW_STEPS.map((st) => (
+            <button
+              key={st.key}
+              className={`ag-step${st.key === "detail" ? " on" : ""}`}
+              onClick={() => {
+                if (st.key === "detail") return
+                router.push(`/agencies/roles/${roleId}?step=${st.key}`)
+              }}
+            >
+              <span className={`ag-step-num${st.key !== "detail" && st.key !== "submission" ? " done" : ""}`}>
+                {st.key !== "detail" && st.key !== "submission" ? "✓" : stepNumber(st.key)}
+              </span>{" "}
+              {st.label}
+            </button>
+          ))}
+        </div>
+        {candidate && (
+          <div className="ag-active-role">
+            <div className="ag-rail-label" style={{ padding: 0 }}>Viewing</div>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>{candidate.full_name}</div>
+            <div className="ag-meta">{candidate.ref}</div>
+          </div>
+        )}
         <div className="ag-sidebar-foot">
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>Missing means missing. Nothing on this page is inferred.</div>
         </div>
@@ -116,6 +141,19 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
 
       <main className="ag-main">
         <div className="ag-screen">
+          <div className="ag-crumbbar">
+            <span className="ag-crumb">
+              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Roles</button>
+              {" / "}
+              <button className="ag-crumb-link" onClick={() => router.push(`/agencies/roles/${roleId}`)}>Role workflow</button>
+              {" / "}
+              <b>{stepNumber("detail")}. Candidate detail</b>
+            </span>
+            <span className="ag-grow" />
+            <button className="ag-btn ag-btn-secondary" onClick={() => router.push(`/agencies/roles/${roleId}?step=compare`)}>← Compare</button>
+            <button className="ag-btn ag-btn-secondary" onClick={() => router.push(`/agencies/roles/${roleId}?step=submission`)}>Submission →</button>
+          </div>
+          <p className="ag-step-eyebrow">Step {stepNumber("detail")} · Candidate detail</p>
           {error && <div className="ag-banner"><span style={{ color: "var(--ag-coral-deep)", fontSize: 12.5 }}>{error}</span></div>}
           {!candidate && !error && <div className="ag-card"><div className="ag-card-body"><span className="ag-spin" /></div></div>}
 

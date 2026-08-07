@@ -10,6 +10,7 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "@/lib/agency/probes"
+import { WORKFLOW_STEPS, stepNumber } from "@/lib/agency/steps"
 
 type Step = "intake" | "parse" | "candidates" | "screening" | "compare" | "submission"
 
@@ -532,14 +533,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const shortlisted = decisionCounts.shortlist
   const decisionTotals = `${decisionCounts.shortlist} shortlist · ${decisionCounts.hold} hold · ${decisionCounts.reject} reject`
 
-  const steps: Array<{ key: Step; label: string }> = [
-    { key: "intake", label: "Role intake" },
-    { key: "parse", label: "Parse review" },
-    { key: "candidates", label: "Add candidates" },
-    { key: "screening", label: "Screening calls" },
-    { key: "compare", label: "Compare" },
-    { key: "submission", label: "Client submission" },
-  ]
+  // Six of the seven render here; Candidate detail is per-candidate and has
+  // its own route, so the rail links out to it rather than switching a pane.
+  const steps = WORKFLOW_STEPS.filter((s) => s.key !== "detail") as Array<{ key: Step; label: string }>
+  const detailTarget = activeCandidate ?? candidates[0]?.id ?? null
   const active = activeCandidate ? candidates.find((c) => c.id === activeCandidate) : null
   const activeScore = activeCandidate ? scores[activeCandidate] : null
   const activeReview = activeCandidate ? reviews[activeCandidate] : null
@@ -607,14 +604,33 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         </button>
         <div>
           <div className="ag-rail-label">Role workflow</div>
-          {steps.map((s, i) => (
-            <button key={s.key} className={`ag-step${step === s.key ? " on" : ""}`} onClick={() => setStep(s.key)}>
-              <span className={`ag-step-num${stepDone[s.key] && step !== s.key ? " done" : ""}`}>
-                {stepDone[s.key] && step !== s.key ? "✓" : `0${i + 1}`}
-              </span>{" "}
-              {s.label}
-            </button>
-          ))}
+          {WORKFLOW_STEPS.map((s) => {
+            if (s.key === "detail") {
+              return (
+                <button
+                  key={s.key}
+                  className={`ag-step${detailTarget ? "" : " locked"}`}
+                  disabled={!detailTarget}
+                  title={detailTarget ? "Open the evidence map for the active candidate" : "Add a candidate first"}
+                  onClick={() => detailTarget && router.push(`/agencies/roles/${roleId}/candidates/${detailTarget}`)}
+                >
+                  <span className={`ag-step-num${candidates.length > 0 ? " done" : ""}`}>
+                    {candidates.length > 0 ? "✓" : stepNumber(s.key)}
+                  </span>{" "}
+                  {s.label}
+                </button>
+              )
+            }
+            const key = s.key as Step
+            return (
+              <button key={s.key} className={`ag-step${step === key ? " on" : ""}`} onClick={() => setStep(key)}>
+                <span className={`ag-step-num${stepDone[key] && step !== key ? " done" : ""}`}>
+                  {stepDone[key] && step !== key ? "✓" : stepNumber(s.key)}
+                </span>{" "}
+                {s.label}
+              </button>
+            )
+          })}
         </div>
         {role && (
           <div className="ag-active-role">
@@ -639,7 +655,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 {" / "}
                 <b>{role.company ? `${role.company} — ${role.title}` : role.title}</b>
                 {" / "}
-                {`0${stepIndex + 1}. ${steps[stepIndex]?.label ?? ""}`}
+                {`${stepNumber(steps[stepIndex]?.key ?? "intake")}. ${steps[stepIndex]?.label ?? ""}`}
               </span>
               <span className="ag-grow" />
               <button
@@ -659,7 +675,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             </div>
           )}
           {role && (
-            <p className="ag-step-eyebrow">Step 0{stepIndex + 1} · {steps[stepIndex]?.label}</p>
+            <p className="ag-step-eyebrow">Step {stepNumber(steps[stepIndex]?.key ?? "intake")} · {steps[stepIndex]?.label}</p>
           )}
           {error && (
             <div className="ag-banner" style={{ marginBottom: 16 }}>
