@@ -284,6 +284,50 @@
 .ag-kbd-hints > span { display: inline-flex; align-items: center; gap: 5px; }
 .ag-kbd { font-family: var(--ag-mono); font-size: 10px; border: 1px solid var(--ag-line-2); border-radius: 4px; padding: 1px 5px; color: var(--ag-ink-2); background: var(--ag-paper); }
 
+/* ---------- screening, v0 design ----------
+ * Three columns: the queue you work down, the call you are on, and a live
+ * score that stays put while you type. The score moving as you override is
+ * the product's whole argument, so it must never scroll out of sight. */
+.ag-scr-grid { display: grid; grid-template-columns: 260px minmax(0, 1fr) 290px; gap: 20px; align-items: start; }
+.ag-scr-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 20px; align-self: start; }
+
+.ag-queue-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; cursor: pointer; font-family: var(--ag-sans); color: inherit; transition: background 0.12s, border-color 0.12s; }
+.ag-queue-item:hover { background: var(--ag-bg-2); }
+.ag-queue-item[aria-current="true"] { border-color: var(--ag-ink); background: var(--ag-cream); }
+.ag-queue-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-queue-item[aria-current="true"] .ag-queue-name { font-weight: 600; }
+.ag-queue-score { font-family: var(--ag-mono); font-size: 14px; font-weight: 600; }
+.ag-queue-delta { font-family: var(--ag-mono); font-size: 9.5px; color: var(--ag-ink-4); }
+.ag-queue-delta[data-up="true"] { color: var(--ag-coral-deep); }
+
+.ag-probe-label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.ag-soft-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ag-picker { border: 1px solid var(--ag-border); border-radius: 8px; margin-top: 10px; padding: 6px; max-height: 280px; overflow-y: auto; background: var(--ag-bg-2); }
+.ag-picker-group { font-family: var(--ag-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ag-ink-3); margin: 8px 6px 2px; }
+.ag-picker-opt { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; width: 100%; text-align: left; border: none; background: none; color: inherit; border-radius: 6px; padding: 7px 8px; font-family: var(--ag-sans); font-size: 12.5px; line-height: 1.4; cursor: pointer; }
+.ag-picker-opt:hover { background: var(--ag-paper); }
+.ag-picker-why { grid-column: 2; font-family: var(--ag-mono); font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ag-ink-4); }
+
+/* An override is a claim you are making over the machine's: it gets a border
+ * and a wash, and states plainly what it changed. */
+.ag-ev-card { border: 1px solid var(--ag-border); background: var(--ag-paper); border-radius: 8px; padding: 12px; transition: border-color 0.14s, background 0.14s; }
+.ag-ev-card[data-override="true"] { border-color: var(--ag-coral); background: var(--ag-tint-1); }
+.ag-ev-main { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.ag-ev-quote { font-size: 11.5px; font-style: italic; color: var(--ag-ink-3); border-left: 2px solid var(--ag-line-2); padding-left: 8px; margin-top: 2px; line-height: 1.5; }
+.ag-ev-was { font-family: var(--ag-mono); font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ag-coral-deep); }
+.ag-unevidenced { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--ag-border); font-size: 12px; }
+.ag-unevidenced:last-child { border-bottom: none; }
+
+@media (max-width: 1180px) {
+  .ag-scr-grid { grid-template-columns: 220px minmax(0, 1fr); }
+  .ag-scr-side { grid-column: 1 / -1; position: static; flex-direction: row; flex-wrap: wrap; }
+  .ag-scr-side > * { flex: 1 1 260px; }
+}
+@media (max-width: 760px) {
+  .ag-scr-grid { grid-template-columns: 1fr; }
+  .ag-soft-grid { grid-template-columns: 1fr; }
+}
+
 /* ---------- compare board, v0 design ----------
  * The change that matters: the tint marks where a RECRUITER OVERRODE the
  * parse, not where the parse happened to say strong. On a board whose whole
@@ -544,3 +588,32 @@
 .ag-filter[aria-pressed="true"] { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); }
 
 @media (max-width: 900px) { .ag-grid-2 { grid-template-columns: 1fr; } .ag-sidebar { display: none; } }
+
+/* ---------- motion + rendering performance ----------
+ * Interaction feedback is transform and opacity only, so it stays on the
+ * compositor and never triggers layout. Long lists get content-visibility
+ * so offscreen rows cost nothing until they scroll in. */
+.ag-app * { -webkit-tap-highlight-color: transparent; }
+.ag-btn, .ag-filter, .ag-chip, .ag-seg button, .ag-queue-item, .ag-icon-btn, .ag-picker-opt {
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.08s ease;
+}
+.ag-btn:active, .ag-filter:active, .ag-seg button:active, .ag-icon-btn:active { transform: translateY(0.5px); }
+.ag-bar-fill, .ag-weight-fill { transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1); }
+.ag-conf-bar { transition: background-color 0.18s ease; }
+.ag-card, .ag-ev-card, .ag-cmp-card { will-change: auto; }
+/* Rows the recruiter has not scrolled to yet are skipped entirely. The
+ * contain-intrinsic-size keeps the scrollbar honest while they are skipped. */
+.ag-mx-row { content-visibility: auto; contain-intrinsic-size: auto 64px; }
+.ag-ev-card { content-visibility: auto; contain-intrinsic-size: auto 110px; }
+.ag-roles > .agd-role { content-visibility: auto; contain-intrinsic-size: auto 78px; }
+/* Focus is always visible for keyboard users, never a bare outline removal. */
+.ag-app :focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; border-radius: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-app *, .ag-app *::before, .ag-app *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

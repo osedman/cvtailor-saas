@@ -7,7 +7,7 @@
  * one. Overrides, decisions and submissions are audit coupled server side.
  */
 
-import { use, useCallback, useEffect, useRef, useState } from "react"
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, type ProbeQuestion } from "@/lib/agency/probes"
 
@@ -477,13 +477,50 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const initials = (name: string) =>
     name.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?"
   const tier = (n: number) => (n >= 80 ? "hi" : n >= 60 ? "med" : "lo")
-  const parsedStrength = (candidateId: string, requirementId: string): Strength =>
-    ((evidence.find((e) => e.candidate_id === candidateId && e.requirement_id === requirementId)?.strength ?? "missing") as Strength)
-  const effectiveStrength = (candidateId: string, requirementId: string): Strength =>
-    (overrides[candidateId]?.[requirementId] ?? scores[candidateId]?.effective?.[requirementId] ?? parsedStrength(candidateId, requirementId)) as Strength
-  const reviewedCount = Object.values(reviews).filter((r) => r.status === "reviewed").length
-  const shortlisted = Object.values(decisions).filter((d) => d === "shortlist").length
-  const decisionTotals = ["shortlist", "hold", "reject"].map((d) => `${Object.values(decisions).filter((x) => x === d).length} ${d}`).join(" · ")
+  /**
+   * Evidence was looked up with evidence.find() inside every matrix cell,
+   * so the compare board cost candidates × requirements × evidence-rows
+   * scans on each render: eight candidates against fifteen requirements over
+   * a couple of hundred evidence rows is tens of thousands of comparisons per
+   * keystroke. Indexed once per data change instead.
+   */
+  const evidenceIndex = useMemo(() => {
+    const map = new Map<string, Evidence>()
+    for (const e of evidence) map.set(`${e.candidate_id}:${e.requirement_id}`, e)
+    return map
+  }, [evidence])
+  const evidenceAt = useCallback(
+    (candidateId: string, requirementId: string) => evidenceIndex.get(`${candidateId}:${requirementId}`),
+    [evidenceIndex]
+  )
+  const parsedStrength = useCallback(
+    (candidateId: string, requirementId: string): Strength =>
+      ((evidenceAt(candidateId, requirementId)?.strength ?? "missing") as Strength),
+    [evidenceAt]
+  )
+  const effectiveStrength = useCallback(
+    (candidateId: string, requirementId: string): Strength =>
+      (overrides[candidateId]?.[requirementId] ??
+        scores[candidateId]?.effective?.[requirementId] ??
+        parsedStrength(candidateId, requirementId)) as Strength,
+    [overrides, scores, parsedStrength]
+  )
+  // One pass over decisions rather than four.
+  const decisionCounts = useMemo(() => {
+    const counts = { shortlist: 0, hold: 0, reject: 0, undecided: 0 }
+    for (const c of candidates) {
+      const d = decisions[c.id]
+      if (d === "shortlist" || d === "hold" || d === "reject") counts[d] += 1
+      else counts.undecided += 1
+    }
+    return counts
+  }, [candidates, decisions])
+  const reviewedCount = useMemo(
+    () => Object.values(reviews).filter((r) => r.status === "reviewed").length,
+    [reviews]
+  )
+  const shortlisted = decisionCounts.shortlist
+  const decisionTotals = `${decisionCounts.shortlist} shortlist · ${decisionCounts.hold} hold · ${decisionCounts.reject} reject`
 
   const steps: Array<{ key: Step; label: string }> = [
     { key: "intake", label: "Role intake" },
@@ -501,32 +538,32 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // first (weighted ones only, the nice-to-haves are not worth call time),
   // then the standard library.
   const activeAnswers: Record<string, string> = activeReview?.call_answers ?? {}
-  const probeCatalogue: ProbeQuestion[] = active
-    ? [
-        ...requirements
-          .filter((req) => {
-            if (req.weight === "nice") return false
-            const s = effectiveStrength(active.id, req.id)
-            return s === "missing" || s === "partial" || s === "transferable"
-          })
-          .map((req) => ({
-            id: req.ref,
-            text: gapProbeText(req.text),
-            why: `${req.ref} reads ${effectiveStrength(active.id, req.id)} from the CV`,
-            source: "gap" as const,
-          })),
-        ...PROBE_LIBRARY.map((q) => ({ ...q, source: "library" as const })),
-      ]
-    : []
-  const chosenProbes = probeCatalogue.filter((q) => q.id in activeAnswers)
-  const answeredProbes = chosenProbes.filter((q) => (activeAnswers[q.id] ?? "").trim().length > 0).length
-  const suggestedProbes = probeCatalogue.filter((q) => !(q.id in activeAnswers))
+  const probeCatalogue: ProbeQuestion[] = useMemo(() => {
+    if (!active) return []
+    const gaps: ProbeQuestion[] = []
+    for (const req of requirements) {
+      if (req.weight === "nice") continue
+      const st = effectiveStrength(active.id, req.id)
+      if (st !== "missing" && st !== "partial" && st !== "transferable") continue
+      gaps.push({ id: req.ref, text: gapProbeText(req.text), why: `${req.ref} reads ${st} from the CV`, source: "gap" })
+    }
+    return [...gaps, ...PROBE_LIBRARY.map((q) => ({ ...q, source: "library" as const }))]
+  }, [active, requirements, effectiveStrength])
+  const chosenProbes = useMemo(() => probeCatalogue.filter((q) => q.id in activeAnswers), [probeCatalogue, activeAnswers])
+  const answeredProbes = useMemo(
+    () => chosenProbes.filter((q) => (activeAnswers[q.id] ?? "").trim().length > 0).length,
+    [chosenProbes, activeAnswers]
+  )
+  const suggestedProbes = useMemo(() => probeCatalogue.filter((q) => !(q.id in activeAnswers)), [probeCatalogue, activeAnswers])
 
   // Held, rejected and undecided candidates: the internal record on the
   // submission screen. Present so the recruiter can see the whole field,
   // never sent to the client.
-  const notShortlisted = candidates.filter((c) => decisions[c.id] !== "shortlist")
-  const rankedCandidates = [...candidates].sort((a, b) => (scores[b.id]?.overall ?? 0) - (scores[a.id]?.overall ?? 0))
+  const notShortlisted = useMemo(() => candidates.filter((c) => decisions[c.id] !== "shortlist"), [candidates, decisions])
+  const rankedCandidates = useMemo(
+    () => [...candidates].sort((a, b) => (scores[b.id]?.overall ?? 0) - (scores[a.id]?.overall ?? 0)),
+    [candidates, scores]
+  )
 
   function setProbe(candidateId: string, id: string, value: string | null) {
     const current = reviews[candidateId]?.call_answers ?? {}
@@ -881,173 +918,100 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             <>
               <div className="ag-screen-head">
                 <div>
-                  <h1 className="ag-title">What did they actually say?</h1>
-                  <p className="ag-sub">The CV parse is provisional. Confirm or override it from the call; the score updates as you type.</p>
+                  <h1 className="ag-title">Your call is the evidence<br />the CV could not give us.</h1>
+                  <p className="ag-sub">
+                    Log what you learned. Overriding a strength rescores the candidate immediately, and every change is attributed to you in the audit trail.
+                  </p>
                 </div>
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <span className="ag-meta">{reviewedCount}/{candidates.length} reviewed</span>
+                  <span className="ag-meta">{reviewedCount}/{candidates.length} calls logged</span>
                   <button className="ag-btn" onClick={() => setStep("candidates")}>Back</button>
-                  <button className="ag-btn ag-btn-primary" onClick={() => setStep("compare")} disabled={reviewedCount === 0}>Finalize scoring</button>
+                  <button className="ag-btn ag-btn-primary" onClick={() => setStep("compare")} disabled={reviewedCount === 0}>
+                    Compare shortlist
+                  </button>
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 20, alignItems: "start" }}>
-                <div className="ag-stack" style={{ gap: 10 }}>
-                  <div className="ag-rail-label" style={{ padding: 0 }}>Candidates</div>
-                  {candidates.map((c) => {
-                    const s = scores[c.id]
-                    const r = reviews[c.id]
-                    return (
-                      <button key={c.id} className={`ag-tile${activeCandidate === c.id ? " on" : ""}`} onClick={() => setActiveCandidate(c.id)}>
-                        {r?.status === "reviewed" && <span className="ag-reviewed">Call done</span>}
-                        <div style={{ fontWeight: 500, fontSize: 13 }}>{c.full_name}</div>
-                        <div className="ag-meta">{c.ref}</div>
-                        <div className="ag-rail-score">
-                          <span className="ag-rail-num">{s ? Math.round(s.overall) : "—"}</span>
-                          {r?.status === "reviewed" && s?.original_overall != null && Math.round(s.original_overall) !== Math.round(s.overall) ? (
-                            <span className="ag-delta-pill">{Math.round(s.original_overall)} → {Math.round(s.overall)}</span>
-                          ) : r?.status !== "reviewed" ? (
-                            <span className="ag-notcalled">Not called</span>
-                          ) : null}
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-                {active && (
-                  <div className="ag-stack">
-                    <div className="ag-card">
-                      <div className="ag-card-body" style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                        <div className="ag-avatar" style={{ width: 48, height: 48 }}>{initials(active.full_name)}</div>
-                        <div className="ag-grow">
-                          <div style={{ fontWeight: 700, fontSize: 18 }}>{active.full_name}</div>
-                          <div style={{ color: "var(--ag-ink-2)", fontSize: 13 }}>
-                            {[active.current_title, active.years ? `${active.years} yrs` : "", active.location].filter(Boolean).join(" · ")}
-                          </div>
-                          <div className="ag-meta" style={{ marginTop: 4 }}>{active.ref}{role.salary_band ? ` · ${role.salary_band}` : ""}</div>
-                        </div>
-                        {activeScore && (
-                          <div className="ag-callscore">
-                            {activeScore.original_overall != null && Math.round(activeScore.original_overall) !== Math.round(activeScore.overall) ? (
-                              <>
-                                <div className="ag-callscore-pair">
-                                  <span className="ag-callscore-col">
-                                    <span className="ag-field-label" style={{ color: "var(--ag-ink-3)" }}>CV score</span>
-                                    <span className="ag-callscore-was mono">{Math.round(activeScore.original_overall)}</span>
-                                  </span>
-                                  <span className="ag-callscore-arrow">→</span>
-                                  <span className="ag-callscore-col">
-                                    <span className="ag-field-label">Post-call</span>
-                                    <span className={`ag-score ${tier(activeScore.overall)}`}>{Math.round(activeScore.overall)}</span>
-                                  </span>
-                                </div>
-                                <span className="ag-delta-pill">
-                                  {Math.round(activeScore.original_overall)} → {Math.round(activeScore.overall)}{" "}
-                                  {Math.round(activeScore.overall - activeScore.original_overall) > 0 ? "+" : ""}
-                                  {Math.round(activeScore.overall - activeScore.original_overall)}
-                                </span>
-                              </>
-                            ) : (
-                              <span className={`ag-score ${tier(activeScore.overall)}`}>{Math.round(activeScore.overall)}</span>
-                            )}
-                          </div>
-                        )}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+
+              <div className="ag-scr-grid">
+                <div className="ag-card" style={{ alignSelf: "start" }}>
+                  <div className="ag-card-head"><span className="ag-card-title">Call queue</span></div>
+                  <div className="ag-card-body" style={{ padding: 8 }}>
+                    <div className="ag-stack" style={{ gap: 4 }}>
+                      {candidates.map((c) => {
+                        const s = scores[c.id]
+                        const r = reviews[c.id]
+                        const d = s?.original_overall != null ? Math.round(s.overall - s.original_overall) : 0
+                        return (
                           <button
-                            className={`ag-btn ${activeReview?.status === "reviewed" ? "ag-btn-coral" : "ag-btn-primary"}`}
+                            key={c.id}
+                            className="ag-queue-item"
+                            aria-current={activeCandidate === c.id ? "true" : undefined}
+                            onClick={() => setActiveCandidate(c.id)}
+                          >
+                            <span className="ag-avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{initials(c.full_name)}</span>
+                            <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }}>
+                              <span className="ag-queue-name">{c.full_name}</span>
+                              <span className="ag-meta">{r?.status === "reviewed" ? "Call logged" : "Not called"}</span>
+                            </span>
+                            <span style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end" }}>
+                              <span className="ag-queue-score">{s ? Math.round(s.overall) : "—"}</span>
+                              {d !== 0 && <span className="ag-queue-delta" data-up={d > 0}>{d > 0 ? `+${d}` : d}</span>}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {active ? (
+                  <div className="ag-stack" style={{ minWidth: 0 }}>
+                    <div className="ag-card">
+                      <div className="ag-card-head">
+                        <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
+                          <div className="ag-avatar" style={{ width: 34, height: 34, fontSize: 12 }}>{initials(active.full_name)}</div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600 }}>{active.full_name}</div>
+                            <div className="ag-meta">{active.ref} · {active.current_title || "No title parsed"}</div>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          {activeReview?.status === "reviewed" && <span className="ag-reviewed" style={{ position: "static" }}>Call logged</span>}
+                          <button className="ag-btn" onClick={() => resetCall(active.id)}>Reset</button>
+                          <button
+                            className="ag-btn ag-btn-secondary"
                             onClick={() => {
                               const next = activeReview?.status === "reviewed" ? "unreviewed" : "reviewed"
                               patchReview(active.id, { status: next }, { status: next })
                             }}
                           >
-                            {activeReview?.status === "reviewed" ? "Reviewed" : "Mark reviewed"}
+                            {activeReview?.status === "reviewed" ? "Mark not called" : "Mark call logged"}
                           </button>
-                          <button className="ag-btn" onClick={() => resetCall(active.id)}>Reset call</button>
                         </div>
                       </div>
-                      {activeScore && (
-                        <div className="ag-conf-strip">
-                          <span className="ag-field-label">Must-have coverage</span>
-                          <b className="ag-conf-val">{activeScore.must_have_hit}/{activeScore.must_have_total}</b>
-                          {activeReview?.status === "reviewed" && Object.keys(overrides[active.id] ?? {}).length > 0 && (
-                            <span className="ag-conf-note" style={{ color: "var(--ag-ink-3)" }}>after your overrides</span>
+
+                      <div className="ag-card-body ag-stack" style={{ gap: 18 }}>
+                        <div>
+                          <div className="ag-field-label">Probe questions · from this candidate&apos;s gaps</div>
+                          {chosenProbes.length === 0 && (
+                            <p className="ag-quiet" style={{ padding: "14px 0", textAlign: "left" }}>
+                              No questions picked yet. Tailr suggests the ones your requirements leave open.
+                            </p>
                           )}
-                          <span className="ag-field-label" style={{ marginLeft: 18 }}>Confidence</span>
-                          <span className="ag-conf-bars" aria-label={`Confidence level ${activeScore.confidence_level} of 4`}>
-                            {[1, 2, 3, 4].map((n) => (
-                              <span key={n} className="ag-conf-bar" data-on={n <= activeScore.confidence_level} style={{ height: 4 + n * 3 }} />
-                            ))}
-                          </span>
-                          {activeReview?.status === "reviewed" && (
-                            <span className="ag-conf-note">↑ raised by call</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="ag-grid-2" style={{ gridTemplateColumns: "1.3fr 1fr" }}>
-                      <div className="ag-card">
-                        <div className="ag-card-head">
-                          <span className="ag-card-title">Confirm or override the CV assessment</span>
-                          <span className="ag-meta">{Object.keys(overrides[active.id] ?? {}).length} overridden</span>
-                        </div>
-                        {requirements.map((req) => {
-                          const parsed = parsedStrength(active.id, req.id)
-                          const mine = overrides[active.id]?.[req.id] ?? null
-                          return (
-                            <div key={req.id} style={{ padding: "10px 18px", borderTop: "1px solid var(--ag-border)" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                                <span className="ag-meta" style={{ paddingTop: 2 }}>{req.ref}</span>
-                                <span className="ag-grow" style={{ minWidth: 0 }}>
-                                  <span style={{ display: "block", fontSize: 12.5, fontWeight: 500 }}>{req.text}</span>
-                                  <span className="ag-matrix-weight">{req.weight}</span>
-                                </span>
-                                {mine && <span className="ag-reviewed" style={{ position: "static" }}>Your call</span>}
-                              </div>
-                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                <span className="ag-meta" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                  CV <span className={`ag-dot ${parsed}`} /> {parsed}
-                                </span>
-                                <div className="ag-seg">
-                                  {STRENGTHS.map((s) => (
-                                    <button key={s} className={mine === s ? "on" : ""} onClick={() => setOverride(active.id, req.id, mine === s ? null : s)}>
-                                      {s.slice(0, 4)}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                      <div className="ag-stack">
-                        <div className="ag-script">
-                          <div className="ag-script-head">
-                            <span className="ag-script-title">Call script · probe questions</span>
-                            <span className="ag-script-count">{answeredProbes}/{chosenProbes.length} answered</span>
-                          </div>
-                          <div className="ag-script-body">
-                            {chosenProbes.length === 0 && (
-                              <p className="ag-script-empty">
-                                No questions picked yet. Tailr suggests the ones your requirements leave open; add any of them or a standard probe below.
-                              </p>
-                            )}
-                            {chosenProbes.map((q) => (
-                              <div className="ag-script-q" key={q.id}>
-                                <div className="ag-script-qhead">
-                                  <span className="ag-script-qid">{q.id}</span>
-                                  <span className="ag-script-qtext">{q.text}</span>
-                                  <button
-                                    className="ag-script-drop"
-                                    title="Remove this question"
-                                    aria-label={`Remove question ${q.id}`}
-                                    onClick={() => setProbe(active.id, q.id, null)}
-                                  >
-                                    ×
-                                  </button>
-                                </div>
+                          <div className="ag-stack" style={{ gap: 12 }}>
+                            {chosenProbes.map((q, i) => (
+                              <div key={q.id} className="ag-stack" style={{ gap: 6 }}>
+                                <label className="ag-probe-label" htmlFor={`q-${active.id}-${q.id}`}>
+                                  <span className="ag-qnum">Q{i + 1}</span>
+                                  <span style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{q.text}</span>
+                                  <button className="ag-icon-btn" title="Remove this question" aria-label={`Remove ${q.id}`} onClick={() => setProbe(active.id, q.id, null)}>×</button>
+                                </label>
                                 <textarea
+                                  id={`q-${active.id}-${q.id}`}
                                   key={`${active.id}:${q.id}`}
-                                  className="ag-script-answer"
-                                  placeholder="What they said"
+                                  className="ag-textarea"
+                                  style={{ minHeight: 56 }}
+                                  placeholder="What did they say?"
                                   defaultValue={activeAnswers[q.id] ?? ""}
                                   onBlur={(e) => {
                                     if (e.target.value === (activeAnswers[q.id] ?? "")) return
@@ -1056,105 +1020,236 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                 />
                               </div>
                             ))}
-                            <button className="ag-script-add" onClick={() => setProbePicker((v) => !v)}>
-                              {probePicker ? "Close" : "+ Add a question"}
-                            </button>
-                            {probePicker && (
-                              <div className="ag-script-picker">
-                                {suggestedProbes.length === 0 && (
-                                  <p className="ag-script-empty">Every question is already on the script.</p>
-                                )}
-                                {suggestedProbes.some((q) => q.source === "gap") && (
-                                  <p className="ag-script-group">From this candidate&apos;s open requirements</p>
-                                )}
-                                {suggestedProbes.filter((q) => q.source === "gap").map((q) => (
-                                  <button className="ag-script-opt" key={q.id} onClick={() => setProbe(active.id, q.id, "")}>
-                                    <span className="ag-script-qid">{q.id}</span>
-                                    <span className="ag-grow">{q.text}</span>
-                                    <span className="ag-script-why">{q.why}</span>
-                                  </button>
-                                ))}
-                                {suggestedProbes.some((q) => q.source === "library") && (
-                                  <p className="ag-script-group">Standard probes</p>
-                                )}
-                                {suggestedProbes.filter((q) => q.source === "library").map((q) => (
-                                  <button className="ag-script-opt" key={q.id} onClick={() => setProbe(active.id, q.id, "")}>
-                                    <span className="ag-script-qid">{q.id}</span>
-                                    <span className="ag-grow">{q.text}</span>
-                                    <span className="ag-script-why">{q.why}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
                           </div>
-                        </div>
-                        <div className="ag-card">
-                          <div className="ag-card-head"><span className="ag-card-title">Soft signals</span><span className="ag-meta">Affects context fit</span></div>
-                          <div className="ag-card-body ag-stack" style={{ gap: 14 }}>
-                            {(["communication", "motivation"] as const).map((signal) => (
-                              <div key={signal} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                <span style={{ fontSize: 12.5, width: 110, textTransform: "capitalize" }}>{signal}</span>
-                                {[1, 2, 3, 4, 5].map((n) => {
-                                  const next = activeReview?.[signal] === n ? null : n
-                                  return (
-                                    <button
-                                      key={n}
-                                      type="button"
-                                      aria-label={`${signal} ${n} of 5`}
-                                      aria-pressed={(activeReview?.[signal] ?? 0) >= n}
-                                      className={`ag-star${(activeReview?.[signal] ?? 0) >= n ? " on" : ""}`}
-                                      onClick={() => patchReview(active.id, { [signal]: next }, { [signal]: next })}
-                                    />
-                                  )
-                                })}
-                              </div>
-                            ))}
-                            <div style={{ display: "grid", gap: 10, borderTop: "1px solid var(--ag-border)", paddingTop: 12 }}>
-                              {([
-                                ["availability", "Availability", "Available in 8 weeks"],
-                                ["salary_confirm", "Salary confirmation", "Flex to £125k confirmed"],
-                                ["notice_period", "Notice period", "Can negotiate to 8 wks (from 12)"],
-                              ] as const).map(([field, label, hint]) => (
-                                /* Keyed by candidate: an uncontrolled input keeps the
-                                   previous candidate's text when you switch, and the
-                                   next blur would write it onto the wrong review. */
-                                <div key={`${active.id}:${field}`}>
-                                  <span className="ag-field-label">{label}</span>
-                                  <input
-                                    className="ag-input"
-                                    placeholder={hint}
-                                    defaultValue={activeReview?.[field] ?? ""}
-                                    onBlur={(e) => {
-                                      if (e.target.value === (activeReview?.[field] ?? "")) return
-                                      patchReview(active.id, { [field]: e.target.value }, { [field]: e.target.value })
-                                    }}
-                                  />
-                                </div>
+                          <button className="ag-btn ag-btn-secondary" style={{ marginTop: 10 }} onClick={() => setProbePicker((v) => !v)}>
+                            {probePicker ? "Close" : "+ Add a question"}
+                          </button>
+                          {probePicker && (
+                            <div className="ag-picker">
+                              {suggestedProbes.length === 0 && <p className="ag-quiet" style={{ padding: 12 }}>Every question is already on the script.</p>}
+                              {suggestedProbes.some((q) => q.source === "gap") && <p className="ag-picker-group">From this candidate&apos;s open requirements</p>}
+                              {suggestedProbes.filter((q) => q.source === "gap").map((q) => (
+                                <button className="ag-picker-opt" key={q.id} onClick={() => setProbe(active.id, q.id, "")}>
+                                  <span className="ag-qnum">{q.id}</span>
+                                  <span className="ag-grow">{q.text}</span>
+                                  <span className="ag-picker-why">{q.why}</span>
+                                </button>
+                              ))}
+                              {suggestedProbes.some((q) => q.source === "library") && <p className="ag-picker-group">Standard probes</p>}
+                              {suggestedProbes.filter((q) => q.source === "library").map((q) => (
+                                <button className="ag-picker-opt" key={q.id} onClick={() => setProbe(active.id, q.id, "")}>
+                                  <span className="ag-qnum">{q.id}</span>
+                                  <span className="ag-grow">{q.text}</span>
+                                  <span className="ag-picker-why">{q.why}</span>
+                                </button>
                               ))}
                             </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="ag-field-label">Soft signals</div>
+                          <div className="ag-soft-grid">
+                            {(["communication", "motivation"] as const).map((signal) => (
+                              <div key={signal} className="ag-stack" style={{ gap: 6 }}>
+                                <span className="ag-meta">{signal === "communication" ? "Communication" : "Motivation for this role"}</span>
+                                <div className="ag-seg" role="group" aria-label={signal}>
+                                  {[1, 2, 3, 4, 5].map((n) => {
+                                    const next = activeReview?.[signal] === n ? null : n
+                                    return (
+                                      <button
+                                        key={n}
+                                        style={{ flex: 1, justifyContent: "center" }}
+                                        aria-pressed={activeReview?.[signal] === n}
+                                        className={activeReview?.[signal] === n ? "on" : ""}
+                                        onClick={() => patchReview(active.id, { [signal]: next }, { [signal]: next })}
+                                      >
+                                        {n}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                            {([
+                              ["availability", "Availability", "e.g. 8 weeks"],
+                              ["salary_confirm", "Comp position", "e.g. flex to £125k"],
+                              ["notice_period", "Notice period", "e.g. negotiable to 8 wks"],
+                            ] as const).map(([field, label, hint]) => (
+                              <div key={`${active.id}:${field}`} className="ag-stack" style={{ gap: 6 }}>
+                                <span className="ag-meta">{label}</span>
+                                <input
+                                  className="ag-input"
+                                  placeholder={hint}
+                                  defaultValue={activeReview?.[field] ?? ""}
+                                  onBlur={(e) => {
+                                    if (e.target.value === (activeReview?.[field] ?? "")) return
+                                    patchReview(active.id, { [field]: e.target.value }, { [field]: e.target.value })
+                                  }}
+                                />
+                              </div>
+                            ))}
                           </div>
                         </div>
-                        <div className="ag-card">
-                          <div className="ag-card-head"><span className="ag-card-title">Call notes</span><span className="ag-pill">Private</span></div>
-                          <div className="ag-card-body">
-                            <textarea
-                              key={`${active.id}:notes`}
-                              className="ag-textarea"
-                              style={{ minHeight: 120 }}
-                              placeholder="What they said, in your words. This feeds the client narrative."
-                              defaultValue={activeReview?.notes ?? ""}
-                              onBlur={(e) => {
-                                if (e.target.value === (activeReview?.notes ?? "")) return
-                                patchReview(active.id, { notes: e.target.value }, { notes: e.target.value })
-                              }}
-                            />
-                            <p className="ag-meta" style={{ marginTop: 8 }}>Attached to {active.ref} · feeds submission narrative</p>
-                          </div>
+
+                        <div className="ag-stack" style={{ gap: 6 }}>
+                          <label className="ag-field-label" htmlFor="call-notes">Recruiter notes</label>
+                          <textarea
+                            id="call-notes"
+                            key={`${active.id}:notes`}
+                            className="ag-textarea"
+                            style={{ minHeight: 90 }}
+                            placeholder="Your read on the call. This feeds the client submission narrative."
+                            defaultValue={activeReview?.notes ?? ""}
+                            onBlur={(e) => {
+                              if (e.target.value === (activeReview?.notes ?? "")) return
+                              patchReview(active.id, { notes: e.target.value }, { notes: e.target.value })
+                            }}
+                          />
+                          <span className="ag-meta">Attached to {active.ref} · feeds submission narrative</span>
                         </div>
                       </div>
                     </div>
+
+                    <div className="ag-card">
+                      <div className="ag-card-head">
+                        <span className="ag-card-title">Evidence after the call</span>
+                        <span className="ag-meta">
+                          {Object.keys(overrides[active.id] ?? {}).length} override{Object.keys(overrides[active.id] ?? {}).length === 1 ? "" : "s"} · attributed to you
+                        </span>
+                      </div>
+                      <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
+                        {requirements.map((req) => {
+                          const parsed = parsedStrength(active.id, req.id)
+                          const current = effectiveStrength(active.id, req.id)
+                          const isOverride = Boolean(overrides[active.id]?.[req.id])
+                          const ev = evidenceAt(active.id, req.id)
+                          return (
+                            <div key={req.id} className="ag-ev-card" data-override={isOverride}>
+                              <div className="ag-ev-main">
+                                <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <span style={{ display: "flex", gap: 7, alignItems: "baseline" }}>
+                                    <span className="ag-meta">{req.ref}</span>
+                                    <span className="ag-mx-weight" data-must={req.weight === "must"}>{req.weight}</span>
+                                  </span>
+                                  <span style={{ fontSize: 13, fontWeight: 500 }}>{req.text}</span>
+                                  {ev?.quote && (
+                                    <span className="ag-ev-quote">
+                                      {ev.quote}
+                                      {ev.source_cite && <span className="ag-meta" style={{ fontStyle: "normal" }}> — {ev.source_cite}</span>}
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flex: "none" }}>
+                                  <div className="ag-seg" role="group" aria-label={`Strength for ${req.ref}`}>
+                                    {STRENGTHS.map((s) => (
+                                      <button
+                                        key={s}
+                                        title={s}
+                                        aria-label={s}
+                                        aria-pressed={current === s}
+                                        className={current === s ? "on" : ""}
+                                        onClick={() => setOverride(active.id, req.id, current === s ? null : s)}
+                                      >
+                                        <span className={`ag-dot ${s}`} />
+                                      </button>
+                                    ))}
+                                  </div>
+                                  {isOverride && (
+                                    <span className="ag-ev-was">was {parsed} · now {current}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
                   </div>
+                ) : (
+                  <div className="ag-card"><div className="ag-quiet">No candidates on this role yet.</div></div>
                 )}
+
+                <div className="ag-scr-side">
+                  {activeScore && (
+                    <div className="ag-card">
+                      <div className="ag-card-head"><span className="ag-card-title">Live score</span></div>
+                      <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span className="ag-conf-bars" title={`Confidence ${activeScore.confidence_level} of 4`}>
+                            {[1, 2, 3, 4].map((n) => (
+                              <span key={n} className="ag-conf-bar" data-on={n <= activeScore.confidence_level} style={{ height: 4 + n * 3 }} />
+                            ))}
+                          </span>
+                          <span className="ag-meta">{["", "LOW", "MEDIUM", "HIGH", "HIGH"][activeScore.confidence_level] ?? "MEDIUM"} CONFIDENCE</span>
+                        </div>
+                        {activeScore.original_overall != null && Math.round(activeScore.original_overall) !== Math.round(activeScore.overall) && (
+                          <span className="ag-delta-pill">
+                            {Math.round(activeScore.original_overall)} → {Math.round(activeScore.overall)}{" "}
+                            {Math.round(activeScore.overall - activeScore.original_overall) > 0 ? "+" : ""}
+                            {Math.round(activeScore.overall - activeScore.original_overall)}
+                          </span>
+                        )}
+                        <div className="ag-nutrition-top">
+                          <span className="ag-field-label" style={{ marginBottom: 0, color: "var(--ag-ink-3)" }}>Overall fit</span>
+                          <span className="ag-nutrition-score">{Math.round(activeScore.overall)}</span>
+                        </div>
+                        <div className="ag-nutrition-rule" />
+                        {FIT_ROWS.map((row) => {
+                          const v = Math.round(Number(activeScore[row.key] ?? 0))
+                          return (
+                            <div key={row.key} className="ag-fit-row">
+                              <span className="ag-fit-label">{row.label}</span>
+                              <span className="ag-fit-num">{row.weight}% · <b>{v}</b></span>
+                              <div className="ag-bar"><div className="ag-bar-fill" style={{ width: `${v}%` }} /></div>
+                            </div>
+                          )
+                        })}
+                        <div className="ag-nutrition-foot">
+                          <span className="ag-fit-label">Must-have coverage</span>
+                          <span className="ag-fit-num"><b>{activeScore.must_have_hit}/{activeScore.must_have_total}</b></span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {active && (
+                    <div className="ag-card">
+                      <div className="ag-card-head"><span className="ag-card-title">Still unevidenced</span></div>
+                      <div className="ag-card-body">
+                        {requirements.filter((r) => r.weight !== "nice" && ["missing", "partial"].includes(effectiveStrength(active.id, r.id))).length === 0 ? (
+                          <span style={{ fontSize: 12.5, color: "var(--ag-ink-3)" }}>Every weighted requirement has evidence.</span>
+                        ) : (
+                          <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                            {requirements
+                              .filter((r) => r.weight !== "nice" && ["missing", "partial"].includes(effectiveStrength(active.id, r.id)))
+                              .map((r) => (
+                                <li key={r.id} className="ag-unevidenced">
+                                  <span className={`ag-dot ${effectiveStrength(active.id, r.id)}`} />
+                                  <span style={{ color: "var(--ag-ink-2)" }}>{r.text}</span>
+                                </li>
+                              ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {active && (
+                    <button
+                      className="ag-btn ag-btn-primary"
+                      style={{ width: "100%", justifyContent: "center" }}
+                      onClick={() => {
+                        patchReview(active.id, { status: "reviewed" }, { status: "reviewed" })
+                        const next = candidates.find((c) => c.id !== active.id && reviews[c.id]?.status !== "reviewed")
+                        if (next) setActiveCandidate(next.id)
+                        else setStep("compare")
+                      }}
+                    >
+                      Save and next candidate
+                    </button>
+                  )}
+                </div>
               </div>
             </>
           )}
@@ -1338,7 +1433,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           {shownCandidates.map((c) => {
                             const strength = effectiveStrength(c.id, req.id)
                             const isOverride = Boolean(overrides[c.id]?.[req.id])
-                            const ev = evidence.find((e) => e.candidate_id === c.id && e.requirement_id === req.id)
+                            const ev = evidenceAt(c.id, req.id)
                             return (
                               <div
                                 key={c.id + req.id}
@@ -1365,7 +1460,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 <div className="ag-decisions-bar">
                   <span className="ag-field-label">Decisions</span>
                   <span className="ag-decisions-tally">
-                    {decisionTotals || "none yet"} · <b>{candidates.filter((c) => !decisions[c.id]).length} undecided</b>
+                    {decisionTotals || "none yet"} · <b>{decisionCounts.undecided} undecided</b>
                   </span>
                   <span className="ag-grow" />
                   <span className="ag-kbd-hints">
