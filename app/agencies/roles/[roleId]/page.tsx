@@ -1694,27 +1694,47 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             </div>
                           )}
 
-                          <div className="ag-cfp-head">
-                            <div className="ag-portal-eyebrow">Shortlist · {role.title}</div>
-                            <div className="ag-cfp-company">{role.company || "Your client"}</div>
-                            {snap ? (
-                              <p className="ag-cfp-intro-frozen">{snap.intro || "No introduction was written."}</p>
-                            ) : (
-                              <textarea
-                                className="ag-cfp-intro"
-                                rows={3}
-                                aria-label="Submission introduction"
-                                value={intro}
-                                onChange={(e) => setIntro(e.target.value)}
-                              />
-                            )}
-                            <div className="ag-cfp-stats">
-                              <span><span className="ag-cfp-stat-k">Reviewed</span><span className="ag-cfp-stat-v">{candidates.length}</span></span>
-                              <span><span className="ag-cfp-stat-k">Shortlisted</span><span className="ag-cfp-stat-v">{rows.length}</span></span>
-                              <span><span className="ag-cfp-stat-k">Must-haves</span><span className="ag-cfp-stat-v">{musts.length}</span></span>
-                              <span><span className="ag-cfp-stat-k">Held</span><span className="ag-cfp-stat-v">{decisionCounts.hold}</span></span>
+                          {previewFormat === "document" ? (
+                            <div className="ag-cfp-head">
+                              <div className="ag-portal-eyebrow">Shortlist · {role.title}</div>
+                              <div className="ag-cfp-company">{role.company || "Your client"}</div>
+                              {snap ? (
+                                <p className="ag-cfp-intro-frozen">{snap.intro || "No introduction was written."}</p>
+                              ) : (
+                                <textarea
+                                  className="ag-cfp-intro"
+                                  rows={3}
+                                  aria-label="Submission introduction"
+                                  value={intro}
+                                  onChange={(e) => setIntro(e.target.value)}
+                                />
+                              )}
+                              <div className="ag-cfp-stats">
+                                <span><span className="ag-cfp-stat-k">Reviewed</span><span className="ag-cfp-stat-v">{candidates.length}</span></span>
+                                <span><span className="ag-cfp-stat-k">Shortlisted</span><span className="ag-cfp-stat-v">{rows.length}</span></span>
+                                <span><span className="ag-cfp-stat-k">Must-haves</span><span className="ag-cfp-stat-v">{musts.length}</span></span>
+                                <span><span className="ag-cfp-stat-k">Held</span><span className="ag-cfp-stat-v">{decisionCounts.hold}</span></span>
+                              </div>
                             </div>
-                          </div>
+                          ) : (
+                            /* Email and portal carry the greeting in their own
+                             * chrome, so the dark cover would be a second header
+                             * stacked on the one they already have. */
+                            <div className="ag-intro-strip">
+                              <span className="ag-field-label">Your introduction</span>
+                              {snap ? (
+                                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>{snap.intro || "No introduction was written."}</p>
+                              ) : (
+                                <textarea
+                                  className="ag-textarea"
+                                  style={{ minHeight: 68 }}
+                                  aria-label="Submission introduction"
+                                  value={intro}
+                                  onChange={(e) => setIntro(e.target.value)}
+                                />
+                              )}
+                            </div>
+                          )}
 
                           {previewFormat === "document" && rows.map((r, i) => (
                             <article className="ag-cfp-cand" key={r.key}>
@@ -1763,6 +1783,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                     </div>
                                   </div>
                                 )}
+                                {disclosure.evidence && r.gaps.length > 0 && (
+                                  <div>
+                                    <div className="ag-field-label" style={{ color: "var(--ag-warn)" }}>Known gaps, stated plainly</div>
+                                    <ul className="ag-cfp-probes">
+                                      {r.gaps.slice(0, 4).map((g, j) => <li key={j}>{g}</li>)}
+                                    </ul>
+                                  </div>
+                                )}
                                 {disclosure.probes && r.probes.length > 0 && (
                                   <div>
                                     <div className="ag-field-label">What to probe at interview</div>
@@ -1781,6 +1809,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                               </div>
                             </article>
                           ))}
+
+                          {previewFormat === "document" && (
+                            <p className="ag-doc-legal">
+                              This shortlist was prepared with AI-assisted evidence matching, and every score traces back to source CV content or to a recruiter override recorded against a named person. No candidate was rejected automatically. Final hiring decisions remain with {role.company || "the client"}. This document is confidential.
+                            </p>
+                          )}
 
                           {previewFormat === "email" && (
                             <div className="ag-cfp-cand">
@@ -1908,14 +1942,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         </div>
                       </div>
 
-                      {notShortlisted.length > 0 && (
+                      {notShortlisted.filter((c) => decisions[c.id] !== "hold").length > 0 && (
                         <div className="ag-card">
                           <div className="ag-card-head">
                             <span className="ag-card-title">Not shortlisted (internal record)</span>
                             <span className="ag-meta">never sent to the client</span>
                           </div>
                           <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
-                            {notShortlisted.map((c) => (
+                            {notShortlisted.filter((c) => decisions[c.id] !== "hold").map((c) => (
                               <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
                                 <div className="ag-avatar" style={{ width: 28, height: 28, fontSize: 11 }}>{initials(c.full_name)}</div>
                                 <div className="ag-grow">

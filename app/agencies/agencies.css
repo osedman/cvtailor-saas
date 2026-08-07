@@ -74,12 +74,9 @@
 .ag-textarea.jd { min-height: 340px; }
 .ag-input:focus, .ag-textarea:focus { outline: none; border-color: var(--ag-coral); box-shadow: 0 0 0 3px var(--ag-tint-1); }
 .ag-label { display: block; font-size: 12px; font-weight: 600; color: var(--ag-ink-2); margin-bottom: 6px; }
-.ag-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--ag-border); }
-.ag-row:last-child { border-bottom: none; }
 .ag-avatar { width: 36px; height: 36px; border-radius: 8px; background: var(--ag-ink); color: var(--ag-paper); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; flex: none; }
 .ag-grow { flex: 1; min-width: 0; }
 .ag-pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-family: var(--ag-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; background: var(--ag-paper); border: 1px solid var(--ag-line-2); color: var(--ag-ink-2); }
-.ag-pill-coral { background: var(--ag-coral); color: var(--ag-paper); border-color: var(--ag-coral); }
 .ag-pill-warn { color: var(--ag-warn); }
 .ag-pill-failed { color: var(--ag-coral-deep); border-color: var(--ag-tint-2); background: var(--ag-tint-1); }
 .ag-score { font-family: var(--ag-mono); font-size: 20px; font-weight: 500; border-radius: 8px; padding: 5px 11px; position: relative; }
@@ -114,12 +111,8 @@
 .ag-dot.transferable { background: var(--ag-tint-2); border: 1px solid var(--ag-coral); }
 .ag-dot.partial { background: var(--ag-warn); opacity: 0.7; }
 .ag-dot.missing { background: transparent; border: 1px dashed var(--ag-line-2); }
-.ag-tile { display: block; width: 100%; text-align: left; border: 1px solid var(--ag-border); background: var(--ag-paper); border-radius: 10px; padding: 12px; cursor: pointer; position: relative; }
-.ag-tile.on { background: var(--ag-ink); color: var(--ag-paper); border-color: var(--ag-ink); }
 .ag-tile.on .ag-meta { color: var(--ag-tint-2); }
 .ag-reviewed { position: absolute; top: 8px; right: 8px; font-family: var(--ag-mono); font-size: 9px; letter-spacing: 0.05em; color: var(--ag-coral); border: 1px solid var(--ag-coral); border-radius: 999px; padding: 1px 6px; text-transform: uppercase; }
-.ag-star { width: 22px; height: 22px; border: 1px solid var(--ag-coral); border-radius: 5px; background: transparent; cursor: pointer; }
-.ag-star.on { background: var(--ag-coral); }
 /* Requirement × candidate matrix, to the handoff drawing: the requirement
  * reads as a labelled row (ref, text, weight underneath), every cell stacks
  * its dot over the strength word, columns are ruled, strong cells take a
@@ -136,13 +129,10 @@
 .ag-matrix td.req { display: table-cell; }
 .ag-matrix td.req > span:first-child { display: inline-block; vertical-align: top; width: 34px; }
 .ag-matrix td.req > span:last-child { display: inline-block; vertical-align: top; max-width: 30ch; }
-.ag-matrix-ref { font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.05em; color: var(--ag-ink-4); text-transform: uppercase; }
-.ag-matrix-text { display: block; font-size: 13px; font-weight: 600; line-height: 1.35; letter-spacing: -0.005em; }
 .ag-matrix-weight { display: block; font-family: var(--ag-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ag-ink-4); margin-top: 3px; }
 .ag-matrix tbody td:not(.req) { cursor: pointer; }
 .ag-matrix tbody td:not(.req):hover { outline: 1px solid var(--ag-coral); outline-offset: -1px; }
 .ag-matrix td .ag-dot { display: block; margin: 0 auto 5px; }
-.ag-matrix-cell-label { font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ag-ink-3); }
 .ag-matrix td.wash { background: var(--ag-tint-1); }
 .ag-matrix td.faded { background: var(--ag-paper); }
 .ag-matrix td.faded .ag-matrix-cell-label { color: var(--ag-ink-4); }
@@ -155,23 +145,9 @@
 .ag-quote { background: var(--ag-paper); border-left: 3px solid var(--ag-coral); padding: 12px 16px; font-size: 13px; font-style: italic; line-height: 1.6; }
 .ag-req-btn { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: none; padding: 12px 18px; cursor: pointer; font-family: var(--ag-sans); border-top: 1px solid var(--ag-border); }
 .ag-req-btn:hover { background: var(--ag-tint-1); }
-.ag-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .ag-bar { flex: 1; height: 6px; background: var(--ag-bg-2); border-radius: 3px; overflow: hidden; }
 .ag-bar-fill { height: 100%; background: var(--ag-coral); }
 .ag-tabstrip { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
-.ag-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
-.ag-tile-stat { background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: 12px; padding: 16px 18px; text-align: left; width: 100%; cursor: pointer; font-family: var(--ag-sans); }
-.ag-tile-stat:hover { border-color: var(--ag-line-2); background: var(--ag-tint-1); }
-.ag-tile-stat[data-quiet="true"] { cursor: default; }
-.ag-tile-stat[data-quiet="true"]:hover { background: var(--ag-paper); border-color: var(--ag-border); }
-.ag-stat { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
-.ag-stat.zero { color: var(--ag-ink-4); font-weight: 500; }
-.ag-stat-label { font-size: 12.5px; color: var(--ag-ink-2); margin-top: 6px; }
-.ag-stat-sub { font-size: 11.5px; color: var(--ag-ink-4); margin-top: 2px; }
-.ag-attention { border: 1px solid var(--ag-tint-2); background: var(--ag-tint-1); border-radius: 12px; overflow: hidden; }
-.ag-attention-head { padding: 12px 18px; border-bottom: 1px solid var(--ag-tint-2); display: flex; justify-content: space-between; align-items: center; }
-.ag-attention-row { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--ag-tint-2); }
-.ag-attention-row:last-child { border-bottom: none; }
 .ag-quiet { text-align: center; padding: 28px; color: var(--ag-ink-3); font-size: 13px; }
 
 /* ---------- workflow chrome from the handoff (7 Aug recording review) ----
@@ -187,28 +163,19 @@
 .ag-step.on .ag-step-num.done { border-color: var(--ag-coral); }
 .ag-field-label { display: block; font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ag-coral); margin-bottom: 5px; }
 
-.ag-callscore { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-.ag-callscore-pair { display: flex; align-items: flex-end; gap: 12px; }
-.ag-callscore-col { display: flex; flex-direction: column; align-items: flex-end; }
 .ag-callscore-col .ag-field-label { margin-bottom: 2px; }
-.ag-callscore-was { font-family: var(--ag-mono); font-size: 20px; color: var(--ag-ink-3); padding: 5px 0; }
-.ag-callscore-arrow { color: var(--ag-ink-4); padding-bottom: 8px; }
 .ag-delta-pill { display: inline-block; font-family: var(--ag-mono); font-size: 10.5px; color: var(--ag-coral-deep); background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); border-radius: 999px; padding: 2px 9px; align-self: flex-start; }
 .ag-callscore .ag-delta-pill { align-self: flex-end; }
 
-.ag-conf-strip { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-top: 1px solid var(--ag-border); }
 .ag-conf-strip .ag-field-label { margin-bottom: 0; }
-.ag-conf-val { font-family: var(--ag-mono); font-size: 13px; }
 .ag-conf-bars { display: inline-flex; align-items: flex-end; gap: 2px; }
 .ag-conf-bar { width: 4px; border-radius: 1px; background: var(--ag-line-2); }
 .ag-conf-bar[data-on="true"] { background: var(--ag-ink); }
-.ag-conf-note { font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.04em; color: var(--ag-coral); text-transform: uppercase; }
 
 .ag-legend { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--ag-ink-2); border: 1px solid var(--ag-border); background: var(--ag-paper); border-radius: 10px; padding: 9px 14px; margin-bottom: 16px; }
 .ag-legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .ag-legend .ag-field-label { margin-bottom: 0; }
 
-.ag-fit-rows { display: flex; flex-direction: column; gap: 7px; }
 .ag-fit-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; }
 .ag-fit-label { font-size: 11.5px; color: var(--ag-ink-2); }
 .ag-fit-num { font-family: var(--ag-mono); font-size: 10.5px; color: var(--ag-ink-3); }
@@ -224,24 +191,8 @@
 .ag-script-count { font-family: var(--ag-mono); font-size: 10px; color: rgba(255, 253, 250, 0.55); }
 .ag-script-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 .ag-script-empty { font-size: 12.5px; color: rgba(255, 253, 250, 0.55); margin: 0; max-width: 46ch; line-height: 1.5; }
-.ag-script-q { display: flex; flex-direction: column; gap: 6px; }
-.ag-script-qhead { display: flex; align-items: flex-start; gap: 8px; }
-.ag-script-qid { font-family: var(--ag-mono); font-size: 9.5px; letter-spacing: 0.06em; color: var(--ag-coral); flex: none; padding-top: 2px; }
-.ag-script-qtext { flex: 1; font-size: 13px; line-height: 1.45; }
-.ag-script-drop { border: none; background: none; color: rgba(255, 253, 250, 0.45); font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; flex: none; }
-.ag-script-drop:hover { color: var(--ag-coral); }
-.ag-script-answer { width: 100%; min-height: 54px; resize: vertical; border-radius: 8px; border: 1px solid rgba(255, 253, 250, 0.18); background: rgba(255, 253, 250, 0.06); color: var(--ag-paper); font-family: var(--ag-sans); font-size: 12.5px; line-height: 1.5; padding: 8px 10px; }
-.ag-script-answer::placeholder { color: rgba(255, 253, 250, 0.35); }
-.ag-script-answer:focus { outline: none; border-color: var(--ag-coral); }
-.ag-script-add { align-self: flex-start; border: 1px dashed rgba(255, 253, 250, 0.3); background: none; color: var(--ag-paper); border-radius: 8px; padding: 6px 12px; font-family: var(--ag-sans); font-size: 12.5px; cursor: pointer; }
-.ag-script-add:hover { border-color: var(--ag-coral); color: var(--ag-coral); }
-.ag-script-picker { border-top: 1px solid rgba(255, 253, 250, 0.14); padding-top: 10px; display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; }
-.ag-script-group { font-family: var(--ag-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 253, 250, 0.45); margin: 8px 0 2px; }
 /* Two rows, not three columns: the reason sat beside the question and
  * squeezed long requirement text into a narrow ribbon. */
-.ag-script-opt { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; width: 100%; text-align: left; border: none; background: none; color: var(--ag-paper); border-radius: 6px; padding: 7px 8px; font-family: var(--ag-sans); font-size: 12.5px; line-height: 1.4; cursor: pointer; }
-.ag-script-opt:hover { background: rgba(255, 253, 250, 0.08); }
-.ag-script-why { grid-column: 2; font-family: var(--ag-mono); font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase; color: rgba(255, 253, 250, 0.4); }
 
 /* ---------- remaining handoff details across the workflow ---------- */
 /* MISSING is a chip in the handoff, not a word in a sentence: the whole
@@ -256,9 +207,6 @@
 .ag-strength.missing { color: var(--ag-ink-4); border-style: dashed; }
 
 /* Screening rail: the score and its movement, or an explicit not-called. */
-.ag-rail-score { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
-.ag-rail-num { font-family: var(--ag-mono); font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
-.ag-notcalled { font-family: var(--ag-mono); font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ag-ink-4); }
 .ag-tile.on .ag-notcalled, .ag-tile.on .ag-meta { color: var(--ag-tint-2); }
 
 /* Score breakdown in the handoff's nutrition form. */
@@ -364,24 +312,9 @@
 /* ---------- client submission, to the handoff's shortlist screen ----------
  * Three containers over one snapshot. The document sits on a mat so it
  * reads as a piece of paper the client will receive, not another panel. */
-.ag-formatbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.ag-doc-mat { background: var(--ag-bg-2); padding: 40px; border-radius: 10px; }
 .ag-doc { max-width: 720px; margin: 0 auto; background: var(--ag-paper); border: 1px solid var(--ag-border); box-shadow: 0 20px 60px -30px rgba(0, 0, 0, 0.2); border-radius: 4px; padding: 48px 56px; font-size: 13.5px; line-height: 1.6; }
-.ag-doc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 32px; }
-.ag-doc-eyebrow { font-family: var(--ag-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ag-ink-3); }
-.ag-doc-role { font-family: var(--ag-display); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin-top: 4px; }
-.ag-doc-rule { border-top: 2px solid var(--ag-ink); padding-top: 24px; margin-bottom: 32px; }
-.ag-doc-cand { margin-bottom: 36px; }
-.ag-doc-cand-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; border-bottom: 1px solid var(--ag-border); padding-bottom: 10px; margin-bottom: 14px; }
-.ag-doc-name { font-family: var(--ag-display); font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin-top: 2px; }
-.ag-doc-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.ag-doc-list { padding: 0; margin: 0; list-style: none; }
-.ag-doc-list li { padding: 3px 0; font-size: 12.5px; }
-.ag-doc-quote { color: var(--ag-ink-3); font-style: italic; }
 /* The interview focus block: the probe questions the recruiter actually
  * picked, handed to the client as where to dig. */
-.ag-doc-focus { margin-top: 16px; padding: 12px; background: var(--ag-bg-2); border-radius: 4px; }
-.ag-doc-foot { border-top: 1px solid var(--ag-border); padding-top: 20px; font-size: 11px; color: var(--ag-ink-3); line-height: 1.6; }
 
 .ag-mail-head { display: grid; grid-template-columns: 70px 1fr; gap: 8px 12px; font-size: 12.5px; padding-bottom: 20px; border-bottom: 1px solid var(--ag-border); align-items: baseline; }
 .ag-mail-body { padding-top: 20px; font-size: 13.5px; line-height: 1.7; }
@@ -404,9 +337,7 @@
 .ag-portal-foot { display: flex; justify-content: space-between; gap: 12px; padding: 16px 24px; background: var(--ag-cream); font-size: 11px; color: var(--ag-ink-3); }
 
 @media (max-width: 760px) {
-  .ag-doc-mat { padding: 16px; }
   .ag-doc { padding: 28px 22px; }
-  .ag-doc-cols { grid-template-columns: 1fr; }
 }
 
 .ag-decisions-bar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 18px; background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: 12px; box-shadow: 0 -8px 24px -18px rgba(0, 0, 0, 0.35); z-index: 4; }
@@ -605,7 +536,6 @@
  * contain-intrinsic-size keeps the scrollbar honest while they are skipped. */
 .ag-mx-row { content-visibility: auto; contain-intrinsic-size: auto 64px; }
 .ag-ev-card { content-visibility: auto; contain-intrinsic-size: auto 110px; }
-.ag-roles > .agd-role { content-visibility: auto; contain-intrinsic-size: auto 78px; }
 /* Focus is always visible for keyboard users, never a bare outline removal. */
 .ag-app :focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; border-radius: 6px; }
 
@@ -644,9 +574,7 @@
 .ag-switch[data-on="true"] { background: var(--ag-coral); }
 .ag-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 999px; background: var(--ag-paper); transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1); }
 .ag-switch[data-on="true"] .ag-switch-knob { transform: translateX(16px); }
-.ag-audit-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .ag-audit-val { font-family: var(--ag-mono); font-size: 12px; font-weight: 600; }
-.ag-doc-logistics { display: flex; gap: 18px; flex-wrap: wrap; border-top: 1px solid var(--ag-border); padding-top: 10px; margin-bottom: 12px; font-size: 12.5px; }
 
 /* ---------- client-facing preview (submission, live before generation) ---- */
 .ag-cfp-head { background: var(--ag-ink); color: var(--ag-paper); border-radius: 10px; padding: 20px; }
@@ -685,3 +613,8 @@
   .ag-sub-side { position: static; max-height: none; flex-direction: row; flex-wrap: wrap; }
   .ag-sub-side > * { flex: 1 1 280px; }
 }
+
+/* Email and portal keep the greeting in their own chrome, so they get a
+ * light strip rather than the document's dark cover. */
+.ag-intro-strip { display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid var(--ag-border); border-radius: 10px; background: var(--ag-bg-2); }
+.ag-doc-legal { border-top: 1px solid var(--ag-border); padding-top: 16px; margin: 0; font-size: 11px; line-height: 1.6; color: var(--ag-ink-3); }
