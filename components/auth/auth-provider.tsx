@@ -7,7 +7,10 @@ import type { User } from "@supabase/supabase-js"
 interface AuthContextValue {
   user: User | null
   loading: boolean
-  signInWithEmail: (email: string) => Promise<{ error: string | null }>
+  signInWithEmail: (
+    email: string,
+    options?: { next?: string },
+  ) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
@@ -36,14 +39,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function signInWithEmail(email: string) {
+  async function signInWithEmail(email: string, options?: { next?: string }) {
     // Deliver via /api/auth/request-otp (Resend) — staging Supabase SMTP still
     // uses Resend's test From and returns "Error sending magic link email".
     try {
       const res = await fetch("/api/auth/request-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, next: options?.next }),
       })
       const body = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {

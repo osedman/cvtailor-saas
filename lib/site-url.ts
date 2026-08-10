@@ -49,6 +49,7 @@ export const APP_PATH_PREFIXES = [
   "/career-arc",
   "/arc",
   "/admin",
+  "/login",
   "/pricing",
   "/privacy",
   "/auth",

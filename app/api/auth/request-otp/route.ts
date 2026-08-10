@@ -3,6 +3,15 @@ import { createAdminClient } from "@/lib/supabase/server"
 import { sendEmail } from "@/lib/email"
 import { checkRateLimit, anonRateLimitId } from "@/lib/rate-limit"
 
+/** Only same-origin relative paths — blocks open redirects. */
+function safeNextPath(raw: unknown): string | null {
+  if (typeof raw !== "string") return null
+  const next = raw.trim()
+  if (!next.startsWith("/") || next.startsWith("//") || next.includes("://")) return null
+  if (next.length > 512) return null
+  return next
+}
+
 /**
  * Send magic-link / OTP via Resend, bypassing Supabase Auth's SMTP mailer.
  *
@@ -13,9 +22,11 @@ import { checkRateLimit, anonRateLimitId } from "@/lib/rate-limit"
  */
 export async function POST(request: Request) {
   let email = ""
+  let next: string | null = null
   try {
-    const body = (await request.json()) as { email?: string }
+    const body = (await request.json()) as { email?: string; next?: string }
     email = (body.email ?? "").trim().toLowerCase()
+    next = safeNextPath(body.next)
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   }
@@ -65,7 +76,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Could not start sign-in" }, { status: 500 })
     }
 
-    const confirmUrl = `${redirectTo}?token_hash=${encodeURIComponent(tokenHash)}&type=email`
+    const nextQs = next ? `&next=${encodeURIComponent(next)}` : ""
+    const confirmUrl = `${redirectTo}?token_hash=${encodeURIComponent(tokenHash)}&type=email${nextQs}`
     const otpLine = otp
       ? `<p style="margin:20px 0 0;font-size:14px;color:#5c534c;">Or enter this code in the app: <strong style="letter-spacing:0.2em;font-family:ui-monospace,monospace;">${otp}</strong></p>`
       : ""

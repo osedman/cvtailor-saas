@@ -267,7 +267,7 @@ export default function AdminPage() {
       const res = await fetch("/api/admin/stats")
       if (res.status === 403) {
         toast.error("Admin access required")
-        router.push("/dashboard")
+        router.push("/tailor")
         return
       }
       if (!res.ok) throw new Error((await res.json()).error || "Failed to load")
@@ -283,7 +283,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (authLoading) return
     if (!user) {
-      router.push("/login")
+      router.push("/login?next=/admin")
       return
     }
     void load()
@@ -312,10 +312,10 @@ export default function AdminPage() {
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
             <Link
-              href="/dashboard"
+              href="/tailor"
               className="mb-3 inline-flex items-center gap-1.5 text-[13px] text-[#1e1813]/55 hover:text-[#1e1813]"
             >
-              <ArrowLeft className="h-3.5 w-3.5" /> Dashboard
+              <ArrowLeft className="h-3.5 w-3.5" /> Tailor
             </Link>
             <h1 className="text-2xl font-semibold tracking-tight text-[#1e1813]">
               Product health

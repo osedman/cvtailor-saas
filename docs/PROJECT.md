@@ -502,6 +502,7 @@ _Last updated: 30 July 2026_
 
 | Item | Type | PR | Notes |
 |------|------|----|-------|
+| Staging admin sign-in dead-end (`/login` + `/dashboard` 404) | Bug | — | Reproduced 10 Aug on staging: unsigned `/admin` redirected to `/login` (404); 403 path + back link used `/dashboard` (also 404). Cause: those routes were never implemented — sign-in is the modal on `/tailor`. Fix on `staging`: real `/login?next=` page reusing SignInModal, admin redirects to `/login?next=/admin` and `/tailor`, magic-link confirm stays on the current host (no yank to prod via `getAppOrigin`), OTP request forwards safe `next`. Verify: open staging `/admin` signed out → login UI → after OTP land back on `/admin` |
 | Tailor results discovery (score CTAs, job-kit tabs, auto-scroll) | UX | — | Branch `fix/tailor-results-discovery` → staging. Score bar launches Gaps/CV/Cover letter; primary tabs CV·Gaps·Letter·Prep + More; post-tailor scrolls to results (Gaps if score &lt; 75) |
 | Admin product-health dashboard | Feature | — | Branch `feat/admin-product-health`. Server aggregates only; masked stuck segments; cohorts + outcome funnel + quality + feature adoption. No migration. Staging verify next |
 | Long-CV handling (Pass 0 compression, higher limits) | Feature | [#6](https://github.com/osedman/cvtailor-saas/pull/6) | Adds a Haiku pre-compress pass; awaiting review |

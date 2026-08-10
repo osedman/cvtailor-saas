@@ -1,6 +1,5 @@
 import type { EmailOtpType } from "@supabase/supabase-js"
 import { ConfirmSignIn } from "@/components/auth/confirm-sign-in"
-import { getAppOrigin } from "@/lib/site-url"
 
 /**
  * Magic-link landing page. Does NOT verify the token on GET — that would let
@@ -22,7 +21,10 @@ export default async function ConfirmPage({
   const code = raw("code")
   const type = (raw("type") as EmailOtpType | null) ?? "email"
   const nextRaw = raw("next") ?? "/tailor"
-  const next = nextRaw.startsWith("/") ? nextRaw : `/${nextRaw}`
+  const next =
+    nextRaw.startsWith("/") && !nextRaw.startsWith("//") && !nextRaw.includes("://")
+      ? nextRaw
+      : "/tailor"
 
   return (
     <main className="min-h-dvh flex items-center justify-center p-6 bg-gradient-to-b from-[#faf7f4] to-white">
@@ -32,7 +34,6 @@ export default async function ConfirmPage({
           code={code}
           type={type}
           next={next}
-          appOrigin={getAppOrigin()}
         />
       </div>
     </main>
