@@ -21,7 +21,12 @@ export interface MetricsTracked {
   created_at?: string
   updated_at?: string
 }
-export interface MetricsUser { id: string; created_at: string }
+export interface MetricsUser {
+  id: string
+  created_at: string
+  last_sign_in_at?: string | null
+  email?: string | null
+}
 
 export interface FunnelStage {
   key: string
@@ -106,6 +111,12 @@ export function maskUserId(id: string): string {
   const clean = (id ?? '').replace(/-/g, '').toUpperCase()
   const tail = clean.slice(-4) || '????'
   return `User ··${tail}`
+}
+
+/** Prefer email for admin drill-down; fall back to a masked id. */
+export function userLabel(id: string, email?: string | null): string {
+  const trimmed = (email ?? '').trim()
+  return trimmed || maskUserId(id)
 }
 
 export function distinctRunDaysByUser(runs: MetricsRun[]): Map<string, number> {
