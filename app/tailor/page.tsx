@@ -401,6 +401,27 @@ export default function CVTailorPage() {
           </div>
         ) : (
           <div className={`flex-1 flex flex-col min-h-[60vh] ${enhanced ? "pt-5" : ""}`}>
+            {/* The summary bar stays while the inputs are open, so the user can
+                always fold them back to the results they came from. */}
+            {results && (
+              <button
+                onClick={() => setInputsCollapsed(true)}
+                aria-expanded={true}
+                className="mb-3 flex w-full items-center gap-3 rounded-xl border border-[#e0d6c9] bg-[#f9f6f0] px-4 py-3 text-left transition-colors hover:border-[#dc4f33]/50 focus-visible:ring-2 focus-visible:ring-[#dc4f33]/40 focus-visible:ring-offset-1"
+              >
+                <FileText className="h-4 w-4 shrink-0 text-[#8a8178]" aria-hidden="true" />
+                <span className="min-w-0 truncate text-[13px] font-semibold text-[#1e1813]">
+                  {[results.jobTitle, results.companyName].filter(Boolean).join(" · ") || "Your tailored CV"}
+                </span>
+                <span className="hidden shrink-0 text-[12px] text-[#a89e93] sm:inline">
+                  {cvText.trim().split(/\s+/).length.toLocaleString()} words in
+                </span>
+                <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[12.5px] font-semibold text-[#dc4f33]">
+                  Back to results
+                  <ChevronDown className="h-3.5 w-3.5 rotate-180" aria-hidden="true" />
+                </span>
+              </button>
+            )}
             <ResizablePanels
               enhanced={enhanced}
               guideStep={guideStep}

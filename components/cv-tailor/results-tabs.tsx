@@ -164,6 +164,94 @@ function FormattedCV({ text, template, annotations }: { text: string; template?:
   )
 }
 
+/** Full coverage map — the score mapping folded behind one disclosure row.
+    Absorbs the old always-open Requirements coverage card and the separate
+    gap-advice list (approved Figma frame, 11 Aug 2026). */
+function CoverageMap({ rows, advice }: {
+  rows: NonNullable<TailorResult["requirementsCoverage"]>; advice: string[]
+}) {
+  const [open, setOpen] = useState(false)
+  const matched = rows.filter((r) => r.strength !== "none").length
+  const missing = rows.length - matched
+
+  const adviceRows = advice.length > 0 && (
+    <div>
+      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Advice · {advice.length}</p>
+      <ul className="divide-y divide-gray-50">
+        {advice.map((gap, i) => (
+          <li key={i} className="px-4 py-2.5 flex items-start gap-3">
+            <AlertCircle className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+            <span className="text-sm text-gray-600">{gap}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+
+  if (rows.length === 0) {
+    return adviceRows ? <div className="rounded-xl border border-gray-100 bg-white pb-2 shadow-sm">{adviceRows}</div> : null
+  }
+
+  const groups = [
+    { key: "strong", label: "Strong", cls: "bg-green-50 text-green-600" },
+    { key: "transferable", label: "Transferable", cls: "bg-[#ffeae4] text-[#dc4f33]" },
+    { key: "partial", label: "Partial", cls: "bg-amber-50 text-amber-600" },
+    { key: "none", label: "Missing", cls: "bg-red-50 text-red-500" },
+  ]
+  const known = new Set(groups.map((g) => g.key))
+  const other = rows.filter((r) => !known.has(r.strength))
+
+  const section = (label: string, cls: string, items: typeof rows) => items.length > 0 && (
+    <div key={label}>
+      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label} · {items.length}</p>
+      <ul className="divide-y divide-gray-50">
+        {items.map((r, i) => (
+          <li key={i} className="px-4 py-2.5 flex items-start gap-3">
+            <span className={`flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 ${cls}`}>{label}</span>
+            <div className="min-w-0">
+              <p className="text-sm text-[#1e1813] leading-snug">
+                {r.requirement}
+                {r.type === "must" && (
+                  <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide text-gray-400">must-have</span>
+                )}
+              </p>
+              {r.evidence && <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">↳ {r.evidence}</p>}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 rounded-xl border border-[#e0d6c9] bg-[#fdfcf9] px-4 py-3 text-left transition-colors hover:border-[#dc4f33]/50 focus-visible:ring-2 focus-visible:ring-[#dc4f33]/40 focus-visible:ring-offset-1"
+      >
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#dc4f33] text-[10px] font-bold text-white" aria-hidden="true">✓</span>
+        <span className="shrink-0 text-[12.5px] font-semibold text-[#1e1813]">Full coverage map · {rows.length} requirements</span>
+        <span className="hidden min-w-0 flex-1 truncate text-[11.5px] text-[#a89e93] sm:inline">
+          {matched} matched · {missing} missing · how your score is computed
+        </span>
+        <span className="ml-auto flex shrink-0 items-center gap-1 text-[11.5px] text-[#8a8178]">
+          {open ? "hide" : "view detail"}
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-2 overflow-hidden rounded-xl border border-gray-100 bg-white pb-2 shadow-sm">
+          {groups.map((g) => section(g.label, g.cls, rows.filter((r) => r.strength === g.key)))}
+          {section("Other", "bg-gray-100 text-gray-500", other)}
+          {adviceRows && <div className="border-t border-gray-100">{adviceRows}</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** Template chooser — restyles the preview and the download together */
 function TemplatePicker({
   value, onChange,
@@ -1002,56 +1090,8 @@ export function ResultsTabs({
               />
             )}
 
-            {/* Requirements coverage — how the match score was computed */}
-            {(results.requirementsCoverage ?? []).length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <h3 className="text-xs font-semibold text-[#1e1813]">Requirements coverage</h3>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Your match score is computed from this mapping</p>
-                </div>
-                <ul className="divide-y divide-gray-50">
-                  {(results.requirementsCoverage ?? []).map((r, i) => {
-                    const cfg = {
-                      strong:       { label: "Strong",       cls: "bg-green-50 text-green-600" },
-                      transferable: { label: "Transferable", cls: "bg-[#ffeae4] text-[#dc4f33]" },
-                      partial:      { label: "Partial",      cls: "bg-amber-50 text-amber-600" },
-                      none:         { label: "Missing",      cls: "bg-red-50 text-red-500" },
-                    }[r.strength] ?? { label: r.strength, cls: "bg-gray-100 text-gray-500" }
-                    return (
-                      <li key={i} className="px-4 py-2.5 flex items-start gap-3">
-                        <span className={`flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 ${cfg.cls}`}>
-                          {cfg.label}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-sm text-[#1e1813] leading-snug">
-                            {r.requirement}
-                            {r.type === "must" && (
-                              <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide text-gray-400">must-have</span>
-                            )}
-                          </p>
-                          {r.evidence && (
-                            <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">↳ {r.evidence}</p>
-                          )}
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            )}
-
-            {/* Gap advice */}
-            <div className="space-y-3">
-              {(results.gaps ?? []).map((gap, i) => (
-                <div
-                  key={i}
-                  className="p-4 bg-gray-50 rounded-lg flex items-start gap-3"
-                >
-                  <AlertCircle className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                  <span className="text-sm text-gray-600">{gap}</span>
-                </div>
-              ))}
-            </div>
+            {/* Full coverage map + advice — one disclosure, closed by default */}
+            <CoverageMap rows={results.requirementsCoverage ?? []} advice={results.gaps ?? []} />
 
             {/* Close these gaps — quick wins land on the career path, right at
                 the moment the gaps are freshest. Replaces the old Upskill tab,

@@ -57,6 +57,23 @@ errors, no horizontal overflow). Figma skipped — Ose said ship straight to
 staging from the approved artifact prototype. Watch after ship: hero CTA
 clickthrough + tailor-start rate.
 
+### Gaps tab restructure + persistent tailor summary bar (11 Aug 2026) — on staging
+
+Ose flagged the Gaps tab told the same story three times (Evidence Matched
+panel, standalone Requirements coverage card, separate gap-advice list).
+Approved Figma frames: https://www.figma.com/design/Xsa5coXGNKKCqfXXbdr4FA
+Three collapse levels now: the whole Evidence Matched panel collapses to a
+one-line strip (chevron in header, open by default); named gaps collapse to a
+strip of gap names (open by default) with the tall cards replaced by one-line
+rows; and a new `CoverageMap` disclosure (closed by default) absorbs the old
+coverage card AND the gap-advice rows, grouped Strong/Transferable/Partial/
+Missing. **Disclosed:** the bank-traceability "N matched · view detail" list
+now renders only in the compact CV-tab rail, not on the Gaps tab. Also fixed:
+clicking "Tailor another" used to swap the job summary bar for the input
+panels with no way back — the bar now persists above the inputs as "Back to
+results". Files: `evidence-match-panel.tsx`, `results-tabs.tsx`,
+`app/tailor/page.tsx`.
+
 ### Admin product health (6 Aug 2026) — in progress on `feat/admin-product-health`
 
 Rebuilt `/admin` around product health, not volume + PII tables. `/api/admin/stats`
