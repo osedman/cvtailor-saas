@@ -77,10 +77,10 @@ results". Files: `evidence-match-panel.tsx`, `results-tabs.tsx`,
 Follow-up (same day): Ose flagged "Close these gaps" duplicated the named
 gaps. First pass condensed the strip to one row (`5657155`); Ose then called
 it: **remove the strip from the Gaps tab entirely**. The named gap rows are
-now the single add-to-path action there. `UpskillStrip` stays exported in
-`components/upskill.tsx` but is currently unused (the career path page uses
-`UpskillSection` from the same file) — decide later whether the
-plan-generation strip returns somewhere else or gets deleted. Consequence
+now the single add-to-path action there. `UpskillStrip` was then deleted
+outright on Ose's confirmation (the career path's `UpskillSection` and the
+quick-win cards in the same file are untouched and keep the same
+`/api/upskill` write path). Consequence
 worth knowing: beta users with no evidence bank see no gap actions on the
 Gaps tab now (the panel needs bank rows to render). Also made "Add to path"
 optimistic like the 7 Aug screening-controls fix — the row flips to "On your
