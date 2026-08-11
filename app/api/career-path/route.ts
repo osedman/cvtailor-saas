@@ -142,12 +142,17 @@ export async function GET() {
     return NextResponse.json({ roadmap, derivedTarget, readiness, rankedGaps, arcAmbition, upskillItems })
   } catch (err) {
     const msg = errMessage(err)
+    // Log server-side too. Returning the message only in the response body
+    // makes a 500 invisible in the logs, which turned a one-line enrichment
+    // bug into a guessing game (6 Aug 2026).
+    console.error('[career-path] POST failed', { mode: bodyMode, error: msg })
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
 
 export async function POST(req: NextRequest) {
   const t0 = Date.now()
+  let bodyMode = 'unknown'
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -158,6 +163,7 @@ export async function POST(req: NextRequest) {
     if (limited) return limited
 
     const body = await req.json()
+    bodyMode = String(body?.mode ?? 'generate')
     const { targetRole, hoursPerWeek, skills, intention } = body
 
     // Set the weekly learning pace — drives the forecast, never a deadline.
@@ -373,7 +379,15 @@ export async function POST(req: NextRequest) {
         const isPlaceholder = (it.resources ?? []).length === 0 && !it.projectBrief
         const plan = planBySkill.get(it.skill.trim().toLowerCase())
         if (!isPlaceholder || !plan) return it
-        return { ...plan, skill: it.skill, status: it.status }
+        // effortHours is what the model returns; effortEstimateHours is the
+        // stored column. Without this map the estimate is generated and thrown
+        // away.
+        return {
+          ...plan,
+          skill: it.skill,
+          status: it.status,
+          effortEstimateHours: plan.effortHours ?? null,
+        }
       })
       const savedItems = await replaceItems(
         supabase, user.id, row.id as string,
@@ -723,6 +737,10 @@ export async function POST(req: NextRequest) {
     if (status === 429) {
       return NextResponse.json({ error: 'Too many requests right now — please wait a moment and try again.' }, { status: 429 })
     }
+    // Log server-side too. Returning the message only in the response body
+    // makes a 500 invisible in the logs, which turned a one-line enrichment
+    // bug into a guessing game (6 Aug 2026).
+    console.error('[career-path] POST failed', { mode: bodyMode, error: msg })
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
@@ -760,6 +778,10 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
   } catch (err) {
     const msg = errMessage(err)
+    // Log server-side too. Returning the message only in the response body
+    // makes a 500 invisible in the logs, which turned a one-line enrichment
+    // bug into a guessing game (6 Aug 2026).
+    console.error('[career-path] POST failed', { mode: bodyMode, error: msg })
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

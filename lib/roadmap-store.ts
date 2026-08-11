@@ -35,6 +35,19 @@ export type StoredRoadmapItem = CareerRoadmapItem & Partial<RoadmapItemMeta>
  * Without this a skill containing % or _ ("100% test coverage") would match
  * other rows — ilike treats them as wildcards, not literals.
  */
+/**
+ * effort_estimate_hours is an integer column, but models return effortHours as
+ * a plain number and happily emit decimals ("7.5 hours"). Postgres rejects
+ * those, which took down a whole enrichment batch with a 500. Coerce here, at
+ * the single write path, so no caller can reintroduce it.
+ */
+function toIntHours(value: number | null | undefined): number | null {
+  if (value === null || value === undefined) return null
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return Math.max(1, Math.round(n))
+}
+
 const likePattern = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`)
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -78,7 +91,7 @@ function itemToRow(item: StoredRoadmapItem, userId: string, roadmapId: string | 
     source: item.source ?? 'north_star',
     source_run_id: item.sourceRunId ?? null,
     role_family_at_capture: item.roleFamilyAtCapture ?? null,
-    effort_estimate_hours: item.effortEstimateHours ?? null,
+    effort_estimate_hours: toIntHours(item.effortEstimateHours),
     surfaced_count: item.surfacedCount ?? 1,
     position,
     updated_at: new Date().toISOString(),
