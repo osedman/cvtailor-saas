@@ -74,6 +74,15 @@ panels with no way back — the bar now persists above the inputs as "Back to
 results". Files: `evidence-match-panel.tsx`, `results-tabs.tsx`,
 `app/tailor/page.tsx`.
 
+Follow-up (same day): Ose flagged "Close these gaps" duplicated the named
+gaps. They are different features — named gap rows bookmark a missing
+requirement onto the career path; the strip generates a full quick-wins plan
+(free resources + project + CV line) for the run's weak skills including
+partials. Kept both, removed the visual duplicate: when the evidence panel is
+on screen the strip renders `condensed` (one row, no explainer card, no pill
+list repeating the gaps; button reads "Build the plan"). Bankless users keep
+the full pills version, which is their only gaps view.
+
 ### Admin product health (6 Aug 2026) — in progress on `feat/admin-product-health`
 
 Rebuilt `/admin` around product health, not volume + PII tables. `/api/admin/stats`

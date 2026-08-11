@@ -243,10 +243,15 @@ export function UpskillStrip({
   historyId,
   weakSkills,
   jobTitle,
+  condensed = false,
 }: {
   historyId: string | null
   weakSkills: string[]
   jobTitle?: string
+  /** One-row form for when the named-gap rows already list the gaps above
+      this strip (Gaps tab restructure, 11 Aug 2026) — no explainer card,
+      no pill list repeating the same skills. */
+  condensed?: boolean
 }) {
   const careerBeta = useCareerBeta()
   const [loading, setLoading] = useState(false)
@@ -308,6 +313,28 @@ export function UpskillStrip({
   }
 
   if (captured === null) {
+    if (condensed) {
+      return (
+        <div className="flex w-full items-center gap-3 rounded-xl bg-[#f9f6f0] px-4 py-3">
+          <span className="shrink-0 text-[12.5px] font-semibold text-[#1e1813]">Close these gaps</span>
+          <span className="hidden min-w-0 flex-1 truncate text-[11.5px] text-[#a89e93] sm:inline">
+            {loading
+              ? "Searching real, free resources · can take up to a minute"
+              : `free resources, a project and the exact CV line for each of the ${weakSkills.length} skill${weakSkills.length === 1 ? "" : "s"} this run flagged`}
+          </span>
+          <button
+            onClick={generate}
+            disabled={loading}
+            className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-[12.5px] font-semibold text-white transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-60"
+            style={{ background: ACCENT }}
+          >
+            {loading
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Finding resources…</>
+              : <><Sparkles className="w-3.5 h-3.5" />Build the plan →</>}
+          </button>
+        </div>
+      )
+    }
     return (
       <div className="space-y-5">
         <div className="rounded-xl border border-[#f5d9d0] bg-[#fff7f4] p-4">

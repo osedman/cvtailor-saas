@@ -1101,6 +1101,7 @@ export function ResultsTabs({
                 historyId={historyId}
                 weakSkills={weakSkills}
                 jobTitle={results.jobTitle}
+                condensed={evidenceBank.length > 0 && (results.requirementsCoverage ?? []).length > 0}
               />
             </div>
           </div>
