@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useCallback, useEffect, Suspense } from "react"
+import { useState, useCallback, useEffect, useRef, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
+import { ChevronDown } from "lucide-react"
 import { Header } from "@/components/cv-tailor/header"
 import { ArcAnnouncement } from "@/components/cv-tailor/arc-announcement"
 import { CareerPathAnnouncement } from "@/components/cv-tailor/career-path-announcement"
@@ -10,7 +11,7 @@ import { CareerSignalBanner } from "@/components/cv-tailor/career-signal-banner"
 import { CareerSyncPanel } from "@/components/cv-tailor/career-sync-panel"
 import { ResizablePanels } from "@/components/cv-tailor/resizable-panels"
 import { TailorButton } from "@/components/cv-tailor/tailor-button"
-import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
+import { ResultsTabs, type ResultTabName } from "@/components/cv-tailor/results-tabs"
 import { EmptyState } from "@/components/cv-tailor/empty-state"
 import { SignInModal } from "@/components/auth/sign-in-modal"
 import { useAuth } from "@/components/auth/auth-provider"
@@ -18,7 +19,12 @@ import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
 import { HistoryDrawer, type HistoryItem } from "@/components/cv-tailor/history-drawer"
 import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
 import { markOnboardingStep, isOnboardingDismissed } from "@/lib/onboarding"
-import { Lightbulb, X } from "lucide-react"
+import { Lightbulb, X, ListChecks, FileText, Mail } from "lucide-react"
+
+/** After a tailor run: Gaps when the match needs work, otherwise the CV. */
+function defaultResultsTab(score: number): ResultTabName {
+  return score < 75 ? "Gaps" : "Tailored CV"
+}
 
 /**
  * Safely read a JSON API response. If the body isn't JSON — e.g. Vercel's
@@ -96,6 +102,29 @@ export default function CVTailorPage() {
   const [scoreDelta, setScoreDelta] = useState<{ from: number; to: number; skills: string[] } | null>(null)
   const [tailoredFromCv, setTailoredFromCv] = useState<string | null>(null)
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
+  const [resultsTab, setResultsTab] = useState<ResultTabName>("Tailored CV")
+  /** Inputs fold away once a result lands; "Tailor another" reopens them. */
+  const [inputsCollapsed, setInputsCollapsed] = useState(false)
+  const [focusResults, setFocusResults] = useState(false)
+  const resultsSectionRef = useRef<HTMLDivElement>(null)
+
+  const openResultsTab = useCallback((tab: ResultTabName) => {
+    setResultsTab(tab)
+    // Smooth-scroll after paint so the results block is on screen.
+    requestAnimationFrame(() => {
+      resultsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!focusResults || !results) return
+    setResultsTab(defaultResultsTab(results.matchScore))
+    const id = window.setTimeout(() => {
+      resultsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+      setFocusResults(false)
+    }, 80)
+    return () => window.clearTimeout(id)
+  }, [focusResults, results])
 
   // Onboarding guidance (coachmarks, feature strip, post-tailor nudge) —
   // rolled out to all signed-in users (was admin-gated in #9).
@@ -162,6 +191,9 @@ export default function CVTailorPage() {
       setHistoryId(data.historyId ?? null)
       setScoreDelta(data.scoreDelta ?? null)
       setTailoredFromCv(cvText)
+      setResultsTab(defaultResultsTab(data.result.matchScore))
+      setFocusResults(true)
+      setInputsCollapsed(true)
       markOnboardingStep("tailor")
 
       if (data.cached) {
@@ -212,6 +244,21 @@ export default function CVTailorPage() {
       setLoadingCoverLetter(false)
     }
   }, [cvText, jobDescription, historyId])
+
+  /**
+   * Auto-generate the cover letter as soon as a run lands, so the tab is ready
+   * when the user opens it instead of making them click Generate. Guarded by a
+   * ref keyed on the run, so a re-render (or reopening the tab) never fires a
+   * second billable call, and a letter restored from History is left alone.
+   */
+  const autoCoverRunRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!results || coverLetter || loadingCoverLetter) return
+    const runKey = historyId ?? "unsaved"
+    if (autoCoverRunRef.current === runKey) return
+    autoCoverRunRef.current = runKey
+    void handleGenerateCoverLetter()
+  }, [results, coverLetter, loadingCoverLetter, historyId, handleGenerateCoverLetter])
 
   /**
    * Hand-edits to the generated output. Persisted first, then applied locally —
@@ -310,6 +357,8 @@ export default function CVTailorPage() {
     setCompanyAnalysis(null)
     setHistoryId(item.id)
     setTailoredFromCv(null)
+    setResultsTab(defaultResultsTab(item.result.matchScore))
+    setFocusResults(true)
   }, [])
 
   return (
@@ -329,25 +378,68 @@ export default function CVTailorPage() {
             <CareerSignalBanner />
           </div>
         )}
-        {/* Workspace panels */}
-        <div className={`flex-1 flex flex-col min-h-[60vh] ${enhanced ? "pt-5" : ""}`}>
-          <ResizablePanels
-            enhanced={enhanced}
-            guideStep={guideStep}
-            cvText={cvText}
-            setCvText={setCvText}
-            jobDescription={jobDescription}
-            setJobDescription={setJobDescription}
-            onJobUrlScraped={setScrapedJobUrl}
-          />
-        </div>
+        {/* Workspace panels — fold into a summary bar once a result exists */}
+        {results && inputsCollapsed ? (
+          <div className={enhanced ? "pt-5" : ""}>
+            <button
+              onClick={() => setInputsCollapsed(false)}
+              aria-expanded={false}
+              className="flex w-full items-center gap-3 rounded-xl border border-[#e0d6c9] bg-[#f9f6f0] px-4 py-3 text-left transition-colors hover:border-[#dc4f33]/50 focus-visible:ring-2 focus-visible:ring-[#dc4f33]/40 focus-visible:ring-offset-1"
+            >
+              <FileText className="h-4 w-4 shrink-0 text-[#8a8178]" aria-hidden="true" />
+              <span className="min-w-0 truncate text-[13px] font-semibold text-[#1e1813]">
+                {[results.jobTitle, results.companyName].filter(Boolean).join(" · ") || "Your tailored CV"}
+              </span>
+              <span className="hidden shrink-0 text-[12px] text-[#a89e93] sm:inline">
+                {cvText.trim().split(/\s+/).length.toLocaleString()} words in
+              </span>
+              <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[12.5px] font-semibold text-[#dc4f33]">
+                Tailor another
+                <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
+            </button>
+          </div>
+        ) : (
+          <div className={`flex-1 flex flex-col min-h-[60vh] ${enhanced ? "pt-5" : ""}`}>
+            {/* The summary bar stays while the inputs are open, so the user can
+                always fold them back to the results they came from. */}
+            {results && (
+              <button
+                onClick={() => setInputsCollapsed(true)}
+                aria-expanded={true}
+                className="mb-3 flex w-full items-center gap-3 rounded-xl border border-[#e0d6c9] bg-[#f9f6f0] px-4 py-3 text-left transition-colors hover:border-[#dc4f33]/50 focus-visible:ring-2 focus-visible:ring-[#dc4f33]/40 focus-visible:ring-offset-1"
+              >
+                <FileText className="h-4 w-4 shrink-0 text-[#8a8178]" aria-hidden="true" />
+                <span className="min-w-0 truncate text-[13px] font-semibold text-[#1e1813]">
+                  {[results.jobTitle, results.companyName].filter(Boolean).join(" · ") || "Your tailored CV"}
+                </span>
+                <span className="hidden shrink-0 text-[12px] text-[#a89e93] sm:inline">
+                  {cvText.trim().split(/\s+/).length.toLocaleString()} words in
+                </span>
+                <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[12.5px] font-semibold text-[#dc4f33]">
+                  Back to results
+                  <ChevronDown className="h-3.5 w-3.5 rotate-180" aria-hidden="true" />
+                </span>
+              </button>
+            )}
+            <ResizablePanels
+              enhanced={enhanced}
+              guideStep={guideStep}
+              cvText={cvText}
+              setCvText={setCvText}
+              jobDescription={jobDescription}
+              setJobDescription={setJobDescription}
+              onJobUrlScraped={setScrapedJobUrl}
+            />
+          </div>
+        )}
 
         {/* Match score (shown once results are ready) */}
         {results && (
           enhanced
             ? <div className="pt-2 pb-4">
                 {scoreDelta && <ScoreDeltaBanner delta={scoreDelta} />}
-                <MatchScoreBar score={results.matchScore} />
+                <MatchScoreBar score={results.matchScore} onNavigate={openResultsTab} />
               </div>
             : <div className="py-4 flex justify-center"><MatchScoreBadge score={results.matchScore} /></div>
         )}
@@ -375,7 +467,7 @@ export default function CVTailorPage() {
         </div>
 
         {/* Results section */}
-        <div className="pb-12">
+        <div className="scroll-mt-20 pb-12" ref={resultsSectionRef}>
           {results ? (
             <>
               {guideEnabled && !nudgeDismissed && (
@@ -383,6 +475,7 @@ export default function CVTailorPage() {
                   prepDone={!!prepQuestions}
                   coverDone={!!coverLetter}
                   companyDone={!!companyAnalysis}
+                  onOpenTab={openResultsTab}
                   onDismiss={() => setNudgeDismissed(true)}
                 />
               )}
@@ -406,6 +499,8 @@ export default function CVTailorPage() {
                   historyId={historyId}
                   onSaveTailoredCV={handleSaveTailoredCV}
                   onSaveCoverLetter={handleSaveCoverLetter}
+                  activeTab={resultsTab}
+                  onActiveTabChange={setResultsTab}
                 />
                 {user && <CareerSyncPanel key={historyId ?? "sync"} results={results} />}
               </div>
@@ -428,13 +523,19 @@ export default function CVTailorPage() {
 }
 
 function NextStepNudge({
-  prepDone, coverDone, companyDone, onDismiss,
-}: { prepDone: boolean; coverDone: boolean; companyDone: boolean; onDismiss: () => void }) {
+  prepDone, coverDone, companyDone, onOpenTab, onDismiss,
+}: {
+  prepDone: boolean
+  coverDone: boolean
+  companyDone: boolean
+  onOpenTab: (tab: ResultTabName) => void
+  onDismiss: () => void
+}) {
   // Point the user at the first feature they haven't explored yet.
   const next =
-    !prepDone ? { tab: "Interview Prep", desc: "see the questions you'll likely be asked" } :
-    !coverDone ? { tab: "Cover Letter", desc: "generate a tailored cover letter in one click" } :
-    !companyDone ? { tab: "Company", desc: "get a quick brief on the company" } :
+    !prepDone ? { tab: "Interview Prep" as const, desc: "see the questions you'll likely be asked" } :
+    !coverDone ? { tab: "Cover Letter" as const, desc: "generate a tailored cover letter in one click" } :
+    !companyDone ? { tab: "Company" as const, desc: "get a quick brief on the company" } :
     null
   if (!next) return null
 
@@ -442,8 +543,15 @@ function NextStepNudge({
     <div className="mb-4 flex items-center gap-3 bg-[#fff7f4] border border-[#f5d9d0] rounded-xl px-4 py-3">
       <Lightbulb className="w-4 h-4 text-[#dc4f33] flex-shrink-0" />
       <p className="flex-1 text-[13px] text-[#1e1813]">
-        Nice — your CV is tailored. <span className="font-semibold">Next:</span> open the{" "}
-        <span className="font-semibold text-[#dc4f33]">{next.tab}</span> tab to {next.desc}.
+        Nice — your CV is tailored.{" "}
+        <button
+          type="button"
+          onClick={() => onOpenTab(next.tab)}
+          className="font-semibold text-[#dc4f33] underline-offset-2 hover:underline"
+        >
+          Open {next.tab}
+        </button>{" "}
+        to {next.desc}.
       </p>
       <button onClick={onDismiss} className="p-1 -mr-1 rounded text-gray-300 hover:text-gray-500 hover:bg-black/5 transition-colors" aria-label="Dismiss tip">
         <X className="w-3.5 h-3.5" />
@@ -472,26 +580,72 @@ function ScoreDeltaBanner({ delta }: { delta: { from: number; to: number; skills
   )
 }
 
-function MatchScoreBar({ score }: { score: number }) {
+function MatchScoreBar({
+  score,
+  onNavigate,
+}: {
+  score: number
+  onNavigate: (tab: ResultTabName) => void
+}) {
+  const needsGaps = score < 75
   const verdict =
     score >= 75 ? { label: "Strong match", sub: "Your experience covers most must-have requirements.", color: "#1d9e75", ring: "#1d9e75", track: "#d3eee4" } :
-    score >= 50 ? { label: "Moderate match", sub: "A solid base — check Gaps to strengthen the rest.", color: "#bf7d10", ring: "#e0a32a", track: "#f5e6c8" } :
-    { label: "Low match — room to improve", sub: "See Gaps to close the missing requirements.", color: "#dc4f33", ring: "#dc4f33", track: "#f0d9d2" }
+    score >= 50 ? { label: "Moderate match", sub: "A solid base — strengthen the rest in Gaps.", color: "#bf7d10", ring: "#e0a32a", track: "#f5e6c8" } :
+    { label: "Low match — room to improve", sub: "Close the missing requirements in Gaps.", color: "#dc4f33", ring: "#dc4f33", track: "#f0d9d2" }
 
   const c = 2 * Math.PI * 19
   return (
-    <div className="flex items-center gap-4 bg-[#faf8f3] border border-[#f0ebe1] rounded-2xl px-5 py-4">
-      <div className="relative w-12 h-12 flex-shrink-0">
-        <svg className="w-12 h-12 -rotate-90" viewBox="0 0 46 46">
-          <circle cx="23" cy="23" r="19" fill="none" stroke={verdict.track} strokeWidth="5" />
-          <circle cx="23" cy="23" r="19" fill="none" stroke={verdict.ring} strokeWidth="5" strokeLinecap="round"
-            strokeDasharray={`${(score / 100) * c} ${c}`} />
-        </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-sm font-extrabold" style={{ color: verdict.color }}>{score}</span>
+    <div className="flex flex-col gap-4 bg-[#faf8f3] border border-[#f0ebe1] rounded-2xl px-5 py-4 sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-1 items-center gap-4">
+        <div className="relative w-12 h-12 flex-shrink-0">
+          <svg className="w-12 h-12 -rotate-90" viewBox="0 0 46 46">
+            <circle cx="23" cy="23" r="19" fill="none" stroke={verdict.track} strokeWidth="5" />
+            <circle cx="23" cy="23" r="19" fill="none" stroke={verdict.ring} strokeWidth="5" strokeLinecap="round"
+              strokeDasharray={`${(score / 100) * c} ${c}`} />
+          </svg>
+          <span className="absolute inset-0 flex items-center justify-center text-sm font-extrabold" style={{ color: verdict.color }}>{score}</span>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[15px] font-bold text-[#1e1813]">{verdict.label}</p>
+          <p className="text-[12.5px] text-gray-500">{verdict.sub}</p>
+        </div>
       </div>
-      <div className="min-w-0">
-        <p className="text-[15px] font-bold text-[#1e1813]">{verdict.label}</p>
-        <p className="text-[12.5px] text-gray-500">{verdict.sub}</p>
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        {needsGaps ? (
+          <button
+            type="button"
+            onClick={() => onNavigate("Gaps")}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#dc4f33] px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-[#b3341b] transition-colors"
+          >
+            <ListChecks className="h-3.5 w-3.5" />
+            See Gaps
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onNavigate("Tailored CV")}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#dc4f33] px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-[#b3341b] transition-colors"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Open tailored CV
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onNavigate(needsGaps ? "Tailored CV" : "Gaps")}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[#eee6da] bg-white px-3 py-2 text-[13px] font-medium text-[#1e1813] hover:border-[#dc4f33]/40 transition-colors"
+        >
+          {needsGaps ? <FileText className="h-3.5 w-3.5" /> : <ListChecks className="h-3.5 w-3.5" />}
+          {needsGaps ? "Tailored CV" : "Gaps"}
+        </button>
+        <button
+          type="button"
+          onClick={() => onNavigate("Cover Letter")}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[#eee6da] bg-white px-3 py-2 text-[13px] font-medium text-[#1e1813] hover:border-[#dc4f33]/40 transition-colors"
+        >
+          <Mail className="h-3.5 w-3.5" />
+          Cover letter
+        </button>
       </div>
     </div>
   )

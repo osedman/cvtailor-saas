@@ -3,18 +3,16 @@
 /**
  * Quick wins — run-surfaced skills, closable in about a week.
  *
- * Two placements, one write path. The strip lives in the tailor results (the
- * moment gaps are freshest); the section lives on the career path. Both render
- * the same card and both mutate career_roadmap_items via /api/upskill, so
- * closing an item in either place produces the identical state change — there
- * is no second copy to drift.
+ * One placement now: the Quick wins section on the career path, mutating
+ * career_roadmap_items via /api/upskill. The tailor-results "Close these
+ * gaps" strip was removed 11 Aug 2026 (Ose's call — it duplicated the named
+ * gap rows); gaps reach the path through those rows' Add to path instead.
  */
 
 import { useRef, useState } from "react"
 import { toast } from "sonner"
-import { AlertCircle, ArrowRight, BadgeCheck, Check, ChevronDown, CircleDot, ExternalLink, Loader2, Plus, Sparkles, Upload, Zap } from "lucide-react"
+import { ArrowRight, BadgeCheck, Check, ChevronDown, CircleDot, ExternalLink, Loader2, Upload, Zap } from "lucide-react"
 import type { CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
-import { useCareerBeta } from "@/hooks/use-career-beta"
 
 const ACCENT = "#dc4f33"
 
@@ -235,171 +233,6 @@ function useCycle(onItems: (items: UpskillItem[]) => void) {
     }
   }
   return { cycle, busySkill }
-}
-
-// ── Tailor results: "Close these gaps" strip ────────────────────────────────
-
-export function UpskillStrip({
-  historyId,
-  weakSkills,
-  jobTitle,
-}: {
-  historyId: string | null
-  weakSkills: string[]
-  jobTitle?: string
-}) {
-  const careerBeta = useCareerBeta()
-  const [loading, setLoading] = useState(false)
-  const [captured, setCaptured] = useState<UpskillItem[] | null>(null)
-  const [candidates, setCandidates] = useState<UpskillItem[]>([])
-  const [accepting, setAccepting] = useState<string | null>(null)
-  const { cycle, busySkill } = useCycle((items) => {
-    // The PATCH returns every item; keep only the ones this strip captured
-    setCaptured((prev) => prev
-      ? items.filter((i) => prev.some((p) => p.skill.toLowerCase() === i.skill.toLowerCase()))
-      : prev)
-  })
-
-  // Outside the beta the strip would render a CTA that only 403s.
-  if (!careerBeta) return null
-  if (weakSkills.length === 0) {
-    return <p className="text-[13px] text-gray-500">No gaps flagged on this run — your CV already covers what this job asks for.</p>
-  }
-  if (!historyId) {
-    return <p className="text-[13px] text-gray-400">Run a tailor while signed in to turn these gaps into a plan.</p>
-  }
-
-  const generate = async () => {
-    setLoading(true)
-    try {
-      const data = await readJson<{ captured: UpskillItem[]; candidates: UpskillItem[] }>(
-        await fetch("/api/upskill", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ historyId, skills: weakSkills, jobTitle }),
-        }))
-      setCaptured(data.captured)
-      setCandidates(data.candidates)
-      if (data.captured.length > 0) {
-        toast.success(`${data.captured.length} skill${data.captured.length === 1 ? "" : "s"} added to Upskill`)
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to build your plan.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const accept = async (item: UpskillItem) => {
-    setAccepting(item.skill)
-    try {
-      await readJson(await fetch("/api/upskill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "accept", item }),
-      }))
-      setCandidates((prev) => prev.filter((c) => c.skill !== item.skill))
-      toast.success(`${item.skill} added to your career path`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not add that skill.")
-    } finally {
-      setAccepting(null)
-    }
-  }
-
-  if (captured === null) {
-    return (
-      <div className="space-y-5">
-        <div className="rounded-xl border border-[#f5d9d0] bg-[#fff7f4] p-4">
-          <p className="text-[13.5px] leading-relaxed text-[#1e1813]">
-            <span className="font-semibold">Close the gaps for this job.</span> Small ones land in your Upskill list — free resources, a project to prove each skill, and the exact CV line. Closing one raises your match here and everywhere else.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {weakSkills.map((s, i) => (
-            <span key={i} className="inline-flex items-center gap-1.5 text-[12px] font-medium rounded-lg px-2.5 py-1.5 bg-gray-50 border border-gray-100 text-gray-600">
-              <AlertCircle className="w-3 h-3 text-[#dc4f33]" /> {s}
-            </span>
-          ))}
-        </div>
-        <div>
-          <button
-            onClick={generate}
-            disabled={loading}
-            className="inline-flex items-center gap-2 py-3 px-5 text-[14px] font-semibold text-white rounded-xl shadow-sm transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-60"
-            style={{ background: ACCENT }}
-          >
-            {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Finding resources…</> : <><Sparkles className="w-4 h-4" />Close these gaps</>}
-          </button>
-          {loading && <p className="mt-2.5 text-[12px] text-gray-400">Searching for real, free resources — this can take up to a minute.</p>}
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-5">
-      {captured.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-gray-400">
-            Upskill — on your career path now
-          </p>
-          {captured.map((item) => (
-            <QuickWinCard
-              key={item.skill}
-              item={item}
-              onCycle={cycle}
-              busy={busySkill === item.skill}
-              onVerified={(skill, cvPhrasing) => setCaptured((prev) => prev
-                ? prev.map((p) => p.skill === skill
-                    ? { ...p, evidence: { fileName: "", judgedAt: new Date().toISOString(), verdict: "pass", quality: 3, note: "" }, cvPhrasing: cvPhrasing || p.cvPhrasing }
-                    : p)
-                : prev)}
-            />
-          ))}
-        </div>
-      )}
-
-      {candidates.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-gray-400">
-            Bigger commitments — your call
-          </p>
-          {candidates.map((item) => {
-            const hours = item.effortHours
-            return (
-              <div key={item.skill} className="rounded-2xl border border-gray-100 bg-gray-50/50 p-4">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="text-[15px] font-bold text-[#1e1813]">{item.skill}</h4>
-                      {typeof hours === "number" && hours > 0 && (
-                        <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">~{Math.round(hours)}h — a real commitment</span>
-                      )}
-                    </div>
-                    {item.whyItMatters && <p className="mt-1 text-[13px] text-gray-600 leading-relaxed">{item.whyItMatters}</p>}
-                  </div>
-                  <button
-                    onClick={() => accept(item)}
-                    disabled={accepting === item.skill}
-                    className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#dc4f33] border border-[#f5d9d0] bg-white rounded-lg px-3 py-2 hover:bg-[#fff7f4] transition-colors disabled:opacity-60"
-                  >
-                    {accepting === item.skill ? <Loader2 aria-hidden="true" className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                    Add to my path
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-          <p className="text-[11px]" style={{ color: "var(--ns-ink-70)" }}>These are bigger than a week&rsquo;s work, so they only join your path if you say so.</p>
-        </div>
-      )}
-
-      {captured.length === 0 && candidates.length === 0 && (
-        <p className="text-[13px] text-gray-500">Nothing new to add — these gaps are already on your career path.</p>
-      )}
-    </div>
-  )
 }
 
 // ── Career path: "Quick wins" section ───────────────────────────────────────

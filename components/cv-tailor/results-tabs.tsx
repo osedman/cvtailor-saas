@@ -1,15 +1,17 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { Check, Download, AlertCircle, CheckCircle, Loader2, Sparkles, ThumbsUp, ThumbsDown, Building2, FileText, GitCompare, Mail, MessagesSquare, ListChecks, Pencil, GraduationCap, CircleDot, ArrowRight, ExternalLink, RotateCcw, LayoutTemplate, ChevronDown, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import type { TailorResult, InterviewPrepResult, PitchesResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
+import { EvidenceMatchPanel } from "@/components/career-arc/evidence-match-panel"
+import { annotateCvLines } from "@/lib/career-arc-tailor-match"
+import type { EvidenceRow } from "@/lib/career-arc-ledger"
 import { downloadWordDoc } from "@/lib/word"
 import { getTemplate, px, TEMPLATE_LIST, type CvTemplateId } from "@/lib/cv-templates"
 import { isStackedCompanyLine, isStackedRoleTitleLine, isStackedDateLine } from "@/lib/cv-lines"
 import { useCvTemplate } from "@/hooks/use-cv-template"
-import { UpskillStrip } from "@/components/upskill"
 import { InterviewPrep } from "./interview-prep"
 import { InterviewPitches } from "./interview-pitches"
 
@@ -20,7 +22,12 @@ import { InterviewPitches } from "./interview-pitches"
  * with points converted to px — so this is a true preview of the downloaded
  * file, not a lookalike. Line classification mirrors lib/word.ts.
  */
-function FormattedCV({ text, template }: { text: string; template?: CvTemplateId }) {
+/**
+ * `annotations` maps a line index to an evidence chip label (EV·03). It is
+ * screen-only decoration for the Tailored CV tab — omitted by the editor and
+ * by every export path, so downloaded and copied CVs are unchanged.
+ */
+function FormattedCV({ text, template, annotations }: { text: string; template?: CvTemplateId; annotations?: Map<number, string> }) {
   const t = getTemplate(template)
   const lines = (text ?? "").split("\n")
 
@@ -111,6 +118,15 @@ function FormattedCV({ text, template }: { text: string; template?: CvTemplateId
             }}>
               <span style={{ color: t.accent }}>{t.bulletChar}</span>
               {"  "}{trimmed.replace(/^[•\-\*·]\s*/, "")}
+              {annotations?.get(i) && (
+                <span
+                  title="Traceable to your evidence bank"
+                  className="ml-1.5 inline-block rounded px-1 py-px align-middle font-mono text-[8.5px] font-bold tracking-[0.08em]"
+                  style={{ background: "#fff7f4", border: "1px solid #f5d9d0", color: "#dc4f33" }}
+                >
+                  {annotations.get(i)}
+                </span>
+              )}
             </p>
           )
         }
@@ -143,6 +159,94 @@ function FormattedCV({ text, template }: { text: string; template?: CvTemplateId
           }}>{trimmed}</p>
         )
       })}
+    </div>
+  )
+}
+
+/** Full coverage map — the score mapping folded behind one disclosure row.
+    Absorbs the old always-open Requirements coverage card and the separate
+    gap-advice list (approved Figma frame, 11 Aug 2026). */
+function CoverageMap({ rows, advice }: {
+  rows: NonNullable<TailorResult["requirementsCoverage"]>; advice: string[]
+}) {
+  const [open, setOpen] = useState(false)
+  const matched = rows.filter((r) => r.strength !== "none").length
+  const missing = rows.length - matched
+
+  const adviceRows = advice.length > 0 && (
+    <div>
+      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Advice · {advice.length}</p>
+      <ul className="divide-y divide-gray-50">
+        {advice.map((gap, i) => (
+          <li key={i} className="px-4 py-2.5 flex items-start gap-3">
+            <AlertCircle className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+            <span className="text-sm text-gray-600">{gap}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+
+  if (rows.length === 0) {
+    return adviceRows ? <div className="rounded-xl border border-gray-100 bg-white pb-2 shadow-sm">{adviceRows}</div> : null
+  }
+
+  const groups = [
+    { key: "strong", label: "Strong", cls: "bg-green-50 text-green-600" },
+    { key: "transferable", label: "Transferable", cls: "bg-[#ffeae4] text-[#dc4f33]" },
+    { key: "partial", label: "Partial", cls: "bg-amber-50 text-amber-600" },
+    { key: "none", label: "Missing", cls: "bg-red-50 text-red-500" },
+  ]
+  const known = new Set(groups.map((g) => g.key))
+  const other = rows.filter((r) => !known.has(r.strength))
+
+  const section = (label: string, cls: string, items: typeof rows) => items.length > 0 && (
+    <div key={label}>
+      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label} · {items.length}</p>
+      <ul className="divide-y divide-gray-50">
+        {items.map((r, i) => (
+          <li key={i} className="px-4 py-2.5 flex items-start gap-3">
+            <span className={`flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 ${cls}`}>{label}</span>
+            <div className="min-w-0">
+              <p className="text-sm text-[#1e1813] leading-snug">
+                {r.requirement}
+                {r.type === "must" && (
+                  <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide text-gray-400">must-have</span>
+                )}
+              </p>
+              {r.evidence && <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">↳ {r.evidence}</p>}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 rounded-xl border border-[#e0d6c9] bg-[#fdfcf9] px-4 py-3 text-left transition-colors hover:border-[#dc4f33]/50 focus-visible:ring-2 focus-visible:ring-[#dc4f33]/40 focus-visible:ring-offset-1"
+      >
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#dc4f33] text-[10px] font-bold text-white" aria-hidden="true">✓</span>
+        <span className="shrink-0 text-[12.5px] font-semibold text-[#1e1813]">Full coverage map · {rows.length} requirements</span>
+        <span className="hidden min-w-0 flex-1 truncate text-[11.5px] text-[#a89e93] sm:inline">
+          {matched} matched · {missing} missing · how your score is computed
+        </span>
+        <span className="ml-auto flex shrink-0 items-center gap-1 text-[11.5px] text-[#8a8178]">
+          {open ? "hide" : "view detail"}
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-2 overflow-hidden rounded-xl border border-gray-100 bg-white pb-2 shadow-sm">
+          {groups.map((g) => section(g.label, g.cls, rows.filter((r) => r.strength === g.key)))}
+          {section("Other", "bg-gray-100 text-gray-500", other)}
+          {adviceRows && <div className="border-t border-gray-100">{adviceRows}</div>}
+        </div>
+      )}
     </div>
   )
 }
@@ -395,6 +499,41 @@ function FeedbackBar({ historyId }: { historyId: string }) {
   )
 }
 
+// "Upskill" was removed here: the per-run plan it wrote to tailor_history.upskill
+// fed nothing else in the product. It returns in Phase 4 reading from
+// career_roadmap_items, so closing a gap actually counts. See
+// docs/PROJECT.md and the Quick Wins plan.
+const tabs = [
+  "Tailored CV",
+  "Compare",
+  "Cover Letter",
+  "Interview Prep",
+  "Company",
+  "Key Changes",
+  "Gaps",
+  "Follow-ups",
+  "ATS Notes",
+] as const
+
+export type ResultTabName = (typeof tabs)[number]
+type TabName = ResultTabName
+
+/** Primary “job kit” — everything else lives under More. */
+const PRIMARY_TABS: TabName[] = ["Tailored CV", "Gaps", "Cover Letter", "Interview Prep"]
+const MORE_TABS: TabName[] = ["Compare", "Company", "Key Changes", "Follow-ups", "ATS Notes"]
+
+const TAB_ICONS: Record<TabName, LucideIcon> = {
+  "Tailored CV": FileText,
+  "Compare": GitCompare,
+  "Cover Letter": Mail,
+  "Interview Prep": MessagesSquare,
+  "Company": Building2,
+  "Key Changes": Pencil,
+  "Gaps": ListChecks,
+  "Follow-ups": MessagesSquare,
+  "ATS Notes": CheckCircle,
+}
+
 interface ResultsTabsProps {
   results: TailorResult
   coverLetter: string | null
@@ -420,36 +559,9 @@ interface ResultsTabsProps {
   onSaveCoverLetter?: (text: string) => Promise<void>
   /** Enhanced (gated) workspace styling */
   enhanced?: boolean
-}
-
-// "Upskill" was removed here: the per-run plan it wrote to tailor_history.upskill
-// fed nothing else in the product. It returns in Phase 4 reading from
-// career_roadmap_items, so closing a gap actually counts. See
-// docs/PROJECT.md and the Quick Wins plan.
-const tabs = [
-  "Tailored CV",
-  "Compare",
-  "Cover Letter",
-  "Interview Prep",
-  "Company",
-  "Key Changes",
-  "Gaps",
-  "Follow-ups",
-  "ATS Notes",
-] as const
-
-type TabName = (typeof tabs)[number]
-
-const TAB_ICONS: Record<TabName, LucideIcon> = {
-  "Tailored CV": FileText,
-  "Compare": GitCompare,
-  "Cover Letter": Mail,
-  "Interview Prep": MessagesSquare,
-  "Company": Building2,
-  "Key Changes": Pencil,
-  "Gaps": ListChecks,
-  "Follow-ups": MessagesSquare,
-  "ATS Notes": CheckCircle,
+  /** Controlled tab — when set, parent owns which tab is open. */
+  activeTab?: ResultTabName
+  onActiveTabChange?: (tab: ResultTabName) => void
 }
 
 export function ResultsTabs({
@@ -471,6 +583,8 @@ export function ResultsTabs({
   onSaveTailoredCV,
   onSaveCoverLetter,
   enhanced = false,
+  activeTab: controlledTab,
+  onActiveTabChange,
 }: ResultsTabsProps) {
   // Interview Prep only appears where a generator is wired up (the tailor page).
   // There, Follow-ups live inside the prep tab; in the read-only history view
@@ -482,8 +596,18 @@ export function ResultsTabs({
     if (t === "Company") return !!onGenerateCompany
     return true
   })
-  const [activeTab, setActiveTab] = useState<TabName>("Tailored CV")
+  const primaryTabs = PRIMARY_TABS.filter((t) => visibleTabs.includes(t))
+  const moreTabs = MORE_TABS.filter((t) => visibleTabs.includes(t))
+
+  const [internalTab, setInternalTab] = useState<TabName>("Tailored CV")
+  const activeTab = controlledTab ?? internalTab
+  const setActiveTab = (tab: TabName) => {
+    if (controlledTab === undefined) setInternalTab(tab)
+    onActiveTabChange?.(tab)
+  }
+
   const [copied, setCopied] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   // Hand-editing. One editor open at a time; the draft lives up here so
   // switching tabs mid-edit doesn't throw the user's work away.
   const [editing, setEditing] = useState<"cv" | "letter" | null>(null)
@@ -493,17 +617,58 @@ export function ResultsTabs({
   // tailor page and the history view can never disagree about it.
   const { template, setTemplate } = useCvTemplate()
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 })
-  const tabRefs = useRef<Map<TabName, HTMLButtonElement>>(new Map())
+  const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
+  const moreWrapRef = useRef<HTMLDivElement>(null)
+  const moreActive = moreTabs.includes(activeTab)
 
   useEffect(() => {
-    const activeButton = tabRefs.current.get(activeTab)
+    // When the parent opens a tab that isn't visible (e.g. Interview Prep on
+    // history), fall back to Tailored CV.
+    if (!visibleTabs.includes(activeTab) && visibleTabs[0]) {
+      setActiveTab(visibleTabs[0])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleTabs.join("|"), activeTab])
+
+  useEffect(() => {
+    const key = moreActive ? "__more__" : activeTab
+    const activeButton = tabRefs.current.get(key)
     if (activeButton) {
       setUnderlineStyle({
         left: activeButton.offsetLeft,
         width: activeButton.offsetWidth,
       })
     }
-  }, [activeTab])
+  }, [activeTab, moreActive, primaryTabs.length, moreTabs.length])
+
+  useEffect(() => {
+    if (!moreOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (!moreWrapRef.current?.contains(e.target as Node)) setMoreOpen(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    return () => document.removeEventListener("mousedown", onDoc)
+  }, [moreOpen])
+
+  // Evidence bank, fetched once and shared by the CV chips and the rail.
+  // Stays empty (and everything evidence-related stays hidden) for users
+  // outside the Career Arc beta or when the fetch fails.
+  const [evidenceBank, setEvidenceBank] = useState<EvidenceRow[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/career-evidence")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.evidence)) setEvidenceBank(data.evidence as EvidenceRow[])
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  const cvAnnotations = useMemo(
+    () => (evidenceBank.length > 0 ? annotateCvLines(results.tailoredCV, evidenceBank) : undefined),
+    [results.tailoredCV, evidenceBank],
+  )
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(results.tailoredCV)
@@ -523,14 +688,6 @@ export function ResultsTabs({
 
   const handleDownloadWord = () => downloadWordDoc(results.tailoredCV, "tailored-cv.doc", template)
 
-  // Gaps this run flagged, as concrete skills: prefer the JD's exact keywords,
-  // fall back to the requirement text. Feeds the quick-wins strip.
-  const weakSkills = Array.from(new Set(
-    (results.requirementsCoverage ?? [])
-      .filter((r) => r.strength === "partial" || r.strength === "none")
-      .flatMap((r) => (r.keywords && r.keywords.length ? r.keywords : [r.requirement]))
-      .map((s) => s.trim()).filter(Boolean)
-  )).slice(0, 6)
 
   const startEdit = (which: "cv" | "letter", text: string) => {
     // The draft survives tab switches, so the other tab's Edit button is still
@@ -572,10 +729,10 @@ export function ResultsTabs({
 
   return (
     <div className="animate-slide-up relative z-10 bg-white">
-      {/* Tab bar */}
+      {/* Tab bar — primary job kit + More */}
       <div className="relative border-b border-gray-100">
-        <div className="flex gap-1 flex-wrap">
-          {visibleTabs.map((tab) => {
+        <div className="flex gap-1 flex-wrap items-center">
+          {primaryTabs.map((tab) => {
             const Icon = TAB_ICONS[tab]
             return (
               <button
@@ -595,6 +752,59 @@ export function ResultsTabs({
               </button>
             )
           })}
+          {moreTabs.length > 0 && (
+            <div className="relative" ref={moreWrapRef}>
+              <button
+                ref={(el) => {
+                  if (el) tabRefs.current.set("__more__", el)
+                }}
+                type="button"
+                onClick={() => setMoreOpen((o) => !o)}
+                aria-expanded={moreOpen}
+                aria-haspopup="menu"
+                className={`inline-flex items-center gap-1 px-4 py-3 text-sm transition-colors duration-150 ${
+                  moreActive
+                    ? "text-[#1e1813] font-medium"
+                    : enhanced ? "text-gray-400 hover:text-[#dc4f33]" : "text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                More
+                {moreActive && (
+                  <span className="text-[11px] font-normal text-[#1e1813]/45">· {activeTab}</span>
+                )}
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${moreOpen ? "rotate-180" : ""}`} />
+              </button>
+              {moreOpen && (
+                <div
+                  role="menu"
+                  className="absolute left-0 top-full z-20 mt-1 min-w-[11rem] rounded-xl border border-[#eee6da] bg-white py-1 shadow-lg"
+                >
+                  {moreTabs.map((tab) => {
+                    const Icon = TAB_ICONS[tab]
+                    return (
+                      <button
+                        key={tab}
+                        role="menuitem"
+                        type="button"
+                        onClick={() => {
+                          setActiveTab(tab)
+                          setMoreOpen(false)
+                        }}
+                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors ${
+                          activeTab === tab
+                            ? "bg-[#fff7f4] font-medium text-[#1e1813]"
+                            : "text-[#1e1813]/70 hover:bg-[#f9f6f0]"
+                        }`}
+                      >
+                        <Icon className="h-3.5 w-3.5 text-[#dc4f33]" />
+                        {tab}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         {/* Animated underline */}
         <div
@@ -694,6 +904,7 @@ export function ResultsTabs({
         )}
 
         {activeTab === "Tailored CV" && (
+          <div className={evidenceBank.length > 0 && editing !== "cv" ? "grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start" : ""}>
           <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
             {editing === "cv" ? (
               <OutputEditor
@@ -722,7 +933,7 @@ export function ResultsTabs({
               </button>
             </div>
             <TemplatePicker value={template} onChange={setTemplate} />
-            <FormattedCV text={results.tailoredCV} template={template} />
+            <FormattedCV text={results.tailoredCV} template={template} annotations={cvAnnotations} />
             {results.tailoredCVOriginal && results.tailoredCVOriginal !== results.tailoredCV && (
               <p className="mt-4 inline-flex items-center gap-1.5 text-[11px] text-gray-400">
                 <Pencil className="w-3 h-3" />
@@ -753,6 +964,20 @@ export function ResultsTabs({
                 <FeedbackBar historyId={historyId} />
               </div>
             )}
+          </div>
+          {/* Screen 05's rail: the evidence behind this CV, beside it on wide
+              screens. Hidden while editing so the editor keeps full width. */}
+          {evidenceBank.length > 0 && editing !== "cv" && (results.requirementsCoverage ?? []).length > 0 && (
+            <aside className="hidden xl:block xl:sticky xl:top-4">
+              <EvidenceMatchPanel
+                requirements={results.requirementsCoverage ?? []}
+                jobTitle={results.jobTitle}
+                companyName={results.companyName}
+                evidence={evidenceBank}
+                compact
+              />
+            </aside>
+          )}
           </div>
         )}
 
@@ -845,67 +1070,20 @@ export function ResultsTabs({
 
         {activeTab === "Gaps" && (
           <div className="space-y-6">
-            {/* Requirements coverage — how the match score was computed */}
+            {/* Evidence traceability (Career Arc beta): which bank card backs
+                which requirement, plus named gaps. Renders nothing for users
+                without an evidence bank — purely additive to this tab. */}
             {(results.requirementsCoverage ?? []).length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <h3 className="text-xs font-semibold text-[#1e1813]">Requirements coverage</h3>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Your match score is computed from this mapping</p>
-                </div>
-                <ul className="divide-y divide-gray-50">
-                  {(results.requirementsCoverage ?? []).map((r, i) => {
-                    const cfg = {
-                      strong:       { label: "Strong",       cls: "bg-green-50 text-green-600" },
-                      transferable: { label: "Transferable", cls: "bg-[#ffeae4] text-[#dc4f33]" },
-                      partial:      { label: "Partial",      cls: "bg-amber-50 text-amber-600" },
-                      none:         { label: "Missing",      cls: "bg-red-50 text-red-500" },
-                    }[r.strength] ?? { label: r.strength, cls: "bg-gray-100 text-gray-500" }
-                    return (
-                      <li key={i} className="px-4 py-2.5 flex items-start gap-3">
-                        <span className={`flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 ${cfg.cls}`}>
-                          {cfg.label}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-sm text-[#1e1813] leading-snug">
-                            {r.requirement}
-                            {r.type === "must" && (
-                              <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide text-gray-400">must-have</span>
-                            )}
-                          </p>
-                          {r.evidence && (
-                            <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">↳ {r.evidence}</p>
-                          )}
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
+              <EvidenceMatchPanel
+                requirements={results.requirementsCoverage ?? []}
+                jobTitle={results.jobTitle}
+                companyName={results.companyName}
+              />
             )}
 
-            {/* Gap advice */}
-            <div className="space-y-3">
-              {(results.gaps ?? []).map((gap, i) => (
-                <div
-                  key={i}
-                  className="p-4 bg-gray-50 rounded-lg flex items-start gap-3"
-                >
-                  <AlertCircle className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                  <span className="text-sm text-gray-600">{gap}</span>
-                </div>
-              ))}
-            </div>
+            {/* Full coverage map + advice — one disclosure, closed by default */}
+            <CoverageMap rows={results.requirementsCoverage ?? []} advice={results.gaps ?? []} />
 
-            {/* Close these gaps — quick wins land on the career path, right at
-                the moment the gaps are freshest. Replaces the old Upskill tab,
-                whose plan lived on the run where nothing else could see it. */}
-            <div className="pt-2">
-              <UpskillStrip
-                historyId={historyId}
-                weakSkills={weakSkills}
-                jobTitle={results.jobTitle}
-              />
-            </div>
           </div>
         )}
 
