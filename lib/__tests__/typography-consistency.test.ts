@@ -37,6 +37,57 @@ const ALLOWLIST: Record<string, string> = {
     'Tabular numerals in chart tooltips so values do not jitter.',
   'components/auth/sign-in-modal.tsx:font-mono':
     'Six-digit one-time code — a machine token, letter-spaced for legibility.',
+  'components/career-arc/ledger-view.tsx:font-mono':
+    'Career Arc ledger chrome (approved Ledger × Tailr skin, 2 Aug): section ' +
+    'labels, source/category chips, the NOTHING INVENTED stamp, year markers. ' +
+    'Claims, summaries and all prose stay in the sans.',
+  'components/career-arc/share-modal.tsx:font-mono':
+    'Share modal chrome (screen 03 of the approved skin): group labels, ' +
+    'redaction segments, the share URL (machine data). Prose stays sans.',
+  'app/arc/[token]/page.tsx:font-mono':
+    'Public arc page chrome (screen 06 of the approved skin): the same ledger ' +
+    'labels/chips/stamp as the private page. Claims and prose stay sans.',
+  'components/career-arc/share-cards.tsx:font-mono':
+    'Share-card chrome (screen 04): eyebrow/name/chip/foot on the 1080px ' +
+    'cards and the hover download label — the same mono card language as the ' +
+    'approved mockups. Big statements stay in the sans.',
+  'components/career-arc/concepts/mission-control.tsx:font-mono':
+    'Concept preview (Mission Control): the whole direction IS a monospace ' +
+    'telemetry console — that is the design, and these pages are private ' +
+    'comparison previews, not product surfaces.',
+  'components/career-arc/concepts/metro-map.tsx:font-mono':
+    'Concept preview (Metro Map): transit-diagram year markers and eyebrow.',
+  'components/career-arc/concepts/one-sheet.tsx:font-mono':
+    'Concept preview (One-Sheet): poster credits/certificate chrome.',
+  'components/career-arc/concepts/ledger-sheet.tsx:font-mono':
+    'Concept preview (Ledger): audited-accounts table chrome and note labels.',
+  'app/career-arc/preview/[concept]/page.tsx:font-mono':
+    'Concept preview switcher chrome — nav labels for the four directions.',
+  'components/cv-tailor/results-tabs.tsx:font-mono':
+    'EV·NN evidence chips on tailored-CV bullets (screen 05) — machine ' +
+    'references into the evidence bank, same token as the sidebar chips. ' +
+    'The CV text itself stays in the template face.',
+  'components/career-arc/reveal-card.tsx:font-mono':
+    'Rebuilt reveal (Aug 3): slide eyebrows, the NOTHING INVENTED stamp and ' +
+    'the evidence source line — the same ledger chrome as the page the ' +
+    'reveal opens. Claims and prose stay in the sans.',
+  'components/career-arc/evidence-match-panel.tsx:font-mono':
+    'Tailor sidebar chrome (screen 05): panel labels and EV·NN chips — ' +
+    'machine references into the evidence bank. Requirements and gap prose ' +
+    'stay in the sans.',
+  'app/portal/layout.tsx:Geist_Mono':
+    'Client portal shell (same agencies design system): mono carries refs, ' +
+    'scores, must have counts and the viewer attribution line. Narratives, ' +
+    'quotes and all prose stay in the sans.',
+  'app/rights/layout.tsx:Geist_Mono':
+    'Candidate rights page (same agency design system): mono carries the ' +
+    'held since date, request kinds and status chips. All prose stays sans.',
+  'app/agencies/layout.tsx:Geist_Mono':
+    'Tailr for Agencies (approved handoff design, mono-heavy by intent): ' +
+    'loads the face for .ag-meta chrome — refs (ROL/CAN/R0N), counts, ' +
+    'states, scores. All prose and every recruiter-typed field, including ' +
+    'the JD paste box, stays in the sans; the handoff wanted the JD box in ' +
+    'mono and that deviation is deliberate, per the 27 Jul lesson.',
 }
 
 /** Source files we typeset; ignore build output and vendored code. */

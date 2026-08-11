@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google"
 import {
-  ArrowRight, Check, Sparkles, Target, Kanban, FileText,
+  ArrowRight, Check, Sparkles, Target, Kanban,
   MessageCircleQuestion, Building2, ShieldCheck, Zap, Clock,
-  Link2, Download, History,
+  Download, History,
 } from "lucide-react"
 import { CareerPathDemo } from "@/components/landing/career-path-demo"
+import { ScrollStory } from "@/components/landing/scroll-story"
 
 const hanken = Hanken_Grotesk({
   subsets: ["latin"],
@@ -293,56 +294,6 @@ function Stats() {
             <p className={`${jetbrains.className} mt-2 text-[11px] uppercase tracking-[0.14em] text-gray-500`}>{l}</p>
           </Reveal>
         ))}
-      </div>
-    </section>
-  )
-}
-
-// ── How it works ─────────────────────────────────────────────────────────
-
-function HowItWorks() {
-  const steps = [
-    {
-      n: "01", t: "Drop in your CV",
-      d: "Upload a PDF, DOCX or TXT — or paste it straight in. We remember it for next time.",
-      icon: <FileText className="w-5 h-5" />,
-    },
-    {
-      n: "02", t: "Paste the job",
-      d: "Drop any job posting URL and we fetch the description automatically.",
-      icon: <Link2 className="w-5 h-5" />,
-    },
-    {
-      n: "03", t: "Tailor & apply",
-      d: "A re-cut CV, evidence-based match score, interview prep and a tracked application — ready to send.",
-      icon: <Sparkles className="w-5 h-5" />,
-    },
-  ]
-  return (
-    <section id="how-it-works" className="py-24 px-5">
-      <div className="max-w-6xl mx-auto">
-        <Reveal className="text-center max-w-2xl mx-auto">
-          <p className={`${jetbrains.className} text-[12px] font-medium uppercase tracking-[0.16em]`} style={{ color: ACCENT }}>How it works</p>
-          <h2 className="mt-4 text-[clamp(30px,4.5vw,44px)] font-extrabold tracking-[-0.025em] leading-tight text-[#1e1813]">
-            Three steps from generic to get-the-call
-          </h2>
-        </Reveal>
-        <div className="mt-14 grid grid-cols-1 md:grid-cols-3 gap-6">
-          {steps.map((s, i) => (
-            <Reveal key={s.n} delay={i * 100}>
-              <div className="h-full rounded-2xl border border-gray-100 bg-white p-7 hover:shadow-[0_12px_32px_rgba(30,24,19,0.06)] hover:border-gray-200 transition-all duration-200">
-                <div className="flex items-center justify-between">
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "#fff7f4", color: ACCENT }}>
-                    {s.icon}
-                  </div>
-                  <span className="text-4xl font-extrabold text-gray-100">{s.n}</span>
-                </div>
-                <h3 className="mt-5 text-lg font-bold text-[#1e1813]">{s.t}</h3>
-                <p className="mt-2 text-[15px] text-gray-500 leading-relaxed">{s.d}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
       </div>
     </section>
   )
@@ -700,7 +651,7 @@ export default function LandingPage() {
       <main>
         <Hero />
         <Stats />
-        <HowItWorks />
+        <ScrollStory />
         <Modules />
         <CareerPathSection />
         <Benefits />

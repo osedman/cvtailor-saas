@@ -64,6 +64,21 @@ North Star in one cut, backfill at cutover.
 
 ---
 
+## 🚢 PORT: Gaps tab restructure, scroll-story landing, evidence sidebar (11 Aug 2026)
+
+Consumer cut from staging, tested there by Ose same day. Carries: the pinned
+scroll-story landing section (replaces How it works), the condensed tailor
+results view + persistent "Back to results" summary bar, the collapsible Gaps
+tab (Evidence Matched panel, one-line named-gap rows with optimistic Add to
+path, Full coverage map disclosure absorbing the old coverage card + gap
+advice), removal of the Close these gaps strip, and the prerequisite evidence
+sidebar layer (evidence-match-panel, career-arc-ledger, career-arc-tailor-match,
+/api/career-evidence with maxDuration + RLS-backed table).
+**Requires migration 019_career_evidence.sql in the PRODUCTION Supabase SQL
+Editor BEFORE merge** (idempotent, RLS with all four per-user policies).
+No new env vars. Agency code excluded. Watch after ship: hero CTA clickthrough
+and tailor-start rate.
+
 ## ✅ Shipped
 
 | Item | Type | PR | Notes |

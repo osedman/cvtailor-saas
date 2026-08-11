@@ -865,3 +865,29 @@ export const CAREER_PROFILE_TOOL: Anthropic.Tool = {
     required: ["identity", "stats", "achievements", "timeline", "organisations", "skills", "growth", "chapters", "story", "projects", "qualities"],
   },
 }
+
+// ── Career evidence (ported with the evidence sidebar, 11 Aug 2026) ─────
+export const CAREER_EVIDENCE_CATEGORIES = ['quant', 'scope', 'leadership', 'systems', 'craft'] as const
+export type CareerEvidenceCategory = (typeof CAREER_EVIDENCE_CATEGORIES)[number]
+
+export interface CareerEvidenceCard {
+  category: CareerEvidenceCategory
+  claim: string
+  sourceRole: string
+  sourceCompany: string
+  sourceSpan: string
+  cvLine: number | null
+}
+
+
+export const CAREER_REPHRASE_TOOL: Anthropic.Tool = {
+  name: "submit_rephrase",
+  description: "Submit one alternative wording of a career evidence claim. The rewording must keep every fact, figure, name, and date from the original claim and add nothing new — this is a wording change only, never a content change.",
+  input_schema: {
+    type: "object",
+    properties: {
+      claim: { type: "string", description: "The rephrased claim: sentence case, 8-30 words, same facts and figures as the original, different phrasing. Never introduce a number, name, or outcome that is not in the original claim." },
+    },
+    required: ["claim"],
+  },
+}
