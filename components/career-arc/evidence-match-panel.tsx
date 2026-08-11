@@ -164,7 +164,7 @@ export function EvidenceMatchPanel({
         <button
           onClick={() => setPanelOpen(false)}
           aria-expanded={true}
-          className={`block w-full border-b px-5 py-4 text-left ${FOCUS_RING}`}
+          className={`block w-full px-5 py-4 text-left ${summary.gaps.length > 0 ? "border-b" : ""} ${FOCUS_RING}`}
           style={{ borderColor: SAND_LT }}
         >
           <div className="flex items-start justify-between gap-3">
