@@ -27,7 +27,7 @@ Requested in the 27 Jul sync: every feature, one line, where it actually is.
 | CV templates ×6 + live preview | Staging | Done, needs migration 015 at port | ✅ demoed well | **Port to prod** |
 | Quick Wins (Upskill merged, evidence gate, promotion/expiry) | Staging | Done, needs migration 016 **before** code | Not yet | **Port to prod** |
 | North Star career path (journey, readiness, forecast) | Staging | Done | 🔶 demoed 27 Jul, real E2E still owed | Refine per sync feedback |
-| Live job market (Reed.co.uk, flagged off) | Staging | Built (`0cd9f67` swapped Adzuna→Reed 28 Jul) | ❌ needs REED_API_KEY (free, instant at reed.co.uk/developers) + MARKET_INSIGHTS_ENABLED=1 in Vercel | **Ose: register + set env vars** |
+| Live job market (Reed.co.uk, flagged off) | Staging | Built (`0cd9f67` swapped Adzuna→Reed 28 Jul) | Prod env vars set (verified 11 Aug); NOT scoped to Preview, so staging market stays dark | Scope REED_API_KEY to Preview if staging needs it |
 | Pace forecast + weekly digest | Staging | Done | Not yet | Port with career path |
 | Career Arc | Staging | Done | Not yet | Hold — not in sync priorities |
 | Font/design-system consistency | Staging (this commit) | **Fixed + guardrail test** | Pending Oje re-check | Verify on staging |
@@ -56,6 +56,16 @@ icons. Verified locally beat-by-beat at 1280px + mobile 375px (no console
 errors, no horizontal overflow). Figma skipped — Ose said ship straight to
 staging from the approved artifact prototype. Watch after ship: hero CTA
 clickthrough + tailor-start rate.
+
+### Prod port cut: PR #61 (11 Aug 2026)
+
+Consumer port branch `port/consumer-gaps-scroll-story` opened as PR #61 after
+Ose's staging pass: scroll-story landing, condensed results view + persistent
+summary bar, collapsible Gaps tab + optimistic Add to path, strip removal,
+plus the prerequisite evidence sidebar layer (panel, ledger, career-evidence
+lib/route, tailor-match, tests, two exports appended to lib/anthropic).
+Build + 244 tests green on the branch. **Merge gate: Ose runs
+019_career_evidence.sql in PRODUCTION Supabase first, then merges.**
 
 ### Gaps tab restructure + persistent tailor summary bar (11 Aug 2026) — on staging
 
@@ -126,7 +136,7 @@ North Star in one cut, backfill at cutover.
 | Item | Type | PR | Notes |
 |------|------|----|-------|
 | **Beta gate moved to the DB (`beta_access`, migration 017)** | Feature | — | Shipped 28 Jul (`94f1077`). Adding a tester is an INSERT, not a redeploy. Ose, Oje and Daniel inserted in BOTH prod and staging; admins always pass; `BETA_EMAILS` survives as an emergency override. 9 unit tests pin the decisions incl. DB-failure fallback. `isMarketEnabled()` now needs only `REED_API_KEY` |
-| **Career-path era → production (private beta)** | Feature | [#30](https://github.com/osedman/cvtailor-saas/pull/30) | Shipped 28 Jul (`04f3f12`), endpoints verified live. Gated by `BETA_EMAILS` (Ose, Oje, Daniel): North Star path, quick wins, Reed market, evidence, Career Arc. Ungated for all: 6 CV templates as real .docx, inline editing, font fixes. Prod DB migrated 012–016 (016 backfill verified). Open: prod env vars (BETA_EMAILS, REED_API_KEY, MARKET_INSIGHTS_ENABLED) + close PRs #6/#19 |
+| **Career-path era → production (private beta)** | Feature | [#30](https://github.com/osedman/cvtailor-saas/pull/30) | Shipped 28 Jul (`04f3f12`), endpoints verified live. Gated by `BETA_EMAILS` (Ose, Oje, Daniel): North Star path, quick wins, Reed market, evidence, Career Arc. Ungated for all: 6 CV templates as real .docx, inline editing, font fixes. Prod DB migrated 012–016 (016 backfill verified). Env vars: REED_API_KEY + MARKET_INSIGHTS_ENABLED confirmed Production-scoped in Vercel (verified 11 Aug); BETA_EMAILS unneeded since the DB beta gate (017) |
 | Custom domain gettailr.com | Chore | [#1](https://github.com/osedman/cvtailor-saas/pull/1) | Brand URLs moved to gettailr.com |
 | First-run onboarding (welcome modal + checklist) | Feature | [#2](https://github.com/osedman/cvtailor-saas/pull/2) | Gated to admin, then rolled out |
 | Stateless magic-link sign-in (`/auth/confirm`) | Feature | [#3](https://github.com/osedman/cvtailor-saas/pull/3) | token_hash flow; fixes "request the link again" |
