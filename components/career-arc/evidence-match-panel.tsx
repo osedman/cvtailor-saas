@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { ChevronDown, Loader2 } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import type { RequirementMapping } from "@/lib/anthropic"
 import type { EvidenceRow } from "@/lib/career-arc-ledger"
 import { matchEvidenceToRequirements, type NamedGap } from "@/lib/career-arc-tailor-match"
@@ -26,7 +26,7 @@ const SAND = "#e0d6c9"
 const SAND_LT = "#ece2d6"
 const FOCUS_RING = "focus-visible:ring-2 focus-visible:ring-[#dc4f33]/40 focus-visible:ring-offset-1"
 
-function GapRow({ gap, onAdd, busy, added }: { gap: NamedGap; onAdd: () => void; busy: boolean; added: boolean }) {
+function GapRow({ gap, onAdd, added }: { gap: NamedGap; onAdd: () => void; added: boolean }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border bg-white px-3.5 py-2.5" style={{ borderColor: SAND_LT }}>
       <p className="min-w-0 flex-1 text-[13px] font-bold leading-snug" style={{ color: INK }}>
@@ -35,11 +35,11 @@ function GapRow({ gap, onAdd, busy, added }: { gap: NamedGap; onAdd: () => void;
       </p>
       <button
         onClick={onAdd}
-        disabled={busy || added}
+        disabled={added}
         className={`shrink-0 rounded-lg border bg-[#f9f6f0] px-3 py-1.5 text-[12px] font-semibold transition-colors hover:border-[#dc4f33] hover:text-[#dc4f33] disabled:opacity-60 ${FOCUS_RING}`}
         style={{ borderColor: SAND, color: added ? "#8a8178" : INK }}
       >
-        {added ? "On your path ✓" : busy ? <span className="inline-flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" />Adding…</span> : "Add to path →"}
+        {added ? "On your path ✓" : "Add to path →"}
       </button>
     </div>
   )
@@ -67,7 +67,6 @@ export function EvidenceMatchPanel({
   compact?: boolean
 }) {
   const [evidence, setEvidence] = useState<EvidenceRow[] | null>(providedEvidence ?? null)
-  const [addingSkill, setAddingSkill] = useState<string | null>(null)
   const [added, setAdded] = useState<Set<string>>(new Set())
   /** Whole-panel collapse (Gaps tab only) — open on fresh results. */
   const [panelOpen, setPanelOpen] = useState(true)
@@ -98,26 +97,24 @@ export function EvidenceMatchPanel({
   if (!summary || summary.total === 0) return null
 
   const addToPath = async (gap: NamedGap) => {
-    setAddingSkill(gap.skill)
+    // Optimistic, like the screening controls: the row flips on click and the
+    // save happens behind it; roll back and say so if the save fails.
+    setAdded((s) => new Set(s).add(gap.skill))
+    toast.success(`"${gap.skill}" added to your career path.`)
     try {
       const res = await fetch("/api/career-path", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "add-skill", skill: gap.skill, origin: "jd" }),
       })
-      const data = await res.json().catch(() => ({}))
-      if (res.status === 409) {
-        setAdded((s) => new Set(s).add(gap.skill))
-        toast.info("Already on your career path.")
-        return
+      if (res.status === 409) return // already on the path; the row is right
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || `Server error ${res.status}`)
       }
-      if (!res.ok) throw new Error(data?.error || `Server error ${res.status}`)
-      setAdded((s) => new Set(s).add(gap.skill))
-      toast.success(`"${gap.skill}" added to your career path.`)
     } catch (err) {
+      setAdded((s) => { const next = new Set(s); next.delete(gap.skill); return next })
       toast.error(err instanceof Error ? err.message : "Couldn't add that skill — try again.")
-    } finally {
-      setAddingSkill(null)
     }
   }
 
@@ -219,7 +216,6 @@ export function EvidenceMatchPanel({
                   <GapRow
                     key={i}
                     gap={gap}
-                    busy={addingSkill === gap.skill}
                     added={added.has(gap.skill)}
                     onAdd={() => addToPath(gap)}
                   />

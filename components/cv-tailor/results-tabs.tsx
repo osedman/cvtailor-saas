@@ -12,7 +12,6 @@ import { downloadWordDoc } from "@/lib/word"
 import { getTemplate, px, TEMPLATE_LIST, type CvTemplateId } from "@/lib/cv-templates"
 import { isStackedCompanyLine, isStackedRoleTitleLine, isStackedDateLine } from "@/lib/cv-lines"
 import { useCvTemplate } from "@/hooks/use-cv-template"
-import { UpskillStrip } from "@/components/upskill"
 import { InterviewPrep } from "./interview-prep"
 import { InterviewPitches } from "./interview-pitches"
 
@@ -689,14 +688,6 @@ export function ResultsTabs({
 
   const handleDownloadWord = () => downloadWordDoc(results.tailoredCV, "tailored-cv.doc", template)
 
-  // Gaps this run flagged, as concrete skills: prefer the JD's exact keywords,
-  // fall back to the requirement text. Feeds the quick-wins strip.
-  const weakSkills = Array.from(new Set(
-    (results.requirementsCoverage ?? [])
-      .filter((r) => r.strength === "partial" || r.strength === "none")
-      .flatMap((r) => (r.keywords && r.keywords.length ? r.keywords : [r.requirement]))
-      .map((s) => s.trim()).filter(Boolean)
-  )).slice(0, 6)
 
   const startEdit = (which: "cv" | "letter", text: string) => {
     // The draft survives tab switches, so the other tab's Edit button is still
@@ -1093,17 +1084,6 @@ export function ResultsTabs({
             {/* Full coverage map + advice — one disclosure, closed by default */}
             <CoverageMap rows={results.requirementsCoverage ?? []} advice={results.gaps ?? []} />
 
-            {/* Close these gaps — quick wins land on the career path, right at
-                the moment the gaps are freshest. Replaces the old Upskill tab,
-                whose plan lived on the run where nothing else could see it. */}
-            <div className="pt-2">
-              <UpskillStrip
-                historyId={historyId}
-                weakSkills={weakSkills}
-                jobTitle={results.jobTitle}
-                condensed={evidenceBank.length > 0 && (results.requirementsCoverage ?? []).length > 0}
-              />
-            </div>
           </div>
         )}
 

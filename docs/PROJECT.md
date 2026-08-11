@@ -75,13 +75,16 @@ results". Files: `evidence-match-panel.tsx`, `results-tabs.tsx`,
 `app/tailor/page.tsx`.
 
 Follow-up (same day): Ose flagged "Close these gaps" duplicated the named
-gaps. They are different features — named gap rows bookmark a missing
-requirement onto the career path; the strip generates a full quick-wins plan
-(free resources + project + CV line) for the run's weak skills including
-partials. Kept both, removed the visual duplicate: when the evidence panel is
-on screen the strip renders `condensed` (one row, no explainer card, no pill
-list repeating the gaps; button reads "Build the plan"). Bankless users keep
-the full pills version, which is their only gaps view.
+gaps. First pass condensed the strip to one row (`5657155`); Ose then called
+it: **remove the strip from the Gaps tab entirely**. The named gap rows are
+now the single add-to-path action there. `UpskillStrip` stays exported in
+`components/upskill.tsx` but is currently unused (the career path page uses
+`UpskillSection` from the same file) — decide later whether the
+plan-generation strip returns somewhere else or gets deleted. Consequence
+worth knowing: beta users with no evidence bank see no gap actions on the
+Gaps tab now (the panel needs bank rows to render). Also made "Add to path"
+optimistic like the 7 Aug screening-controls fix — the row flips to "On your
+path" on click and rolls back with an error toast if the save fails.
 
 ### Admin product health (6 Aug 2026) — in progress on `feat/admin-product-health`
 
