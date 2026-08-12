@@ -252,15 +252,6 @@ function Hero() {
               Tailor my CV — free
               <ArrowRight className="w-4 h-4" />
             </Link>
-            {/* The walkthrough is a full page, not the scroll section below:
-                it exists for people who want the whole thing before signing
-                up, which is exactly who never came back last time. */}
-            <Link
-              href="/walkthrough"
-              className="inline-flex items-center gap-2 px-7 py-3.5 text-[15px] font-semibold text-[#1e1813] rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all"
-            >
-              See how it works
-            </Link>
           </div>
         </Reveal>
         <Reveal delay={300}>

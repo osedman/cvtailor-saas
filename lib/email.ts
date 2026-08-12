@@ -88,7 +88,6 @@ export function welcomeEmailHtml(): string {
  * prose. Never Ose's first person.
  */
 export function winBackEmailHtml(
-  walkthroughUrl = marketingPath("/walkthrough"),
   heroUrl = marketingPath("/email/match-preview.png"),
 ): string {
   const tailorUrl = appPath("/tailor")
@@ -103,7 +102,6 @@ export function winBackEmailHtml(
 <p style="font-size:13px;line-height:1.5;color:#8a8178;margin:0 0 24px;">A real run. Every requirement mapped to the evidence behind it, and the one gap named rather than papered over.</p>
 <p style="font-size:16px;line-height:1.6;color:#595959;margin:0 0 20px;">You signed up but have not tailored a CV yet. It takes about 30 seconds: paste the job, add your CV once, and get the version written for that role, with a score you can argue with.</p>
 <div style="text-align:center;margin:26px 0 14px;"><a href="${tailorUrl}" style="display:inline-block;background:#dc4f33;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:13px 30px;border-radius:10px;">Tailor your first CV &rarr;</a></div>
-<p style="text-align:center;margin:0 0 26px;"><a href="${walkthroughUrl}" style="color:#dc4f33;text-decoration:none;font-size:14px;font-weight:600;">See how it works first &rarr;</a></p>
 <p style="font-size:15px;line-height:1.6;color:#595959;margin:0 0 20px;">Nothing gets invented, by the way. Tailr reframes what you have actually done, and where the evidence is not there it says so, rather than writing a claim you would have to defend in the interview.</p>
 <p style="font-size:15px;line-height:1.6;color:#595959;margin:0 0 24px;">Free while we are in beta. If something stopped you last time, reply and tell us what it was. We read every one.</p>
 <p style="font-size:15px;color:#1e1813;margin:0;">&mdash; The Tailr team</p>
