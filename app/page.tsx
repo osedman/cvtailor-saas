@@ -9,7 +9,7 @@ import {
   Download, History,
 } from "lucide-react"
 import { CareerPathDemo } from "@/components/landing/career-path-demo"
-import { ScrollStory } from "@/components/landing/scroll-story"
+import { HowItWorks } from "@/components/landing/how-it-works"
 
 const hanken = Hanken_Grotesk({
   subsets: ["latin"],
@@ -651,7 +651,7 @@ export default function LandingPage() {
       <main>
         <Hero />
         <Stats />
-        <ScrollStory />
+        <HowItWorks />
         <Modules />
         <CareerPathSection />
         <Benefits />
