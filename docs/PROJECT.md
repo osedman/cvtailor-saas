@@ -840,3 +840,39 @@ a stronger signal, and safe because it only gates an offer.
 cutover) before this code.
 
 _Last updated: 27 July 2026_
+
+---
+
+## 🧹 Landing page: "How Tailr works" removed entirely (12 Aug 2026)
+
+**What changed.** The scroll-pinned 3D card scene is gone, and so is the section
+it belonged to. The landing page now runs Hero → Stats → Features.
+
+Removed in four steps, because the ask sharpened as it went:
+1. `scroll-story.tsx` → `how-it-works.tsx`: the animation deleted, the static
+   four-step layout (already shipped to mobile + `prefers-reduced-motion`)
+   promoted to everyone. 539 lines → 149.
+2. Ose clarified: remove it **completely**, not just de-animate it. Section and
+   component deleted.
+3. Header and footer nav links removed (they had briefly been repointed at
+   `/walkthrough` to avoid dead anchors).
+4. `/walkthrough` itself deleted, with the hero's "See how it works" secondary
+   CTA and the win-back email's "See how it works first" line.
+
+**The redirect, and why.** `next.config.js` now permanently redirects
+`/walkthrough → /`. Win-back emails already sitting in real inboxes link to that
+URL and cannot be edited after sending; without the redirect every one of those
+clicks would 404. The page is deleted either way — the redirect only decides
+where an old email lands.
+
+**Gotcha worth remembering:** the redirect had to go in `next.config.js`, NOT
+`next.config.mjs`. Both files exist and **Next loads the `.js`** (that file's own
+header comment says so). The first attempt put it in the `.mjs` and
+`/walkthrough` kept returning 404 — caught only because the *behaviour* was
+checked, not the diff. Verified after: 308 → `/` → 200.
+
+**Also of note:** `winBackEmailHtml()` lost its now-unused `walkthroughUrl`
+first parameter. Nothing calls it positionally (checked), so no silent argument
+shift.
+
+_Last updated: 12 August 2026_
