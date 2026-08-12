@@ -830,6 +830,71 @@ Decided, all four on the recommended option:
    routes. Rejected: separate deployment (doubles env-var management, which
    has burned this project before).
 
+### 5.5 Interview-loop DDL (decided 13 Aug 2026, workshop with Ose)
+
+Scope: invites + the interview loop (briefs → availability → rounds →
+artifacts → decisions → references → handover). **Job board + applicant pool
+DDL is explicitly NOT here** — it touches the consumer schema and Art 13
+flows and gets its own workshop. No migration applied yet; files to be
+written from this section.
+
+Pattern for every new table: `agency` schema · RLS enabled · recruiter
+member READS via `member_agency_ids()` · writes service-role-only with the
+audit row in the same operation (AUDIT LOGGED pill) · HMs zero policies
+(§5.4).
+
+The set:
+
+1. **`client_invites`** — agency_id · contact_id (cascade) · token_hash
+   unique (raw once) · invited_by (set null) · expires_at · accepted_at /
+   accepted_by · revoked_at. Accept binds `client_contacts.user_id`. Plus
+   the §5.4 linkage ALTER itself (nullable user_id + partial index).
+2. **`role_briefs`** — **pre-role object, recruiter converts** (decided):
+   status submitted/accepted/declined; accepting mints the job_role (ROL ref
+   then, not before) and stamps nullable role_id (set null). contact_id
+   restrict. Declining a brief is allowed and audited — no-auto-rejection
+   protects candidates, not briefs.
+3. **`availability_slots`** — contact_id · optional role_id · starts_at /
+   ends_at · revoked_at. Booked is NOT a status column: a slot is booked iff
+   a round references it (unique index on `interview_rounds.slot_id`).
+4. **`interview_rounds`** — candidate_id **cascade** (a round is candidate
+   PII; purge takes it) · unique(role_id, candidate_id, round_number) ·
+   contact_id restrict · slot_id · meeting_url · status
+   scheduled/completed/cancelled · DPIA columns: capture_consent_status
+   (pending/granted/declined/withdrawn), capture_consent_at,
+   consent_token_hash unique — consent is per-round, from the candidate,
+   with its own token trail, never an HM assertion.
+5. **`round_artifacts`** — round_id unique cascade · kind
+   **transcript/debrief** (declined consent is a kind, not a missing row, so
+   no-artifact-no-progression stays enforceable) · **content jsonb in
+   Postgres** (decided: ~50KB/45min; purge = row cascade, atomic) ·
+   recording_path (Storage) · verified_at · recording_deleted_at ·
+   engine_version. Cron sweep deletes recordings where verified and not yet
+   deleted. **`purge_candidate()` must be extended to return recording
+   paths** alongside CV paths.
+6. **Transcript evidence: NO new table** — widen `evidence.origin` check
+   with an interview value + nullable round_id (cascade).
+   `evidence_quote_iff_present` polices transcript claims for free.
+7. **`round_decisions`** — **append-only** (decided): reversal inserts a new
+   row, latest wins; the table is its own history, matching
+   review_overrides' ethos. decision advance/hold/decline · contact_id
+   restrict · decided_by set null · candidate_ref denorm survives purge.
+   No value here ever touches candidate visibility.
+8. **`candidate_references`** — candidate_id cascade + candidate_ref denorm ·
+   referee name/email/relationship · request_token_hash · **notice_sent_at**
+   (referees are data subjects; the fair-processing notice is a column) ·
+   status drafted/requested/received/chasing/declined · content jsonb,
+   attributed verbatim.
+9. **`handover_packs`** — submission discipline: immutable snapshot jsonb,
+   engine_version, generated_by, **delivered in-app to the contact only**
+   (decided; tokened HR recipients buildable later without rework) ·
+   delivered_to_contact_id restrict · candidate_ref denorm + candidate_id
+   set null. Generation refuses on stale inputs_hash.
+
+Reused, not rebuilt: notice machinery (candidate + referee notices via
+gettailr.com/Resend), cron route (gains recording sweep + slot expiry),
+retention (role close → purge cascades rounds → artifacts → references).
+
 ## 6. Note on the UI phase
 
 Per the project's standing rule, the UI work in build steps 2–7 goes through
