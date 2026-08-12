@@ -9,7 +9,6 @@ import {
   Download, History,
 } from "lucide-react"
 import { CareerPathDemo } from "@/components/landing/career-path-demo"
-import { ScrollStory } from "@/components/landing/scroll-story"
 
 const hanken = Hanken_Grotesk({
   subsets: ["latin"],
@@ -96,7 +95,7 @@ function Nav() {
       <div className="max-w-6xl mx-auto px-5 h-16 flex items-center gap-8">
         <a href="#top"><Wordmark /></a>
         <nav className="hidden md:flex items-center gap-7">
-          {[["How it works", "#how-it-works"], ["Features", "#features"], ["Beta", "#beta"]].map(([l, h]) => (
+          {[["Features", "#features"], ["Beta", "#beta"]].map(([l, h]) => (
             <a key={l} href={h} className="text-[14.5px] font-medium text-gray-500 hover:text-[#1e1813] transition-colors">{l}</a>
           ))}
         </nav>
@@ -252,15 +251,6 @@ function Hero() {
             >
               Tailor my CV — free
               <ArrowRight className="w-4 h-4" />
-            </Link>
-            {/* The walkthrough is a full page, not the scroll section below:
-                it exists for people who want the whole thing before signing
-                up, which is exactly who never came back last time. */}
-            <Link
-              href="/walkthrough"
-              className="inline-flex items-center gap-2 px-7 py-3.5 text-[15px] font-semibold text-[#1e1813] rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all"
-            >
-              See how it works
             </Link>
           </div>
         </Reveal>
@@ -564,7 +554,7 @@ function Beta() {
 
 function Footer() {
   const cols: [string, [string, string][]][] = [
-    ["Product", [["How it works", "#how-it-works"], ["Features", "#features"], ["Beta", "#beta"]]],
+    ["Product", [["Features", "#features"], ["Beta", "#beta"]]],
     ["Company", [["About", "#"], ["Blog", "#"], ["Contact", "#"]]],
     ["Legal", [["Privacy", "/privacy"], ["Terms", "#"], ["Data & security", "/privacy#security"]]],
   ]
@@ -651,7 +641,6 @@ export default function LandingPage() {
       <main>
         <Hero />
         <Stats />
-        <ScrollStory />
         <Modules />
         <CareerPathSection />
         <Benefits />

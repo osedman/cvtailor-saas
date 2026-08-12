@@ -13,6 +13,14 @@ const nextConfig = {
   turbopack: {
     root: __dirname,
   },
+  async redirects() {
+    return [
+      // /walkthrough was deleted on 12 Aug 2026. Win-back emails already in
+      // people's inboxes link to it and cannot be edited after sending, so
+      // without this every one of those clicks would 404.
+      { source: '/walkthrough', destination: '/', permanent: true },
+    ]
+  },
 }
 
 module.exports = nextConfig
