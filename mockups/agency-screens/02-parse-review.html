@@ -1,0 +1,803 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tailr for Agencies — 02 · Parse review</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Geist+Mono:wght@400;500;600&family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>.ag-app{--font-ag-sans:'Geist';--font-ag-mono:'Geist Mono';--font-ag-display:'Fraunces';}</style>
+<style>/* Tailr for Agencies — ported from the design handoff's styles.css (brand
+ * v1.0 tokens). Scoped under .ag-app; nothing here leaks into consumer
+ * surfaces. Mono is chrome and machine data only (ids, counts, states);
+ * all prose and all recruiter-typed text is the sans — see the typography
+ * guardrail allowlist for the written reason. */
+
+.ag-app {
+  /* ---- ink ramp -------------------------------------------------------
+   * Measured, not eyeballed. Every tone used for TEXT clears WCAG AA (4.5:1)
+   * on the darkest ground it can land on, which is --ag-bg-2. The old ink-3
+   * sat at 4.09:1 there and the old ink-4 at 2.18:1 while carrying 10px meta
+   * text all over the product — that was the single worst defect in the UI.
+   *
+   * A four-tone TEXT ramp cannot survive that rule: ink-3 and ink-4 both
+   * converge on ~#70685c once each has to clear AA. So there are three text
+   * tones now, and ink-4 is demoted to non-text only (icon strokes, dividers,
+   * disabled fills) where 3:1 applies. Hierarchy comes from size, weight and
+   * position instead of from making words too faint to read. */
+  --ag-ink: #1e1813;      /* 14.8:1 on cream — headings, values */
+  --ag-ink-2: #4e463d;    /*  8.4:1 — body prose */
+  --ag-ink-3: #6f675b;    /*  4.9:1 — captions, meta, the quietest TEXT */
+  --ag-ink-4: #a9a296;    /*  NOT for text: icon strokes, rules, disabled */
+
+  --ag-paper: #fffdfa;
+  --ag-cream: #f9f6f0;
+  --ag-bg-2: #f2eee2;
+
+  /* Coral stays the brand mark. A darkened cut is used where coral has to
+   * BE the text, because #dc4f33 is 3.5:1 on bg-2 and fails as small type. */
+  --ag-coral: #dc4f33;
+  --ag-coral-text: #c6391d;
+  --ag-coral-deep: #b3341b;
+  --ag-tint-1: #fff7f4;
+  --ag-tint-2: #f5d9d0;
+  --ag-border: #eee6da;
+  --ag-line-2: #ded4c1;
+  --ag-warn: #a5560b;       /* amber as text, 4.6:1 */
+  --ag-warn-mark: #c97a2f;  /* amber as a dot or bar, where contrast is not the job */
+
+  /* ---- type scale -----------------------------------------------------
+   * Seven steps. The stylesheet had twenty-two sizes, which is not a scale,
+   * it is an accumulation: anything that asked for 12.75px was guessing. */
+  --t-micro: 10px;    /* mono labels, refs, weights */
+  --t-caption: 11px;  /* caption under a value */
+  --t-small: 12.5px;  /* dense rows, secondary prose */
+  --t-body: 13.5px;   /* default reading size */
+  --t-lead: 15px;     /* card titles, candidate names */
+  --t-title: 20px;    /* section heads */
+  --t-display: 30px;  /* one per screen, never larger */
+
+  /* Tracking is only ever doing work in two places: pulling display type
+   * together, and opening up uppercase mono labels. Body text is left alone. */
+  --track-tight: -0.015em;
+  --track-label: 0.08em;
+
+  /* Radius. Pills are reserved for status; controls are not pills. */
+  --r-xs: 3px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-pill: 999px;
+
+  --ag-sans: var(--font-ag-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --ag-mono: var(--font-ag-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  /* Display face for headlines only (Ose, 7 Aug: specimen E). Prose, controls
+   * and chrome stay on the sans; ids and machine data stay on the mono. */
+  --ag-display: var(--font-ag-display), Georgia, "Times New Roman", serif;
+
+  display: flex;
+  min-height: 100vh;
+  background: var(--ag-cream);
+  color: var(--ag-ink);
+  font-family: var(--ag-sans);
+  font-size: var(--t-body);
+  line-height: 1.55;
+  font-feature-settings: "ss01", "ss03", "tnum";
+}
+
+/* One label style, not six. Every uppercase mono label in the product —
+ * eyebrows, field labels, section heads, table headers — is this. */
+/* Two label registers, and only two.
+ *
+ * .ag-meta is quiet supporting text — refs, timestamps, a job title, a count.
+ * It is mono because it sits beside data, but it is NOT uppercase: it was,
+ * and the result was thirteen shouting strings on one screen, including
+ * candidates' own job titles. Sentence case reads faster and sounds human.
+ *
+ * .ag-field-label is a true section label — the thing above a group. Small,
+ * uppercase, tracked, and used sparingly enough to still mean something. */
+.ag-app .ag-field-label,
+.ag-app .ag-rail-label,
+.ag-app .agd-aside {
+  font-family: var(--ag-mono);
+  font-size: var(--t-micro);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+/* ---------- chrome ---------- */
+.ag-sidebar { width: 232px; flex: none; border-right: 1px solid var(--ag-border); padding: 24px 16px; display: flex; flex-direction: column; gap: 24px; }
+.ag-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; }
+.ag-brand-mark { width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--ag-ink); color: var(--ag-paper); display: flex; align-items: center; justify-content: center; font-weight: 800; }
+.ag-brand-name { font-weight: 700; font-size: var(--t-lead); line-height: 1.1; }
+.ag-brand-sub { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); color: var(--ag-ink-3); text-transform: uppercase; }
+.ag-eyebrow { font-size: var(--t-caption); font-weight: 700; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-text); }
+.ag-rail-label { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); padding: 0 8px; margin-bottom: 8px; }
+.ag-step { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: transparent; border-radius: var(--r-sm); padding: 9px 10px; font-family: var(--ag-sans); font-size: var(--t-body); color: var(--ag-ink-2); cursor: pointer; }
+.ag-step:hover { background: var(--ag-bg-2); }
+.ag-step.on { background: var(--ag-ink); color: var(--ag-paper); font-weight: 500; }
+.ag-step-num { font-family: var(--ag-mono); font-size: var(--t-micro); border: 1px solid var(--ag-line-2); border-radius: var(--r-sm); padding: 1px 5px; color: var(--ag-ink-3); }
+.ag-step.on .ag-step-num { border-color: var(--ag-coral-text); color: var(--ag-coral); }
+.ag-step.locked { opacity: 0.45; cursor: default; }
+.ag-active-role { background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); padding: 12px; }
+.ag-sidebar-foot { margin-top: auto; border-top: 1px solid var(--ag-border); padding: 14px 8px 0; }
+.ag-main { flex: 1; min-width: 0; padding: 32px 32px 96px; }
+.ag-screen { max-width: 1240px; margin: 0 auto; }
+.ag-screen-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 24px; }
+.ag-title { font-family: var(--ag-display); font-size: var(--t-display); font-weight: 600; letter-spacing: var(--track-tight); line-height: 1.15; }
+.ag-sub { color: var(--ag-ink-3); margin-top: 6px; max-width: 60ch; }
+
+/* ---------- primitives ---------- */
+.ag-card { background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); overflow: hidden; }
+.ag-card-head { padding: 14px 18px; border-bottom: 1px solid var(--ag-border); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.ag-card-title { font-size: var(--t-body); font-weight: 600; }
+.ag-card-body { padding: 18px; }
+.ag-meta { font-family: var(--ag-mono); font-size: var(--t-caption); letter-spacing: normal; color: var(--ag-ink-3); }
+.ag-btn { display: inline-flex; align-items: center; gap: 8px; border: none; border-radius: var(--r-sm); padding: 8px 14px; font-family: var(--ag-sans); font-size: var(--t-body); font-weight: 500; background: transparent; color: var(--ag-ink-2); cursor: pointer; }
+.ag-btn:disabled { opacity: 0.5; cursor: default; }
+.ag-btn-primary { background: var(--ag-ink); color: var(--ag-paper); padding: 10px 16px; font-weight: 600; }
+.ag-btn-coral { background: var(--ag-coral); color: var(--ag-paper); font-weight: 600; }
+.ag-btn-coral:hover { background: var(--ag-coral-deep); }
+.ag-btn-secondary { background: var(--ag-paper); border: 1px solid var(--ag-line-2); }
+.ag-input, .ag-textarea { width: 100%; border: 1px solid var(--ag-line-2); border-radius: var(--r-sm); padding: 9px 12px; font-family: var(--ag-sans); font-size: var(--t-body); background: var(--ag-paper); color: var(--ag-ink); }
+.ag-textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
+.ag-textarea.jd { min-height: 340px; }
+.ag-input:focus, .ag-textarea:focus { outline: none; border-color: var(--ag-coral); box-shadow: 0 0 0 3px var(--ag-tint-1); }
+.ag-label { display: block; font-size: var(--t-small); font-weight: 600; color: var(--ag-ink-2); margin-bottom: 6px; }
+.ag-avatar { width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--ag-ink); color: var(--ag-paper); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: var(--t-body); flex: none; }
+.ag-grow { flex: 1; min-width: 0; }
+.ag-pill { display: inline-block; padding: 3px 8px; border-radius: var(--r-pill); font-family: var(--ag-mono); font-size: var(--t-micro); text-transform: uppercase; letter-spacing: var(--track-label); background: var(--ag-paper); border: 1px solid var(--ag-line-2); color: var(--ag-ink-2); }
+.ag-pill-warn { color: var(--ag-warn); }
+.ag-pill-failed { color: var(--ag-coral-deep); border-color: var(--ag-tint-2); background: var(--ag-tint-1); }
+.ag-score { font-family: var(--ag-mono); font-size: var(--t-title); font-weight: 500; border-radius: var(--r-sm); padding: 5px 11px; position: relative; }
+.ag-score.hi { background: var(--ag-ink); color: var(--ag-paper); }
+.ag-score.hi::before { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--ag-coral); }
+.ag-score.med { background: var(--ag-cream); border: 1px solid var(--ag-line-2); }
+.ag-score.lo { background: var(--ag-paper); border: 1px solid var(--ag-line-2); color: var(--ag-ink-3); }
+.ag-chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--ag-line-2); background: var(--ag-paper); border-radius: var(--r-pill); padding: 5px 12px; font-size: var(--t-small); font-weight: 500; cursor: pointer; }
+.ag-chip .id { font-family: var(--ag-mono); font-size: var(--t-micro); color: var(--ag-ink-3); }
+.ag-chip.must { background: var(--ag-ink); color: var(--ag-paper); border-color: var(--ag-ink); }
+.ag-chip.must .id { color: var(--ag-coral); }
+.ag-chip.nice { border-style: dashed; color: var(--ag-ink-2); }
+.ag-chip .x { border: none; background: none; color: inherit; opacity: 0.6; cursor: pointer; font-size: var(--t-body); padding: 0 0 0 2px; }
+.ag-group-hint { font-size: var(--t-small); color: var(--ag-ink-3); margin: 4px 0 10px; }
+.ag-banner { display: flex; gap: 12px; align-items: flex-start; padding: 14px 18px; border-radius: var(--r-md); background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); }
+.ag-callout { border-left: 4px solid var(--ag-coral); background: var(--ag-tint-1); border-radius: 0 8px 8px 0; padding: 12px 16px; font-size: var(--t-small); color: var(--ag-ink-2); }
+.ag-drop { border: 1px dashed var(--ag-line-2); border-radius: var(--r-md); background: var(--ag-paper); padding: 32px; text-align: center; }
+.ag-grid-2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; align-items: start; }
+.ag-stack { display: flex; flex-direction: column; gap: 16px; }
+.ag-weight-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ag-weight-bar { flex: 1; height: 4px; background: var(--ag-bg-2); border-radius: 2px; overflow: hidden; }
+.ag-weight-fill { height: 100%; background: var(--ag-coral); }
+.ag-spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--ag-tint-2); border-top-color: var(--ag-coral); border-radius: 50%; animation: ag-spin 0.8s linear infinite; }
+@keyframes ag-spin { to { transform: rotate(360deg); } }
+.ag-seg { display: inline-flex; border: 1px solid var(--ag-line-2); border-radius: var(--r-sm); overflow: hidden; background: var(--ag-paper); }
+.ag-seg button { border: none; background: transparent; padding: 6px 12px; font-family: var(--ag-sans); font-size: var(--t-small); color: var(--ag-ink-2); cursor: pointer; border-right: 1px solid var(--ag-line-2); }
+.ag-seg button:last-child { border-right: none; }
+.ag-seg button.on { background: var(--ag-ink); color: var(--ag-paper); }
+.ag-seg button:disabled { opacity: 0.5; cursor: default; }
+.ag-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.ag-dot.strong { background: var(--ag-coral); }
+.ag-dot.transferable { background: var(--ag-tint-2); border: 1px solid var(--ag-coral); }
+.ag-dot.partial { background: var(--ag-warn-mark); opacity: 0.85; }
+.ag-dot.missing { background: transparent; border: 1px dashed var(--ag-line-2); }
+.ag-tile.on .ag-meta { color: var(--ag-tint-2); }
+.ag-reviewed { position: absolute; top: 8px; right: 8px; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); color: var(--ag-coral); border: 1px solid var(--ag-coral); border-radius: var(--r-pill); padding: 1px 6px; text-transform: uppercase; }
+/* Requirement × candidate matrix, to the handoff drawing: the requirement
+ * reads as a labelled row (ref, text, weight underneath), every cell stacks
+ * its dot over the strength word, columns are ruled, strong cells take a
+ * coral wash and missing cells recede to paper. */
+.ag-matrix { width: 100%; border-collapse: collapse; font-size: var(--t-small); }
+.ag-matrix th, .ag-matrix td { border-top: 1px solid var(--ag-border); padding: 12px 14px; text-align: center; vertical-align: middle; }
+.ag-matrix thead th { border-top: none; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); font-weight: 400; padding-top: 10px; padding-bottom: 10px; }
+/* Proportions from the drawing: the requirement column takes a bit over a
+ * third and the candidates share the rest, so a cell is a column you can
+ * read down rather than a narrow gutter. min-width keeps that true past
+ * five candidates by letting the container scroll instead of crushing. */
+.ag-matrix th.req, .ag-matrix td.req { text-align: left; width: 38%; }
+.ag-matrix th:not(.req), .ag-matrix td:not(.req) { border-left: 1px solid var(--ag-border); min-width: 140px; }
+.ag-matrix td.req { display: table-cell; }
+.ag-matrix td.req > span:first-child { display: inline-block; vertical-align: top; width: 34px; }
+.ag-matrix td.req > span:last-child { display: inline-block; vertical-align: top; max-width: 30ch; }
+.ag-matrix-weight { display: block; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); margin-top: 3px; }
+.ag-matrix tbody td:not(.req) { cursor: pointer; }
+.ag-matrix tbody td:not(.req):hover { outline: 1px solid var(--ag-coral); outline-offset: -1px; }
+.ag-matrix td .ag-dot { display: block; margin: 0 auto 5px; }
+.ag-matrix td.wash { background: var(--ag-tint-1); }
+.ag-matrix td.faded { background: var(--ag-paper); }
+.ag-matrix td.faded .ag-matrix-cell-label { color: var(--ag-ink-3); }
+/* Hollow ring, per the drawing — a transferable is evidence you can see
+ * through, not a filled claim. */
+.ag-dot.transferable { background: transparent; border: 1px solid var(--ag-coral); }
+.ag-delta { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-coral); }
+.ag-doc { background: var(--ag-paper); border-radius: var(--r-md); box-shadow: 0 20px 60px -30px rgba(0, 0, 0, 0.2); padding: 40px 44px; max-width: 720px; margin: 0 auto; }
+.ag-mark { background: var(--ag-tint-2); color: var(--ag-ink); padding: 0 3px; border-radius: 2px; box-decoration-break: clone; }
+.ag-quote { background: var(--ag-paper); border-left: 3px solid var(--ag-coral); padding: 12px 16px; font-size: var(--t-body); font-style: italic; line-height: 1.6; }
+.ag-req-btn { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: none; padding: 12px 18px; cursor: pointer; font-family: var(--ag-sans); border-top: 1px solid var(--ag-border); }
+.ag-req-btn:hover { background: var(--ag-tint-1); }
+.ag-bar { flex: 1; height: 3px; background: var(--ag-bg-2); border-radius: var(--r-xs); overflow: hidden; }
+.ag-bar-fill { height: 100%; background: var(--ag-ink-3); }
+.ag-bar-fill[data-weak="true"] { background: var(--ag-coral); }
+.ag-tabstrip { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+.ag-quiet { text-align: center; padding: 28px; color: var(--ag-ink-3); font-size: var(--t-body); }
+
+/* ---------- workflow chrome from the handoff (7 Aug recording review) ----
+ * Breadcrumb + step controls, step eyebrows, rail checkmarks, compare
+ * legend and sub-score bars, screening score-pair, decisions strip. */
+.ag-crumbbar { display: flex; align-items: center; gap: 10px; margin: -6px 0 18px; padding-bottom: 12px; border-bottom: 1px solid var(--ag-border); }
+.ag-crumb { font-family: var(--ag-mono); font-size: var(--t-caption); letter-spacing: normal; color: var(--ag-ink-3); }
+.ag-crumb b { color: var(--ag-ink); font-weight: 500; }
+.ag-crumb-link { border: none; background: none; padding: 0; font: inherit; color: var(--ag-ink-3); cursor: pointer; }
+.ag-crumb-link:hover { color: var(--ag-ink); }
+.ag-step-eyebrow { font-family: var(--ag-mono); font-size: var(--t-caption); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-text); margin: 0 0 10px; }
+.ag-step-num.done { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); }
+.ag-step.on .ag-step-num.done { border-color: var(--ag-coral-text); }
+.ag-field-label { display: block; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-text); margin-bottom: 5px; }
+
+.ag-callscore-col .ag-field-label { margin-bottom: 2px; }
+.ag-delta-pill { display: inline-block; font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-coral-deep); background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); border-radius: var(--r-pill); padding: 2px 9px; align-self: flex-start; }
+.ag-callscore .ag-delta-pill { align-self: flex-end; }
+
+.ag-conf-strip .ag-field-label { margin-bottom: 0; }
+.ag-conf-bars { display: inline-flex; align-items: flex-end; gap: 2px; }
+.ag-conf-bar { width: 4px; border-radius: 1px; background: var(--ag-line-2); }
+.ag-conf-bar[data-on="true"] { background: var(--ag-ink); }
+
+.ag-legend { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; font-size: var(--t-caption); color: var(--ag-ink-3); padding: 2px 0 10px; margin-bottom: 4px; border-bottom: 1px solid var(--ag-border); }
+.ag-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.ag-legend .ag-field-label { margin-bottom: 0; }
+
+.ag-fit-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; }
+.ag-fit-label { font-size: var(--t-small); color: var(--ag-ink-2); }
+.ag-fit-num { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); }
+.ag-fit-num b { color: var(--ag-ink); font-weight: 500; }
+.ag-fit-row .ag-bar { grid-column: 1 / -1; height: 4px; }
+
+/* Call script: the handoff's dark card. Inverted on purpose — it is the
+ * thing the recruiter reads off while a person is on the phone, so it wins
+ * the screen even against the coral. */
+.ag-script { background: var(--ag-ink); color: var(--ag-paper); border-radius: var(--r-md); overflow: hidden; }
+.ag-script-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid rgba(255, 253, 250, 0.14); }
+.ag-script-title { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-text); }
+.ag-script-count { font-family: var(--ag-mono); font-size: var(--t-micro); color: rgba(255, 253, 250, 0.55); }
+.ag-script-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.ag-script-empty { font-size: var(--t-small); color: rgba(255, 253, 250, 0.55); margin: 0; max-width: 46ch; line-height: 1.5; }
+/* Two rows, not three columns: the reason sat beside the question and
+ * squeezed long requirement text into a narrow ribbon. */
+
+/* ---------- remaining handoff details across the workflow ---------- */
+/* MISSING is a chip in the handoff, not a word in a sentence: the whole
+ * evidence-first promise hangs on it reading as a state. */
+.ag-missing-chip { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); background: var(--ag-bg-2); color: var(--ag-ink-2); padding: 1px 5px; border-radius: var(--r-xs); }
+.ag-principle { display: flex; gap: 16px; align-items: flex-start; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--ag-border); }
+.ag-principle-bar { width: 4px; height: 40px; background: var(--ag-coral); border-radius: 2px; flex: none; }
+.ag-principle-text { font-size: var(--t-body); color: var(--ag-ink-2); max-width: 72ch; line-height: 1.55; margin: 4px 0 0; }
+
+/* Strength as a labelled pill on the detail evidence rows. */
+.ag-strength { display: inline-flex; align-items: center; gap: 6px; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-2); border: 1px solid var(--ag-line-2); border-radius: var(--r-pill); padding: 3px 9px; white-space: nowrap; }
+.ag-strength.missing { color: var(--ag-ink-3); border-style: dashed; }
+
+/* Screening rail: the score and its movement, or an explicit not-called. */
+.ag-tile.on .ag-notcalled, .ag-tile.on .ag-meta { color: var(--ag-tint-2); }
+
+/* Score breakdown in the handoff's nutrition form. */
+.ag-nutrition-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ag-nutrition-score { font-family: var(--ag-mono); font-size: var(--t-title); font-weight: 500; letter-spacing: var(--track-tight); line-height: 1; }
+.ag-nutrition-rule { border-top: 2px solid var(--ag-ink); margin: 10px 0 12px; }
+.ag-nutrition-foot { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--ag-border); padding-top: 10px; margin-top: 4px; }
+
+/* Probe lines on the detail page's dark card. */
+.ag-qnum { font-family: var(--ag-mono); font-size: var(--t-micro); font-weight: 600; color: var(--ag-coral-text); padding-top: 2px; flex: none; }
+.ag-probe-line { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; }
+.ag-probe-text { flex: 1; font-size: var(--t-body); line-height: 1.5; }
+.ag-probe-line[data-answered="true"] { opacity: 0.45; }
+.ag-probe-line[data-answered="true"] .ag-probe-text { text-decoration: line-through; }
+.ag-probe-done { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-text); flex: none; padding-top: 3px; }
+.ag-probe-gap { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 253, 250, 0.14); font-size: var(--t-small); line-height: 1.5; color: rgba(255, 253, 250, 0.55); }
+
+/* Compare board: the focused card the keyboard acts on, and the hints. */
+.ag-cmp-card { transition: box-shadow 0.12s, border-color 0.12s; }
+.ag-cmp-card[data-focused="true"] { border-color: var(--ag-coral); box-shadow: 0 0 0 3px var(--ag-tint-1); }
+.ag-cmp-card:focus { outline: none; }
+.ag-kbd-hints { display: flex; align-items: center; gap: 10px; font-size: var(--t-small); color: var(--ag-ink-3); flex-wrap: wrap; }
+.ag-kbd-hints > span { display: inline-flex; align-items: center; gap: 5px; }
+.ag-kbd { font-family: var(--ag-mono); font-size: var(--t-micro); border: 1px solid var(--ag-line-2); border-radius: var(--r-xs); padding: 1px 5px; color: var(--ag-ink-2); background: var(--ag-paper); }
+
+/* ---------- screening, v0 design ----------
+ * Three columns: the queue you work down, the call you are on, and a live
+ * score that stays put while you type. The score moving as you override is
+ * the product's whole argument, so it must never scroll out of sight. */
+.ag-scr-grid { display: grid; grid-template-columns: 260px minmax(0, 1fr) 290px; gap: 20px; align-items: start; }
+.ag-scr-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 20px; align-self: start; }
+
+.ag-queue-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px; border-radius: var(--r-sm); border: 1px solid transparent; background: transparent; cursor: pointer; font-family: var(--ag-sans); color: inherit; transition: background 0.12s, border-color 0.12s; }
+.ag-queue-item:hover { background: var(--ag-bg-2); }
+.ag-queue-item[aria-current="true"] { border-color: var(--ag-ink); background: var(--ag-cream); }
+.ag-queue-name { font-size: var(--t-body); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-queue-item[aria-current="true"] .ag-queue-name { font-weight: 600; }
+.ag-queue-score { font-family: var(--ag-mono); font-size: var(--t-body); font-weight: 600; }
+.ag-queue-delta { font-family: var(--ag-mono); font-size: var(--t-micro); color: var(--ag-ink-3); }
+.ag-queue-delta[data-up="true"] { color: var(--ag-coral-deep); }
+
+.ag-probe-label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.ag-soft-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ag-picker { border: 1px solid var(--ag-border); border-radius: var(--r-sm); margin-top: 10px; padding: 6px; max-height: 280px; overflow-y: auto; background: var(--ag-bg-2); }
+.ag-picker-group { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); margin: 8px 6px 2px; }
+.ag-picker-opt { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; width: 100%; text-align: left; border: none; background: none; color: inherit; border-radius: var(--r-sm); padding: 7px 8px; font-family: var(--ag-sans); font-size: var(--t-small); line-height: 1.4; cursor: pointer; }
+.ag-picker-opt:hover { background: var(--ag-paper); }
+.ag-picker-why { grid-column: 2; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: normal; text-transform: uppercase; color: var(--ag-ink-3); }
+
+/* An override is a claim you are making over the machine's: it gets a border
+ * and a wash, and states plainly what it changed. */
+.ag-ev-card { border: 1px solid var(--ag-border); background: var(--ag-paper); border-radius: var(--r-sm); padding: 12px; transition: border-color 0.14s, background 0.14s; }
+.ag-ev-card[data-override="true"] { border-color: var(--ag-coral); background: var(--ag-tint-1); }
+.ag-ev-main { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.ag-ev-quote { font-size: var(--t-small); font-style: italic; color: var(--ag-ink-3); border-left: 2px solid var(--ag-line-2); padding-left: 8px; margin-top: 2px; line-height: 1.5; }
+.ag-ev-was { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: normal; color: var(--ag-coral-deep); }
+.ag-unevidenced { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--ag-border); font-size: var(--t-small); }
+.ag-unevidenced:last-child { border-bottom: none; }
+
+@media (max-width: 1180px) {
+  .ag-scr-grid { grid-template-columns: 220px minmax(0, 1fr); }
+  .ag-scr-side { grid-column: 1 / -1; position: static; flex-direction: row; flex-wrap: wrap; }
+  .ag-scr-side > * { flex: 1 1 260px; }
+}
+@media (max-width: 760px) {
+  .ag-scr-grid { grid-template-columns: 1fr; }
+  .ag-soft-grid { grid-template-columns: 1fr; }
+}
+
+/* ---------- compare board, v0 design ----------
+ * The change that matters: the tint marks where a RECRUITER OVERRODE the
+ * parse, not where the parse happened to say strong. On a board whose whole
+ * claim is "a human decided this", the human's fingerprints are the thing
+ * worth colouring. Evidence quotes sit in the cell so the board can be read
+ * without opening anything. */
+.ag-legend-trailing { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ag-icon-btn { border: none; background: none; color: var(--ag-ink-4); font-size: var(--t-lead); line-height: 1; cursor: pointer; padding: 2px 4px; border-radius: var(--r-sm); flex: none; }
+.ag-icon-btn:hover { color: var(--ag-coral); background: var(--ag-tint-1); }
+
+.ag-cmp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 20px; }
+.ag-cmp-card[data-shortlisted="true"] { border-color: var(--ag-coral); }
+/* Fixed height so the decision controls line up across every card however
+ * long the risk text runs. */
+.ag-toprisk { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: var(--t-small); line-height: 1.5; color: var(--ag-ink-2); min-height: 34px; }
+
+.ag-mx-head { display: grid; position: sticky; top: 0; z-index: 2; background: var(--ag-cream); border-bottom: 2px solid var(--ag-ink); }
+.ag-mx-cand { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: none; border-left: 1px solid var(--ag-border); background: transparent; cursor: pointer; text-align: left; font-family: var(--ag-sans); color: inherit; min-width: 0; }
+.ag-mx-cand:hover { background: var(--ag-tint-1); }
+.ag-mx-score { font-family: var(--ag-mono); font-size: var(--t-lead); font-weight: 600; }
+.ag-mx-row { display: grid; border-bottom: 1px solid var(--ag-border); background: var(--ag-paper); }
+.ag-mx-row[data-zebra="true"] { background: var(--ag-bg-2); }
+.ag-mx-req { display: flex; flex-direction: column; gap: 3px; padding: 10px 16px; min-width: 0; }
+.ag-mx-weight { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+.ag-mx-weight[data-must="true"] { color: var(--ag-coral-deep); }
+.ag-mx-cell { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-left: 1px solid var(--ag-border); min-width: 0; cursor: pointer; }
+.ag-mx-cell:hover { outline: 1px solid var(--ag-coral); outline-offset: -1px; }
+.ag-mx-cell[data-override="true"] { background: var(--ag-tint-1); }
+.ag-mx-strength { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-2); }
+.ag-mx-strength[data-missing="true"] { color: var(--ag-ink-3); }
+.ag-mx-quote { font-size: var(--t-caption); font-style: italic; color: var(--ag-ink-3); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ag-mx-override { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: normal; text-transform: uppercase; color: var(--ag-coral-deep); }
+
+/* ---------- client submission, to the handoff's shortlist screen ----------
+ * Three containers over one snapshot. The document sits on a mat so it
+ * reads as a piece of paper the client will receive, not another panel. */
+.ag-doc { max-width: 720px; margin: 0 auto; background: var(--ag-paper); border: 1px solid var(--ag-border); box-shadow: 0 20px 60px -30px rgba(0, 0, 0, 0.2); border-radius: var(--r-xs); padding: 48px 56px; font-size: var(--t-body); line-height: 1.6; }
+/* The interview focus block: the probe questions the recruiter actually
+ * picked, handed to the client as where to dig. */
+
+.ag-mail-head { display: grid; grid-template-columns: 70px 1fr; gap: 8px 12px; font-size: var(--t-small); padding-bottom: 20px; border-bottom: 1px solid var(--ag-border); align-items: baseline; }
+.ag-mail-body { padding-top: 20px; font-size: var(--t-body); line-height: 1.7; }
+.ag-mail-cand { margin: 20px 0; padding-left: 14px; border-left: 3px solid var(--ag-coral); }
+
+.ag-link-row { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-sm); margin-bottom: 10px; }
+.ag-link-url { font-family: var(--ag-mono); font-size: var(--t-small); flex: 1; word-break: break-all; color: var(--ag-coral-deep); }
+
+/* The portal mockup: what the named recipient actually opens. */
+.ag-portal-mock { background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); overflow: hidden; box-shadow: 0 20px 60px -30px rgba(0, 0, 0, 0.15); margin: 14px 0; }
+.ag-portal-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 20px 24px; background: var(--ag-ink); color: var(--ag-paper); }
+.ag-portal-eyebrow { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-text); }
+.ag-portal-role { font-family: var(--ag-display); font-size: var(--t-title); font-weight: 600; margin-top: 4px; }
+.ag-portal-mark { width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--ag-coral); color: var(--ag-ink); display: flex; align-items: center; justify-content: center; font-weight: 800; flex: none; }
+.ag-portal-glance { padding: 20px 24px; border-bottom: 1px solid var(--ag-border); }
+.ag-portal-glance-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.ag-portal-glance-card { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--ag-bg-2); border-radius: var(--r-sm); }
+.ag-portal-cand { padding: 24px; border-bottom: 1px solid var(--ag-border); }
+.ag-portal-cand-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.ag-portal-foot { display: flex; justify-content: space-between; gap: 12px; padding: 16px 24px; background: var(--ag-cream); font-size: var(--t-caption); color: var(--ag-ink-3); }
+
+@media (max-width: 760px) {
+  .ag-doc { padding: 28px 22px; }
+}
+
+.ag-decisions-bar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 18px; background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); box-shadow: 0 -8px 24px -18px rgba(0, 0, 0, 0.35); z-index: 4; }
+.ag-decisions-bar .ag-field-label { margin-bottom: 0; }
+.ag-decisions-tally { font-size: var(--t-body); color: var(--ag-ink-2); }
+.ag-decisions-tally b { color: var(--ag-ink); }
+
+/* ---------- dashboard (agd-) — the approved dashboard design ----------
+ * Ported from mockups/agency-dashboard-v2.html. Coral already means
+ * "strong evidence" everywhere else in the product, so urgency has its own
+ * ladder: coral = breaks today, amber = soon, sage = waiting, no rush. */
+.ag-app { --ag-calm: #6e7a63; --ag-glass: rgba(249, 246, 240, 0.88); }
+
+/* The dashboard runs the mockup's dark theme: same tokens, dark values.
+ * Scoped by :has(.agd-main) so only the dashboard (the one screen that
+ * renders .agd-main) goes dark — the six step role workflow keeps its
+ * light paper until it gets its own dark pass. Every component reads
+ * tokens, so ink and paper swap roles and the chips, primary buttons and
+ * active nav invert into cream exactly as the mockup's dark mode did. */
+.ag-app:has(.agd-main) {
+  --ag-ink: #f6f1e8;
+  --ag-ink-2: #cfc5b7;
+  --ag-ink-3: #9c9184;
+  --ag-ink-4: #8e8579;   /* lifted to 4.5:1 on the dark ground */
+  --ag-paper: #221c17;
+  --ag-cream: #1a1511;
+  --ag-bg-2: #251e19;
+  --ag-coral: #f2664a;
+  --ag-coral-deep: #ff8368;
+  --ag-tint-1: #2c1f1a;
+  --ag-tint-2: #4a2a21;
+  --ag-border: #332a22;
+  --ag-line-2: #43382d;
+  --ag-warn: #d9973f;
+  --ag-calm: #93a186;
+  --ag-glass: rgba(26, 21, 17, 0.88);
+}
+
+.agd-main { padding: 0 0 96px; }
+.agd-topbar { display: flex; align-items: center; gap: 12px; padding: 14px 30px; border-bottom: 1px solid var(--ag-border); position: sticky; top: 0; background: var(--ag-glass); backdrop-filter: blur(8px); z-index: 5; }
+.agd-crumb { font-family: var(--ag-mono); font-size: var(--t-small); color: var(--ag-ink-3); letter-spacing: normal; }
+.agd-spacer { flex: 1; }
+.agd-search { position: relative; }
+.agd-search-input { width: 180px; border: 1px solid var(--ag-line-2); background: var(--ag-paper); color: var(--ag-ink); border-radius: var(--r-sm); padding: 6px 30px 6px 12px; font-family: var(--ag-sans); font-size: var(--t-small); }
+.agd-search-input:focus { outline: none; border-color: var(--ag-coral); box-shadow: 0 0 0 3px var(--ag-tint-1); }
+.agd-kbd { font-family: var(--ag-mono); font-size: var(--t-micro); border: 1px solid var(--ag-line-2); border-radius: var(--r-xs); padding: 0 4px; color: var(--ag-ink-4); }
+.agd-search .agd-kbd { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
+.agd-kbd.inverse { border-color: currentColor; color: currentColor; opacity: 0.55; margin-left: 4px; }
+.agd-tbtn { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--ag-line-2); background: var(--ag-paper); color: var(--ag-ink-2); border-radius: var(--r-sm); padding: 6px 12px; font-family: var(--ag-sans); font-size: var(--t-small); font-weight: 500; cursor: pointer; }
+.agd-tbtn.primary { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); }
+.agd-tbtn:disabled { opacity: 0.5; cursor: default; }
+.agd-avatar { width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--ag-ink); color: var(--ag-paper); display: flex; align-items: center; justify-content: center; font-family: var(--ag-mono); font-size: var(--t-caption); flex: none; }
+
+.agd-page { padding: 34px 30px 0; max-width: 1180px; margin: 0 auto; }
+.agd-band { margin-bottom: 44px; }
+.agd-eyebrow-row { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+.agd-eyebrow { font-size: var(--t-small); font-family: var(--ag-mono); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); margin: 0; font-weight: 500; }
+.agd-rule { flex: 1; height: 1px; background: var(--ag-border); }
+.agd-aside { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); }
+
+.agd-hero { margin-bottom: 26px; }
+.agd-date { font-family: var(--ag-mono); font-size: var(--t-caption); letter-spacing: var(--track-label); color: var(--ag-coral-text); text-transform: uppercase; margin: 0; }
+.agd-h1 { font-family: var(--ag-display); font-size: var(--t-display); line-height: 1.12; margin: 8px 0 6px; font-weight: 600; letter-spacing: var(--track-tight); text-wrap: balance; }
+.agd-sub { margin: 0; color: var(--ag-ink-2); font-size: var(--t-lead); max-width: 56ch; }
+.agd-sub b { font-weight: 600; color: var(--ag-ink); }
+
+/* Attention cards: one thing each, severity as a left rail. */
+.agd-attn { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.agd-card { background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 10px; position: relative; overflow: hidden; text-align: left; font-family: var(--ag-sans); color: inherit; cursor: pointer; transition: border-color 0.14s, transform 0.14s; }
+.agd-card:hover { border-color: var(--ag-line-2); transform: translateY(-1px); }
+.agd-card:disabled { cursor: default; opacity: 0.7; }
+.agd-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--ag-line-2); }
+.agd-card.now::before { background: var(--ag-coral); }
+.agd-card.soon::before { background: var(--ag-warn); }
+.agd-card.calm::before { background: var(--ag-calm); }
+.agd-when { font-family: var(--ag-mono); font-size: var(--t-caption); }
+.agd-card.now .agd-when { color: var(--ag-coral-text); }
+.agd-card.soon .agd-when { color: var(--ag-warn); }
+.agd-card.calm .agd-when { color: var(--ag-calm); }
+.agd-card-title { font-family: var(--ag-display); margin: 0; font-size: var(--t-lead); font-weight: 600; line-height: 1.3; letter-spacing: var(--track-tight); }
+.agd-card-body { color: var(--ag-ink-2); font-size: var(--t-body); margin: 0; }
+.agd-card-meta { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--ag-border); font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); display: flex; gap: 8px; align-items: center; }
+.agd-card-go { margin-left: auto; color: var(--ag-ink-3); white-space: nowrap; }
+
+/* Queue: one panel, two tenses. */
+.agd-queue { border: 1px solid var(--ag-border); border-radius: var(--r-md); background: var(--ag-paper); overflow: hidden; }
+.agd-queue-head { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--ag-border); }
+.agd-seg { display: inline-flex; background: var(--ag-bg-2); border-radius: var(--r-sm); padding: 2px; gap: 2px; }
+.agd-seg button { border: none; background: transparent; font-family: var(--ag-sans); font-size: var(--t-small); color: var(--ag-ink-3); padding: 4px 11px; border-radius: var(--r-sm); cursor: pointer; }
+.agd-seg button[aria-pressed="true"] { background: var(--ag-ink); color: var(--ag-paper); }
+.agd-qrow { display: grid; grid-template-columns: 64px 1fr auto; gap: 14px; align-items: center; width: 100%; text-align: left; background: none; border: none; border-top: 1px solid var(--ag-border); padding: 11px 14px; cursor: pointer; font-family: var(--ag-sans); color: inherit; }
+.agd-qrow:first-of-type { border-top: none; }
+.agd-qrow:hover:not(:disabled):not(.static) { background: var(--ag-tint-1); }
+.agd-qrow:disabled { cursor: default; }
+.agd-qrow.static { cursor: default; }
+.agd-tag { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); padding: 3px 0; border-radius: var(--r-xs); text-align: center; text-transform: uppercase; border: 1px solid transparent; }
+.agd-tag.call { background: var(--ag-coral); color: var(--ag-paper); }
+.agd-tag.send { background: var(--ag-ink); color: var(--ag-paper); }
+.agd-tag.review { background: var(--ag-tint-2); color: var(--ag-coral-deep); }
+.agd-tag.wait { border-color: var(--ag-line-2); color: var(--ag-ink-3); }
+.agd-tag.look { border-color: var(--ag-line-2); color: var(--ag-ink-2); border-style: dashed; }
+.agd-tag.done { border-color: var(--ag-line-2); color: var(--ag-calm); }
+.agd-qmain { min-width: 0; display: flex; flex-direction: column; }
+.agd-qtitle { font-size: var(--t-body); }
+.agd-qsub { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); }
+.agd-qdue { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); text-align: right; white-space: nowrap; }
+.agd-qdue.hot { color: var(--ag-coral); }
+
+/* Role rows: identity, six step rail, top score with its movement. */
+.agd-roles { display: flex; flex-direction: column; gap: 8px; }
+.agd-role { background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(170px, 1.1fr) auto; gap: 20px; align-items: center; padding: 14px 16px; width: 100%; text-align: left; cursor: pointer; font-family: var(--ag-sans); color: inherit; transition: border-color 0.14s; }
+.agd-role:hover { border-color: var(--ag-line-2); }
+.agd-role[data-flag="blocked"] { border-color: var(--ag-tint-2); background: var(--ag-tint-1); }
+.agd-role-id { display: flex; gap: 11px; align-items: flex-start; min-width: 0; }
+.agd-mark { width: 26px; height: 26px; border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center; flex: none; font-family: var(--ag-mono); font-size: var(--t-caption); background: var(--ag-bg-2); color: var(--ag-ink-2); border: 1px solid var(--ag-border); }
+.agd-role-title { font-family: var(--ag-display); display: block; font-size: var(--t-lead); font-weight: 600; letter-spacing: var(--track-tight); }
+.agd-role-sub { display: block; font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); }
+.agd-role-last { display: block; font-size: var(--t-small); color: var(--ag-ink-2); margin-top: 3px; }
+.agd-role-last[data-tone="blocked"] { color: var(--ag-coral-deep); }
+.agd-role-last[data-tone="waiting"] { color: var(--ag-warn); }
+.agd-role-score { display: flex; align-items: center; gap: 10px; justify-content: flex-end; min-width: 150px; }
+.agd-bignum { width: 44px; height: 44px; border-radius: var(--r-md); background: var(--ag-ink); color: var(--ag-paper); display: flex; align-items: center; justify-content: center; font-family: var(--ag-mono); font-size: var(--t-lead); flex: none; }
+.agd-bignum.pale { background: var(--ag-bg-2); color: var(--ag-ink-3); border: 1px solid var(--ag-border); }
+.agd-noscore { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); border: 1px dashed var(--ag-line-2); border-radius: var(--r-md); padding: 12px 10px; }
+.agd-delta-col { display: flex; flex-direction: column; line-height: 1.3; }
+.agd-since { font-family: var(--ag-mono); font-size: var(--t-micro); color: var(--ag-ink-3); }
+.agd-down { color: var(--ag-ink-3); }
+
+/* Desk health: numbers that name their breach. */
+.agd-health { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.agd-stat { border: 1px solid var(--ag-border); border-radius: var(--r-md); padding: 15px 16px; background: var(--ag-paper); }
+.agd-stat-k { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); margin: 0; }
+.agd-stat-v { font-family: var(--ag-mono); font-size: var(--t-display); line-height: 1.2; margin: 6px 0 0; font-variant-numeric: tabular-nums; }
+.agd-stat-v em { font-style: normal; font-size: var(--t-body); color: var(--ag-ink-3); }
+.agd-stat-n { font-size: var(--t-small); color: var(--ag-ink-2); margin: 2px 0 0; }
+.agd-stat-n b { color: var(--ag-coral); font-weight: 600; }
+
+.agd-foot { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); display: flex; gap: 10px; border-top: 1px solid var(--ag-border); padding-top: 14px; margin: 0; }
+.agd-foot b { color: var(--ag-ink-3); letter-spacing: var(--track-label); }
+
+/* Sidebar nav for the dashboard. */
+.agd-nav { display: flex; flex-direction: column; gap: 1px; }
+.agd-nav-item { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; border: none; background: transparent; border-radius: var(--r-sm); padding: 7px 10px; font-family: var(--ag-sans); font-size: var(--t-body); color: var(--ag-ink-2); cursor: pointer; }
+.agd-nav-item:hover { background: var(--ag-bg-2); }
+.agd-nav-item.on { background: var(--ag-ink); color: var(--ag-paper); }
+.agd-nav-dot { width: 15px; height: 15px; border-radius: var(--r-xs); border: 1px solid var(--ag-line-2); flex: none; }
+.agd-nav-item.on .agd-nav-dot { border-color: transparent; background: var(--ag-coral); }
+.agd-nav-count { margin-left: auto; font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-coral-text); }
+.agd-nav-item.on .agd-nav-count { color: var(--ag-tint-2); }
+
+@media (max-width: 1080px) {
+  .agd-attn { grid-template-columns: 1fr; }
+  .agd-role { grid-template-columns: 1fr; gap: 14px; }
+  .agd-role-score { justify-content: flex-start; }
+  .agd-health { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .agd-page { padding: 22px 18px 0; }
+  .agd-topbar { padding: 12px 18px; }
+  .agd-h1 { font-size: var(--t-display); }
+  .agd-search-input { width: 120px; }
+  .agd-qrow { grid-template-columns: 56px 1fr auto; }
+}
+
+.ag-stage { display: flex; align-items: center; gap: 3px; }
+.ag-stage-seg { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.ag-stage-bar { width: 100%; height: 4px; border-radius: 2px; background: var(--ag-border); }
+.ag-stage-seg[data-s="done"] .ag-stage-bar { background: var(--ag-ink-4); }
+.ag-stage-seg[data-s="here"] .ag-stage-bar { background: var(--ag-coral); }
+.ag-stage-seg[data-s="blocked"] .ag-stage-bar { background: var(--ag-coral-deep); }
+.ag-stage-seg[data-s="waiting"] .ag-stage-bar { background: var(--ag-warn); }
+.ag-stage-label { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: transparent; white-space: nowrap; }
+.ag-stage-seg[data-s="here"] .ag-stage-label,
+.ag-stage-seg[data-s="blocked"] .ag-stage-label,
+.ag-stage-seg[data-s="waiting"] .ag-stage-label { color: var(--ag-ink-2); }
+
+.ag-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.ag-filter { border: 1px solid var(--ag-line-2); background: transparent; color: var(--ag-ink-2); border-radius: var(--r-pill); padding: 4px 12px; font-family: var(--ag-sans); font-size: var(--t-small); cursor: pointer; }
+.ag-filter[aria-pressed="true"] { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); }
+
+@media (max-width: 900px) { .ag-grid-2 { grid-template-columns: 1fr; } .ag-sidebar { display: none; } }
+
+/* ---------- motion + rendering performance ----------
+ * Interaction feedback is transform and opacity only, so it stays on the
+ * compositor and never triggers layout. Long lists get content-visibility
+ * so offscreen rows cost nothing until they scroll in. */
+.ag-app * { -webkit-tap-highlight-color: transparent; }
+.ag-btn, .ag-filter, .ag-chip, .ag-seg button, .ag-queue-item, .ag-icon-btn, .ag-picker-opt {
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.08s ease;
+}
+.ag-btn:active, .ag-filter:active, .ag-seg button:active, .ag-icon-btn:active { transform: translateY(0.5px); }
+.ag-bar-fill, .ag-weight-fill { transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1); }
+.ag-conf-bar { transition: background-color 0.18s ease; }
+.ag-card, .ag-ev-card, .ag-cmp-card { will-change: auto; }
+/* Rows the recruiter has not scrolled to yet are skipped entirely. The
+ * contain-intrinsic-size keeps the scrollbar honest while they are skipped. */
+.ag-mx-row { content-visibility: auto; contain-intrinsic-size: auto 64px; }
+.ag-ev-card { content-visibility: auto; contain-intrinsic-size: auto 110px; }
+/* Focus is always visible for keyboard users, never a bare outline removal. */
+.ag-app :focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; border-radius: var(--r-sm); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-app *, .ag-app *::before, .ag-app *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- candidate profile cards + disclosure controls ---------- */
+.ag-prof { border: 1px solid var(--ag-border); border-radius: var(--r-md); background: var(--ag-cream); overflow: hidden; transition: border-color 0.14s ease; }
+.ag-prof[data-open="true"] { border-color: var(--ag-line-2); }
+.ag-prof-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; padding: 14px; border: none; background: var(--ag-cream); cursor: pointer; font-family: var(--ag-sans); color: inherit; }
+.ag-prof-head:hover { background: var(--ag-bg-2); }
+.ag-prof-name { font-size: var(--t-lead); font-weight: 600; letter-spacing: var(--track-tight); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-prof-score { font-family: var(--ag-mono); font-size: var(--t-lead); font-weight: 600; letter-spacing: var(--track-tight); min-width: 24px; text-align: right; }
+.ag-prof-chevron { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-sm); border: 1px solid var(--ag-line-2); background: var(--ag-paper); color: var(--ag-ink-3); flex: none; transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1); transform: rotate(180deg); }
+.ag-prof-chevron[data-open="true"] { transform: rotate(0deg); }
+/* Expansion animates height without JS: the grid-rows trick keeps it at
+ * auto height while still being animatable, so no measurement pass. */
+.ag-prof-body { display: flex; flex-direction: column; gap: 14px; padding: 20px; background: var(--ag-paper); border-top: 1px solid var(--ag-border); animation: ag-expand 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes ag-expand { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.ag-prof-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+/* Icon then label, so the eye lands on the row type before the value.
+ * The icon sits a shade lighter than the label: it is a landmark, not data. */
+.ag-prof-key { display: inline-flex; align-items: center; gap: 12px; font-size: var(--t-small); font-weight: 500; color: var(--ag-ink-3); flex: none; }
+.ag-prof-key > svg { color: var(--ag-ink-3); flex: none; }
+.ag-prof-val { font-size: var(--t-body); font-weight: 500; color: var(--ag-ink-2); text-align: right; }
+.ag-prof-val.mono { font-family: var(--ag-mono); font-weight: 600; }
+.ag-prof-fit { display: inline-flex; align-items: center; gap: 4px; font-family: var(--ag-mono); font-size: var(--t-small); font-weight: 700; border-radius: var(--r-pill); border: 1px solid var(--ag-coral); background: var(--ag-tint-1); color: var(--ag-coral-deep); padding: 2px 10px; }
+.ag-mix-chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: normal; text-transform: uppercase; border: 1px solid var(--ag-line-2); background: var(--ag-paper); border-radius: var(--r-pill); padding: 2px 9px; color: var(--ag-ink-2); white-space: nowrap; }
+.ag-mix-chip[data-missing="true"] { color: var(--ag-ink-3); }
+.ag-prof-foot { border-top: 1px solid var(--ag-border); padding-top: 14px; }
+
+.ag-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 8px 0; border: none; border-bottom: 1px solid var(--ag-border); background: none; cursor: pointer; text-align: left; font-family: var(--ag-sans); color: inherit; }
+.ag-switch { width: 34px; height: 18px; border-radius: var(--r-pill); background: var(--ag-line-2); position: relative; flex: none; transition: background-color 0.15s ease; }
+.ag-switch[data-on="true"] { background: var(--ag-coral); }
+.ag-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: var(--r-pill); background: var(--ag-paper); transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1); }
+.ag-switch[data-on="true"] .ag-switch-knob { transform: translateX(16px); }
+.ag-audit-val { font-family: var(--ag-mono); font-size: var(--t-small); font-weight: 600; }
+
+/* ---------- client-facing preview (submission, live before generation) ---- */
+.ag-cfp-head { background: var(--ag-ink); color: var(--ag-paper); border-radius: var(--r-md); padding: 20px; }
+.ag-cfp-company { font-family: var(--ag-display); font-size: var(--t-title); font-weight: 600; letter-spacing: var(--track-tight); margin-top: 6px; }
+.ag-cfp-intro { width: 100%; margin-top: 12px; border-radius: var(--r-sm); background: rgba(255, 253, 250, 0.06); color: var(--ag-paper); border: 1px solid rgba(255, 253, 250, 0.18); font-family: var(--ag-sans); font-size: var(--t-body); line-height: 1.6; padding: 10px 12px; resize: vertical; }
+.ag-cfp-intro:focus { outline: none; border-color: var(--ag-coral); }
+.ag-cfp-stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 14px; }
+.ag-cfp-stats > span { display: flex; flex-direction: column; gap: 2px; }
+.ag-cfp-stat-k { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; opacity: 0.6; }
+.ag-cfp-stat-v { font-family: var(--ag-mono); font-size: var(--t-lead); font-weight: 600; }
+.ag-cfp-cand { border: 1px solid var(--ag-border); border-radius: var(--r-md); background: var(--ag-paper); overflow: hidden; }
+.ag-cfp-cand-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px; background: var(--ag-cream); border-bottom: 1px solid var(--ag-border); }
+.ag-cfp-body { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
+.ag-cfp-ev { display: flex; gap: 8px; align-items: flex-start; font-size: var(--t-small); line-height: 1.5; }
+.ag-cfp-quote { color: var(--ag-ink-3); font-style: italic; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; min-width: 0; }
+.ag-cfp-logistics { display: flex; gap: 24px; flex-wrap: wrap; border-top: 1px solid var(--ag-border); padding-top: 12px; font-size: var(--t-small); }
+.ag-cfp-logistics > span { display: flex; flex-direction: column; }
+.ag-strength-chip { display: inline-flex; align-items: center; border: 1px solid var(--ag-border); background: var(--ag-bg-2); border-radius: var(--r-pill); padding: 4px 12px; font-size: var(--t-small); font-weight: 500; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- submission: preview left, controls right ----------
+ * The controls are a rail, not another thing to scroll past: what the client
+ * sees, who is held back, who receives it, and the audit position all stay
+ * beside the preview they govern. */
+.ag-sub-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.ag-sub-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); overflow-y: auto; }
+.ag-frozen-note { font-family: var(--ag-mono); font-size: var(--t-caption); letter-spacing: normal; color: var(--ag-coral-deep); background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); border-radius: var(--r-sm); padding: 8px 12px; }
+.ag-cfp-intro-frozen { margin: 12px 0 0; font-size: var(--t-body); line-height: 1.6; color: var(--ag-paper); opacity: 0.92; }
+.ag-cfp-probes { margin: 0; padding: 0; list-style: none; }
+.ag-cfp-probes li { font-size: var(--t-small); line-height: 1.7; color: var(--ag-ink-2); padding-left: 2px; }
+.ag-toggle-row:disabled { cursor: default; opacity: 0.6; }
+.ag-sub-side .ag-card-body { padding: 14px 16px; }
+.ag-sub-side .ag-audit-val { font-size: var(--t-body); }
+
+@media (max-width: 1080px) {
+  .ag-sub-grid { grid-template-columns: 1fr; }
+  .ag-sub-side { position: static; max-height: none; flex-direction: row; flex-wrap: wrap; }
+  .ag-sub-side > * { flex: 1 1 280px; }
+}
+
+/* Email and portal keep the greeting in their own chrome, so they get a
+ * light strip rather than the document's dark cover. */
+.ag-intro-strip { display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid var(--ag-border); border-radius: var(--r-md); background: var(--ag-bg-2); }
+.ag-doc-legal { border-top: 1px solid var(--ag-border); padding-top: 16px; margin: 0; font-size: var(--t-caption); line-height: 1.6; color: var(--ag-ink-3); }
+
+/* ---------- candidate detail (step 06), to the prototype ---------- */
+.ag-det-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.ag-det-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); overflow-y: auto; }
+.ag-det-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+/* One line per requirement, opening to its source. Compact so nine of them
+ * read as a map rather than nine stacked cards. */
+.ag-evrow { border: none; border-top: 1px solid var(--ag-border); border-radius: 0; background: none; transition: background 0.14s ease; }
+.ag-evrow:first-of-type { border-top: none; }
+.ag-evrow[data-override="true"] { background: var(--ag-tint-1); box-shadow: inset 2px 0 0 var(--ag-coral); }
+.ag-evrow[data-open="true"] { background: var(--ag-bg-2); }
+.ag-evrow-head { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border: none; background: none; cursor: pointer; font-family: var(--ag-sans); color: inherit; }
+.ag-evrow-head:hover { background: var(--ag-bg-2); }
+.ag-evrow[data-override="true"] .ag-evrow-head:hover { background: var(--ag-tint-2); }
+.ag-evrow-text { flex: 1; min-width: 0; font-size: var(--t-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-evrow-weight { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); flex: none; }
+.ag-evrow-weight[data-must="true"] { color: var(--ag-coral-deep); }
+.ag-evrow-pts { font-family: var(--ag-mono); font-size: var(--t-micro); color: var(--ag-ink-3); flex: none; min-width: 30px; text-align: right; }
+.ag-evrow-chev { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); flex: none; }
+.ag-evrow-body { padding: 0 12px 12px 32px; }
+
+.ag-sr-row { display: flex; gap: 8px; align-items: flex-start; font-size: var(--t-small); line-height: 1.5; }
+.ag-sr-row .ag-dot { margin-top: 5px; flex: none; }
+
+.ag-qa { display: flex; flex-direction: column; gap: 4px; }
+.ag-qa-q { display: flex; gap: 8px; align-items: flex-start; font-size: var(--t-small); font-weight: 500; color: var(--ag-ink-2); }
+.ag-qa-a { margin-left: 26px; font-size: var(--t-small); line-height: 1.55; }
+
+.ag-kv { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: var(--t-small); }
+.ag-kv > span { color: var(--ag-ink-3); flex: none; }
+.ag-kv > b { font-family: var(--ag-mono); font-weight: 600; text-align: right; min-width: 0; }
+.ag-score-moved { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--ag-border); font-size: var(--t-small); line-height: 1.5; color: var(--ag-ink-3); }
+
+@media (max-width: 1080px) {
+  .ag-det-grid { grid-template-columns: 1fr; }
+  .ag-det-side { position: static; max-height: none; flex-direction: row; flex-wrap: wrap; }
+  .ag-det-side > * { flex: 1 1 280px; }
+}
+@media (max-width: 760px) { .ag-det-cols { grid-template-columns: 1fr; } }
+
+/* ---------- components the call sites were re-inventing ----------
+ * Each of these existed as an inline style repeated across the product,
+ * which is how thirteen of them ended up carrying --ag-ink-4 as TEXT at
+ * 2.2:1 long after the stylesheet had stopped doing that. A value written
+ * at the call site cannot be fixed centrally, so these are now components. */
+
+/* The quiet explanatory line under a control, and the empty-state sentence.
+ * ink-3, because it is prose and prose has to be readable. */
+.ag-note { margin: 0; font-size: var(--t-small); line-height: 1.55; color: var(--ag-ink-3); }
+.ag-note-quiet { font-size: var(--t-small); line-height: 1.55; color: var(--ag-ink-3); font-style: italic; }
+
+/* .ag-reviewed pins itself to a card corner. Every other use had to undo
+ * that with position: static at the call site; now it is a variant. */
+.ag-reviewed.inline { position: static; top: auto; right: auto; }
+
+/* A person's name, set once. */
+.ag-name { font-size: var(--t-lead); font-weight: 600; letter-spacing: var(--track-tight); }
+
+/* Punctuation, not content: the only thing still allowed to sit light. */
+.ag-qa-dash { color: var(--ag-ink-4); }
+
+body{margin:0;background:var(--ag-cream,#f9f6f0)}
+.mk-bar{position:sticky;top:0;z-index:50;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+ padding:10px 16px;background:#1e1813;color:#fffdfa;font:500 12px/1.4 system-ui,sans-serif}
+.mk-bar a{color:#fffdfa;text-decoration:none;opacity:.62;padding:4px 9px;border-radius:6px}
+.mk-bar a:hover{opacity:1;background:rgba(255,255,255,.1)}
+.mk-bar a[aria-current]{opacity:1;background:#dc4f33}
+.mk-bar b{font-weight:600;margin-right:8px;letter-spacing:.06em;text-transform:uppercase;font-size:10px;opacity:.75}
+</style></head><body>
+<nav class="mk-bar"><b>Tailr for Agencies</b><a href="01-role-intake.html">01 · Role intake</a><a href="02-parse-review.html" aria-current=page>02 · Parse review</a><a href="03-add-candidates.html">03 · Add candidates</a><a href="04-screening-calls.html">04 · Screening calls</a><a href="05-compare.html">05 · Compare</a><a href="06-candidate-detail.html">06 · Candidate detail</a><a href="07-client-submission.html">07 · Client submission</a><a href="08-dashboard.html">Dashboard (dark)</a></nav>
+<div class="ag-app">
+<aside class="ag-sidebar">
+  <div class="ag-brand"><div class="ag-brand-mark">T</div><div><div class="ag-brand-name">Tailr</div><div class="ag-brand-sub">For agencies</div></div></div>
+  <div><div class="ag-rail-label">Role workflow</div><button class="ag-step"><span class="ag-step-num done">✓</span> Role intake</button>
+<button class="ag-step on"><span class="ag-step-num">02</span> Parse review</button>
+<button class="ag-step"><span class="ag-step-num">03</span> Add candidates</button>
+<button class="ag-step"><span class="ag-step-num">04</span> Screening calls</button>
+<button class="ag-step"><span class="ag-step-num">05</span> Compare</button>
+<button class="ag-step"><span class="ag-step-num">06</span> Candidate detail</button>
+<button class="ag-step"><span class="ag-step-num">07</span> Client submission</button></div>
+  <div class="ag-active-role"><div class="ag-rail-label" style="padding:0">Active role</div><div style="font-weight:600;font-size:13px">Senior Backend Engineer, Payments</div><div class="ag-meta">Meridian · ROL-2418</div></div>
+  <div class="ag-sidebar-foot"><div class="ag-eyebrow" style="margin-bottom:6px">Decision support only</div>
+  <div style="font-size:12px;color:var(--ag-ink-3)">No candidate is ever auto-rejected. All shortlists are subject to recruiter judgment.</div></div>
+</aside>
+<main class="ag-main"><div class="ag-screen">
+  <div class="ag-crumbbar"><span class="ag-crumb">Roles / <b>Meridian — Senior Backend Engineer, Payments</b> / 02. Parse review</span></div>
+  <p class="ag-step-eyebrow">Step 02 · Parse review</p>
+  
+<div class="ag-screen-head"><div><h1 class="ag-title">Here&rsquo;s what we extracted.<br>Tune it before we score.</h1>
+<p class="ag-sub">Click a chip to cycle its weight. This is the human in the loop moment before anything is scored.</p></div>
+<div style="display:flex;gap:10px"><button class="ag-btn">Back</button><button class="ag-btn ag-btn-primary">Looks right, add candidates</button></div></div>
+<div class="ag-grid-2">
+ <div class="ag-card"><div class="ag-card-head"><span class="ag-card-title">Requirements</span><span class="ag-meta">5 must · 1 important · 3 nice</span></div>
+  <div class="ag-card-body">
+   <div class="ag-field-label">Must have</div><p class="ag-group-hint">Weight about 45% of the score. Zero here is a hard fail.</p>
+   <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="ag-chip must"><span class="id">R01</span>5+ years production Go or Rust<button class="x">×</button></span><span class="ag-chip must"><span class="id">R02</span>Distributed systems (consistency, idempotency)<button class="x">×</button></span><span class="ag-chip must"><span class="id">R03</span>Payments / banking / financial infra experience<button class="x">×</button></span><span class="ag-chip must"><span class="id">R04</span>Comfortable on-call for critical services<button class="x">×</button></span><span class="ag-chip must"><span class="id">R05</span>Mentoring / small team lead exposure<button class="x">×</button></span></div>
+   <div class="ag-field-label" style="margin-top:20px">Important</div><p class="ag-group-hint">Weighted, but not disqualifying if missing.</p>
+   <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="ag-chip "><span class="id">R06</span>Event sourcing, Kafka or Kinesis<button class="x">×</button></span></div>
+   <div class="ag-field-label" style="margin-top:20px">Nice to have</div><p class="ag-group-hint">Signal only. Adds bonus points, never subtracts.</p>
+   <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="ag-chip nice"><span class="id">R07</span>High-growth fintech background<button class="x">×</button></span><span class="ag-chip nice"><span class="id">R08</span>FCA / PSD2 / SCA familiarity<button class="x">×</button></span><span class="ag-chip nice"><span class="id">R09</span>Public writing or speaking<button class="x">×</button></span></div></div></div>
+ <div class="ag-stack">
+  <div class="ag-card"><div class="ag-card-head"><span class="ag-card-title">Constraints</span></div>
+   <div class="ag-card-body ag-stack" style="gap:10px">
+    <div style="display:flex;align-items:center;gap:10px"><span class="ag-meta">C01</span><span class="ag-grow" style="font-size:13px">UK-based (or relocatable, sponsorship possible)</span><span class="ag-pill">location</span></div>
+    <div style="display:flex;align-items:center;gap:10px"><span class="ag-meta">C02</span><span class="ag-grow" style="font-size:13px">Hybrid, 3 days in London office</span><span class="ag-pill">work-mode</span></div>
+    <div style="display:flex;align-items:center;gap:10px"><span class="ag-meta">C03</span><span class="ag-grow" style="font-size:13px">Salary band £110k – £135k</span><span class="ag-pill">comp</span></div>
+    <p class="ag-note" style="border-top:1px solid var(--ag-border);padding-top:10px">Constraints act as filters, not scoring inputs. A candidate outside a constraint gets a flag, not a lower score.</p></div></div>
+  <div class="ag-card"><div class="ag-card-head"><span class="ag-card-title">Weighting model</span></div>
+   <div class="ag-card-body"><div class="ag-weight-row"><span style="font-size:12.5px;width:150px">Requirement coverage</span><div class="ag-weight-bar"><div class="ag-weight-fill" style="width:90%"></div></div><span class="ag-meta">45%</span></div><div class="ag-weight-row"><span style="font-size:12.5px;width:150px">Evidence strength</span><div class="ag-weight-bar"><div class="ag-weight-fill" style="width:50%"></div></div><span class="ag-meta">25%</span></div><div class="ag-weight-row"><span style="font-size:12.5px;width:150px">Seniority calibration</span><div class="ag-weight-bar"><div class="ag-weight-fill" style="width:20%"></div></div><span class="ag-meta">10%</span></div><div class="ag-weight-row"><span style="font-size:12.5px;width:150px">Context fit</span><div class="ag-weight-bar"><div class="ag-weight-fill" style="width:20%"></div></div><span class="ag-meta">10%</span></div><div class="ag-weight-row"><span style="font-size:12.5px;width:150px">Confidence</span><div class="ag-weight-bar"><div class="ag-weight-fill" style="width:20%"></div></div><span class="ag-meta">10%</span></div>
+   <p class="ag-note" style="margin-top:10px">Weights are firm-wide defaults. Adjustments log to your audit trail.</p></div></div>
+ </div></div>
+</div></main></div></body></html>
