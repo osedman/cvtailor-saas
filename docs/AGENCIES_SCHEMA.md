@@ -762,6 +762,74 @@ lost — see the brainstorm notes for the argument.
   **Decided 5 Aug: parked, not in v1.** Consumer *enrichment* (step 7) is
   unaffected and still ships — only recruiter-side discovery is out.
 
+### 5.4 Client-actor auth model (decided 13 Aug 2026, workshop with Ose)
+
+Context: the hiring-manager loop concept
+([Figma](https://www.figma.com/design/AWRRbEOX6rLsltutFDL3zs)) needs HMs to
+log in, post role briefs, review shortlists, run interview rounds and make
+decisions. Three facts in the as-built schema shaped the decision:
+`client_contacts` is per-agency (`unique(agency_id, email)`) with **no
+user_id**; portal viewers are **anonymous to Postgres** (service-role routes
+match token hashes against snapshots); and `client_actions.recipient_id` is
+NOT NULL → `submission_recipients`, so all client attribution today hangs off
+a submission — but the HM concept has clients acting *before* any submission
+exists (brief, availability) and *between* them (round decisions).
+
+Decided, all four on the recommended option:
+
+1. **One auth pool; roles are relationships, not account types.**
+   `auth.users` is the person. Consumer (`profiles`), recruiter
+   (`agency.members`) and HM (linked `client_contacts`) are orthogonal hats
+   one person may hold — an HM can privately be a consumer job-seeker and
+   that must never fork accounts or leak across planes. Post-login routing by
+   hat lookup; switcher for multi-hat users. Rejected: a separate client auth
+   system.
+
+2. **Linkage = `client_contacts.user_id uuid null references auth.users on
+   delete set null`, invite-only.** Recruiter invites a contact (audited:
+   who granted client access, when); HM accepts on a verified email;
+   `user_id` binds. **No email-matching self-claim** — "an agency once typed
+   your email" must not become account access, and grants must keep their
+   attribution. Multi-agency = one auth user linked to N per-agency contact
+   rows, each independently granted and revocable (unlink = set null; access
+   dies on next request). `set null` preserves the provenance invariant —
+   consumer/HM account deletion is never blocked; contact-row erasure remains
+   service-role anonymisation (the `submission_recipients.contact_id`
+   RESTRICT trail is untouched by linking).
+
+3. **HMs get ZERO RLS grants — API-only access, extending the portal
+   precedent.** The HM view is disclosure-filtered, not row-filtered: live
+   tables hold recruiter-private material (`candidate_reviews.notes`,
+   undisclosed evidence), so any direct read policy is one mistake away from
+   showing a client their recruiter's inner workings. Audit-coupled tables
+   already have no authenticated writes; client actors additionally have no
+   authenticated reads on recruiter tables. Every HM read flows through
+   service-role routes shaped by snapshot/disclosure rules; RLS stays as
+   default-deny. Hat detection is a per-request service-role lookup of
+   `client_contacts where user_id = auth.uid()` (JWT custom claims later as
+   an optimisation, not v1).
+
+4. **`client_actions` is not widened.** It stays the portal-token signal
+   table. The interview loop gets its own tables keyed by
+   `(agency_id, contact_id)` + actor `user_id` — briefs, availability,
+   rounds, round decisions, handover — all service-role written with audit
+   rows in the same operation (AUDIT LOGGED pill). Round decisions carry real
+   state (progression), but state machine and candidate visibility stay
+   separate: decline never hides anyone. Detailed DDL is its own workshop.
+
+5. **Sign-in: magic link only for HMs in v1.** Every sign-in re-proves email
+   ownership — the same trust the invite rests on. No password support
+   burden for a weekly-at-most user class. SSO later for enterprise clients.
+
+6. **Portal tokens coexist permanently.** Token = one submission, one
+   lightweight reviewer; account = the full loop. The recipient-revocation
+   UI (the standing gap) gets built as part of this work.
+
+7. **Deployment: same Next.js app, own route group** (e.g. `/hiring`
+   alongside `/agencies`) — one Vercel project, shared design system and API
+   routes. Rejected: separate deployment (doubles env-var management, which
+   has burned this project before).
+
 ## 6. Note on the UI phase
 
 Per the project's standing rule, the UI work in build steps 2–7 goes through
