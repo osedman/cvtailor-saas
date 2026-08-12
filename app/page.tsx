@@ -9,7 +9,6 @@ import {
   Download, History,
 } from "lucide-react"
 import { CareerPathDemo } from "@/components/landing/career-path-demo"
-import { HowItWorks } from "@/components/landing/how-it-works"
 
 const hanken = Hanken_Grotesk({
   subsets: ["latin"],
@@ -96,7 +95,7 @@ function Nav() {
       <div className="max-w-6xl mx-auto px-5 h-16 flex items-center gap-8">
         <a href="#top"><Wordmark /></a>
         <nav className="hidden md:flex items-center gap-7">
-          {[["How it works", "#how-it-works"], ["Features", "#features"], ["Beta", "#beta"]].map(([l, h]) => (
+          {[["How it works", "/walkthrough"], ["Features", "#features"], ["Beta", "#beta"]].map(([l, h]) => (
             <a key={l} href={h} className="text-[14.5px] font-medium text-gray-500 hover:text-[#1e1813] transition-colors">{l}</a>
           ))}
         </nav>
@@ -564,7 +563,7 @@ function Beta() {
 
 function Footer() {
   const cols: [string, [string, string][]][] = [
-    ["Product", [["How it works", "#how-it-works"], ["Features", "#features"], ["Beta", "#beta"]]],
+    ["Product", [["How it works", "/walkthrough"], ["Features", "#features"], ["Beta", "#beta"]]],
     ["Company", [["About", "#"], ["Blog", "#"], ["Contact", "#"]]],
     ["Legal", [["Privacy", "/privacy"], ["Terms", "#"], ["Data & security", "/privacy#security"]]],
   ]
@@ -651,7 +650,6 @@ export default function LandingPage() {
       <main>
         <Hero />
         <Stats />
-        <HowItWorks />
         <Modules />
         <CareerPathSection />
         <Benefits />
