@@ -585,6 +585,41 @@ Where the shipped SQL deliberately differs from the §2 draft:
   - Verified against real staging data: opted-in account returned 16 evidence
     items + full Arc + activity stats; test account reset to opted-out after.
 
+- **Migration 10** (`20260813120000_agency_client_auth.sql`) — **WRITTEN 13
+  AUG, NOT YET APPLIED ANYWHERE**: §5.4 made SQL. Nullable
+  `client_contacts.user_id` (set null) + partial lookup index (deliberately
+  non-unique — one person may be several contacts); `client_invites` with
+  raw-once token hashes (contact_id CASCADE: the invite is a grant in flight,
+  the audit row is the durable trace); `audit_log.entity_type` widened once
+  for the whole client-actor build. Member-select RLS only; invited users get
+  no policy at all.
+- **Migration 11** (`20260813121000_agency_interview_loop.sql`) — **WRITTEN 13
+  AUG, NOT YET APPLIED ANYWHERE**: §5.5 made SQL, with three as-built deltas:
+  - **Purge zero-breakage design, contra §5.5's letter.** "Extend
+    `purge_candidate()` to return recording paths" would change that
+    function's return shape and break the *deployed* cron/rights code in the
+    apply-to-deploy window (migrations run first, by rule). As built:
+    `purge_candidate` untouched; new read-only
+    `candidate_recording_paths(uuid)` collector (service-role execute);
+    `purge_expired()` recreated with an **added** `recording_paths text[]`
+    column — old JS ignores the extra key, new JS deletes the blobs. Same
+    single erasure path.
+  - **`candidate_evidence.round_id` is CASCADE, not set null** — set null
+    would trip `evidence_round_iff_interview`
+    (`(origin='interview') = (round_id is not null)`); evidence sourced from
+    a round cannot outlive it. Completed rounds are never app-deleted, so in
+    practice this fires only under candidate purge.
+  - **Booking is an index, not a status**: `interview_rounds.slot_id` partial
+    unique index is the whole double-booking mechanism;
+    `availability_slots` has no `booked` column to drift.
+  - Everything else lands as decided: brief as pre-role object; per-round
+    candidate consent columns with raw-once `consent_token_hash`; artifact
+    `kind transcript/debrief` with `artifact_recording_iff_transcript`;
+    transcript jsonb in Postgres, recording path + `verified_at` /
+    `recording_deleted_at` for the cron sweep (partial index provided);
+    append-only `round_decisions`; `candidate_references.notice_sent_at`;
+    `handover_packs` snapshot discipline with in-app delivery only.
+
 Sequencing rules, per the project's usual practice:
 
 1. Every migration lands on **staging first**, verified there, then ported to
