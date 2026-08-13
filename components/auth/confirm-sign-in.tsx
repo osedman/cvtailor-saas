@@ -10,6 +10,11 @@ interface ConfirmSignInProps {
   code: string | null
   type: EmailOtpType
   next: string
+  /** True when `next` came from the link itself. When false, `next` is only a
+   * fallback and the destination is resolved from the user's hats after
+   * verification (docs/AGENCIES_SCHEMA.md §5.4) — this page renders while the
+   * visitor is still anonymous, so it cannot know them any earlier. */
+  nextExplicit?: boolean
 }
 
 /**
@@ -19,7 +24,7 @@ interface ConfirmSignInProps {
  * the user taps it. Verifying on that first GET burns the one-time token —
  * especially common on mobile. We only verify after an explicit button click.
  */
-export function ConfirmSignIn({ tokenHash, code, type, next }: ConfirmSignInProps) {
+export function ConfirmSignIn({ tokenHash, code, type, next, nextExplicit = true }: ConfirmSignInProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Stay on the current host (staging preview vs prod). Absolute origins can
@@ -62,7 +67,28 @@ export function ConfirmSignIn({ tokenHash, code, type, next }: ConfirmSignInProp
         /* ignore */
       }
 
-      window.location.assign(relativeNext)
+      // No explicit destination: ask where this person belongs now that a
+      // session exists. Best-effort — any failure keeps the old default.
+      let destination = relativeNext
+      if (!nextExplicit) {
+        try {
+          const res = await fetch("/api/auth/landing")
+          if (res.ok) {
+            const body = (await res.json()) as { path?: unknown }
+            if (
+              typeof body.path === "string" &&
+              body.path.startsWith("/") &&
+              !body.path.startsWith("//")
+            ) {
+              destination = body.path
+            }
+          }
+        } catch {
+          /* keep the fallback */
+        }
+      }
+
+      window.location.assign(destination)
     } catch {
       setError("Something went wrong signing you in. Please try again.")
       setLoading(false)

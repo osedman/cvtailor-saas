@@ -1,0 +1,126 @@
+/* Hiring-manager surface — the six rules agencies.css does not already own.
+ *
+ * Everything else on /hiring is agencies.css: the ag-* primitives, the agd-*
+ * dashboard components and the dark theme scoped by `.ag-app:has(.agd-main)`.
+ * This file exists only for what that stylesheet genuinely lacks, and every
+ * rule below reads its colours from the same tokens, so the dark theme keeps
+ * working without a second palette. If a rule here could have been an
+ * agencies.css class, it is a bug — delete it and reuse the class.
+ *
+ * Nothing here declares a font stack. Mono is reached through var(--ag-mono),
+ * which is the face the agencies layout already loads, so the typography
+ * guardrail (lib/__tests__/typography-consistency.test.ts) has nothing new to
+ * approve on this surface.
+ */
+
+/* ---- 1. Coral as TEXT on the dark ground ---------------------------------
+ * `--ag-coral-text` (#c6391d) is the darkened coral that exists so coral can
+ * BE small type on cream. The dark block in agencies.css never redefines it,
+ * so on the dark surface it lands at 2.9:1 on --ag-cream (#1a1511) and fails
+ * AA — and it is exactly what `.agd-date` (the hero eyebrow) is set in. Point
+ * it at the light cut used for dark grounds: #ff8368 measures 7.1:1 there.
+ * Scoped to .hm-main so this is a fix to the hiring surface, not a silent
+ * restyle of the recruiter dashboard some other agent is working on. */
+.ag-app:has(.hm-main) {
+  --ag-coral-text: #ff8368;
+}
+
+/* ---- 2. The role chip ----------------------------------------------------
+ * `.ag-pill` is the uppercase mono status pill; its variants are warn and
+ * failed, and neither means "this is the hat you are wearing". Coral filled,
+ * because the hat is the one piece of chrome a client needs to recognise
+ * instantly: they hold three hats in one account (§5.4) and this names which
+ * one this screen is. Colour comes from the tokens, so it inverts with the
+ * theme like every other filled coral surface. */
+.hm-role-chip {
+  background: var(--ag-coral);
+  border-color: var(--ag-coral);
+  color: var(--ag-paper);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ---- 3. Nothing on this surface is clickable yet -------------------------
+ * `.agd-card`, `.agd-role` and `.ag-chip` all carry `cursor: pointer` because
+ * on the recruiter side they open something. The interview loop is data-only
+ * (§5.5) — there is no brief detail, no round detail and no slot editor to
+ * open — so these render as articles, and a hand cursor on them would be a
+ * promise the product cannot keep. Remove this rule the day they become
+ * buttons. */
+.hm-static,
+.hm-main .agd-card,
+.hm-main .agd-role {
+  cursor: default;
+}
+.hm-main .agd-card:hover,
+.hm-main .agd-role:hover {
+  transform: none;
+  border-color: var(--ag-border);
+}
+
+/* ---- 4. The step rail, with every label legible --------------------------
+ * `.ag-stage-label` hides all but the active segment, which is right for a
+ * recruiter reading twenty rails a day and wrong for a hiring manager who
+ * sees one a fortnight and does not know the steps by heart. Show them all;
+ * the reached segment still separates itself by ink and by its bar colour. */
+.hm-steps .ag-stage-label {
+  color: var(--ag-ink-3);
+}
+.hm-steps .ag-stage-seg[data-s="here"] .ag-stage-label,
+.hm-steps .ag-stage-seg[data-s="blocked"] .ag-stage-label,
+.hm-steps .ag-stage-seg[data-s="waiting"] .ag-stage-label,
+.hm-steps .ag-stage-seg[data-s="done"] .ag-stage-label {
+  color: var(--ag-ink-2);
+}
+
+/* ---- 5. Role rows carry a rail, not a score -----------------------------
+ * `.agd-role` is a three-column grid built for title / score / stage. A
+ * client never sees a score (disclosure rule, lib/agency/client-auth.ts), so
+ * the row is two columns: who the role is, and how far it has got. */
+.hm-role {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 1.1fr);
+}
+.hm-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 900px) {
+  .hm-role {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- 6. The doorway -----------------------------------------------------
+ * The invite page is not the workspace, so it stays on light paper (it never
+ * renders `.agd-main`) and centres one small card in the viewport. `.ag-doc`
+ * is the closest primitive and is a 720px document sheet — three times too
+ * wide for a single decision. */
+.hm-door {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+.hm-door-card {
+  width: 100%;
+  max-width: 460px;
+}
+.hm-door-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+/* The masked address the invite was issued to. Mono because it is a machine
+ * value the reader is matching character by character against their own
+ * mailbox, and it is never a whole address — the server masks it. */
+.hm-masked {
+  font-family: var(--ag-mono);
+  font-size: var(--t-body);
+  color: var(--ag-ink);
+  word-break: break-all;
+}

@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { runPostAuth } from '@/lib/post-auth'
 import { getAppOrigin } from '@/lib/site-url'
 import { withAuthCookieOptions } from '@/lib/supabase/cookie-options'
+import { DEFAULT_LANDING, resolveLandingPath, safeNextPath } from '@/lib/hat-routing'
 
 /**
  * PKCE code-exchange flow. Kept for backward compatibility.
@@ -11,8 +12,9 @@ import { withAuthCookieOptions } from '@/lib/supabase/cookie-options'
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const code = searchParams.get('code')
-  const nextRaw = searchParams.get('next') ?? '/tailor'
-  const next = nextRaw.startsWith('/') ? nextRaw : `/${nextRaw}`
+  // An explicit next wins; without one the destination depends on which hats
+  // this person wears, which we only know once the session exists.
+  const requestedNext = safeNextPath(searchParams.get('next'))
   const app = getAppOrigin()
 
   const fail = (description: string) =>
@@ -24,7 +26,9 @@ export async function GET(request: NextRequest) {
     return fail('link expired or already used')
   }
 
-  let redirect = NextResponse.redirect(`${app}${next}`)
+  // Provisional target; rewritten below once the user is known. Cookies are
+  // set on this response, so it has to exist before the exchange.
+  let redirect = NextResponse.redirect(`${app}${requestedNext ?? DEFAULT_LANDING}`)
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -50,5 +54,11 @@ export async function GET(request: NextRequest) {
   }
 
   await runPostAuth(data?.user, request)
+
+  // Rewrite the Location rather than building a new response: the session
+  // cookies were written onto `redirect` during the exchange above, and a
+  // fresh NextResponse would drop them and land the user signed out.
+  const landing = await resolveLandingPath(data?.user?.id, requestedNext)
+  redirect.headers.set('location', `${app}${landing}`)
   return redirect
 }

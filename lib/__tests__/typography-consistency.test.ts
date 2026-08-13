@@ -88,6 +88,14 @@ const ALLOWLIST: Record<string, string> = {
     'states, scores. All prose and every recruiter-typed field, including ' +
     'the JD paste box, stays in the sans; the handoff wanted the JD box in ' +
     'mono and that deviation is deliberate, per the 27 Jul lesson.',
+  'app/hiring/layout.tsx:Geist_Mono':
+    'Hiring-manager shell — the agencies design system seen from the client ' +
+    'side of the wall, so it loads the same three faces as app/agencies, ' +
+    'app/portal and app/rights. Mono carries chrome and machine data only: ' +
+    'the crumb, band eyebrows, avatar initials, step-rail labels, slot ' +
+    'times and the masked invite address (a value the reader matches ' +
+    'character by character against their own mailbox). Every sentence on ' +
+    'the surface — hero prose, empty states, invite copy — is the sans.',
 }
 
 /** Source files we typeset; ignore build output and vendored code. */

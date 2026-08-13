@@ -2,15 +2,10 @@ import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/server"
 import { sendEmail } from "@/lib/email"
 import { checkRateLimit, anonRateLimitId } from "@/lib/rate-limit"
-
-/** Only same-origin relative paths — blocks open redirects. */
-function safeNextPath(raw: unknown): string | null {
-  if (typeof raw !== "string") return null
-  const next = raw.trim()
-  if (!next.startsWith("/") || next.startsWith("//") || next.includes("://")) return null
-  if (next.length > 512) return null
-  return next
-}
+// One definition of the open-redirect guard for the whole auth flow. It used
+// to live here as a private copy; two copies of a security check is how one of
+// them quietly drifts permissive.
+import { safeNextPath } from "@/lib/hat-routing"
 
 /**
  * Send magic-link / OTP via Resend, bypassing Supabase Auth's SMTP mailer.
