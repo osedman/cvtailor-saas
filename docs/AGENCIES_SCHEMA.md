@@ -797,6 +797,20 @@ lost — see the brainstorm notes for the argument.
   **Decided 5 Aug: parked, not in v1.** Consumer *enrichment* (step 7) is
   unaffected and still ships — only recruiter-side discovery is out.
 
+  **Resolved 13 Aug 2026 (HM-loop concept):** the inverted design won, in a
+  stronger form than a job board. There is **no candidate-facing job board**.
+  When a recruiter publishes a role for matching, Tailr scans each consumer
+  user's own evidence **consumer-side** — inside the candidate's existing
+  relationship with Tailr — and recommends the role **to candidates only**
+  ("a role found you"). The agency sees nothing and nobody until an
+  application lands; matched-but-didn't-apply ≡ never existed (the same
+  invariant as `recruiter_profile_snapshot`). Applying is the consent and
+  shares the tailored CV + evidence map for that role only. On the recruiter
+  side, recommended applicants join the applicant pool alongside
+  direct-sourced candidates, badged by arrival channel, ranked-never-cut.
+  Recruiter-initiated browsing/search of consumer users remains out,
+  permanently.
+
 ### 5.4 Client-actor auth model (decided 13 Aug 2026, workshop with Ose)
 
 Context: the hiring-manager loop concept
@@ -868,10 +882,11 @@ Decided, all four on the recommended option:
 ### 5.5 Interview-loop DDL (decided 13 Aug 2026, workshop with Ose)
 
 Scope: invites + the interview loop (briefs → availability → rounds →
-artifacts → decisions → references → handover). **Job board + applicant pool
-DDL is explicitly NOT here** — it touches the consumer schema and Art 13
-flows and gets its own workshop. No migration applied yet; files to be
-written from this section.
+artifacts → decisions → references → handover). **Matching + applicant-pool
+DDL is explicitly NOT here** (13 Aug revision: no job board — consumer-side
+quiet matching per the §5.3 resolution) — it touches the consumer schema and
+Art 13 flows and gets its own workshop. No migration applied yet; files to
+be written from this section.
 
 Pattern for every new table: `agency` schema · RLS enabled · recruiter
 member READS via `member_agency_ids()` · writes service-role-only with the
