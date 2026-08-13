@@ -585,16 +585,17 @@ Where the shipped SQL deliberately differs from the §2 draft:
   - Verified against real staging data: opted-in account returned 16 evidence
     items + full Arc + activity stats; test account reset to opted-out after.
 
-- **Migration 10** (`20260813120000_agency_client_auth.sql`) — **WRITTEN 13
-  AUG, NOT YET APPLIED ANYWHERE**: §5.4 made SQL. Nullable
+- **Migration 10** (`20260813120000_agency_client_auth.sql`) — **APPLIED TO
+  STAGING 13 AUG + VERIFIED** (production untouched): §5.4 made SQL. Nullable
   `client_contacts.user_id` (set null) + partial lookup index (deliberately
   non-unique — one person may be several contacts); `client_invites` with
   raw-once token hashes (contact_id CASCADE: the invite is a grant in flight,
   the audit row is the durable trace); `audit_log.entity_type` widened once
   for the whole client-actor build. Member-select RLS only; invited users get
   no policy at all.
-- **Migration 11** (`20260813121000_agency_interview_loop.sql`) — **WRITTEN 13
-  AUG, NOT YET APPLIED ANYWHERE**: §5.5 made SQL, with three as-built deltas:
+- **Migration 11** (`20260813121000_agency_interview_loop.sql`) — **APPLIED TO
+  STAGING 13 AUG + VERIFIED** (production untouched): §5.5 made SQL, with
+  three as-built deltas:
   - **Purge zero-breakage design, contra §5.5's letter.** "Extend
     `purge_candidate()` to return recording paths" would change that
     function's return shape and break the *deployed* cron/rights code in the
@@ -619,6 +620,31 @@ Where the shipped SQL deliberately differs from the §2 draft:
     `recording_deleted_at` for the cron sweep (partial index provided);
     append-only `round_decisions`; `candidate_references.notice_sent_at`;
     `handover_packs` snapshot discipline with in-app delivery only.
+  - **Staging verification, 13 Aug (24/24 passed, fixture cleaned up after,
+    zero residue).** Structure: all 8 new tables RLS-on, exactly one
+    SELECT policy each, **zero authenticated write paths**. Behaviour drill
+    (17/17): double-booking a slot rejected by the partial unique index ·
+    duplicate round_number rejected · interview evidence without a round
+    rejected · a transcript claim with no quote rejected (the existing
+    quote⇔present guard policing the new origin, as designed) · a debrief
+    carrying a recording rejected · `capture_consent_status='assumed'`
+    rejected · `candidate_recording_paths()` returned the fixture path ·
+    purge cascaded rounds/artifacts/interview-evidence/decisions/references
+    to zero, the handover pack survived with `candidate_id` nulled and its
+    ref intact, the audit `erased` row was written, and no suppression row
+    was created for a non-erasure reason. RLS drill (7/7): an alpha member
+    sees own briefs but **0** beta briefs/rounds/invites; a member's direct
+    INSERT into `round_decisions` denied `42501` (audit-coupling holds); a
+    non-member (the HM case) sees **0 rows across all 8 loop tables**.
+    Structural proof of §5.4: **0 of 38** agency policies reference
+    `client_contacts` — linking a contact to an auth user grants no database
+    access whatsoever. Advisors: no new findings; the new functions do NOT
+    appear in the anon/authenticated SECURITY-DEFINER exposure lists.
+  - Pre-existing hardening item noticed during the advisor pass (NOT from
+    this migration): `agency.has_role()` and `agency.member_agency_ids()`
+    are callable by `anon`/`authenticated` over REST RPC. Both return
+    empty/false without a matching `auth.uid()`, so nothing leaks, but a
+    `revoke execute … from anon` is worth doing in a later tidy.
 
 Sequencing rules, per the project's usual practice:
 
