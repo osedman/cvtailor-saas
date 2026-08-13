@@ -18,42 +18,25 @@
  * signed Tailr). Do not send before a non-beta account has been verified to
  * reach /career-path on production.
  *
- * Reads .env.development.local for SUPABASE + RESEND credentials. Refuses any
- * From address that is not a verified gettailr.com sender — the one thing that
- * silently broke welcome emails before.
+ * Reads SUPABASE + RESEND credentials via scripts/lib/mail-env.mjs (shell env,
+ * then .env.local, then .env.development.local). Refuses any From address that
+ * is not a gettailr.com sender verified on the Resend account — the one thing
+ * that silently broke welcome emails before.
  */
-import { readFileSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { createClient } from '@supabase/supabase-js'
+import { requireMailEnv, assertVerifiedSender } from './lib/mail-env.mjs'
 
 const CTA_URL = 'https://app.gettailr.com/career-path'
 const SUBJECT = 'Career path is on your account. Now.'
 
 // ── env ──────────────────────────────────────────────────────────────────
-const env = Object.fromEntries(
-  readFileSync(new URL('../.env.development.local', import.meta.url), 'utf8')
-    .split('\n')
-    .filter((l) => l.includes('=') && !l.trimStart().startsWith('#'))
-    .map((l) => {
-      const i = l.indexOf('=')
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^["']|["']$/g, '')]
-    }),
-)
-
-const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL
-const SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY
-const RESEND_KEY = env.RESEND_API_KEY
-const FROM = env.WELCOME_FROM || 'Tailr <hello@gettailr.com>'
-
-if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.development.local')
-  process.exit(1)
-}
-if (!/@gettailr\.com>?\s*$/.test(FROM)) {
-  console.error(`Refusing to send: WELCOME_FROM is "${FROM}".`)
-  console.error('Only gettailr.com is a verified sender — anything else silently fails to deliver.')
-  process.exit(1)
-}
+const {
+  SUPABASE_URL,
+  SERVICE_KEY,
+  RESEND_API_KEY: RESEND_KEY,
+  FROM,
+} = requireMailEnv()
 
 const args = process.argv.slice(2)
 const has = (f) => args.includes(f)
@@ -134,6 +117,7 @@ const people = await recipients()
 if (has('--test')) {
   const to = valueOf('--test')
   if (!to) { console.error('Usage: --test you@example.com'); process.exit(1) }
+  await assertVerifiedSender(FROM, RESEND_KEY)
   const r = await send(to)
   console.log(r.ok ? `Test sent to ${to}` : `FAILED: ${r.err}`)
   process.exit(r.ok ? 0 : 1)
@@ -155,6 +139,7 @@ if (has('--dry') || !has('--send')) {
 }
 
 // --send: confirm out loud before touching real users.
+await assertVerifiedSender(FROM, RESEND_KEY)
 const rl = createInterface({ input: process.stdin, output: process.stdout })
 const answer = await rl.question(`Send to ${people.length} real users? Type SEND to confirm: `)
 rl.close()

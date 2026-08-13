@@ -8,21 +8,23 @@
  *
  * Subject: first "Subject (Primary):" line in the HTML comment header, or --subject "...".
  * Reads RESEND_API_KEY, WELCOME_FROM, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
- * from .env.local. Refuses to send unless WELCOME_FROM is a gettailr.com sender.
+ * via scripts/lib/mail-env.mjs (shell env, then .env.local, then
+ * .env.development.local). Refuses to send unless WELCOME_FROM is a
+ * gettailr.com sender AND that domain is verified on the Resend account.
  *
  * The subscriber list is screened before sending: test-probe domains, owner plus-aliases,
  * syntactically invalid addresses, known typo domains, and duplicates are dropped and
  * printed with a reason. Always run --list --dry first and read the exclusions.
  */
 import fs from "node:fs";
-import path from "node:path";
+import { requireMailEnv, assertVerifiedSender } from "./lib/mail-env.mjs";
 
-// --- load .env.local ---
-const envPath = path.join(process.cwd(), ".env.local");
-for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
-  const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-  if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
-}
+const {
+  RESEND_API_KEY,
+  FROM: WELCOME_FROM,
+  SUPABASE_URL: NEXT_PUBLIC_SUPABASE_URL,
+  SERVICE_KEY: SUPABASE_SERVICE_ROLE_KEY,
+} = requireMailEnv();
 
 const args = process.argv.slice(2);
 const htmlFile = args.find((a) => !a.startsWith("--"));
@@ -33,18 +35,13 @@ const dry = args.includes("--dry");
 const subjIdx = args.indexOf("--subject");
 const subjectArg = subjIdx >= 0 ? args[subjIdx + 1] : null;
 
-const { RESEND_API_KEY, WELCOME_FROM, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env;
-
 if (!htmlFile) { console.error("Give an HTML file path."); process.exit(1); }
-if (!RESEND_API_KEY) { console.error("RESEND_API_KEY missing."); process.exit(1); }
-if (!/gettailr\.com/.test(WELCOME_FROM || "")) {
-  console.error(`Refusing to send: WELCOME_FROM is "${WELCOME_FROM}", not a verified gettailr.com sender.`);
-  process.exit(1);
-}
 
 const html = fs.readFileSync(htmlFile, "utf8");
 const subject = subjectArg
-  || (html.match(/Subject \(Primary\):\s*(.+)/) || [])[1]?.trim()
+  // Drafts put the subject inside an HTML comment. When "-->" closes on the
+  // same line it lands in the capture group, so strip it before trimming.
+  || (html.match(/Subject \(Primary\):\s*(.+)/) || [])[1]?.replace(/-->.*$/, "").trim()
   || "Tailr weekly digest";
 
 async function send(to) {
@@ -105,6 +102,7 @@ function screen(emails) {
 (async () => {
   console.log(`From:    ${WELCOME_FROM}`);
   console.log(`Subject: ${subject}`);
+  await assertVerifiedSender(WELCOME_FROM, RESEND_API_KEY);
 
   if (testTo) {
     const id = await send(testTo);
