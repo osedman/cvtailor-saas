@@ -155,8 +155,11 @@ export default function AgencyBriefsPage() {
           </div>
         <header className="ag-screen-head">
           <p className="ag-step-eyebrow">Client briefs</p>
+          {/* Never claim "nothing waiting" when the load FAILED — an empty inbox
+              and a refused request would read identically, which is how a broken
+              integration hides in plain sight. */}
           <h1 className="ag-title">
-            {rows === null
+            {rows === null || error
               ? "Client briefs"
               : waiting === 0
                 ? "Nothing waiting on you"
@@ -193,7 +196,7 @@ export default function AgencyBriefsPage() {
           <p className="ag-quiet" aria-live="polite">
             Loading…
           </p>
-        ) : shown.length === 0 ? (
+        ) : error ? null : shown.length === 0 ? (
           <div className="ag-card ag-brief-empty">
             <p className="ag-brief-empty-title">
               {filter === "submitted" ? "No briefs waiting." : "Nothing here yet."}
