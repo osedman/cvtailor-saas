@@ -866,3 +866,11 @@
 }
 .ag-book-summary { margin: 0 0 2px; font-weight: 600; font-size: var(--t-lead); color: var(--ag-ink); }
 .ag-booked { display: flex; align-items: center; gap: 12px; padding: 14px 18px; flex-wrap: wrap; }
+
+/* The one-time consent link, shown only when the email did not land. */
+.ag-ask-result { flex-basis: 100%; margin-top: 8px; }
+.ag-ask-url {
+  display: block; margin-top: 6px; padding: 8px 10px;
+  background: var(--ag-bg-2); border: 1px solid var(--ag-border); border-radius: 6px;
+  font-family: var(--ag-mono); font-size: var(--t-caption); word-break: break-all;
+}

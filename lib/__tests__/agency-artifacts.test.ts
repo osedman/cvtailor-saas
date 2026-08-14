@@ -103,10 +103,11 @@ describe("recordDebrief", () => {
       answers: [{ key: "R04", question: "Kafka?", answer: "Two years, prod." }],
       notes: "Strong on streaming.",
     }).catch(() => {})
-    if (payload) {
-      expect(payload.kind).toBe("debrief")
+    const written = payload as Record<string, unknown> | null
+    if (written) {
+      expect(written.kind).toBe("debrief")
       // artifact_recording_iff_transcript: a debrief never carries a recording.
-      expect(payload.recording_path).toBeUndefined()
+      expect(written.recording_path).toBeUndefined()
     }
   })
 

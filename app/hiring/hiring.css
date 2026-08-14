@@ -258,3 +258,15 @@
 .hm-slot-x:hover:not(:disabled) { color: var(--ag-coral); }
 .hm-slot-x:disabled { opacity: 0.5; cursor: default; }
 .hm-slot-err { color: var(--ag-coral-text); font-size: var(--t-caption); margin-left: 6px; }
+
+/* ---- 9. A round, with what it still owes --------------------------------
+ * Write-up above decision, because the decision is supposed to rest on it
+ * (§5.5, "no artifact, no progression"). The decision buttons only appear once
+ * something has been written — the sequence IS the rule. */
+.hm-round { padding: 18px 20px; }
+.hm-round-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+.hm-round-when { margin: 4px 0 0; font-size: var(--t-small); color: var(--ag-ink-3); }
+.hm-round .hm-field { margin: 12px 0 10px; }
+.hm-round .ag-textarea { min-height: 90px; }
+/* Equal weight: advancing and declining are both just what the client thinks. */
+.hm-decide { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 8px; }

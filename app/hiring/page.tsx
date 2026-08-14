@@ -461,6 +461,12 @@ export default function HiringDashboardPage() {
   const now = useMemo(() => Date.now(), [])
   const cards = useMemo(() => (data ? buildAttention(data, now) : []), [data, now])
   const roles = useMemo(() => (data ? buildRoles(data, now) : []), [data, now])
+  /** Rounds the client can still do something about: written up, decided, or
+   * both. Cancelled ones are history and stay out of the way. */
+  const actionable = useMemo(
+    () => (data?.rounds ?? []).filter((r) => r.status !== "cancelled"),
+    [data]
+  )
   const links = data?.links ?? []
   const slots = data?.slots ?? []
 
@@ -692,6 +698,27 @@ export default function HiringDashboardPage() {
               )}
             </section>
 
+            <section className="agd-band" aria-labelledby="hm-rounds">
+              <div className="agd-eyebrow-row">
+                <h2 className="agd-eyebrow" id="hm-rounds">
+                  Your interviews
+                </h2>
+                <span className="agd-rule" />
+              </div>
+              {actionable.length > 0 ? (
+                <div className="ag-stack" style={{ gap: 12 }}>
+                  {actionable.map((r) => (
+                    <RoundActions key={r.id} round={r} onDone={reload} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyBand
+                  title="No interviews yet."
+                  body="Rounds your recruiter books appear here, with the write-up and your decision on the same card. Nothing moves on a candidate until you have had your say."
+                />
+              )}
+            </section>
+
             <section className="agd-band" aria-labelledby="hm-avail">
               <div className="agd-eyebrow-row">
                 <h2 className="agd-eyebrow" id="hm-avail">
@@ -741,5 +768,155 @@ export default function HiringDashboardPage() {
         )}
       </div>
     </main>
+  )
+}
+
+/**
+ * One round, with the two things a hiring manager owes it: the write-up, and
+ * the decision.
+ *
+ * The order on the card is the order of the rule. AGENCIES_SCHEMA.md §5.5 says
+ * "no artifact, no progression" — a decision should rest on a record of what
+ * happened, not on memory. So the write-up sits above the decision, and the
+ * decision buttons stay disabled until something has been written.
+ *
+ * That rule is what makes declining a recording free: a debrief is an artifact
+ * of equal standing to a transcript, so the process can require a record
+ * without ever requiring consent.
+ *
+ * Decline is offered at the same weight as advance, and says what it does. It
+ * is a state for THE ROUND — it never removes the candidate, and the server has
+ * no code path that would let it.
+ */
+function RoundActions({ round, onDone }: { round: HiringRound; onDone: () => void }) {
+  const [notes, setNotes] = useState("")
+  const [written, setWritten] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const decided = round.latest_decision
+  const canWrite = round.status === "completed"
+
+  async function saveDebrief() {
+    if (!notes.trim()) return
+    setBusy("debrief")
+    setError(null)
+    try {
+      const res = await fetch("/api/hiring/debrief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roundId: round.id, answers: [], notes }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        setError(body.error || "That did not save.")
+        return
+      }
+      setWritten(true)
+    } catch {
+      setError("That did not save.")
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function decide(decision: "advance" | "hold" | "decline") {
+    setBusy(decision)
+    setError(null)
+    try {
+      const res = await fetch("/api/hiring/rounds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roundId: round.id, decision }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        setError(body.error || "That did not save.")
+        return
+      }
+      onDone()
+    } catch {
+      setError("That did not save.")
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <article className="agd-card hm-static hm-round">
+      <div className="hm-round-head">
+        <div className="ag-grow" style={{ minWidth: 0 }}>
+          <p className="agd-eyebrow">
+            {round.role_title} · round {round.round_number} · {round.candidate_ref}
+          </p>
+          <p className="hm-round-when">
+            {round.scheduled_at ? fmtWhen(round.scheduled_at) : "No time set"} ·{" "}
+            {round.duration_minutes} min
+          </p>
+        </div>
+        {decided ? (
+          <span className="ag-pill">{decided}</span>
+        ) : (
+          <span className="ag-pill warn">{canWrite ? "Needs your write-up" : "Scheduled"}</span>
+        )}
+      </div>
+
+      {canWrite && !decided && (
+        <>
+          <label className="hm-field" htmlFor={`notes-${round.id}`}>
+            <span className="ag-field-label">What happened</span>
+            <textarea
+              id={`notes-${round.id}`}
+              className="ag-textarea"
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value.slice(0, 8000))}
+              placeholder="What they said, in your words. This is the record your decision rests on."
+              disabled={written}
+            />
+          </label>
+          {!written ? (
+            <button
+              className="agd-tbtn primary"
+              onClick={saveDebrief}
+              disabled={!notes.trim() || busy === "debrief"}
+            >
+              {busy === "debrief" ? "Saving…" : "Save the write-up"}
+            </button>
+          ) : (
+            <>
+              <p className="agd-aside">Write-up saved. Now your decision.</p>
+              <div className="hm-decide">
+                <button className="agd-tbtn primary" onClick={() => decide("advance")} disabled={!!busy}>
+                  Advance
+                </button>
+                <button className="agd-tbtn" onClick={() => decide("hold")} disabled={!!busy}>
+                  Hold
+                </button>
+                <button className="agd-tbtn" onClick={() => decide("decline")} disabled={!!busy}>
+                  Decline
+                </button>
+              </div>
+              <p className="agd-aside">
+                Yours and reversible — deciding again replaces this one. Declining records your
+                view of this round; it never removes anyone from the process.
+              </p>
+            </>
+          )}
+        </>
+      )}
+
+      {!canWrite && !decided && (
+        <p className="agd-aside">
+          Nothing to do until this has happened. Your write-up and decision open here afterwards.
+        </p>
+      )}
+
+      {error && (
+        <p className="hm-offer-err" role="alert">
+          {error}
+        </p>
+      )}
+    </article>
   )
 }

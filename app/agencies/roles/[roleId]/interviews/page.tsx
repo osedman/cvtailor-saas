@@ -85,6 +85,9 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
   const [duration, setDuration] = useState(45)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The consent link, surfaced once. If the email fails the recruiter still
+  // has something to send — the ask has to reach a real person either way.
+  const [askResult, setAskResult] = useState<{ roundId: string; url: string; emailed: boolean } | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -156,6 +159,36 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
       await load()
     } catch {
       setError("Could not book that interview.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * Ask the candidate whether this round may be recorded.
+   *
+   * Their answer is theirs: this mints a link and emails it, and cannot set
+   * the answer. Nothing on this screen ever shows what they chose — the
+   * candidate is told the interviewer will not be told, and
+   * getHiringDashboard has a build-failing test keeping that true.
+   */
+  async function askConsent(roundId: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/consent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roundId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not send that request.")
+        return
+      }
+      setAskResult({ roundId, url: String(body.url ?? ""), emailed: Boolean(body.emailed) })
+    } catch {
+      setError("Could not send that request.")
     } finally {
       setBusy(false)
     }
@@ -403,6 +436,14 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                       <>
                         <button
                           className="ag-btn ag-btn-secondary"
+                          onClick={() => askConsent(r.id)}
+                          disabled={busy}
+                          title="Emails the candidate a link asking whether this call may be recorded. Their answer is theirs; you are not told what they chose."
+                        >
+                          Ask about recording
+                        </button>
+                        <button
+                          className="ag-btn ag-btn-secondary"
                           onClick={() => setStatus(r.id, "completed")}
                           disabled={busy}
                         >
@@ -416,6 +457,14 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                           Cancel
                         </button>
                       </>
+                    )}
+                    {askResult?.roundId === r.id && (
+                      <p className="ag-note ag-ask-result">
+                        {askResult.emailed
+                          ? "Asked. The candidate has the link; you will not be told what they choose."
+                          : "We could not email them, so send this link yourself — it is shown once:"}
+                        {!askResult.emailed && <code className="ag-ask-url">{askResult.url}</code>}
+                      </p>
                     )}
                   </div>
                 ))}
