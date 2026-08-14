@@ -893,3 +893,35 @@
 .ag-pack-n { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-coral-text); padding-top: 2px; }
 .ag-pack-sec-title { margin: 0 0 2px; font-weight: 600; font-size: var(--t-body); }
 .ag-pack-foot { margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--ag-border); font-size: var(--t-caption); color: var(--ag-ink-3); line-height: 1.5; }
+
+/* ============================================================
+ * THE LIVING DOSSIER — stratigraphy
+ * Rail left (the summary you read in a glance), strata right (the argument).
+ * ============================================================ */
+.ag-dossier-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; margin-top: 18px; }
+@media (max-width: 1040px) { .ag-dossier-grid { grid-template-columns: 1fr; } }
+
+/* The inverse counter. Dark on a light surface because it is the one number
+ * on the page that is supposed to feel like a held breath. */
+.ag-unknown { background: var(--ag-ink); color: var(--ag-paper); border-color: var(--ag-ink); padding: 18px 20px; }
+.ag-unknown-n { margin: 6px 0 4px; font-family: var(--ag-display); font-size: 30px; font-weight: 600; letter-spacing: var(--track-tight); }
+
+/* One block per requirement, coloured by the layer that last moved it. */
+.ag-core-row { display: flex; align-items: center; gap: 10px; }
+.ag-core-ref { width: 34px; flex: none; }
+.ag-core-block { width: 96px; height: 16px; border-radius: 3px; flex: none; }
+.ag-core-block.open { background: none; border: 1px dashed var(--ag-ink-3); }
+.ag-core-name { font-size: var(--t-caption); color: var(--ag-ink-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The waterfall: where the score started, what screening added. */
+.ag-fall { display: flex; height: 20px; border-radius: 4px; overflow: hidden; background: var(--ag-line-2); }
+.ag-fall-seg { display: block; height: 100%; }
+
+.ag-strata { padding: 16px 18px; }
+.ag-strata-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ag-strata-title { font-weight: 600; font-size: var(--t-body); }
+/* Each layer carries its provenance rail — the colour IS the source. */
+.ag-layer { display: flex; gap: 12px; align-items: stretch; }
+.ag-layer-rail { width: 3px; border-radius: 2px; flex: none; }
+.ag-layer-change { margin: 3px 0 0; font-size: var(--t-caption); color: var(--ag-coral-text); }
+.ag-layer-quote { margin: 4px 0 2px; font-family: var(--ag-display); font-style: italic; font-size: var(--t-body); color: var(--ag-ink); }

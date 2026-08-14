@@ -202,6 +202,15 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                 <div style={{ display: "flex", gap: 10, alignItems: "center", flex: "none" }}>
                   <button className="ag-btn" disabled={!prev} onClick={() => prev && router.push(`/agencies/roles/${roleId}/candidates/${prev.id}`)}>← Prev</button>
                   <button className="ag-btn" disabled={!next} onClick={() => next && router.push(`/agencies/roles/${roleId}/candidates/${next.id}`)}>Next →</button>
+                  {/* The stratigraphy view: not another step, a deeper read of
+                      the same evidence — how each requirement came to be
+                      believed, layer by layer. */}
+                  <button
+                    className="ag-btn"
+                    onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${candidateId}/dossier`)}
+                  >
+                    Dossier
+                  </button>
                   <button className="ag-btn ag-btn-primary" onClick={() => decide("shortlist")}>
                     {decision === "shortlist" ? "✓ On the shortlist" : "Add to submission"}
                   </button>
