@@ -13,10 +13,23 @@ export type Decision = "shortlist" | "hold" | "reject" | null
 export type SubmissionFormat = "document" | "email" | "portal"
 
 /** Resolved once per request from the session; never from client input. */
+export interface AgencyMembership {
+  agencyId: string
+  agencyName: string
+  role: MemberRole
+}
+
 export interface AgencyContext {
   agencyId: string
   userId: string
   role: MemberRole
+  /** Display name of the agency this request is scoped to. Optional because
+   * tests and older callers construct contexts by hand. */
+  agencyName?: string
+  /** Every active membership the caller holds, so the chrome can name the
+   * current agency and offer the others. Never a permission — every query is
+   * still scoped by agencyId. */
+  memberships?: AgencyMembership[]
 }
 
 export interface JobRole {

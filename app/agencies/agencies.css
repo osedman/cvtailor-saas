@@ -777,3 +777,41 @@
 .ag-brief-confirm { flex-basis: 100%; color: var(--ag-ink-2); }
 .ag-brief-empty { padding: 28px; }
 .ag-brief-empty-title { margin: 0 0 6px; font-weight: 600; font-size: var(--t-lead); color: var(--ag-ink); }
+
+/* ---- Which agency am I in? ---------------------------------------------
+ * Sits directly under the brand, because the answer belongs with the product
+ * name rather than buried in a menu: everything below it — roles, candidates,
+ * clients — is scoped to this agency, and until now nothing said so. With one
+ * membership it is a label; with two it is a select, because only then is
+ * there a choice to make. */
+.ag-agency-id { margin-bottom: 20px; }
+.ag-agency-name {
+  margin: 0;
+  font-weight: 600;
+  font-size: var(--t-body);
+  color: var(--ag-ink);
+  padding: 0 8px;
+}
+.ag-agency-select {
+  width: 100%;
+  border: 1px solid var(--ag-line-2);
+  border-radius: var(--r-sm);
+  background: var(--ag-paper);
+  color: var(--ag-ink);
+  font-family: var(--ag-sans);
+  font-size: var(--t-small);
+  font-weight: 500;
+  padding: 7px 10px;
+}
+.ag-agency-select:focus { outline: none; border-color: var(--ag-coral); box-shadow: 0 0 0 3px var(--ag-tint-1); }
+.ag-agency-err { margin: 6px 0 0; font-size: var(--t-caption); color: var(--ag-coral-text); padding: 0 8px; }
+/* Visually hidden, still announced. */
+.ag-sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

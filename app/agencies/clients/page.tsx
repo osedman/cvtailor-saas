@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation"
 // module (next/headers, service-role keys, node crypto) never reaches the
 // browser bundle. The shape is the contract; the runtime is the API route.
 import type { ClientAccessRow, ClientAccessState } from "@/lib/agency/client-auth"
+import { AgencySwitcher } from "@/components/agency/agency-switcher"
 
 /** What each access state is called, and how it reads. */
 const STATE_PILL: Record<ClientAccessState, { label: string; style: CSSProperties }> = {
@@ -272,8 +273,9 @@ export default function ClientAccessPage() {
             <div className="ag-brand-sub">For agencies</div>
           </div>
         </button>
+        <AgencySwitcher />
         <div>
-          <div className="ag-rail-label">Agency</div>
+          <div className="ag-rail-label">Navigate</div>
           <button className="ag-step" onClick={() => router.push("/agencies")}>Roles</button>
           <button className="ag-step on" aria-current="page">Client access</button>
           <button className="ag-step" onClick={() => router.push("/agencies/briefs")}>Client briefs</button>

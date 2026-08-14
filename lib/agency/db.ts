@@ -68,11 +68,25 @@ export function agencyAdmin(): AgencyClient {
 
 export type ContextFailure = "unauthenticated" | "no_agency"
 
+/** Cookie naming the agency the caller is currently working in. It is a
+ * PREFERENCE, never a permission: the value is matched against the caller's
+ * own active memberships on every request, and anything unrecognised falls
+ * back to the default. Forging it gains nothing. */
+export const AGENCY_COOKIE = "ag_agency"
+
 /**
  * Resolve the caller's agency membership from the session. Returns the
  * user-scoped agency client alongside the context so routes reuse one client.
- * v1 assumes one agency per user (manual provisioning); first active
- * membership wins deterministically.
+ *
+ * Most people are in exactly one agency (they are provisioned by hand), and
+ * for them nothing here has ever mattered. For anyone in two, the old rule —
+ * oldest membership wins, silently — meant the second agency was invisible
+ * with no switcher and no indication it existed. So the caller may name the
+ * agency they are working in via AGENCY_COOKIE, and every membership comes
+ * back on the context so the chrome can say which one that is.
+ *
+ * The cookie is validated against real memberships here; it can only ever
+ * select between agencies the caller already belongs to.
  */
 export async function requireAgencyContext(): Promise<
   | { ok: true; ctx: AgencyContext; db: AgencyClient }
@@ -84,25 +98,44 @@ export async function requireAgencyContext(): Promise<
   } = await db.auth.getUser()
   if (!user) return { ok: false, failure: "unauthenticated" }
 
-  const { data: memberships, error } = await db
+  const { data: rows, error } = await db
     .from("members")
     .select("agency_id, role, created_at")
     .eq("user_id", user.id)
     .eq("status", "active")
     .order("created_at", { ascending: true })
-    .limit(1)
 
-  if (error || !memberships || memberships.length === 0) {
+  if (error || !rows || rows.length === 0) {
     return { ok: false, failure: "no_agency" }
   }
+
+  // Names come from agency.agencies, which members may read under RLS.
+  const ids = rows.map((r) => r.agency_id as string)
+  const { data: named } = await db.from("agencies").select("id, name").in("id", ids)
+  const nameById = new Map<string, string>(
+    (named ?? []).map((a) => [a.id as string, (a.name as string) ?? ""])
+  )
+
+  const memberships = rows.map((r) => ({
+    agencyId: r.agency_id as string,
+    agencyName: nameById.get(r.agency_id as string) ?? "",
+    role: r.role as MemberRole,
+  }))
+
+  // Preference, then the long-standing default of the oldest membership.
+  const cookieStore = await cookies()
+  const preferred = cookieStore.get(AGENCY_COOKIE)?.value
+  const active = memberships.find((m) => m.agencyId === preferred) ?? memberships[0]
 
   return {
     ok: true,
     db,
     ctx: {
-      agencyId: memberships[0].agency_id as string,
+      agencyId: active.agencyId,
+      agencyName: active.agencyName,
       userId: user.id,
-      role: memberships[0].role as MemberRole,
+      role: active.role,
+      memberships,
     },
   }
 }

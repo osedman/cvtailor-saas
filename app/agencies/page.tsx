@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { AgencySwitcher } from "@/components/agency/agency-switcher"
 
 type StageState = "here" | "blocked" | "waiting" | "done"
 interface RoleRow {
@@ -435,8 +436,9 @@ export default function AgencyHomePage() {
           </div>
         </div>
 
+        <AgencySwitcher />
         <div>
-          <div className="ag-rail-label">Agency</div>
+          <div className="ag-rail-label">Navigate</div>
           <nav className="agd-nav">
             <button className="agd-nav-item on" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               <span className="agd-nav-dot" />Today

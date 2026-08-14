@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import type { BriefStatus } from "@/lib/agency/types"
+import { AgencySwitcher } from "@/components/agency/agency-switcher"
 
 interface BriefRow {
   id: string
@@ -128,8 +129,9 @@ export default function AgencyBriefsPage() {
             <div className="ag-brand-sub">For agencies</div>
           </div>
         </button>
+        <AgencySwitcher />
         <div>
-          <div className="ag-rail-label">Agency</div>
+          <div className="ag-rail-label">Navigate</div>
           <button className="ag-step" onClick={() => router.push("/agencies")}>Roles</button>
           <button className="ag-step" onClick={() => router.push("/agencies/clients")}>Client access</button>
           <button className="ag-step on" aria-current="page">Client briefs</button>
