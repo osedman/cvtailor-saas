@@ -975,3 +975,12 @@
   .ag-audit-row { flex-wrap: wrap; gap: 8px; }
   .ag-audit-when { width: 100%; }
 }
+
+/* Agency settings. One card per decision, the number small and the
+ * consequence spelled out around it — these two fields decide things about
+ * people who never signed up to anything. */
+.ag-setting { padding: 20px 24px; }
+.ag-setting-title { margin: 0 0 6px; font-size: var(--t-lead); font-weight: 600; }
+.ag-setting-row { display: flex; align-items: center; gap: 12px; margin: 14px 0 10px; flex-wrap: wrap; }
+.ag-setting-input { width: 120px; font-variant-numeric: tabular-nums; }
+.ag-setting-save { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }

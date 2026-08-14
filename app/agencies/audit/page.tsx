@@ -112,6 +112,7 @@ export default function AuditPage() {
           <button className="ag-step" onClick={() => router.push("/agencies/clients")}>Client access</button>
           <button className="ag-step" onClick={() => router.push("/agencies/briefs")}>Client briefs</button>
           <button className="ag-step on" aria-current="page">Audit log</button>
+          <button className="ag-step" onClick={() => router.push("/agencies/settings")}>Settings</button>
         </div>
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Append-only</div>
