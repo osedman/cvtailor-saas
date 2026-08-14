@@ -815,3 +815,16 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* One sent link: who holds it, whether it has been opened, and the control to
+ * kill it. Wraps rather than truncates — the recruiter is deciding about a
+ * named person, so the name must not be the thing that gets clipped. */
+.ag-sentlink {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ag-border);
+}
+.ag-sentlink:last-of-type { border-bottom: none; padding-bottom: 0; }

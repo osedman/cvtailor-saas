@@ -2073,6 +2073,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         </div>
                       </div>
 
+                      {/* Links already out in the world. Separate from the
+                          recipient picker above, which is about the NEXT send:
+                          this is the only place a shortlist that reached the
+                          wrong inbox can be pulled back. */}
+                      <SentLinks roleId={roleId} />
+
                       <div className="ag-card">
                         <div className="ag-card-head"><span className="ag-card-title">Audit trail</span></div>
                         <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
@@ -2113,5 +2119,141 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         </div>
       </main>
     </>
+  )
+}
+
+/**
+ * Links already sent, and the control to withdraw one.
+ *
+ * `submission_recipients.revoked_at` and the portal's refusal of it have both
+ * existed since migration 4; nothing could ever set it, so a shortlist link
+ * forwarded to the wrong inbox could not be withdrawn from inside Tailr while
+ * the screen above promised each link was "revocable on its own".
+ *
+ * "Live" here is computed server-side from the same two conditions the portal
+ * enforces (not revoked, not expired), so this list cannot tell a recruiter a
+ * link is dead while it still opens.
+ *
+ * Revoking asks first: it cannot be undone, and the recipient is a real person
+ * who will simply find the link stops working.
+ */
+function SentLinks({ roleId }: { roleId: string }) {
+  const [rows, setRows] = useState<Array<{
+    id: string
+    company: string
+    fullName: string
+    expiresAt: string
+    revokedAt: string | null
+    firstOpenedAt: string | null
+    live: boolean
+  }> | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/recipients`)
+      if (!res.ok) {
+        setRows([])
+        return
+      }
+      const body = await res.json()
+      setRows(Array.isArray(body?.recipients) ? body.recipients : [])
+    } catch {
+      setRows([])
+    }
+  }, [roleId])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  async function revoke(id: string) {
+    setBusy(id)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/recipients`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipientId: id }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setError(typeof body?.error === "string" ? body.error : "Could not revoke that link.")
+        return
+      }
+      setConfirming(null)
+      await load()
+    } catch {
+      setError("Could not revoke that link.")
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // Nothing sent yet: the picker above already explains what will happen, so a
+  // second empty card here would only be noise.
+  if (rows !== null && rows.length === 0) return null
+
+  return (
+    <div className="ag-card">
+      <div className="ag-card-head">
+        <span className="ag-card-title">Links you have sent</span>
+        <span className="ag-grow" />
+        <span className="ag-pill">Audit logged</span>
+      </div>
+      <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
+        {rows === null ? (
+          <span className="ag-meta">Loading…</span>
+        ) : (
+          rows.map((r) => (
+            <div key={r.id} className="ag-sentlink">
+              <div className="ag-grow" style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12.5 }}>
+                  {r.fullName || r.company}
+                  {!r.live && (
+                    <span className="ag-meta" style={{ marginLeft: 6 }}>
+                      {r.revokedAt ? "· revoked" : "· expired"}
+                    </span>
+                  )}
+                </div>
+                <span className="ag-meta" style={{ display: "block" }}>
+                  {r.company}
+                  {r.firstOpenedAt ? " · opened" : " · not opened yet"}
+                </span>
+              </div>
+              {r.live &&
+                (confirming === r.id ? (
+                  <span className="ag-stack" style={{ gap: 6 }}>
+                    <span className="ag-meta">Revoke? The link stops working immediately.</span>
+                    <span style={{ display: "flex", gap: 6 }}>
+                      <button
+                        className="ag-btn ag-btn-primary"
+                        disabled={busy === r.id}
+                        onClick={() => revoke(r.id)}
+                      >
+                        {busy === r.id ? "Revoking…" : "Yes, revoke"}
+                      </button>
+                      <button className="ag-btn ag-btn-secondary" onClick={() => setConfirming(null)}>
+                        Keep
+                      </button>
+                    </span>
+                  </span>
+                ) : (
+                  <button className="ag-btn ag-btn-secondary" onClick={() => setConfirming(r.id)}>
+                    Revoke
+                  </button>
+                ))}
+            </div>
+          ))
+        )}
+        {error && <span className="ag-meta" style={{ color: "var(--ag-coral-text)" }}>{error}</span>}
+        <span className="ag-meta">
+          Revoking kills one person&apos;s link. It never deletes the record of what they were
+          sent, and never touches the other recipients.
+        </span>
+      </div>
+    </div>
   )
 }
