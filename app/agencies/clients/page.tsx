@@ -276,6 +276,7 @@ export default function ClientAccessPage() {
           <div className="ag-rail-label">Agency</div>
           <button className="ag-step" onClick={() => router.push("/agencies")}>Roles</button>
           <button className="ag-step on" aria-current="page">Client access</button>
+          <button className="ag-step" onClick={() => router.push("/agencies/briefs")}>Client briefs</button>
         </div>
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Invite only</div>

@@ -124,3 +124,104 @@
   color: var(--ag-ink);
   word-break: break-all;
 }
+
+/* ---- 7. The brief form --------------------------------------------------
+ * Two columns: the form carries the work, the rail carries the promises made
+ * about it. The rail is not decoration — it is where the three product rules
+ * live (what happens next, and what this form is not), and on a narrow screen
+ * it must fall BELOW the form rather than beside it, because a client filling
+ * this in on a phone needs the fields first and the reassurance second.
+ * `.ag-grid-2` is the closest primitive but is 1.4fr/1fr with no stacking
+ * behaviour, which puts the rail at 40% of a phone screen. */
+.hm-brief-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 760px) minmax(0, 380px);
+  gap: 24px;
+  align-items: start;
+}
+.hm-brief-form {
+  padding: 24px 28px 28px;
+}
+.hm-brief-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.hm-brief-rail .agd-card {
+  padding: 18px 20px 20px;
+}
+@media (max-width: 1100px) {
+  .hm-brief-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Field stack. The label is `.ag-field-label` (mono, coral, uppercase) so the
+ * form reads as part of the same product as the recruiter's screens. */
+.hm-field {
+  margin-bottom: 18px;
+}
+.hm-field-hint {
+  margin: 6px 0 0;
+  font-size: var(--t-caption);
+  color: var(--ag-ink-3);
+}
+/* The one required field is marked on the label, and `(optional)` is spelled
+ * out on the rest — an asterisk alone asks the reader to infer the rule. */
+.hm-req {
+  color: var(--ag-coral-text);
+}
+.hm-opt {
+  font-weight: 400;
+  color: var(--ag-ink-3);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.hm-brief-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 620px) {
+  .hm-brief-pair {
+    grid-template-columns: 1fr;
+  }
+}
+.hm-brief-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+/* Rail lists. Numbers on the left in coral, the way the workflow rail numbers
+ * its steps, so "what happens next" reads as the same sequence the recruiter
+ * is working through rather than a generic marketing list. */
+.hm-steps-list,
+.hm-not-list {
+  margin: 12px 0 0;
+  padding: 0 0 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: var(--t-small);
+  color: var(--ag-ink-2);
+  line-height: 1.55;
+}
+.hm-steps-list b {
+  color: var(--ag-ink);
+  font-weight: 600;
+}
+.hm-steps-list li::marker {
+  color: var(--ag-coral-text);
+  font-family: var(--ag-mono);
+  font-size: var(--t-caption);
+}
+.hm-not-list li::marker {
+  color: var(--ag-ink-4);
+}
+.hm-foot {
+  margin-top: 32px;
+  padding-bottom: 8px;
+}

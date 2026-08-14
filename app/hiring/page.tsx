@@ -30,6 +30,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import type {
   HiringBrief,
   HiringDashboard,
@@ -526,13 +527,9 @@ export default function HiringDashboardPage() {
                   Your roles
                 </h2>
                 <span className="agd-rule" />
-                <button
-                  className="agd-tbtn"
-                  disabled
-                  title="Briefs cannot be written here yet. When the brief form ships, this opens it and your recruiter gets the role the moment you submit. Until then, send the brief to your recruiter the way you do today."
-                >
+                <Link className="agd-tbtn primary" href="/hiring/briefs/new">
                   Post a brief
-                </button>
+                </Link>
               </div>
               {roles.length > 0 ? (
                 <div className="agd-roles">
@@ -567,7 +564,7 @@ export default function HiringDashboardPage() {
               ) : (
                 <EmptyBand
                   title="No roles yet."
-                  body="Every role you brief your recruiter on gets a row here, with the rail showing how far it has got: brief, shortlist, first round, second round, decision. Shortlists your recruiter sends will appear here too. Writing a brief on this page is not built yet — send it to your recruiter the way you do today and the row will appear."
+                  body="Every role you brief your recruiter on gets a row here, with the rail showing how far it has got: brief, shortlist, first round, second round, decision. Shortlists your recruiter sends will appear here too. Post a brief to start one."
                 />
               )}
             </section>

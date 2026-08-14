@@ -744,3 +744,36 @@
 
 /* Punctuation, not content: the only thing still allowed to sit light. */
 .ag-qa-dash { color: var(--ag-ink-4); }
+
+/* ============================================================
+ * CLIENT BRIEFS — the recruiter's inbox
+ *
+ * A brief is the client's own request, so the card leads with who sent it and
+ * their exact words, not with our summary of them. Awaiting briefs carry the
+ * coral rail every "needs a human" surface in this product uses; decided ones
+ * stay in the list, quieter, because a declined request is a record the
+ * recruiter should keep seeing.
+ * ============================================================ */
+.ag-brief-list { display: flex; flex-direction: column; gap: 14px; }
+.ag-brief { padding: 20px 24px 22px; }
+/* The rail marks the only rows that need a decision. */
+.ag-brief.awaiting { border-left: 3px solid var(--ag-coral); }
+.ag-brief-head { display: flex; align-items: flex-start; gap: 16px; }
+.ag-brief-who {
+  margin: 0 0 4px;
+  font-family: var(--ag-mono);
+  font-size: var(--t-micro);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ag-coral-text);
+}
+.ag-brief-title { margin: 0; font-family: var(--ag-display); font-size: var(--t-h3); font-weight: 600; letter-spacing: var(--track-tight); }
+.ag-brief-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--ag-border); }
+/* The note explaining what Accept actually does sits with the buttons, not in
+ * a tooltip — minting a reference is not reversible and should not be a
+ * surprise. */
+.ag-brief-note { flex: 1; min-width: 240px; }
+.ag-brief-reason { flex: 1; min-width: 260px; }
+.ag-brief-confirm { flex-basis: 100%; color: var(--ag-ink-2); }
+.ag-brief-empty { padding: 28px; }
+.ag-brief-empty-title { margin: 0 0 6px; font-weight: 600; font-size: var(--t-lead); color: var(--ag-ink); }
