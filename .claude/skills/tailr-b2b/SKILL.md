@@ -1,0 +1,277 @@
+---
+name: tailr-b2b
+description: Tailr for Agencies (B2B recruiter product) — full context, agreed decisions, schema state, and where to pick up. Use whenever working on the agencies/recruiter side of Tailr - the agency schema, recruiter screens (/agencies/**), the hiring-manager surface (/hiring/**), the candidate/referee doorways (/consent, /reference, /portal, /rights), JD/CV parsing, scoring, interview rounds, consent, handover, or the staging→prod port of agency migrations. Read AFTER tailr-playbook (repo-wide rules still apply). Carries the SEVEN-step workflow definition, the client-actor and interview-loop decisions, the design lineage, the product decisions embedded in the UI, and the bugs that cost something. Triggers - "tailr b2b", "agencies build", "recruiter product", "agency schema", "client submission", "candidate notice", "workflow steps", "hiring manager", "interview loop", "consent", "handover".
+---
+
+# Tailr for Agencies — B2B build context
+
+Read `tailr-playbook` first for repo-wide rules (staging-first, verified pushes,
+PII, tracking boards). This skill carries the agencies-specific state.
+
+## START HERE — where the build stopped (14 Aug 2026)
+
+**Everything designed has been built. Nothing is half-finished.** The product
+runs end to end on staging: invite → brief → role → availability → booking →
+consent ask → write-up → decision → references → handover, with a dossier, a
+round delta, an audit log and settings over the top. 495 tests, build clean.
+
+**What is left is not a build list.** In priority order:
+
+1. **A lawyer reads `docs/CONSENT-COPY-DRAFT.md` §2 and §3, and the DPIA is
+   done.** This is the only real blocker. It unblocks capture → transcription
+   → enrichment, and enrichment is what turns both hero screens from two
+   layers deep into five. Nothing capture-related may point at a real
+   candidate first.
+2. **Ose walks the loop in a real session.** Never done end to end. Twice this
+   session, reading *real data* found bugs that the unit tests were happy
+   with. A human click-through is worth more than the next feature.
+3. **One-line migration** revoking authenticated UPDATE on `agency.agencies`,
+   so settings changes cannot skip their audit row (see Lessons, below).
+4. Then: bulk upload; quiet matching (needs its own DDL workshop — touches the
+   consumer schema and Art 13); production, which has **never seen a single
+   line of agency code** and needs Ose's explicit say-so.
+
+**Do not start by building.** Ask which of 1–3 has happened.
+
+## What the product is
+
+Decision-support for recruitment agencies — **not an ATS**. A recruiter inputs
+one client role + 3–10 candidates and gets an explainable ranked shortlist
+where every score traces to CV evidence, a recruiter override, or an explicit
+`MISSING`. Output is a client-ready submission (document / email / portal).
+Since 13 Aug it also carries the **interview loop**: the client posts a brief,
+offers times, meets people, and decides — and the record deepens each round.
+
+**Non-negotiables (from the PRD, enforced in schema where possible):**
+- No automatic rejection, ever. Low scores prompt review; nothing hides a
+  candidate. Client 'decline' actions and round decisions are signals, not
+  removals — no code path turns either into one.
+- `MISSING` renders explicitly, never filled with inferred content — DB
+  constraint `evidence_quote_iff_present` enforces missing ⇔ no quote, both
+  directions, plus 1000-char quote cap.
+- Human override on every candidate; overrides live in `review_overrides`,
+  attributed and audit-logged — never edits to the evidence map.
+- Voice: "we structured what you told us, you decide." Never "AI decides" /
+  "auto-hire".
+- **No inference about a person.** Verbatim quotes mapped to requirements
+  only. Never tone, sentiment, confidence or fluency scoring — the product's
+  argument and the line the EU AI Act draws around emotion inference in hiring.
+
+## Source documents
+
+- `docs/AGENCIES_SCHEMA.md` — agreed design + **§4.1 as-built deltas** + §5
+  decision log (**§5.4 client-actor auth, §5.5 interview loop**). THE
+  reference; keep §4.1 updated on any schema change.
+- `docs/CONSENT-COPY-DRAFT.md` — the interview-capture consent copy, BUILT but
+  **not cleared for a real candidate**. Five decisions, the email, the page,
+  the in-call reminder, and §6's six build promises.
+- `docs/PROJECT.md` — running status rows.
+- `mockups/agency-prototype/screens/*.jsx` — the original handoff's seven
+  screens. Read rather than reconstructing from screenshots; doing the latter
+  lost content twice.
+- Figma **"Tailr — Hiring Manager Concept"** (`AWRRbEOX6rLsltutFDL3zs`) — 5
+  pages, ~12 frames: concept map, HM dashboard, pre-round briefing, write a
+  brief, recruiter briefs inbox, applicant pool, booking, close-out, consumer
+  match, living dossier v2, round delta, audit log, settings.
+- Tokens = Tailr brand v1.0 (ink #1E1813, paper #FFFDFA, cream #F9F6F0, coral
+  #DC4F33), Fraunces headlines on the agency side only.
+
+## Architecture decisions (5 Aug — do not relitigate)
+
+1. **Same Supabase project, separate `agency` schema.** Consumer RLS is
+   `auth.uid() = user_id`; agency RLS is `agency_id in (select
+   agency.member_agency_ids())`. Never mix the families.
+2. **Audit-coupling rule:** any table whose changes must be audit-logged has NO
+   authenticated write policies — writes happen only in API routes via the
+   service role, in the same operation as the `agency.audit_log` row. If the UI
+   shows an AUDIT LOGGED pill, the client cannot write it directly.
+3. **Clients are a third actor** — `client_contacts`, per-recipient sha256
+   portal tokens (raw once), expiry + individual revocation.
+4. **Retention:** role close stamps `retention_expires_at`;
+   `agency.purge_candidate()` is the single erasure path; `purge_expired()`
+   returns storage paths for the caller to delete via the Storage API.
+5. **Art 14 candidate notice** at ingestion + `notice_delay_days` (default 7,
+   hard cap 28). Auto-fire is NOT switch-off-able.
+6. **Consumer bridge:** `public.recruiter_profile_snapshot(email)` is the ONLY
+   door to consumer data, service-role-execute-only. No match caching anywhere.
+7. **Provenance FKs** to auth.users are nullable `on delete set null` — consumer
+   account deletion must never be blocked.
+8. **Refs:** ROL-XXXX / CAN-0N via service-role-only RPCs.
+9. **Scoring runs server-side.** `score_breakdowns` cached with `inputs_hash`;
+   submission generation recomputes and REFUSES on a stale hash.
+
+Never add `force row level security` to `agency.members` — infinite recursion.
+
+## Client-actor + interview loop (13–14 Aug — settled, §5.4 / §5.5)
+
+1. **One auth pool.** `auth.users` is the person; consumer / recruiter / hiring
+   manager are orthogonal hats. Post-login routing by hat (`lib/hat-routing.ts`).
+2. **Linkage is invite-only.** `client_contacts.user_id` (nullable, set null) is
+   bound only by accepting a recruiter-issued invite on a **matching verified
+   email**. No email self-claim.
+3. **HMs hold ZERO RLS grants.** Every HM read/write is a service-role route
+   shaped by disclosure rules. Their view is disclosure-filtered, not
+   row-filtered — live tables hold recruiter-private material.
+4. **The recruiter owns the process.** HM offers availability (their diary),
+   recruiter books rounds, HM decides. Decisions are append-only.
+5. **Capture consent is the candidate's alone.** `recordDecision` takes a raw
+   token and *nothing else* — no context object — so there is no code path by
+   which a recruiter could consent for someone. Rounds are created leaving
+   `capture_consent_status` at `'pending'`; a test fails if the insert ever
+   carries those columns.
+6. **Withdrawal is a cascade**, not a flag: artifact + recording path +
+   every evidence row from that round, then rescore.
+7. **The client never sees the raw transcript** — structured evidence and
+   quotes only. `getHiringDashboard` omits `capture_consent_*` and a
+   build-failing source-scan test keeps it that way, because the consent copy
+   promises "the people interviewing you are not told what you chose".
+8. **Handover ends it.** The employer becomes controller; the retention clock
+   starts on everyone else.
+
+## State (14 Aug 2026)
+
+**Staging only. Production has zero agency code** — no migrations, no routes.
+
+**Migrations 1–11 applied to `tailr-staging` (pwonuqkpumgejqmotkwh)**, RLS
+verified. 10 (`agency_client_auth`) and 11 (`agency_interview_loop`) applied
+13 Aug. Always confirm the project ref before applying anything.
+
+**Recruiter surface** (`/agencies`): dashboard · role workflow (7 steps) ·
+candidate detail · **clients** (invite/revoke access) · **briefs** (inbox,
+accept→mints role) · **interviews** (book/complete/cancel, ask about
+recording) · **close-out** (references + handover pack) · **dossier**
+(stratigraphy + round delta) · **audit** · **settings**.
+
+**Hiring-manager surface** (`/hiring`): dashboard (dark) · write a brief ·
+availability (offer/withdraw) · round write-up + decision · invite accept.
+
+**Doorways** (token, no account): `/portal` · `/rights` · `/consent` ·
+`/reference`.
+
+**lib/agency/**: `db · types · steps · scoring · ingest · rescore · probes ·
+notices · client-auth · briefs · rounds · consent · artifacts · references ·
+handover · dossier · round-delta · recipients · audit-view · settings ·
+settings-limits`.
+
+**⭐ The standing gap is partly closed:** Ose completed the authenticated invite
+accept on staging 13 Aug 22:29 — first real logged-in write, audit row verified.
+**The rest of the loop has still never been walked by a human.**
+
+**Demo fixtures on staging:** `hm-smoke-halcyon` ("Halcyon Search") with Ose as
+owner (membership **backdated to 2025-07-10** so it wins the first-membership
+race) + a linked Meridian Health contact. `rls-test-alpha` holds the real
+parsed data (ROL-2402, ROL-2403, 79 overrides, 15 scored candidates). Ose is in
+both — use the sidebar agency switcher.
+
+### THE WORKFLOW IS SEVEN STEPS, NOT SIX
+
+`lib/agency/steps.ts` is the single source of truth. Import it; never re-declare.
+01 intake · 02 parse · 03 candidates · 04 screening · 05 compare · 06 **candidate
+detail (own route)** · 07 submission. Step 06 fell out of a pane-derived rail
+once and went missing for four days.
+
+**Interviews, close-out, dossier, clients, briefs, audit and settings are
+ADJUNCTS, not steps.** They hang off a role or the sidebar. Do not add an
+eighth step.
+
+## Design lineage
+
+1. `mockups/agency-prototype/screens/*.jsx` — source of truth for the original
+   seven screens' structure and copy.
+2. `mockups/agency-dashboard-v2.html` — approved dashboard.
+3. Figma "Tailr — Hiring Manager Concept" — everything from 12 Aug onward.
+
+**Theme:** recruiter dashboard + all `/hiring` = **dark**, scoped by
+`.ag-app:has(.agd-main)`. The seven workflow screens and the adjunct recruiter
+screens stay light. Doorways (`/consent`, `/reference`) are light, own
+stylesheet. Headlines Fraunces, body Geist, machine data Geist Mono.
+
+## Product decisions embedded in the UI (do not undo)
+
+- Compare matrix tints **recruiter overrides**, not "strong" cells.
+- Submission disclosure switches **freeze into the snapshot** at generation.
+- The client document keeps its **confidentiality footer** and **"Known gaps,
+  stated plainly"**. Dropped once already in a layout rebuild.
+- Hiding a candidate on compare is a **view control only**.
+- Probe questions keyed by **question id**, never array index.
+- **Booking is an index, not a status:** the partial unique index on
+  `interview_rounds.slot_id` is the whole double-booking mechanism.
+- **Round numbers are derived**, never supplied.
+- **Both consent options carry identical weight**; no pre-selection anywhere,
+  and the email's buttons select nothing (a prefetcher must never consent).
+- **"I'd prefer not to"** on the referee page is the same size as the primary.
+- The round delta's lane is **REVISITED, not CONTRADICTION** — deciding two
+  statements conflict is a judgement about meaning, and judgements belong to
+  people. Both layers show, no verdict. A test asserts "contradict" never
+  appears on the item.
+- The booking screen's **amber note** says Tailr does not host or record the
+  call. Delete it the day capture ships, and not before.
+
+## Performance invariants
+
+`evidence` indexed into a Map once per data change — **never reintroduce
+`evidence.find()` inside a matrix cell**. Derived lists memoised; strength
+helpers stable callbacks. `content-visibility` on matrix rows, evidence cards,
+role rows. Interaction feedback is transform/opacity only.
+`prefers-reduced-motion` honoured in all three stylesheets.
+
+## Lessons that cost something
+
+- **Mocked tests agree with wrong code.** Two real bugs this session were found
+  by reading the deployed schema and by seeding real data, both while the unit
+  tests were green: (a) cancelling a round did not free its slot, because the
+  unique index is status-agnostic — the code and its tests agreed with each
+  other and disagreed with Postgres; (b) `ADDED` in the round delta was
+  unreachable, because ingestion writes a `missing` evidence row for *every*
+  requirement and that counted as prior evidence. **An absence of evidence is
+  not evidence.**
+- **Types are erased and travel fine; constants are not, and do not.**
+  Importing a runtime constant from a module that imports `agencyAdmin` drags
+  `next/headers` + the service-role key into the browser bundle and fails the
+  build. Put shared constants in a server-import-free module
+  (`settings-limits.ts`, `round-delta.ts` are the pattern).
+- **RESTRICT is the attribution trail, and it will block your cleanup.**
+  Deleting a seeded contact fails while a round attributes an action to them.
+  Correct order: round → slot → contact. Audit rows correctly survive.
+- **A failed load must not read as an empty one.** The briefs inbox once said
+  "Nothing waiting on you" above an "Unauthorised" banner — the same shape as
+  the `200 {enabled:false}` lesson in CLAUDE.md.
+- **`safeNextPath` rejects backslashes.** Browsers normalise `\` to `/`, so
+  `/\evil.com` resolves off-origin — right after a session is minted. One
+  shared guard, and a source-scan test fails the build if an auth entry point
+  re-derives it by hand (one already had).
+- **Figma: resize BEFORE setting `textAutoResize`.** Resize resets sizing to
+  fixed, so text overflows without reserving space. 27 nodes were affected
+  across frames already signed off.
+- Local `npm run build` needs placeholder Supabase env or `/_not-found` fails
+  to prerender:
+  `NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder npm run build`
+
+## Deliberately NOT built (do not fake these)
+
+- **Capture, transcription, per-round enrichment.** Behind the DPIA + consent
+  gate. `round_artifacts.kind` has no `transcript` writer, and the
+  `agency-recordings` bucket does not exist yet. The sweep that deletes audio
+  on transcript verification IS built and finds nothing, which is correct.
+- **"Load from template" / "From ATS"** — need real features behind them.
+- **Access/rectification fulfilment** is manual.
+- **HM-facing dossier** — needs a "was this candidate actually submitted to
+  you" gate before it can exist; today the dossier is recruiter-side because it
+  contains the recruiter's working.
+- **Quiet matching / applicant pool** — decided and designed (job board was
+  cut 13 Aug in favour of candidate-side recommendation), not built.
+
+## Open items
+
+- Lawyer review + DPIA + DPA (the gate). Consent copy is written and built.
+- The full human walk-through.
+- Revoke authenticated UPDATE on `agency.agencies` (settings audit bypass).
+- Bulk upload; quiet matching DDL workshop; production port.
+- `web-design-guidelines` pass: **done 14 Aug** for the session's screens.
+
+## Git: commit through the API, not local branches
+
+Local `git fetch` hangs on this network. `git push origin staging` works and is
+what this session used throughout. **Always re-read staging's head before
+committing** — other sessions work this repo in parallel, and a `docs/PROJECT.md`
+push from a stale snapshot silently dropped another session's section once.
