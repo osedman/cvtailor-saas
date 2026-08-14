@@ -225,3 +225,36 @@
   margin-top: 32px;
   padding-bottom: 8px;
 }
+
+/* ---- 8. Offering a time -------------------------------------------------
+ * A client offers two or three windows a fortnight, so this is two inputs and
+ * a button rather than a calendar. It sits inside the band it affects, above
+ * the chips it will add to, so the result appears where the eye already is. */
+.hm-offer { padding: 16px 18px; margin-bottom: 14px; }
+.hm-offer-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.hm-offer .hm-field { margin-bottom: 0; }
+.hm-offer .ag-input { min-width: 210px; }
+.hm-offer-err { margin: 10px 0 0; font-size: var(--t-caption); color: var(--ag-coral-text); }
+
+/* The withdraw affordance lives on the chip itself. Unbooked slots only —
+ * a booked one shows its pill instead, because withdrawing a time somebody is
+ * expecting to meet in is a different decision (cancel the interview). */
+.hm-slot { align-items: center; }
+.hm-slot-x {
+  border: none;
+  background: transparent;
+  color: var(--ag-ink-3);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+  margin-left: 2px;
+}
+.hm-slot-x:hover:not(:disabled) { color: var(--ag-coral); }
+.hm-slot-x:disabled { opacity: 0.5; cursor: default; }
+.hm-slot-err { color: var(--ag-coral-text); font-size: var(--t-caption); margin-left: 6px; }

@@ -284,15 +284,133 @@ function EmptyBand({ title, body }: { title: string; body: string }) {
   )
 }
 
-function SlotChip({ slot }: { slot: HiringSlot }) {
+function SlotChip({ slot, onWithdraw }: { slot: HiringSlot; onWithdraw: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function withdraw() {
+    setBusy(true)
+    setErr(null)
+    try {
+      const res = await fetch(`/api/hiring/availability?slotId=${encodeURIComponent(slot.id)}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        setErr(body.error || "Could not withdraw that time.")
+        return
+      }
+      onWithdraw()
+    } catch {
+      setErr("Could not withdraw that time.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <span className="ag-chip hm-static">
+    <span className="ag-chip hm-static hm-slot">
       {fmtDate(slot.starts_at)}
       <span className="id">
         {fmtTime(slot.starts_at)}–{fmtTime(slot.ends_at)}
       </span>
-      {slot.booked && <span className="ag-pill">Booked</span>}
+      {slot.booked ? (
+        // Booked times are not withdrawable from here: somebody is expecting
+        // that call. Cancelling the interview is the decision that frees it.
+        <span className="ag-pill">Booked</span>
+      ) : (
+        <button
+          className="hm-slot-x"
+          onClick={withdraw}
+          disabled={busy}
+          title="Withdraw this time"
+          aria-label={`Withdraw ${fmtDate(slot.starts_at)} ${fmtTime(slot.starts_at)}`}
+        >
+          ×
+        </button>
+      )}
+      {err && <span className="hm-slot-err">{err}</span>}
     </span>
+  )
+}
+
+/** Offer a window. Two datetime-local inputs rather than a calendar widget:
+ * this is a client offering two or three times a fortnight, not a scheduler. */
+function OfferTimes({ contactId, onDone }: { contactId: string; onDone: (changed: boolean) => void }) {
+  const [startsAt, setStartsAt] = useState("")
+  const [endsAt, setEndsAt] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function offer() {
+    setBusy(true)
+    setErr(null)
+    try {
+      const res = await fetch("/api/hiring/availability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contactId,
+          // datetime-local has no zone; the browser's own offset is the one
+          // the person meant when they typed it.
+          startsAt: new Date(startsAt).toISOString(),
+          endsAt: new Date(endsAt).toISOString(),
+        }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        setErr(body.error || "Could not offer that time.")
+        return
+      }
+      onDone(true)
+    } catch {
+      setErr("Could not offer that time.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const ready = Boolean(startsAt && endsAt) && !busy
+
+  return (
+    <div className="agd-card hm-static hm-offer">
+      <div className="hm-offer-row">
+        <label className="hm-field">
+          <span className="ag-field-label">From</span>
+          <input
+            className="ag-input"
+            type="datetime-local"
+            value={startsAt}
+            onChange={(e) => setStartsAt(e.target.value)}
+            autoFocus
+          />
+        </label>
+        <label className="hm-field">
+          <span className="ag-field-label">Until</span>
+          <input
+            className="ag-input"
+            type="datetime-local"
+            value={endsAt}
+            onChange={(e) => setEndsAt(e.target.value)}
+          />
+        </label>
+        <button className="agd-tbtn primary" onClick={offer} disabled={!ready}>
+          {busy ? "Offering…" : "Offer this time"}
+        </button>
+        <button className="agd-tbtn" onClick={() => onDone(false)}>
+          Cancel
+        </button>
+      </div>
+      {err && (
+        <p className="hm-offer-err" role="alert">
+          {err}
+        </p>
+      )}
+      <p className="agd-aside">
+        Your recruiter can book one candidate into this window. Nothing reaches your calendar
+        until you offer the time.
+      </p>
+    </div>
   )
 }
 
@@ -300,6 +418,11 @@ export default function HiringDashboardPage() {
   const [screen, setScreen] = useState<Screen>("loading")
   const [data, setData] = useState<HiringDashboard | null>(null)
   const [email, setEmail] = useState("")
+  const [offeringFor, setOfferingFor] = useState<string | null>(null)
+  // Bumped after a write so the dashboard re-reads rather than guessing at the
+  // new state locally: slots gain and lose their booked flag server-side.
+  const [refresh, setRefresh] = useState(0)
+  const reload = () => setRefresh((n) => n + 1)
 
   useEffect(() => {
     let live = true
@@ -331,7 +454,7 @@ export default function HiringDashboardPage() {
     return () => {
       live = false
     }
-  }, [])
+  }, [refresh])
 
   // Fixed at first paint of the ready screen so a card cannot re-sort itself
   // under the reader's cursor while they are looking at it.
@@ -576,23 +699,32 @@ export default function HiringDashboardPage() {
                 </h2>
                 <span className="agd-rule" />
                 <button
-                  className="agd-tbtn"
-                  disabled
-                  title="Offering times is not built yet. When it ships, times you add here become bookable by your recruiter without another email. Until then, send them your availability as usual."
+                  className="agd-tbtn primary"
+                  onClick={() => setOfferingFor(links[0]?.contactId ?? "")}
+                  disabled={links.length === 0}
                 >
                   Offer times
                 </button>
               </div>
+              {offeringFor && (
+                <OfferTimes
+                  contactId={offeringFor}
+                  onDone={(changed) => {
+                    setOfferingFor(null)
+                    if (changed) reload()
+                  }}
+                />
+              )}
               {slots.length > 0 ? (
                 <div className="hm-slots">
                   {slots.map((slot) => (
-                    <SlotChip key={slot.id} slot={slot} />
+                    <SlotChip key={slot.id} slot={slot} onWithdraw={reload} />
                   ))}
                 </div>
               ) : (
                 <EmptyBand
                   title="No times offered."
-                  body="Windows you say you are free in will appear here as chips, and drop out again once your recruiter books one against a candidate. Nothing is ever booked into your calendar without you offering the time first. Offering times on this page is not built yet — send your recruiter your availability as usual."
+                  body="Windows you say you are free in will appear here as chips, and drop out again once your recruiter books one against a candidate. Nothing is ever booked into your calendar without you offering the time first."
                 />
               )}
             </section>
