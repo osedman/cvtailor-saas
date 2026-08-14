@@ -61,10 +61,31 @@ function roundOf(layer: Layer): number | null {
   return m ? Number(m[1]) : null
 }
 
+/**
+ * Does this layer actually say anything?
+ *
+ * Ingestion writes a row for EVERY requirement, including the ones the CV
+ * never touched — strength 'missing', no quote. That row is the record of
+ * having looked and found nothing, which is not the same as evidence, and
+ * counting it as a prior layer would make ADDED unreachable in practice: every
+ * requirement would already have a "before" the moment a CV was parsed.
+ *
+ * Found by seeding a real round against real parsed data, where two
+ * requirements the round genuinely reached first were about to be reported as
+ * merely revisited.
+ */
+function carriesEvidence(l: Layer): boolean {
+  if (l.quote && l.quote.trim().length > 0) return true
+  // A recruiter's override is a human's call and counts even without a quote.
+  if (l.kind === "screening") return true
+  return l.strength !== null && l.strength !== "missing"
+}
+
 function lastBefore(r: RequirementStrata, n: number): Layer | null {
   const before = r.layers.filter((l) => {
     const rn = roundOf(l)
-    return rn === null ? true : rn < n
+    const earlier = rn === null ? true : rn < n
+    return earlier && carriesEvidence(l)
   })
   return before.length > 0 ? before[before.length - 1] : null
 }

@@ -173,3 +173,64 @@ describe("deltaForRound", () => {
     expect(delta.decision).toBe("advance")
   })
 })
+
+/**
+ * Found by seeding a real round against real parsed data.
+ *
+ * Ingestion writes an evidence row for EVERY requirement, including the ones
+ * the CV never touched (strength 'missing', no quote). That row records having
+ * looked and found nothing — it is not evidence. Counting it as a prior layer
+ * made ADDED unreachable: every requirement already had a "before" the moment
+ * a CV was parsed.
+ */
+describe("an absence of evidence is not evidence", () => {
+  it("treats a missing, quoteless CV row as no prior layer — so the round ADDED it", () => {
+    const d = dossier([
+      req({
+        ref: "R04",
+        open: true,
+        layers: [
+          // What ingestion writes when the CV said nothing about this.
+          layer({ kind: "cv", label: "CV", strength: "missing", quote: null }),
+          layer({ kind: "round", label: "R1", quote: "Ran ECS and RDS for two years" }),
+        ],
+      }),
+    ])
+    const delta = deltaForRound(d, 1)!
+    expect(delta.added.map((a) => a.ref)).toEqual(["R04"])
+    expect(delta.revisited).toHaveLength(0)
+    expect(delta.added[0].before).toBeNull()
+  })
+
+  it("still counts a quoted CV layer as a prior layer", () => {
+    const d = dossier([
+      req({
+        ref: "R07",
+        layers: [
+          layer({ kind: "cv", label: "CV", strength: "partial", quote: "Led a small team" }),
+          layer({ kind: "round", label: "R1", quote: "Tech lead for four engineers" }),
+        ],
+      }),
+    ])
+    const delta = deltaForRound(d, 1)!
+    expect(delta.revisited.map((r) => r.ref)).toEqual(["R07"])
+    expect(delta.revisited[0].before?.quote).toBe("Led a small team")
+  })
+
+  it("counts a recruiter override as a prior layer even without a quote", () => {
+    const d = dossier([
+      req({
+        ref: "R05",
+        layers: [
+          layer({ kind: "cv", label: "CV", strength: "missing", quote: null }),
+          layer({ kind: "screening", label: "SCREENING", strength: "partial", from: "missing", to: "partial" }),
+          layer({ kind: "round", label: "R1", quote: "Led the incident review" }),
+        ],
+      }),
+    ])
+    const delta = deltaForRound(d, 1)!
+    // A human already made a call here, so the round revisited it.
+    expect(delta.revisited.map((r) => r.ref)).toEqual(["R05"])
+    expect(delta.revisited[0].before?.kind).toBe("screening")
+  })
+})
