@@ -435,9 +435,21 @@ export async function setRoundStatus(
   if (!round) throw new AgencyAccessError("round not found in your agency")
   if (round.status === status) return
 
+  // Cancelling RELEASES the slot, and releasing it means clearing slot_id.
+  //
+  // The unique index that prevents double-booking is
+  // `(slot_id) WHERE slot_id IS NOT NULL` — status-agnostic. A cancelled round
+  // that kept its slot_id would hold that window forever: listOpenSlots would
+  // offer it (it ignores cancelled rounds) and the insert would then fail with
+  // a duplicate key, surfacing as "someone was booked into that time a moment
+  // ago" when in truth nobody had. The time it happened is preserved in
+  // scheduled_at, so nothing about the history is lost.
+  const patch: Record<string, unknown> =
+    status === "cancelled" ? { status, slot_id: null } : { status }
+
   const { error } = await admin
     .from("interview_rounds")
-    .update({ status })
+    .update(patch)
     .eq("id", roundId)
     .eq("agency_id", ctx.agencyId)
   if (error) throw error

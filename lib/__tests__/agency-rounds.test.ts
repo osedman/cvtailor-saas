@@ -27,7 +27,7 @@ vi.mock("@/lib/agency/db", async () => {
   }
 })
 
-import { offerSlot, withdrawSlot, scheduleRound, decideRound } from "../agency/rounds"
+import { offerSlot, withdrawSlot, scheduleRound, decideRound, setRoundStatus } from "../agency/rounds"
 import { AgencyAccessError } from "../agency/db"
 import type { AgencyContext, HiringContext } from "../agency/types"
 
@@ -309,5 +309,56 @@ describe("the client is never told what the candidate chose", () => {
       expect(s).not.toMatch(/capture_consent/)
       expect(s).not.toMatch(/consent_token_hash/)
     }
+  })
+})
+
+/**
+ * Found by walking the loop against the deployed schema, not by a unit test.
+ *
+ * The double-booking guard is `unique (slot_id) WHERE slot_id IS NOT NULL` —
+ * status-agnostic. A cancelled round that kept its slot_id would hold that
+ * window forever: listOpenSlots offers it (it ignores cancelled rounds) and the
+ * insert then fails on a duplicate key, which surfaces to the recruiter as
+ * "someone was booked into that time a moment ago" when nobody had.
+ *
+ * The UI says "cancelling gives it back". This is what makes that true.
+ */
+describe("cancelling a round frees its slot", () => {
+  it("clears slot_id on cancel, so the window can be rebooked", async () => {
+    let patch: Record<string, unknown> = {}
+    admin.from.mockImplementation((t: string) => {
+      if (t === "interview_rounds")
+        return table(
+          { data: { id: "round-1", agency_id: "agency-1", role_id: "role-1", candidate_id: "cand-1", round_number: 1, status: "scheduled" }, error: null },
+          (p) => {
+            patch = p as Record<string, unknown>
+          }
+        )
+      if (t === "candidates") return table({ data: { ref: "CAN-02" }, error: null })
+      return table({ data: null, error: null })
+    })
+
+    await setRoundStatus(REC, "round-1", "cancelled")
+    expect(patch.status).toBe("cancelled")
+    expect(patch.slot_id).toBeNull()
+  })
+
+  it("does NOT clear slot_id when merely completing — the round still happened there", async () => {
+    let patch: Record<string, unknown> = {}
+    admin.from.mockImplementation((t: string) => {
+      if (t === "interview_rounds")
+        return table(
+          { data: { id: "round-1", agency_id: "agency-1", role_id: "role-1", candidate_id: "cand-1", round_number: 1, status: "scheduled" }, error: null },
+          (p) => {
+            patch = p as Record<string, unknown>
+          }
+        )
+      if (t === "candidates") return table({ data: { ref: "CAN-02" }, error: null })
+      return table({ data: null, error: null })
+    })
+
+    await setRoundStatus(REC, "round-1", "completed")
+    expect(patch.status).toBe("completed")
+    expect(Object.keys(patch)).not.toContain("slot_id")
   })
 })

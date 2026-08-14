@@ -125,11 +125,14 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
   const chosenCandidate = candidates.find((c) => c.id === candidateId) ?? null
   const chosenSlot = (slots ?? []).find((s) => s.id === slotId) ?? null
 
-  /** Derived for display only — the server derives the real one, so the two
-   * agreeing is a courtesy and the server is the authority. */
+  /** Derived for display; the server is the authority. Cancelled rounds are
+   * deliberately INCLUDED, because the server counts them too — the unique
+   * index on (role_id, candidate_id, round_number) is status-agnostic, so a
+   * cancelled round 1 means the next one really is round 2. Filtering them out
+   * here would promise "Round 1" and then book "Round 2". */
   const nextRound = useMemo(() => {
     if (!candidateId) return 1
-    const mine = rounds.filter((r) => r.candidateId === candidateId && r.status !== "cancelled")
+    const mine = rounds.filter((r) => r.candidateId === candidateId)
     return mine.reduce((max, r) => Math.max(max, r.roundNumber), 0) + 1
   }, [rounds, candidateId])
 
