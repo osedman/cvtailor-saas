@@ -925,3 +925,20 @@
 .ag-layer-rail { width: 3px; border-radius: 2px; flex: none; }
 .ag-layer-change { margin: 3px 0 0; font-size: var(--t-caption); color: var(--ag-coral-text); }
 .ag-layer-quote { margin: 4px 0 2px; font-family: var(--ag-display); font-style: italic; font-size: var(--t-body); color: var(--ag-ink); }
+
+/* The round delta. Four lanes, equal width: what a round reached first, what
+ * it genuinely changed, what it revisited, and what it left open. Revisited
+ * shows both layers because the product does not decide what conflicts. */
+.ag-delta { padding: 18px 20px; margin-top: 18px; }
+.ag-delta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 14px; }
+@media (max-width: 1100px) { .ag-delta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .ag-delta-grid { grid-template-columns: 1fr; } }
+.ag-delta-head {
+  margin: 0 0 10px; padding-bottom: 6px; border-bottom: 2px solid currentColor;
+  font-family: var(--ag-mono); font-size: var(--t-caption);
+  letter-spacing: var(--track-label); text-transform: uppercase;
+}
+.ag-delta-card { padding: 12px 14px; }
+.ag-delta-req { margin: 2px 0 6px; font-size: var(--t-small); font-weight: 500; color: var(--ag-ink); }
+/* The earlier layer sits quieter than the new one, but it is still there. */
+.ag-delta-before { margin: 0 0 4px; font-size: var(--t-caption); color: var(--ag-ink-3); }

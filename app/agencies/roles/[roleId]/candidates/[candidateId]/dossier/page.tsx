@@ -30,6 +30,9 @@ import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import type { Dossier, Layer, RequirementStrata } from "@/lib/agency/dossier"
+// Pure function, no server imports — safe in the browser, and the reason the
+// delta logic is unit-tested without mocking a single query.
+import { deltaForRound, type DeltaItem } from "@/lib/agency/round-delta"
 
 /** Provenance ramp, matching the frame: sand → amber → coral → ink. The
  * deeper the colour, the more recently that layer moved the requirement. */
@@ -63,6 +66,8 @@ export default function DossierPage({
   const router = useRouter()
   const [dossier, setDossier] = useState<Dossier | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** Which round's delta is on screen. Null = the whole dossier. */
+  const [deltaRound, setDeltaRound] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -151,6 +156,35 @@ export default function DossierPage({
                   recorded round. These layers are the CV, the recruiter&apos;s screening calls and
                   any written-up answers. The dossier deepens on its own when capture ships.
                 </p>
+              )}
+
+              {d.rounds.length > 0 && (
+                <section className="ag-card ag-delta" aria-labelledby="delta">
+                  <div className="ag-card-head" style={{ padding: 0, border: "none" }}>
+                    <span className="ag-card-title" id="delta">What a round added</span>
+                    <span className="ag-grow" />
+                    <div className="ag-filters" style={{ margin: 0 }}>
+                      {d.rounds.map((r) => (
+                        <button
+                          key={r.id}
+                          className={`ag-chip${deltaRound === r.number ? " on" : ""}`}
+                          onClick={() => setDeltaRound(deltaRound === r.number ? null : r.number)}
+                          aria-pressed={deltaRound === r.number}
+                        >
+                          Round {r.number}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {deltaRound === null ? (
+                    <p className="ag-note" style={{ marginTop: 10 }}>
+                      Pick a round to see what it moved — what it reached first, what it revisited,
+                      and what it left open.
+                    </p>
+                  ) : (
+                    <RoundDeltaView d={d} n={deltaRound} />
+                  )}
+                </section>
               )}
 
               <div className="ag-dossier-grid">
@@ -300,6 +334,89 @@ function LayerRow({ l }: { l: Layer }) {
         {l.quote && <p className="ag-layer-quote">{l.quote}</p>}
         {l.source && <span className="ag-meta">{l.source}</span>}
       </div>
+    </div>
+  )
+}
+
+/**
+ * What one round moved.
+ *
+ * Four lanes, and the important one is REVISITED. The frame called that lane
+ * CONTRADICTION because its example was one — but deciding that two statements
+ * conflict is a judgement about meaning, and judgements belong to people. So
+ * both layers are shown together, in the order they happened, with no verdict
+ * attached. The recruiter reads them.
+ */
+function RoundDeltaView({ d, n }: { d: Dossier; n: number }) {
+  const delta = deltaForRound(d, n)
+  if (!delta) return null
+
+  if (delta.empty && delta.stillOpen.length === 0) {
+    return (
+      <p className="ag-note" style={{ marginTop: 10 }}>
+        Round {n} has not moved anything yet. When it is written up, what it reached will appear
+        here.
+      </p>
+    )
+  }
+
+  return (
+    <>
+      <p className="ag-note" style={{ marginTop: 10 }}>
+        {delta.artifact === "debrief"
+          ? "Written up as notes — no recording was made."
+          : delta.artifact === "transcript"
+            ? "Drawn from the round's transcript."
+            : "Not written up yet."}
+        {delta.decision ? ` Decision: ${delta.decision}.` : ""}
+      </p>
+      <div className="ag-delta-grid">
+        <DeltaLane title={`Added · ${delta.added.length}`} items={delta.added} tone="#5d6e50" />
+        <DeltaLane title={`Changed · ${delta.changed.length}`} items={delta.changed} tone="#a5560b" />
+        <DeltaLane title={`Revisited · ${delta.revisited.length}`} items={delta.revisited} tone="#c6391d" />
+        <DeltaLane title={`Still open · ${delta.stillOpen.length}`} items={delta.stillOpen} tone="#6f675b" />
+      </div>
+    </>
+  )
+}
+
+function DeltaLane({ title, items, tone }: { title: string; items: DeltaItem[]; tone: string }) {
+  return (
+    <div>
+      <p className="ag-delta-head" style={{ color: tone, borderColor: tone }}>
+        {title}
+      </p>
+      {items.length === 0 ? (
+        <p className="ag-note">Nothing.</p>
+      ) : (
+        <div className="ag-stack" style={{ gap: 10 }}>
+          {items.map((it) => (
+            <div key={`${it.lane}-${it.ref}`} className="ag-card ag-delta-card">
+              <span className="ag-meta">
+                {it.ref} · {it.weight}
+              </span>
+              <p className="ag-delta-req">{it.requirement}</p>
+              {it.from && it.to && (
+                <p className="ag-layer-change">
+                  was {it.from} · now {it.to}
+                </p>
+              )}
+              {/* Both sides, in the order they happened, with no verdict. */}
+              {it.before?.quote && (
+                <p className="ag-delta-before">
+                  <span className="ag-meta">{it.before.label}</span> {it.before.quote}
+                </p>
+              )}
+              {it.now?.quote && (
+                <p className="ag-layer-quote">{it.now.quote}</p>
+              )}
+              {!it.now && !it.before?.quote && (
+                <p className="ag-note">Nothing has evidenced this yet.</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
