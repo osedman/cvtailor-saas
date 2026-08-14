@@ -942,3 +942,12 @@
 .ag-delta-req { margin: 2px 0 6px; font-size: var(--t-small); font-weight: 500; color: var(--ag-ink); }
 /* The earlier layer sits quieter than the new one, but it is still there. */
 .ag-delta-before { margin: 0 0 4px; font-size: var(--t-caption); color: var(--ag-ink-3); }
+
+/* Counters and scores sit above and beside each other; tabular figures keep
+ * them from shifting as the digits change. */
+.ag-unknown-n,
+.ag-core-ref,
+.ag-delta-head,
+.ag-pack-n {
+  font-variant-numeric: tabular-nums;
+}

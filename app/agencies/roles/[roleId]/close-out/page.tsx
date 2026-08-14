@@ -327,21 +327,43 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                 </div>
 
                 <div className="ag-stack" style={{ gap: 8, marginTop: 14, borderTop: "1px solid var(--ag-border)", paddingTop: 12 }}>
+                  <label className="ag-field-label" htmlFor="ref-name">
+                    Referee name
+                  </label>
                   <input
+                    id="ref-name"
                     className="ag-input"
-                    placeholder="Referee name"
+                    name="refereeName"
+                    autoComplete="off"
+                    placeholder="Dr Sarah Lindqvist"
                     value={newRef.refereeName}
                     onChange={(e) => setNewRef({ ...newRef, refereeName: e.target.value })}
                   />
+                  <label className="ag-field-label" htmlFor="ref-email">
+                    Referee email
+                  </label>
+                  {/* type=email gets the right keyboard and validation;
+                      spellcheck off because an address is not prose. */}
                   <input
+                    id="ref-email"
                     className="ag-input"
-                    placeholder="Referee email"
+                    type="email"
+                    name="refereeEmail"
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="s.lindqvist@example.nhs.uk"
                     value={newRef.refereeEmail}
                     onChange={(e) => setNewRef({ ...newRef, refereeEmail: e.target.value })}
                   />
+                  <label className="ag-field-label" htmlFor="ref-rel">
+                    Relationship
+                  </label>
                   <input
+                    id="ref-rel"
                     className="ag-input"
-                    placeholder="Relationship — e.g. Manager, NHS Digital 2022–2025"
+                    name="relationship"
+                    autoComplete="off"
+                    placeholder="Manager, NHS Digital 2022–2025"
                     value={newRef.relationship}
                     onChange={(e) => setNewRef({ ...newRef, relationship: e.target.value })}
                   />

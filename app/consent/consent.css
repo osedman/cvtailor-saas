@@ -166,3 +166,14 @@
   border: 1px solid var(--cs-line);
   margin-left: 10px;
 }
+
+/* The doorway animates nothing, but the focus ring is a transition on some
+ * browsers' defaults — say so explicitly rather than rely on that. */
+@media (prefers-reduced-motion: reduce) {
+  .cs-option,
+  .cs-btn,
+  .cs-textarea {
+    transition: none !important;
+    animation: none !important;
+  }
+}

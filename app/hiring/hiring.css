@@ -270,3 +270,23 @@
 .hm-round .ag-textarea { min-height: 90px; }
 /* Equal weight: advancing and declining are both just what the client thinks. */
 .hm-decide { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 8px; }
+
+/* ---- 10. Motion, and numbers that do not jitter ------------------------
+ * agencies.css honours prefers-reduced-motion for the surfaces it owns; these
+ * are the rules this file adds, so it honours it for them too. Nothing here
+ * animates anything but transform/opacity, so switching them off costs
+ * nothing but the flourish. */
+@media (prefers-reduced-motion: reduce) {
+  .hm-slot-x,
+  .hm-offer .ag-input,
+  .hm-round {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+/* Slot times and round counts sit in columns; tabular figures stop them
+ * shifting as the digits change. */
+.hm-slot .id,
+.hm-round-when {
+  font-variant-numeric: tabular-nums;
+}
