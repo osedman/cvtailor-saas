@@ -244,6 +244,9 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
             This role
           </button>
           <button className="ag-step on" aria-current="page">Interviews</button>
+          <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}/close-out`)}>
+            Close-out
+          </button>
         </div>
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Their diary</div>

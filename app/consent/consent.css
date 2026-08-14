@@ -139,3 +139,30 @@
   line-height: 1.55;
   color: var(--cs-ink-3);
 }
+
+/* Referee answers. Generous by default: someone writing about a colleague
+ * should not feel metered. */
+.cs-textarea {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--cs-line);
+  border-radius: 10px;
+  background: var(--cs-paper);
+  color: var(--cs-ink);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+  resize: vertical;
+}
+.cs-textarea:focus { outline: none; border-color: var(--cs-coral); box-shadow: 0 0 0 3px var(--cs-tint); }
+
+/* Declining is a real option, not a footnote — same size and shape as the
+ * primary, quieter only in fill. */
+.cs-btn-quiet {
+  background: var(--cs-paper);
+  color: var(--cs-ink-2);
+  border: 1px solid var(--cs-line);
+  margin-left: 10px;
+}
