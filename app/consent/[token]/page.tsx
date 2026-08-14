@@ -195,7 +195,7 @@ export default function ConsentPage({ params }: { params: Promise<{ token: strin
         </p>
         <p className="cs-body">
           <b>If you would rather not.</b> Say no and the interview happens exactly the same way, at
-          the same time, with the same people. Your recruiter writes up their own notes afterwards,
+          the same time, with the same people. The people you meet write up their notes afterwards,
           as they would have done anyway. Declining will not be held against you, and the people
           interviewing you are not told what you chose.
         </p>
@@ -224,7 +224,7 @@ export default function ConsentPage({ params }: { params: Promise<{ token: strin
               onChange={() => setChoice("declined")}
             />
             <span>
-              <b>Do not record it.</b> Your recruiter writes up notes afterwards instead.
+              <b>Do not record it.</b> The people you meet write up their notes afterwards instead.
             </span>
           </label>
         </fieldset>

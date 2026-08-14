@@ -17,6 +17,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { agencyAdmin } from "@/lib/agency/db"
 import { sendOneNotice } from "@/lib/agency/notices"
+import {
+  RECORDING_BUCKET,
+  listRecordingsDueForDeletion,
+  markRecordingsDeleted,
+} from "@/lib/agency/artifacts"
 
 export const maxDuration = 300
 
@@ -43,6 +48,8 @@ async function run(req: NextRequest) {
   const summary = {
     purged: 0,
     files_removed: 0,
+    recordings_removed: 0,
+    recordings_failed: 0,
     notices_sent: 0,
     notices_suppressed: 0,
     notices_failed: 0,
@@ -57,6 +64,9 @@ async function run(req: NextRequest) {
     candidate_id: string
     ref: string
     storage_path: string | null
+    // Added by migration 11. purge_expired() collects these BEFORE the cascade
+    // takes the artifact rows, because afterwards there is nothing left to ask.
+    recording_paths: string[] | null
   }>
   summary.purged = purgedRows.length
 
@@ -71,6 +81,54 @@ async function run(req: NextRequest) {
       console.error("[agency-cron] storage removal failed:", removeError.message)
     }
     summary.files_removed = removed?.length ?? 0
+  }
+
+  // Erasure takes the audio with it. Separate bucket from CVs, so a separate
+  // call — and the same loud failure, because an orphaned recording is a
+  // person's voice we said we had deleted.
+  const purgedRecordings = purgedRows.flatMap((r) => r.recording_paths ?? [])
+  if (purgedRecordings.length > 0) {
+    const { data: gone, error: recError } = await admin.storage
+      .from(RECORDING_BUCKET)
+      .remove(purgedRecordings)
+    if (recError) {
+      console.error("[agency-cron] recording removal failed on purge:", recError.message)
+      summary.recordings_failed += purgedRecordings.length
+    }
+    summary.recordings_removed += gone?.length ?? 0
+  }
+
+  // ---- 1b. Audio whose transcript has been checked -----------
+  //
+  // "The audio is deleted as soon as the transcript is checked" is a promise in
+  // writing to every candidate who agreed to be recorded
+  // (docs/CONSENT-COPY-DRAFT.md §2). This is the job that keeps it.
+  //
+  // Delete the blob FIRST, stamp only what actually went. Stamping first would
+  // leave audio on disk that the product believes it destroyed, which is the
+  // one direction of this race that breaks the promise silently.
+  try {
+    const due = await listRecordingsDueForDeletion()
+    if (due.length > 0) {
+      const { data: gone, error: sweepError } = await admin.storage
+        .from(RECORDING_BUCKET)
+        .remove(due.map((d) => d.recordingPath))
+      if (sweepError) {
+        console.error("[agency-cron] verified-recording sweep failed:", sweepError.message)
+        summary.recordings_failed += due.length
+      } else {
+        const removedPaths = new Set((gone ?? []).map((g) => g.name))
+        const confirmed = due.filter((d) => removedPaths.has(d.recordingPath))
+        summary.recordings_removed += await markRecordingsDeleted(
+          confirmed.map((c) => c.artifactId)
+        )
+        // Anything storage did not confirm stays unstamped and is retried on
+        // the next run rather than quietly considered done.
+        summary.recordings_failed += due.length - confirmed.length
+      }
+    }
+  } catch (e) {
+    console.error("[agency-cron] recording sweep threw:", e instanceof Error ? e.message : e)
   }
 
   // ---- 2. Due notices ---------------------------------------

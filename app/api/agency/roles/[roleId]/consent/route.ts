@@ -71,7 +71,7 @@ function consentEmailHtml(opts: {
 
   <p style="margin:0 0 16px;line-height:1.6;"><strong>What it does not mean.</strong> Nothing decides anything about you automatically. No software scores how you sound, how confident you seem, or how you look. Every judgement in this process is made by a person, and you can ask to see what was recorded against your name.</p>
 
-  <p style="margin:0 0 20px;line-height:1.6;"><strong>If you would rather not.</strong> Say no and the interview happens exactly the same way, at the same time, with the same people. Your recruiter writes up their own notes afterwards, as they would have done anyway. Declining will not be held against you, and the people interviewing you are not told what you chose.</p>
+  <p style="margin:0 0 20px;line-height:1.6;"><strong>If you would rather not.</strong> Say no and the interview happens exactly the same way, at the same time, with the same people. The people you meet write up their notes afterwards, as they would have done anyway. Declining will not be held against you, and the people interviewing you are not told what you chose.</p>
 
   <p style="margin:0 0 20px;">
     <a href="${opts.yesUrl}" style="display:inline-block;background:#1e1813;color:#fffdfa;border-radius:8px;padding:12px 20px;font-weight:600;text-decoration:none;margin-right:8px;">Yes, record it</a>

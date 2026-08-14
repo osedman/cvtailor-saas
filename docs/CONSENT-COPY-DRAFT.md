@@ -9,9 +9,11 @@ what it sends and renders, near-verbatim.
 **It must not be pointed at a real person until:**
 1. A lawyer has read §2 and §3 (see §7 — my recommendation is unchanged), and
 2. The DPIA is done, and
-3. The build promises in §6 are all true — **§6.2 (declining produces a debrief
-   artifact) and §6.4 (the audio-deletion sweep) are still unbuilt**, because
-   `round_artifacts` has no write path yet.
+3. The build promises in §6 are all true. **§6.2 (declining produces a debrief
+   artifact) and §6.4 (the audio-deletion sweep) were built on 14 Aug** —
+   `lib/agency/artifacts.ts`, `/api/hiring/debrief`, and two sweeps in the
+   agency cron. **§6.2 has no UI yet**, so a debrief can be recorded through the
+   API but not written by a human on a screen.
 
 Until then the machinery exists and nothing has been asked of anybody.
 
@@ -77,7 +79,7 @@ reply-to the recruiter. Same sender discipline as the Art 14 notice.
 > person, and you can ask to see what was recorded against your name.
 >
 > **If you would rather not.** Say no and the interview happens exactly the same
-> way, at the same time, with the same people. Your recruiter writes up their own
+> way, at the same time, with the same people. The people you meet write up their
 > notes afterwards, as they would have done anyway. **Declining will not be held
 > against you, and the people interviewing you are not told what you chose.**
 >
@@ -128,7 +130,7 @@ is not a considered choice.
 
 > ( ) **Record it.** The audio is transcribed so what you said is quoted
 >     accurately against the role's requirements.
-> ( ) **Do not record it.** Your recruiter writes up notes afterwards instead.
+> ( ) **Do not record it.** The people you meet write up their notes afterwards instead.
 >
 > [ Save my answer ]
 
