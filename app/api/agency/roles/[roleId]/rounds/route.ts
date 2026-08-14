@@ -14,7 +14,12 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
-import { listOpenSlots, scheduleRound, setRoundStatus } from "@/lib/agency/rounds"
+import {
+  listOpenSlots,
+  listRoundsForRole,
+  scheduleRound,
+  setRoundStatus,
+} from "@/lib/agency/rounds"
 
 export const maxDuration = 15
 
@@ -40,7 +45,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
     const { roleId } = await params
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
-    return NextResponse.json({ openSlots: await listOpenSlots(auth.ctx, roleId) })
+    const [openSlots, rounds] = await Promise.all([
+      listOpenSlots(auth.ctx, roleId),
+      listRoundsForRole(auth.ctx, roleId),
+    ])
+    return NextResponse.json({ openSlots, rounds })
   } catch (error) {
     return fail(error)
   }

@@ -232,6 +232,78 @@ export async function listOpenSlots(ctx: AgencyContext, roleId?: string): Promis
   }))
 }
 
+export interface AgencyRoundRow {
+  id: string
+  candidateId: string
+  candidateRef: string
+  candidateName: string
+  roundNumber: number
+  scheduledAt: string | null
+  durationMinutes: number
+  meetingUrl: string
+  status: RoundStatus
+  company: string
+  /** Always 'pending' today: nothing may assert consent on a candidate's
+   * behalf, so the screen reports the real state rather than implying one. */
+  captureConsentStatus: string
+}
+
+/** Rounds already booked on this role, newest first. Recruiter-side, so the
+ * candidate's name is fine here — this is the agency's own data. */
+export async function listRoundsForRole(
+  ctx: AgencyContext,
+  roleId: string
+): Promise<AgencyRoundRow[]> {
+  const admin = agencyAdmin()
+  const { data: rounds, error } = await admin
+    .from("interview_rounds")
+    .select(
+      "id, candidate_id, contact_id, round_number, scheduled_at, duration_minutes, meeting_url, status, capture_consent_status"
+    )
+    .eq("agency_id", ctx.agencyId)
+    .eq("role_id", roleId)
+    .order("scheduled_at", { ascending: true, nullsFirst: false })
+  if (error) throw error
+  if (!rounds || rounds.length === 0) return []
+
+  const candidateIds = [...new Set(rounds.map((r) => r.candidate_id as string))]
+  const { data: candidates } = await admin
+    .from("candidates")
+    .select("id, ref, full_name")
+    .eq("agency_id", ctx.agencyId)
+    .in("id", candidateIds)
+  const byCandidate = new Map(
+    (candidates ?? []).map((c) => [
+      c.id as string,
+      { ref: (c.ref as string) ?? "", name: (c.full_name as string) ?? "" },
+    ])
+  )
+
+  const contactIds = [...new Set(rounds.map((r) => r.contact_id as string))]
+  const { data: contacts } = await admin
+    .from("client_contacts")
+    .select("id, company")
+    .eq("agency_id", ctx.agencyId)
+    .in("id", contactIds)
+  const byContact = new Map(
+    (contacts ?? []).map((c) => [c.id as string, (c.company as string) ?? ""])
+  )
+
+  return rounds.map((r) => ({
+    id: r.id as string,
+    candidateId: r.candidate_id as string,
+    candidateRef: byCandidate.get(r.candidate_id as string)?.ref ?? "",
+    candidateName: byCandidate.get(r.candidate_id as string)?.name ?? "",
+    roundNumber: r.round_number as number,
+    scheduledAt: (r.scheduled_at as string | null) ?? null,
+    durationMinutes: (r.duration_minutes as number) ?? 45,
+    meetingUrl: (r.meeting_url as string) ?? "",
+    status: r.status as RoundStatus,
+    company: byContact.get(r.contact_id as string) ?? "",
+    captureConsentStatus: (r.capture_consent_status as string) ?? "pending",
+  }))
+}
+
 export interface ScheduleRoundInput {
   roleId: string
   candidateId: string

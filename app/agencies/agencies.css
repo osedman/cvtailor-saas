@@ -828,3 +828,41 @@
   border-bottom: 1px solid var(--ag-border);
 }
 .ag-sentlink:last-of-type { border-bottom: none; padding-bottom: 0; }
+
+/* ============================================================
+ * BOOK AN INTERVIEW
+ * Two pickers side by side: who is on the role, and the windows the client
+ * offered. They stack on narrow screens because choosing a person and
+ * choosing a time are sequential decisions, not a comparison.
+ * ============================================================ */
+.ag-book-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; margin-top: 8px; }
+@media (max-width: 1000px) { .ag-book-grid { grid-template-columns: 1fr; } }
+
+/* A pick is a real button: it changes state and must be reachable by keyboard
+ * and announced as pressed. Selection is the coral wash used everywhere else
+ * a human choice has been recorded. */
+.ag-pick {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 12px 16px; cursor: pointer; font-family: var(--ag-sans);
+  background: var(--ag-paper); border: 1px solid var(--ag-border);
+}
+.ag-pick:hover { border-color: var(--ag-line-2); }
+.ag-pick.on { background: var(--ag-tint-1); border-color: var(--ag-coral); }
+.ag-pick:focus-visible { outline: none; border-color: var(--ag-coral); box-shadow: 0 0 0 3px var(--ag-tint-1); }
+.ag-pick-name { display: block; font-size: var(--t-body); font-weight: 500; color: var(--ag-ink); }
+
+.ag-book-link { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+.ag-book-link .ag-input { flex: 1; min-width: 260px; }
+.ag-book-dur { max-width: 120px; }
+/* Amber, not coral: this is a limitation to know about, not something broken. */
+.ag-book-warn {
+  margin-top: 14px; border-left-color: var(--ag-warn-mark);
+  background: #fdf6ec; border-radius: 0 8px 8px 0;
+}
+.ag-book-confirm {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 18px 24px; margin-top: 16px;
+  background: var(--ag-tint-1); border-color: var(--ag-tint-2);
+}
+.ag-book-summary { margin: 0 0 2px; font-weight: 600; font-size: var(--t-lead); color: var(--ag-ink); }
+.ag-booked { display: flex; align-items: center; gap: 12px; padding: 14px 18px; flex-wrap: wrap; }

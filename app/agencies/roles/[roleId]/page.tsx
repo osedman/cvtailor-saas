@@ -662,6 +662,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 {`${stepNumber(steps[stepIndex]?.key ?? "intake")}. ${steps[stepIndex]?.label ?? ""}`}
               </span>
               <span className="ag-grow" />
+              {/* Interviews is an adjunct, not an eighth step: lib/agency/steps.ts
+                  stays the single source of truth for the seven. */}
+              <button
+                className="ag-btn ag-btn-secondary"
+                onClick={() => router.push(`/agencies/roles/${roleId}/interviews`)}
+              >
+                Interviews
+              </button>
               <button
                 className="ag-btn ag-btn-secondary"
                 disabled={stepIndex <= 0}
