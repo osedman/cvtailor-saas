@@ -2145,11 +2145,23 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
  * Revoking asks first: it cannot be undone, and the recipient is a real person
  * who will simply find the link stops working.
  */
+/** Same shape as the clients screen's shortDate, so sent links and client
+ *  access read the same way. Invalid dates fall back rather than render
+ *  "Invalid Date" at a recruiter about to revoke something. */
+function linkDate(iso: string | null): string {
+  if (!iso) return "—"
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime())
+    ? "—"
+    : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+}
+
 function SentLinks({ roleId }: { roleId: string }) {
   const [rows, setRows] = useState<Array<{
     id: string
     company: string
     fullName: string
+    sentAt: string
     expiresAt: string
     revokedAt: string | null
     firstOpenedAt: string | null
@@ -2229,6 +2241,17 @@ function SentLinks({ roleId }: { roleId: string }) {
                 <span className="ag-meta" style={{ display: "block" }}>
                   {r.company}
                   {r.firstOpenedAt ? " · opened" : " · not opened yet"}
+                </span>
+                {/* Two links to the same person are otherwise identical rows.
+                    Revoking is irreversible, so the row has to say which link
+                    it is: when it went out, and until when it works. */}
+                <span className="ag-meta" style={{ display: "block" }}>
+                  Sent {linkDate(r.sentAt)}
+                  {r.live
+                    ? ` · expires ${linkDate(r.expiresAt)}`
+                    : r.revokedAt
+                      ? ` · revoked ${linkDate(r.revokedAt)}`
+                      : ` · expired ${linkDate(r.expiresAt)}`}
                 </span>
               </div>
               {r.live &&

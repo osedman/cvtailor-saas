@@ -94,6 +94,10 @@ export async function listRecipientsForRole(
       contactId: r.contact_id as string,
       company: contact?.company ?? "",
       fullName: contact?.fullName ?? "",
+      // When it went out. Two links to the same person read identically without
+      // it, and revocation cannot be undone — a recruiter killing a leaked link
+      // must be able to tell which row is the leaked one.
+      sentAt: r.created_at as string,
       expiresAt,
       revokedAt,
       firstOpenedAt: (r.first_opened_at as string | null) ?? null,

@@ -899,7 +899,11 @@
  * Rail left (the summary you read in a glance), strata right (the argument).
  * ============================================================ */
 .ag-dossier-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; margin-top: 18px; }
-@media (max-width: 1040px) { .ag-dossier-grid { grid-template-columns: 1fr; } }
+/* minmax(0, 1fr), never a bare 1fr: a bare `1fr` floors the column at its
+ * min-content width, and the requirement names below set `white-space: nowrap`,
+ * so the column grows past the viewport and the whole page scrolls sideways.
+ * The desktop rule above already guards this; the stacked one must too. */
+@media (max-width: 1040px) { .ag-dossier-grid { grid-template-columns: minmax(0, 1fr); } }
 
 /* The inverse counter. Dark on a light surface because it is the one number
  * on the page that is supposed to feel like a held breath. */
