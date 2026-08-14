@@ -1,0 +1,141 @@
+/* The consent doorway.
+ *
+ * One column, generous measure, brand colours, nothing else. The person
+ * reading this is deciding about their own voice, usually on a phone, often
+ * while nervous about an interview — so the type is a size up from the product
+ * default and the two options are visually identical.
+ *
+ * No mono anywhere: every word here is human prose, and the typography
+ * guardrail has nothing new to approve.
+ */
+
+.cs-app {
+  --cs-ink: #1e1813;
+  --cs-ink-2: #4e463d;
+  --cs-ink-3: #6f675b;
+  --cs-paper: #fffdfa;
+  --cs-cream: #f9f6f0;
+  --cs-border: #eee6da;
+  --cs-line: #ded4c1;
+  --cs-coral: #dc4f33;
+  --cs-coral-text: #c6391d;
+  --cs-tint: #fff7f4;
+  font-family: var(--cs-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  color: var(--cs-ink);
+  background: var(--cs-cream);
+  min-height: 100vh;
+}
+
+.cs-wrap {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 48px 20px 72px;
+}
+
+.cs-card {
+  background: var(--cs-paper);
+  border: 1px solid var(--cs-border);
+  border-radius: 16px;
+  padding: 32px 30px;
+}
+
+.cs-eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cs-coral-text);
+}
+
+.cs-title {
+  margin: 0 0 18px;
+  font-size: 26px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.cs-body {
+  margin: 0 0 16px;
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--cs-ink-2);
+}
+.cs-body b { color: var(--cs-ink); font-weight: 600; }
+.cs-small { font-size: 14px; color: var(--cs-ink-3); }
+
+/* The two options are deliberately identical: same border, same background,
+ * same weight. Styling one as primary would be answering for them. */
+.cs-choice {
+  border: none;
+  margin: 24px 0 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cs-legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cs-ink-3);
+}
+.cs-option {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border: 1px solid var(--cs-line);
+  border-radius: 12px;
+  background: var(--cs-paper);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--cs-ink-2);
+  cursor: pointer;
+}
+.cs-option:hover { border-color: var(--cs-ink-3); }
+.cs-option:has(input:checked) {
+  border-color: var(--cs-coral);
+  background: var(--cs-tint);
+}
+.cs-option:has(input:focus-visible) {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--cs-tint);
+  border-color: var(--cs-coral);
+}
+.cs-option input {
+  margin-top: 3px;
+  accent-color: var(--cs-coral);
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.cs-option b { color: var(--cs-ink); font-weight: 600; }
+
+.cs-btn {
+  display: inline-block;
+  background: var(--cs-ink);
+  color: var(--cs-paper);
+  border: none;
+  border-radius: 10px;
+  padding: 14px 22px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cs-btn:disabled { opacity: 0.45; cursor: default; }
+.cs-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--cs-tint); }
+
+.cs-error { margin: 14px 0 0; font-size: 14px; color: var(--cs-coral-text); }
+.cs-quiet { padding: 48px 20px; color: var(--cs-ink-3); text-align: center; }
+.cs-foot {
+  margin: 26px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--cs-border);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--cs-ink-3);
+}

@@ -1,9 +1,24 @@
-# Interview capture — consent copy (DRAFT for sign-off)
+# Interview capture — consent copy
 
-**Status: draft, 14 Aug 2026. Nothing here is in the product.** No candidate has
-been asked to consent to anything, and `interview_rounds.capture_consent_status`
-is `'pending'` on every row by design — `lib/agency/rounds.ts` contains no
-function capable of setting it.
+**Status: BUILT 14 Aug 2026, and NOT YET CLEARED FOR A REAL CANDIDATE.**
+
+The flow is live on staging (`lib/agency/consent.ts`, `/consent/[token]`,
+`/api/consent/[token]`, `/api/agency/roles/[roleId]/consent`). The copy below is
+what it sends and renders, near-verbatim.
+
+**It must not be pointed at a real person until:**
+1. A lawyer has read §2 and §3 (see §7 — my recommendation is unchanged), and
+2. The DPIA is done, and
+3. The build promises in §6 are all true — **§6.2 (declining produces a debrief
+   artifact) and §6.4 (the audio-deletion sweep) are still unbuilt**, because
+   `round_artifacts` has no write path yet.
+
+Until then the machinery exists and nothing has been asked of anybody.
+
+**Decisions settled by Ose, 14 Aug:** audio only · the agency is controller ·
+the client sees structured evidence only, never the raw transcript. Retention
+and candidate-copy were not answered and are built to the recommendation below
+(§1.3, §1.5) — the second is an Art 15 right rather than a choice.
 
 This document exists to be argued with. It is the gate in front of
 `round_artifacts`, per-round enrichment, and both hero screens
