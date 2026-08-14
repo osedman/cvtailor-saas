@@ -279,3 +279,35 @@ describe("decideRound", () => {
     await expect(decideRound(HM, "round-1", "advance")).rejects.toBeInstanceOf(AgencyAccessError)
   })
 })
+
+/**
+ * A promise made in writing, enforced in code.
+ *
+ * The consent copy (docs/CONSENT-COPY-DRAFT.md §2) tells the candidate that
+ * "the people interviewing you are not told what you chose". That sentence is
+ * what makes consent freely given rather than merely claimed — a candidate who
+ * believes declining is visible to their interviewer is not choosing freely.
+ *
+ * getHiringDashboard is the client's only window onto rounds, so this is a
+ * source scan over the one query that could break it. Crude on purpose, in the
+ * manner of typography-consistency.test.ts: it fails the build the day someone
+ * widens that select.
+ */
+describe("the client is never told what the candidate chose", () => {
+  it("getHiringDashboard does not select capture_consent columns", async () => {
+    const { readFileSync } = await import("fs")
+    const { resolve } = await import("path")
+    const source = readFileSync(resolve(__dirname, "../agency/client-auth.ts"), "utf8")
+
+    const start = source.indexOf("export async function getHiringDashboard")
+    expect(start).toBeGreaterThan(-1)
+    const body = source.slice(start)
+
+    // The select lists columns explicitly; none of them may be a consent column.
+    const selects = body.match(/\.select\([\s\S]*?\)/g) ?? []
+    for (const s of selects) {
+      expect(s).not.toMatch(/capture_consent/)
+      expect(s).not.toMatch(/consent_token_hash/)
+    }
+  })
+})
