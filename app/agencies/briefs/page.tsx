@@ -135,6 +135,7 @@ export default function AgencyBriefsPage() {
           <button className="ag-step" onClick={() => router.push("/agencies")}>Roles</button>
           <button className="ag-step" onClick={() => router.push("/agencies/clients")}>Client access</button>
           <button className="ag-step on" aria-current="page">Client briefs</button>
+          <button className="ag-step" onClick={() => router.push("/agencies/audit")}>Audit log</button>
         </div>
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Their words</div>

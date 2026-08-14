@@ -951,3 +951,27 @@
 .ag-pack-n {
   font-variant-numeric: tabular-nums;
 }
+
+/* ============================================================
+ * AUDIT LOG
+ * When and who on the left, what happened in the middle, the reference on the
+ * right — the order a person reads a log entry in.
+ * ============================================================ */
+.ag-audit-row {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 14px 18px;
+  background: var(--ag-paper);
+  border: 1px solid var(--ag-border);
+  border-radius: 10px;
+}
+.ag-audit-when { width: 168px; flex: none; }
+.ag-audit-when .ag-meta { font-variant-numeric: tabular-nums; display: block; }
+/* Who acted. Colour carries the kind of person — coral for those outside the
+ * agency, whose data this is about. */
+.ag-audit-who { display: block; margin-top: 3px; font-size: var(--t-small); font-weight: 500; }
+.ag-audit-what { margin: 0 0 2px; font-weight: 600; font-size: var(--t-body); color: var(--ag-ink); }
+.ag-audit-ref { flex: none; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  .ag-audit-row { flex-wrap: wrap; gap: 8px; }
+  .ag-audit-when { width: 100%; }
+}
