@@ -474,6 +474,32 @@ quietly widen it.
   a stored "this person is a Tailr user" row is itself the disclosure.
 - *Unmatched* → normal CV-only parse. Default path.
 
+> **⚠ AMENDED 15 Aug 2026 by migration 12 (quiet matching). Read this before
+> deleting anything.**
+>
+> Migration 12 adds `public.role_recommendations` — rows that record "this
+> role matched this Tailr user". At a glance that is the table the paragraph
+> above forbids. It is not, and the difference is the whole design:
+>
+> **The forbidden row is one an agency can read.** `agency.consumer_links` was
+> forbidden because it would sit in the `agency` schema, visible under
+> `member_agency_ids()`. The disclosure was never the storage — it is the
+> *readability by the other party*. Rows that let an agency learn something
+> about a person stay forbidden. Rows that let a person learn something about
+> a role live in `public` under `auth.uid() = user_id`, and are fine.
+>
+> Enforced, not promised: no `user_id` on `agency.candidates` ever; no
+> cross-schema FK from `public` into `agency` (a FK is itself a join path, and
+> its error messages leak existence); and the only thing the agency sees before
+> an application is a **bucketed, floored, cooldown-limited count** that is
+> named as a thin disclosure in the DPIA rather than described as zero.
+>
+> `recruiter_profile_snapshot` is **not used by matching** — that is the
+> enrichment door, recruiter-initiated and keyed by email. Matching is
+> consumer-initiated and keyed by `user_id`. Two doors, two purposes, and
+> therefore two separate opt-ins: `profiles.recruiter_visibility` governs
+> enrichment, `match_preferences.matching_opt_in` governs matching.
+
 ---
 
 ## 4. Migration plan
@@ -836,6 +862,28 @@ lost — see the brainstorm notes for the argument.
   direct-sourced candidates, badged by arrival channel, ranked-never-cut.
   Recruiter-initiated browsing/search of consumer users remains out,
   permanently.
+
+  **DDL landed 15 Aug 2026 — migration 12,
+  `20260815090000_quiet_matching.sql`.** Five tables:
+  `public.match_preferences` (its own opt-in, separate from
+  `recruiter_visibility` — different purpose, different revocation),
+  `public.matching_consent_events` (append-only; a flag cannot answer "when,
+  and to what wording?"), `public.published_roles` (a frozen snapshot, so a
+  recruiter editing requirements mid-flight cannot retroactively change what
+  someone agreed to send), `public.role_recommendations`, and
+  `agency.role_matching` (recruiter settings + the bucketed count,
+  audit-coupled, no authenticated writes).
+
+  **"There is no job board" is structural, not a decision anyone has to
+  remember.** `published_roles`' SELECT policy admits a row only if a
+  recommendation for that user already exists, so `select * from
+  published_roles` returns nothing to someone no role has found — even if a
+  careless route is written later, and even if someone forgets a `where`.
+  Browsing is not a feature that is switched off; it is a query that comes
+  back empty.
+
+  See §3's amendment box for why `role_recommendations` does not violate
+  decision 6, and `docs/MIGRATION-12-RUNBOOK.md` for how to apply and verify.
 
 ### 5.4 Client-actor auth model (decided 13 Aug 2026, workshop with Ose)
 
