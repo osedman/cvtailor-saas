@@ -1083,4 +1083,60 @@ pointer at the top so nobody applies it to production without 13.
 Test fixtures and probe functions removed; deleting the published role
 cascaded its recommendations, which incidentally proved the cascade.
 
+---
+
+## 🎯 Quiet matching: the scan's decision layer (15 Aug 2026)
+
+`lib/matching/scan-core.ts` — stage 2 as pure functions, with the I/O still to
+come. Everything that decides anything lives here so its tests are worth
+something.
+
+**What the threshold means, settled and enforced.** Matching runs the SAME
+`extractAssessment` and the SAME `computeScore` as candidates a recruiter
+uploads by hand, with `overrides` and `softSignals` forced empty and
+`reviewed` false — they are not parameters, because there is no recruiter here
+to have formed a view. Precisely: *"would score at least N at the moment their
+CV landed, before anyone looked at them."* A test asserts byte-equality with
+the recruiter-side engine on the same inputs; if those ever diverge, the number
+a recruiter sets stops describing what they think it does. **The
+recruiter-facing copy must say so** — a reviewed candidate's score legitimately
+drifts upward, and if the threshold silently meant the post-review number that
+drift would read as a bug.
+
+**What gets assessed.** There is no CV for a consumer user, so the assessor
+reads their evidence bank rendered as text — their own claims, their own
+rephrasing where they wrote one. Which is why every quote in a recommendation
+is something the person themselves wrote. Hidden cards are excluded: hiding a
+claim is the person saying "not this one", and honouring that only in the UI
+would make it decorative.
+
+**MISSING is enforced in code, not just constrained in the database.** A
+strength arriving without a quote is demoted to `missing` rather than shown as
+evidence that does not exist; a quote on a `missing` strength is dropped.
+
+Verified against the deployed constraint rather than assumed — fed the exact
+jsonb the code emits into `public.matching_evidence_is_well_formed()`:
+
+| case | DB | code |
+|---|---|---|
+| `missing` with a quote | reject | cannot emit — drops the quote |
+| real strength, no quote | reject | cannot emit — demotes to `missing` |
+| quote over 1000 chars | reject | cannot emit — slices to 1000 |
+| unknown strength | reject | cannot emit — only the four |
+| exactly 1000 chars | accept | accepted |
+
+Every rejection case is one the code structurally cannot produce, which is the
+right relationship: database as backstop, code as enforcement point.
+
+**Hashes are of rendered text, not row ids.** Reordering a bank or re-saving a
+card without changing a word must not trigger a rescan; editing one claim must.
+
+`selectMatches` is the one place the recruiter's number is applied, and it is
+applied to a score, never to a person: everyone else is simply not
+recommended — not rejected, not recorded as having failed, and told nothing,
+because they were never told a scan was running.
+
+572 tests, build clean. Still to come: the I/O layer, the publish control, and
+the `/found` screen.
+
 _Last updated: 15 August 2026_
