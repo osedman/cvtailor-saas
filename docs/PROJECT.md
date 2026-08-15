@@ -1206,4 +1206,38 @@ validation, so a malformed body leaks nothing to an anonymous caller. 590
 tests, build clean. **The signed-in screen cannot be verified locally** — it
 needs a session and migration 14 on staging.
 
+---
+
+## 🔐 Migration 14's revoke was a silent no-op; 15 fixed it, verified (15 Aug 2026)
+
+Migration 14's `revoke update (recruiter_visibility, …) on public.profiles`
+ran without error and changed nothing. The grant it targeted is TABLE-level
+(`authenticated=arwdDxtm/postgres`, zero column ACLs), and **in Postgres a
+column-level REVOKE cannot subtract from a table-wide privilege**. Correct
+syntax, real columns, no error, no effect — the worst kind of failure. Caught
+only because the post-apply check reads the ACLs instead of trusting "applied
+cleanly". Note `information_schema.column_privileges` misleads here: it
+expands table grants into per-column rows, so it *listed* per-column UPDATE
+that never existed as such. Read `pg_class.relacl` / `pg_attribute.attacl`.
+
+**Migration 15** drops the table-wide UPDATE and re-grants an explicit column
+list (everything but the two consent columns). Applied to staging. Verified
+behaviourally, both directions, as real roles:
+
+| as `authenticated` | as service role |
+|---|---|
+| `recruiter_visibility` direct update **refused** · `cv_template` still writable · forging a consent event **refused** · forging match_preferences **refused** · own history + own flag readable · another user sees zero events | setConsent's exact writes succeed, in its order (event first, then flag) |
+
+Verification writes cleaned up (flag reset, probe event deleted, marked
+`surface='verification'` so it could never be mistaken for a person's).
+
+**Separate finding, deliberately not folded in:** `plan` and `tailors_used`
+remain client-writable under `auth.uid() = id` — a signed-in user can
+self-grant a paid tier or reset their usage counter with one PostgREST call.
+Stripe writes via service role, so locking them should be safe, but that is a
+billing decision for Ose, raised as its own task rather than smuggled into a
+consent migration.
+
+Staging now carries migrations 1–15. Production: still zero agency code.
+
 _Last updated: 15 August 2026_
