@@ -1328,4 +1328,42 @@ zero strays.
 needs the app running with credentials; everything either side of it is
 verified. Recruiter publish UI and `/found` still to build (Figma first).
 
+---
+
+## 🎛 The publish control, built into step 01 (15 Aug 2026)
+
+**The frame already existed.** `10:2 · Recruiter · Brief received → publish for
+matching` had the whole card. Twice this session a finished design was nearly
+reinvented because `get_metadata` without a node id returns only the first
+page — **enumerate with `use_figma`**. What was genuinely missing were the
+other states, now designed as `118:2 · Publish control — the missing states`.
+
+**Built into `app/agencies/roles/[roleId]/page.tsx`**, third card in the
+intake rail, exactly where the frame puts it. Four states:
+
+| state | why |
+|---|---|
+| **Not yet** | A role has no requirements until step 02 and the scan refuses without them. The frame shows an enabled button at step 01, which could only ever error — this disables it and says why. |
+| **Matching off** | Never published. "Or keep it direct-sourced." |
+| **Matching live** | Minimum score, last scan, next scan, and the cooldown stated: changing the score applies to the next scan, it does not buy an extra one. |
+| **Paused** | Stops new nudges; people already reached keep what they were shown and can still apply. |
+
+**No count anywhere in the card**, per the 15 Aug decision. Scan liveness is
+shown instead — without it, "found nobody", "found people who haven't applied"
+and "the scan is broken" are indistinguishable.
+
+The minimum-score field is labelled *"as scored on arrival — before review or
+overrides"*, because that is literally what the threshold compares against
+(`scoreForMatching` forces overrides and soft signals empty). Without that
+line, a reviewed candidate's legitimate upward drift reads as a bug.
+
+**Verified locally:** typecheck, 609 tests, build clean; every `ag-` class used
+exists in agencies.css; `GET`/`POST` both 401 unauthenticated with auth checked
+*before* body validation; the role page's new matching fetch fails safely —
+only 401 network logs, no exceptions.
+
+**Not verified: the card itself.** It needs an authenticated agency session,
+so it must be looked at on staging. That walk-through is also the first time
+the model call inside a real scan gets exercised.
+
 _Last updated: 15 August 2026_
