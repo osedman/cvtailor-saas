@@ -885,6 +885,35 @@ lost — see the brainstorm notes for the argument.
   See §3's amendment box for why `role_recommendations` does not violate
   decision 6, and `docs/MIGRATION-12-RUNBOOK.md` for how to apply and verify.
 
+  **Two opt-ins, not one — confirmed by Ose 15 Aug 2026.** They are different
+  questions and only one of them has ever been asked:
+
+  - `profiles.recruiter_visibility` — *"a recruiter who already has my CV may
+    also see my Tailr evidence."* You are already in their pipeline; this
+    deepens what they hold.
+  - `match_preferences.matching_opt_in` — *"roles I never applied to may find
+    me."* You are in nobody's pipeline; this puts you in front of employers
+    you never approached.
+
+  Consent to the first does not contain the second — purpose limitation ties
+  consent to a specified purpose, and someone job-hunting quietly is exactly
+  the person who would accept enrichment and be alarmed by discovery. They
+  also revoke differently: switching off enrichment stops future parses
+  pulling evidence, switching off matching stops the scan *and* expires live
+  recommendations. One switch would force both to move together.
+
+  Practical, and the reason to settle it now rather than later: nobody has
+  ticked `recruiter_visibility` (0 of 3 staging profiles, and it still has no
+  UI), so separating costs nothing today and more every day after. It is also
+  one-way — two flags can be presented as a single control later, but one flag
+  cannot be split apart without re-consenting everyone who ticked it.
+
+  It fixes a live weakness too. `recruiter_visibility` is directly writable
+  with no record of when or against what wording, so today we could not answer
+  the first question anyone asks about consent. `match_preferences` has no
+  authenticated write path at all and moves only alongside an append-only
+  `matching_consent_events` row carrying the copy version.
+
 ### 5.4 Client-actor auth model (decided 13 Aug 2026, workshop with Ose)
 
 Context: the hiring-manager loop concept

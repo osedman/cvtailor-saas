@@ -19,6 +19,13 @@ The file is idempotent — safe to re-run.
 
 ## Then verify it did what it claims
 
+**Easiest: apply the migration and say so — Claude can run the verification
+directly against `tailr-staging` and read the result.** The query below is the
+by-hand fallback. It has now failed twice when pasted into the dashboard
+editor (once on the reserved word `check`, once on a mangled schema literal),
+so if it argues with you, don't debug it — it is a convenience, not the
+verification itself.
+
 Paste this afterwards. Every row should say `PASS` — and **`tables created`
 must be one of them**, because three of the checks below are satisfiable by an
 empty database and only mean something once the tables exist.
@@ -64,10 +71,10 @@ with checks as (
            where conname='ingestion_jobs_kind_check') like '%match_scan%', false)
   union all
   select 'no FK from public into agency',
-         (select count(*) from pg_constraint c
-            join pg_class ch on ch.oid=c.conrelid join pg_namespace nh on nh.oid=ch.relnamespace
-            join pg_class pa on pa.oid=c.confrelid join pg_namespace np on np.oid=pa.relnamespace
-           where c.contype='f' and nh.nspname='public' and np.nspname='agency') = 0
+         (select count(*) from pg_constraint
+           where contype = 'f'
+             and connamespace = 'public'::regnamespace
+             and confrelid::regclass::text like 'agency.%') = 0
 )
 select check_name, case when ok then 'PASS' else 'FAIL' end as result from checks;
 ```
