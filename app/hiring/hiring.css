@@ -290,3 +290,47 @@
 .hm-round-when {
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- 11. Whose side of the wall this is --------------------------------
+ * The recruiter dashboard and this one deliberately share the `agd-` chrome
+ * so the two sides read as one product. The cost showed up the first time a
+ * person holding both hats used it: they could not tell which surface they
+ * were on, and there was no route between them. This band is the fix — a
+ * label, not a second brand. Sticky under the topbar so the answer is never
+ * more than a glance away, whatever you have scrolled to. */
+.hm-side-band {
+  position: sticky;
+  top: 57px; /* clears .agd-topbar */
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 30px;
+  border-bottom: 1px solid var(--ag-border);
+  background: var(--ag-glass);
+  backdrop-filter: blur(8px);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ag-ink-2);
+}
+.hm-side-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ag-coral);
+}
+.hm-side-text { flex: 1 1 auto; min-width: 0; }
+.hm-side-text b { color: var(--ag-ink); font-weight: 600; }
+/* The way back only exists for someone who holds both hats; see the note in
+ * lib/hat-routing.ts getHatsHeld. */
+.hm-side-switch { flex: none; }
+
+@media (max-width: 700px) {
+  .hm-side-band {
+    position: static; /* two stacked sticky bars eat a phone screen */
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 10px 18px;
+  }
+}

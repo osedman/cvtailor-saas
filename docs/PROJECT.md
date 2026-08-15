@@ -1366,4 +1366,43 @@ only 401 network logs, no exceptions.
 so it must be looked at on staging. That walk-through is also the first time
 the model call inside a real scan gets exercised.
 
+---
+
+## 🚪 "Clicking a role takes me to the recruiter screen" — you were never on the client side (15 Aug 2026)
+
+Reported as a leak from `/hiring` into `/agencies`. It was not one. There is
+**no link from the hiring surface into the recruiter product at all** — grepped,
+zero. What actually happened:
+
+1. Ose holds **both** hats: 2 recruiter memberships and 1 linked client contact.
+2. `resolveLandingPath` checks membership **first**, so sign-in lands `/agencies`.
+3. The recruiter dashboard and `/hiring` are **both dark and share the `agd-`
+   chrome** — a deliberate decision ("the HM surface is the agencies product
+   seen from the client's side, not a second product") that made them
+   indistinguishable.
+4. Clicking a role went to the recruiter workflow, correctly, because that is
+   where he had been the whole time.
+5. And nothing in the recruiter surface linked to `/hiring`, so the impression
+   could never be corrected.
+
+§5.4.1 had already decided the fix — *"switcher for multi-hat users"* — and it
+was never built. Now it is:
+
+- **`getHatsHeld()`** resolves both agency-side hats in one lookup. Never
+  throws (chrome must not break a page), selects ids only (a name in chrome
+  would be a leak), and excludes the consumer hat since everyone has one.
+- **A persistent band on `/hiring`**: *"You are on the client side. This is
+  what {agency} shows you — their working on candidates is not here."* Sticky
+  under the topbar; goes static under 700px, because two stacked sticky bars
+  eat a phone screen. Ready-screen only: over a signed-out screen it would
+  assert a relationship the server has not confirmed.
+- **A "Client view →" link** on the recruiter topbar, and **"Back to your
+  agency →"** in the band — each shown **only** to someone who genuinely holds
+  both hats. A recruiter who is not a client contact anywhere must not be
+  offered a client view; a hiring manager must never see a door into the
+  recruiter product.
+
+Both flags default false, so the failure mode is a missing link rather than an
+offered door. 618 tests, build clean.
+
 _Last updated: 15 August 2026_

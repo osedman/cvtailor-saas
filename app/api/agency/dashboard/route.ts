@@ -24,6 +24,7 @@ import { NextResponse } from "next/server"
 import { requireAgencyContext } from "@/lib/agency/db"
 import { computeScore, type ScoringBaselines } from "@/lib/agency/scoring"
 import type { Strength, Weight } from "@/lib/agency/types"
+import { getHatsHeld } from "@/lib/hat-routing"
 
 export const maxDuration = 30
 
@@ -487,6 +488,11 @@ export async function GET() {
       agency: agencyRes.data ?? null,
       caller_role: ctx.role,
       caller_email: caller?.email ?? "",
+      // Whether this recruiter is ALSO a client contact somewhere. Purely
+      // "which doors exist for this account" — no agency data. Without it a
+      // multi-hat person has no route to /hiring, which is how this dashboard
+      // came to be mistaken for the hiring-manager one.
+      also_hiring_manager: (await getHatsHeld(ctx.userId)).hiringManager,
       needs_you: {
         client_actions: (actionsRes.data ?? []).slice(0, 8).map((a) => ({
           id: a.id,

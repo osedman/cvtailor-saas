@@ -20,6 +20,7 @@
 
 import { NextResponse } from "next/server"
 import { getHiringDashboard, requireHiringContext } from "@/lib/agency/client-auth"
+import { getHatsHeld } from "@/lib/hat-routing"
 import type { HiringFailure } from "@/lib/agency/client-auth"
 
 export const maxDuration = 30
@@ -54,7 +55,13 @@ export async function GET() {
     if (!auth.ok) return authFail(auth.failure)
 
     const dashboard = await getHiringDashboard(auth.ctx)
-    return NextResponse.json({ dashboard })
+    // Whether this person ALSO holds the recruiter hat, so the shell can offer
+    // a way back. Nothing about the agency's data — just which doors exist for
+    // this account. Without it a multi-hat person has no route between the two
+    // surfaces at all, which is how the recruiter dashboard came to be mistaken
+    // for this one.
+    const hats = await getHatsHeld(auth.ctx.userId)
+    return NextResponse.json({ dashboard, alsoRecruiter: hats.recruiter })
   } catch (error) {
     return serverError("dashboard", error)
   }

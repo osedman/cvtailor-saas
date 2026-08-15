@@ -422,6 +422,11 @@ export default function HiringDashboardPage() {
   // Bumped after a write so the dashboard re-reads rather than guessing at the
   // new state locally: slots gain and lose their booked flag server-side.
   const [refresh, setRefresh] = useState(0)
+  // True only when this person ALSO works at an agency. A hiring manager who
+  // is only ever a client must never be shown a door into the recruiter
+  // product — it is not theirs, and offering it would imply it might be.
+  const [alsoRecruiter, setAlsoRecruiter] = useState(false)
+
   const reload = () => setRefresh((n) => n + 1)
 
   useEffect(() => {
@@ -437,8 +442,12 @@ export default function HiringDashboardPage() {
         if (dashRes.status === 403) return setScreen("not_linked")
         if (!dashRes.ok) return setScreen("error")
 
-        const body = (await dashRes.json()) as { dashboard?: HiringDashboard }
+        const body = (await dashRes.json()) as {
+          dashboard?: HiringDashboard
+          alsoRecruiter?: boolean
+        }
         if (!body.dashboard) return setScreen("error")
+        if (live) setAlsoRecruiter(Boolean(body.alsoRecruiter))
         if (meRes.ok) {
           const me = (await meRes.json()) as { email?: string }
           if (live) setEmail(me.email ?? "")
@@ -522,6 +531,37 @@ export default function HiringDashboardPage() {
           </>
         )}
       </div>
+
+      {/*
+        WHOSE SIDE OF THE WALL THIS IS.
+
+        The recruiter dashboard and this one are both dark and share the `agd-`
+        chrome, on the reasoning that the two sides should read as one product.
+        In practice a person holding both hats could not tell them apart: they
+        landed on /agencies (membership is checked first), believed they were
+        here, clicked a role and got the recruiter workflow — with no link to
+        /hiring anywhere to correct the impression.
+
+        So the band states it plainly, and carries the way back for anyone who
+        genuinely holds both hats. It renders on the ready screen only: over a
+        signed-out or unlinked screen it would be asserting a relationship the
+        server has not confirmed.
+      */}
+      {screen === "ready" && (
+        <div className="hm-side-band" role="note">
+          <span className="hm-side-dot" aria-hidden="true" />
+          <span className="hm-side-text">
+            <b>You are on the client side.</b> This is what {links[0]?.agencyName ?? "your agency"}{" "}
+            shows you — your own briefs, interviews and decisions. Their working on candidates is
+            not here.
+          </span>
+          {alsoRecruiter && (
+            <Link className="agd-tbtn hm-side-switch" href="/agencies">
+              Back to your agency →
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* One small live region rather than aria-live on the whole page: a
           screen reader should hear that the workspace arrived and what state

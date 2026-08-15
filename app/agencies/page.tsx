@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 
 type StageState = "here" | "blocked" | "waiting" | "done"
@@ -39,6 +40,7 @@ interface Dashboard {
   agency: { name: string; retention_days: number; notice_delay_days: number } | null
   caller_role: string
   caller_email: string
+  also_hiring_manager?: boolean
   needs_you: { client_actions: ClientAction[]; rights_requests: RightsRequest[] }
   health: {
     brief_to_shortlist: { days: number | null; breach: string }
@@ -494,6 +496,14 @@ export default function AgencyHomePage() {
           <button className="agd-tbtn primary" onClick={createRole} disabled={creating || state !== "ready"}>
             {creating ? <span className="ag-spin" /> : "+ New role"} <span className="agd-kbd inverse">N</span>
           </button>
+          {/* Only for someone who genuinely holds both hats. A recruiter who
+              is not a client contact anywhere must not be offered a client
+              view they have no business in. See getHatsHeld. */}
+          {data?.also_hiring_manager && (
+            <Link className="agd-tbtn" href="/hiring" title="You are also a hiring manager on an agency's client side">
+              Client view →
+            </Link>
+          )}
           <div className="agd-avatar" title={data?.caller_email ?? ""}>{initials}</div>
         </div>
 

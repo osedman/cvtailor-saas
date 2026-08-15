@@ -89,3 +89,54 @@ export async function resolveLandingPath(
     return fallback
   }
 }
+
+/** Which hats a person actually holds. Consumer is not included — it is the
+ *  default everyone has, and it is not what the switcher moves between. */
+export interface HatsHeld {
+  recruiter: boolean
+  hiringManager: boolean
+}
+
+/**
+ * Resolve both agency-side hats in one lookup.
+ *
+ * This exists because §5.4.1 decided on a "switcher for multi-hat users" and
+ * it was never built — with the consequence that a person holding both hats
+ * landed on the recruiter dashboard (membership is checked first) and had NO
+ * route to /hiring at all, since nothing in the recruiter surface links to
+ * it. The two dashboards are both dark and share the `agd-` chrome, so the
+ * recruiter workspace read as the hiring-manager one, and clicking a role
+ * "took you to the recruiter screen" — because you had never left it.
+ *
+ * The switcher must render ONLY for someone who genuinely holds both. A
+ * recruiter who is not a client contact must not be offered a client view
+ * they have no business in, and a hiring manager must never see a door into
+ * the recruiter product at all.
+ *
+ * Never throws: chrome must not be able to break a page.
+ */
+export async function getHatsHeld(userId: string | null | undefined): Promise<HatsHeld> {
+  const none: HatsHeld = { recruiter: false, hiringManager: false }
+  if (!userId) return none
+  try {
+    const admin = agencyAdmin()
+    const [{ data: membership }, { data: link }] = await Promise.all([
+      admin
+        .from("members")
+        .select("agency_id")
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle(),
+      admin
+        .from("client_contacts")
+        .select("id")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle(),
+    ])
+    return { recruiter: Boolean(membership), hiringManager: Boolean(link) }
+  } catch {
+    return none
+  }
+}
