@@ -1289,7 +1289,43 @@ the agency cron sweeps anything still queued. The runner claims the row with
 `update … where status='queued'`, so when `after()` and the cron race, the
 second finds nothing and stands down.
 
-607 tests, build clean. Migration 16 pending; recruiter publish UI and
-`/found` still to build (Figma first).
+607 tests, build clean.
+
+### Migration 16 applied and verified against real staging data (15 Aug)
+
+Structure: `member` restored, `matching` added, client-actor values intact,
+`match_scan_marks` present with RLS, no grants, and no score column.
+
+**The audit regression is provably gone.** The exact insert that had been
+throwing since 13 Aug — `entity_type = 'member'` — now succeeds; `'matching'`
+succeeds; an invented value is still refused. Team invites work again.
+
+**The full matching loop, walked on real data** — ROL-2403 (12 real parsed
+requirements), the one staging user who actually has an evidence bank (16
+visible cards), published at min score 70:
+
+| scenario | published roles visible | recommendations |
+|---|---|---|
+| opted-in user, **live** role, no recommendation yet | **0** | 0 |
+| after a role found them | 1 (ROL-2403, score + evidence map) | 1 |
+| a **different** user, same live role | **0** | 0 |
+
+The first row is the one that matters: the person is *in the pool* and the
+role *is live*, and they still see nothing. "There is no job board" is not a
+rule anyone maintains — it is a query that returns nothing.
+
+`match_scan_marks` refused `authenticated` outright (`permission denied`),
+which is the designed answer: scan bookkeeping belongs to the scan.
+
+Closing the role expired the snapshot **and left the recommendation standing**
+— a person's record of what they were shown is theirs, not the recruiter's to
+revoke.
+
+Staging restored exactly: role back to `open`, every verification row removed,
+zero strays.
+
+**Not yet exercised: the model call.** `extractAssessment` inside a real scan
+needs the app running with credentials; everything either side of it is
+verified. Recruiter publish UI and `/found` still to build (Figma first).
 
 _Last updated: 15 August 2026_
