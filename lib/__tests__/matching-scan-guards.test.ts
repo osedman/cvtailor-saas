@@ -44,12 +44,41 @@ describe("what the recruiter is told", () => {
     expect(route).not.toMatch(/role_recommendations/)
   })
 
-  it("the status read returns the bucket, not a count", () => {
+  it("no count of any kind reaches the recruiter layer", () => {
+    // Decided 15 Aug: the frame promises "until someone applies, you see
+    // nobody", and a rounded count is still information about people who
+    // never chose to be visible to this agency. matched_bucket is maintained
+    // by the scan for operations and stops at the database. Structural, not
+    // a UI discipline — the type cannot carry it, so no surface can render it.
+    const status = lib.slice(lib.indexOf("export interface MatchingStatus"))
+    const body = status.slice(0, status.indexOf("}"))
+    expect(body).not.toMatch(/bucket/i)
+    expect(body).not.toMatch(/count/i)
+    expect(body).not.toMatch(/matched/i)
+
+    // The select's ARGUMENT only — a comment explaining the omission mentions
+    // the column by name, and prose must not be able to fail (or pass) this.
     const fn = lib.slice(lib.indexOf("export async function getMatchingStatus"))
-    const select = fn.slice(0, fn.indexOf("maybeSingle"))
-    expect(select).toMatch(/matched_bucket/)
-    expect(select).not.toMatch(/count/i)
-    expect(select).not.toMatch(/user_id/)
+    const columns = fn.slice(0, fn.indexOf("maybeSingle")).match(/\.select\("([^"]*)"\)/)?.[1] ?? ""
+    expect(columns).toMatch(/enabled/)
+    expect(columns).not.toMatch(/matched_bucket/)
+    expect(columns).not.toMatch(/user_id/)
+  })
+
+  it("still reports liveness, or publishing becomes a black hole", () => {
+    // Without these, "found nobody", "found people who haven't applied" and
+    // "the scan is broken" are indistinguishable — the 200 {enabled:false}
+    // trap. Liveness without disclosure.
+    const status = lib.slice(lib.indexOf("export interface MatchingStatus"))
+    const body = status.slice(0, status.indexOf("}"))
+    expect(body).toMatch(/lastScanAt/)
+    expect(body).toMatch(/nextScanAllowedAt/)
+  })
+
+  it("the scan still maintains the bucket in the database", () => {
+    // Removing it from the recruiter's view must not stop the scan writing
+    // it — operations still need to know a scan did something.
+    expect(read("lib/matching/scan.ts")).toMatch(/matched_bucket/)
   })
 
   it("every mutation writes its audit row in the same operation", () => {

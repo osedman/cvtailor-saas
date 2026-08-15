@@ -2,11 +2,14 @@
  * Publish-for-matching: the recruiter side of quiet matching.
  *
  * What a recruiter controls: whether this role is findable, and the minimum
- * score. What a recruiter NEVER gets from any function here: who matched.
- * The only person-shaped thing that crosses back is `matched_bucket` —
- * bucketed, floored, cooldown-limited (§5.3; the DPIA names it as a thin
- * disclosure). If you find yourself adding a richer return value to this
- * module, you are probably building the thing the product promised not to be.
+ * score. What a recruiter gets back: whether it is on, and when the scan last
+ * ran. NOTHING person-shaped crosses this boundary at all — not who matched,
+ * and (decided 15 Aug) not how many either. A count is information about
+ * people who never chose to be visible to this agency, and the signed-off
+ * frame promises "until someone applies, you see nobody".
+ *
+ * If you find yourself adding a richer return value to this module, you are
+ * probably building the thing the product promised not to be.
  *
  * Audit-coupled in the standard way: agency.role_matching has no
  * authenticated write policies, every mutation below runs on the service
@@ -31,17 +34,28 @@ import {
   type AgencyClient,
 } from "./db"
 import type { AgencyContext, Weight } from "./types"
-import {
-  MIN_SCORE_CEILING,
-  MIN_SCORE_FLOOR,
-  type MatchBucket,
-} from "@/lib/matching/limits"
+import { MIN_SCORE_CEILING, MIN_SCORE_FLOOR } from "@/lib/matching/limits"
 import { queueMatchScan } from "@/lib/matching/scan"
 
+/**
+ * What a recruiter may know about matching on their own role.
+ *
+ * THERE IS NO COUNT HERE, AND THAT IS THE POINT (decided 15 Aug, Ose).
+ * The signed-off frame promises "until someone applies, you see nobody", and
+ * a rounded count is still something: it is information about people who
+ * never chose to be visible to this agency. `agency.role_matching.matched_bucket`
+ * is still maintained by the scan for operations, but it stops at the
+ * database — it is deliberately absent from this type, so a recruiter surface
+ * cannot render it by accident. Making it structural beats remembering.
+ *
+ * `lastScanAt` / `nextScanAllowedAt` exist to solve the other half: without
+ * them, publishing is a black hole where "found nobody", "found people who
+ * haven't applied" and "the scan is broken" all look identical — the
+ * 200 {enabled:false} trap in CLAUDE.md. Liveness without disclosure.
+ */
 export interface MatchingStatus {
   enabled: boolean
   minScore: number
-  bucket: MatchBucket
   lastScanAt: string | null
   nextScanAllowedAt: string | null
   scanQueued: boolean
@@ -69,7 +83,8 @@ export async function getMatchingStatus(
 ): Promise<MatchingStatus | null> {
   const { data, error } = await db
     .from("role_matching")
-    .select("enabled, min_score, matched_bucket, last_scan_at, next_scan_allowed_at")
+    // matched_bucket is deliberately NOT selected — see MatchingStatus.
+    .select("enabled, min_score, last_scan_at, next_scan_allowed_at")
     .eq("role_id", roleId)
     .maybeSingle()
   if (error) throw error
@@ -77,7 +92,6 @@ export async function getMatchingStatus(
   return {
     enabled: Boolean(data.enabled),
     minScore: data.min_score as number,
-    bucket: data.matched_bucket as MatchBucket,
     lastScanAt: (data.last_scan_at as string | null) ?? null,
     nextScanAllowedAt: (data.next_scan_allowed_at as string | null) ?? null,
     scanQueued: false,
@@ -218,7 +232,6 @@ export async function publishForMatching(
   return {
     enabled: true,
     minScore,
-    bucket: "none",
     lastScanAt: null,
     nextScanAllowedAt: existing?.next_scan_allowed_at as string | null,
     scanQueued: queuedJobId != null,
