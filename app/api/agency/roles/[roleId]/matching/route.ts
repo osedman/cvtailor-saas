@@ -18,6 +18,7 @@ import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { getMatchingStatus, pauseMatching, publishForMatching } from "@/lib/agency/matching"
 import { runMatchScan } from "@/lib/matching/scan"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
 
@@ -40,8 +41,9 @@ export async function GET(
     const status = await getMatchingStatus(auth.db, roleId)
     return NextResponse.json({ matching: status })
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    return NextResponse.json({ error: msg }, { status: 500 })
+    // errorMessage, not String(error): Supabase errors are plain objects and
+    // would render as the literal "[object Object]".
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
 
@@ -99,7 +101,7 @@ export async function POST(
     if (error instanceof AgencyAccessError) {
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
-    const msg = error instanceof Error ? error.message : String(error)
+    const msg = errorMessage(error)
     const status = /not found|closed role|parse the role|minScore/.test(msg) ? 400 : 500
     return NextResponse.json({ error: msg }, { status })
   }

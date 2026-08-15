@@ -183,26 +183,66 @@ export async function publishForMatching(
     .single()
   if (snapErr) throw snapErr
 
-  const { data: existing } = await admin
-    .from("role_matching")
-    .select("enabled, min_score, next_scan_allowed_at")
-    .eq("role_id", roleId)
-    .maybeSingle()
+  /**
+   * From here the snapshot exists. These two writes go to different schemas
+   * through separate PostgREST calls, so there is no transaction spanning
+   * them — if the second fails, the first must be undone by hand.
+   *
+   * This is not hypothetical: the first real publish failed exactly here
+   * (a stale schema cache on agency.role_matching) and left a `live`
+   * published_roles row with nothing enabling it. Inert, because
+   * published_roles is unreadable without a recommendation and nothing was
+   * scanning — but a role the recruiter believes is unpublished must not sit
+   * in the consumer schema marked live.
+   */
+  const undoSnapshot = async () => {
+    await publicAdmin
+      .from("published_roles")
+      .update({ status: "paused", updated_at: new Date().toISOString() })
+      .eq("id", snapshot.id as string)
+  }
 
-  const { error: rmErr } = await admin.from("role_matching").upsert(
-    {
-      role_id: roleId,
-      agency_id: ctx.agencyId,
-      enabled: true,
-      min_score: minScore,
-      published_role_id: snapshot.id as string,
-      requirements_hash: requirementsHash,
-      created_by: ctx.userId,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "role_id" }
-  )
-  if (rmErr) throw rmErr
+  try {
+    const { data: existing } = await admin
+      .from("role_matching")
+      .select("enabled, min_score, next_scan_allowed_at")
+      .eq("role_id", roleId)
+      .maybeSingle()
+
+    const { error: rmErr } = await admin.from("role_matching").upsert(
+      {
+        role_id: roleId,
+        agency_id: ctx.agencyId,
+        enabled: true,
+        min_score: minScore,
+        published_role_id: snapshot.id as string,
+        requirements_hash: requirementsHash,
+        created_by: ctx.userId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "role_id" }
+    )
+    if (rmErr) throw rmErr
+
+    return await finishPublish(admin, ctx, roleId, role, minScore, requirementsHash, existing)
+  } catch (error) {
+    await undoSnapshot()
+    throw error
+  }
+}
+
+/** The audit row, the cooldown check and the queue — everything after the two
+ *  writes have both landed. Split out so the compensation above reads as one
+ *  thing rather than wrapping a hundred lines. */
+async function finishPublish(
+  admin: AgencyClient,
+  ctx: AgencyContext,
+  roleId: string,
+  role: { ref: unknown },
+  minScore: number,
+  requirementsHash: string,
+  existing: { enabled?: unknown; min_score?: unknown; next_scan_allowed_at?: unknown } | null
+): Promise<MatchingStatus & { queuedJobId: string | null }> {
 
   // The audit row, same operation. Publishing is a disclosure decision.
   await writeAudit(admin, {
