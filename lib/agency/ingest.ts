@@ -317,7 +317,7 @@ async function createJob(
   admin: AgencyClient,
   agencyId: string,
   roleId: string,
-  kind: "jd_parse" | "cv_parse" | "score"
+  kind: "jd_parse" | "cv_parse" | "score" | "match_scan"
 ): Promise<string | null> {
   const { data } = await admin
     .from("ingestion_jobs")

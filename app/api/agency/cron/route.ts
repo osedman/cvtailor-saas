@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { agencyAdmin } from "@/lib/agency/db"
 import { sendOneNotice } from "@/lib/agency/notices"
+import { runQueuedMatchScans } from "@/lib/matching/scan"
 import {
   RECORDING_BUCKET,
   listRecordingsDueForDeletion,
@@ -53,6 +54,7 @@ async function run(req: NextRequest) {
     notices_sent: 0,
     notices_suppressed: 0,
     notices_failed: 0,
+    match_scans_run: 0,
   }
 
   // ---- 1. Retention purge -----------------------------------
@@ -148,6 +150,19 @@ async function run(req: NextRequest) {
     else if (outcome === "suppressed_list" || outcome === "suppressed_no_contact")
       summary.notices_suppressed++
     else if (outcome === "failed") summary.notices_failed++
+  }
+
+  // ---- 3. Match scans that queued and never ran --------------
+  //
+  // Publishing hands the scan to after(); if the process died in between, a
+  // queued ingestion_jobs row is the only trace. This sweep is the guarantee
+  // that queued means "will happen", not "probably happened" — a scan that
+  // can be silently lost is a matched-count that quietly stops being true.
+  // The claim inside runMatchScan makes this safe to race with after().
+  try {
+    summary.match_scans_run = await runQueuedMatchScans()
+  } catch (e) {
+    console.error("[agency-cron] match-scan sweep threw:", e instanceof Error ? e.message : e)
   }
 
   return NextResponse.json(summary)

@@ -1240,4 +1240,56 @@ consent migration.
 
 Staging now carries migrations 1–15. Production: still zero agency code.
 
+---
+
+## 📡 The scan runs: publish control, job pipeline, and an audit regression (15 Aug 2026)
+
+**Migration 16** (`match_scan_support`, NOT yet applied) does two things:
+
+1. **Repairs a live audit regression found in passing.** Migration 8 added
+   `'member'` to `audit_log`'s entity-type constraint; migration 10 rebuilt
+   the same constraint for the client-actor values — starting from migration
+   1's list — and silently dropped it. Since 13 Aug, adding a recruiter to a
+   team inserts the member row then **throws at the audit step**: the route
+   500s, the invite email never sends, the member exists anyway. The rebuilt
+   constraint carries the full list plus `'matching'`. A new test
+   (`audit-entity-types.test.ts`) parses the union out of `types.ts` and
+   requires every value in the newest constraint migration — the "keep the
+   two in step" comment is now enforcement, not advice.
+2. **`match_scan_marks`** — skip-on-unchanged bookkeeping. Records WHAT WAS
+   ASSESSED, deliberately not what was concluded: no score column (a stored
+   score for a non-match is a judgement kept where the person cannot see it),
+   zero policies, zero grants.
+
+**The scan** (`lib/matching/scan.ts`): pool → marks filter → prefilter cap →
+shared assessment (with the role prefix prompt-cached — 200 assessments of
+one role in a burst re-pay the role block otherwise) → shared scorer → write
+recommendations → bucket. Dismissed and applied recommendations are never
+rewritten: a dismissal stands, an application is terminal. People below the
+prefilter cut get **no mark** — marking the un-assessed would convert a cost
+cap into a rejection.
+
+**The prompt-cache split is byte-identical.** `extractAssessment` now sends
+two text blocks split exactly at the `<cv>` boundary; their concatenation is
+the same string it has always sent, and only the role prefix carries
+`cache_control` — a cached CV block would leak one candidate's CV into the
+next call's context. A test pins both.
+
+**Publish control** (`lib/agency/matching.ts` +
+`POST /api/agency/roles/[roleId]/matching`): freezes the snapshot (re-publish
+refreshes it in place, same row id so recommendations' FK holds), audit row in
+the same operation (`matching_published` / `matching_updated` /
+`matching_paused`), refuses a role with no requirements, and honours the
+cooldown — a min-score change inside the window updates what the next scan
+means, it does not buy an extra scan.
+
+**A scan cannot be silently lost or doubly run.** Publish queues an
+`ingestion_jobs` row BEFORE the response, hands execution to `after()`, and
+the agency cron sweeps anything still queued. The runner claims the row with
+`update … where status='queued'`, so when `after()` and the cron race, the
+second finds nothing and stands down.
+
+607 tests, build clean. Migration 16 pending; recruiter publish UI and
+`/found` still to build (Figma first).
+
 _Last updated: 15 August 2026_

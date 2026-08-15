@@ -145,6 +145,12 @@ export interface AuditEntry {
     | "artifact"
     | "reference"
     | "handover"
+    // Quiet matching: publish / pause / min-score changes / scans. Widened by
+    // 20260815200000_match_scan_support.sql, which also repaired the 'member'
+    // regression — migration 10 rebuilt this constraint and silently dropped
+    // migration 8's value. audit-entity-types.test.ts now keeps the union and
+    // the newest constraint migration in step mechanically.
+    | "matching"
   entityRef: string
   action: string
   fromValue?: unknown
