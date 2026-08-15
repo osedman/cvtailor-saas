@@ -1,10 +1,18 @@
 # Migration 12 — quiet matching
 
-**Status: written, NOT applied anywhere.** Per `CLAUDE.md`, migrations run
-manually and always before the code that reads them. Nothing in the app reads
-these tables yet, so applying this is safe and inert.
+**Status: applied to `tailr-staging` 15 Aug 2026, together with migration 13.
+NOT applied to production.**
 
-File: `supabase/migrations/20260815090000_quiet_matching.sql`
+**Both files, in order, always:**
+
+1. `supabase/migrations/20260815090000_quiet_matching.sql`
+2. `supabase/migrations/20260815140000_fix_recommendation_state_guard.sql`
+
+Migration 12 alone leaves a hole: its state guard is `SECURITY DEFINER`, which
+rewrites `current_user` to the function owner and makes the client check
+unreachable, so a signed-in user can mark their own recommendation `applied`.
+12 is deliberately left as it was applied rather than edited in place; 13
+corrects it. Never apply 12 without 13.
 
 ## Run it
 
@@ -99,7 +107,25 @@ recommendation's `state` to `'applied'` must raise. Updating it to `'seen'` or
 
 Run these as a real user, not as `postgres` — the guard deliberately lets a
 superuser through, since a superuser can disable the trigger anyway and
-refusing them would only be theatre.
+refusing them would only be theatre:
+
+```sql
+begin;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"<a real auth.users id>","role":"authenticated"}';
+-- ... the reads or writes you want to test ...
+commit;
+```
+
+**Test both directions.** A guard that refuses the client but also refuses the
+service role passes a one-sided test while quietly breaking the feature. Swap
+`authenticated` for `service_role` and confirm the apply path still works.
+
+Result on staging, 15 Aug, after migration 13:
+
+| as `authenticated` | as `service_role` |
+|---|---|
+| seen ✅ · dismissed ✅ · applied refused · score refused · evidence refused | applied succeeds · un-applying refused |
 
 ## What this does NOT do
 

@@ -1029,4 +1029,58 @@ with `window.va` defined; `/consent/faketoken` has neither. 535 tests (was
 Vercel env vars, and Supabase's redirect allowlist for the business host.
 Production has zero agency code.
 
+---
+
+## 🔎 Migrations 12 + 13 applied to staging — and the guard that never fired (15 Aug 2026)
+
+**Migration 12 (quiet matching) is applied to `tailr-staging`.** All eight
+structural checks pass. Then the behavioural tests — run as a genuine
+`authenticated` role, not as `postgres` — found a real hole.
+
+**What passed.** With a live published role sitting in the table:
+
+| | published roles visible | recommendations visible |
+|---|---|---|
+| user with **no** recommendation | **0** | **0** |
+| user **with** a recommendation | 1 | 1 |
+
+"There is no job board" is structural, not a rule anyone has to remember.
+Rewriting your own `score` or `evidence`: blocked by the column grant.
+Inserting your own opt-in directly: blocked, no write policy exists.
+
+**What failed.** A client could set their own recommendation to `applied`.
+
+`public.guard_recommendation_state()` shipped as `SECURITY DEFINER`, **which
+rewrites `current_user` to the function's owner**. Proven on staging in one
+query, same session, same JWT:
+
+```
+inside SECURITY DEFINER : current_user=postgres      auth.role=authenticated
+inside a normal function: current_user=authenticated auth.role=authenticated
+```
+
+So `current_user not in ('service_role','postgres')` was permanently false and
+the exception never fired. **That clause had been added for robustness**, after
+noticing `auth.role()` returns null on a direct connection — the hardening is
+what opened the hole. `auth.role()` alone had been correct.
+
+Nothing could cross the wall (only the apply route sends anything to an agency,
+and it does not exist yet), but `applied` is terminal by design, so a client
+could permanently strand their own recommendation claiming a bundle was sent.
+
+**Migration 13** drops `SECURITY DEFINER` — the trigger reads and writes only
+`NEW`/`OLD` and never needed elevated rights. Applied. Re-verified in both
+directions, which matters: a guard that blocks the client but also blocks the
+service role would have "passed" a one-sided test while breaking the feature.
+
+| as `authenticated` | as `service_role` |
+|---|---|
+| seen ✅ · dismissed ✅ · applied **refused** · score **refused** · evidence **refused** | applied **succeeds** · un-applying **refused** |
+
+Migration 12 is left as it was applied rather than edited in place, with a
+pointer at the top so nobody applies it to production without 13.
+
+Test fixtures and probe functions removed; deleting the published role
+cascaded its recommendations, which incidentally proved the cascade.
+
 _Last updated: 15 August 2026_

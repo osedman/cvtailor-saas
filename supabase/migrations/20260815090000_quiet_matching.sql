@@ -1,5 +1,12 @@
 -- Tailr for Agencies — migration 12: quiet matching.
 --
+-- ⚠ APPLY MIGRATION 13 IMMEDIATELY AFTER THIS ONE.
+-- The guard_recommendation_state() below is SECURITY DEFINER, which rewrites
+-- current_user to the function owner and makes its client check unreachable —
+-- a signed-in user can set their own recommendation to 'applied'.
+-- 20260815140000_fix_recommendation_state_guard.sql corrects it. This file is
+-- left as it was applied to staging on 15 Aug rather than edited in place.
+--
 -- A recruiter publishes a role for matching and sets a minimum score. Tailr
 -- scans consumer users who have opted in, and recommends the role TO THOSE
 -- PEOPLE. The agency sees nothing and nobody until an application lands.
