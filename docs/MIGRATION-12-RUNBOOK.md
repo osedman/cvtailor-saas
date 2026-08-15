@@ -19,21 +19,24 @@ The file is idempotent — safe to re-run.
 
 ## Then verify it did what it claims
 
-Paste this afterwards. Every row should say `PASS`.
+Paste this afterwards. Every row should say `PASS` — and **`tables created`
+must be one of them**, because three of the checks below are satisfiable by an
+empty database and only mean something once the tables exist.
 
 ```sql
+-- `check` is a reserved word in Postgres; the column is check_name.
 with checks as (
-  select 'tables created' as check,
+  select 'tables created' as check_name,
          (select count(*) from information_schema.tables
            where (table_schema='public' and table_name in
                  ('match_preferences','matching_consent_events','published_roles','role_recommendations'))
               or (table_schema='agency' and table_name='role_matching')) = 5 as ok
   union all
   select 'rls on all five',
-         (select bool_and(c.relrowsecurity) from pg_class c join pg_namespace n on n.oid=c.relnamespace
+         coalesce((select bool_and(c.relrowsecurity) from pg_class c join pg_namespace n on n.oid=c.relnamespace
            where (n.nspname='public' and c.relname in
                  ('match_preferences','matching_consent_events','published_roles','role_recommendations'))
-              or (n.nspname='agency' and c.relname='role_matching'))
+              or (n.nspname='agency' and c.relname='role_matching')), false)
   union all
   select 'no write policy on consent tables',
          (select count(*) from pg_policies
@@ -53,12 +56,12 @@ with checks as (
                                 'published_roles','role_recommendations')) = 0
   union all
   select 'source accepts matched',
-         (select pg_get_constraintdef(oid) from pg_constraint
-           where conname='candidates_source_check') like '%matched%'
+         coalesce((select pg_get_constraintdef(oid) from pg_constraint
+           where conname='candidates_source_check') like '%matched%', false)
   union all
   select 'job kind accepts match_scan',
-         (select pg_get_constraintdef(oid) from pg_constraint
-           where conname='ingestion_jobs_kind_check') like '%match_scan%'
+         coalesce((select pg_get_constraintdef(oid) from pg_constraint
+           where conname='ingestion_jobs_kind_check') like '%match_scan%', false)
   union all
   select 'no FK from public into agency',
          (select count(*) from pg_constraint c
@@ -66,8 +69,13 @@ with checks as (
             join pg_class pa on pa.oid=c.confrelid join pg_namespace np on np.oid=pa.relnamespace
            where c.contype='f' and nh.nspname='public' and np.nspname='agency') = 0
 )
-select check, case when ok then 'PASS' else 'FAIL' end as result from checks;
+select check_name, case when ok then 'PASS' else 'FAIL' end as result from checks;
 ```
+
+Run against an untouched database this returns `FAIL` for the five real
+checks and `PASS` for three vacuous ones — which is what it did on
+`tailr-staging` on 15 Aug, confirming the migration had not been applied and
+nothing was left half-done.
 
 ## The two behaviours worth proving by hand
 
