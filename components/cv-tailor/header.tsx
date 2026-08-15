@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { LogOut, ChevronDown, Clock, Kanban, ShieldCheck, Target, TrendingUp } from "lucide-react"
+import { LogOut, ChevronDown, Clock, Kanban, ShieldCheck, Settings, Target, TrendingUp } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { SignInModal } from "@/components/auth/sign-in-modal"
 import { isAdminViewer } from "@/lib/admin"
@@ -128,6 +128,19 @@ export function Header({ onSignInClick, onHistoryClick, enhanced = false }: Head
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setShowUserMenu(false)} />
                       <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl border border-gray-100 shadow-lg z-20 py-1 overflow-hidden">
+                        {/* The signed-off frame shows Settings as a nav tab.
+                            The real nav is already conditional (Career Path,
+                            Career Arc, Admin) and would crowd at mobile widths,
+                            so it lives in the account menu — where a consent
+                            control is conventionally looked for anyway. */}
+                        <Link
+                          href="/settings"
+                          onClick={() => setShowUserMenu(false)}
+                          className="w-full px-4 py-2.5 text-sm text-left text-gray-600 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                        >
+                          <Settings className="w-4 h-4" />
+                          Settings
+                        </Link>
                         <button
                           onClick={() => { signOut(); setShowUserMenu(false) }}
                           className="w-full px-4 py-2.5 text-sm text-left text-gray-600 hover:bg-gray-50 flex items-center gap-2 transition-colors"

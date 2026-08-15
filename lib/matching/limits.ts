@@ -60,6 +60,20 @@ export function bucketOf(count: number): MatchBucket {
   return "over_20"
 }
 
+/**
+ * The wording each opt-in was agreed against.
+ *
+ * Stored on every consent event, so "when did I agree, and to what?" has an
+ * answer that survives a copy rewrite. **Bump this whenever the settings copy
+ * changes in a way that changes what is being agreed to** — not for a typo, but
+ * for anything that alters the promise.
+ */
+export const CONSENT_COPY_VERSION = "matching-2026-08-15"
+
+/** The two opt-ins. Separate purposes; they revoke independently. */
+export const CONSENT_SUBJECTS = ["matching", "enrichment"] as const
+export type ConsentSubject = (typeof CONSENT_SUBJECTS)[number]
+
 /** Score bounds a recruiter may set. Mirrors the DB check constraint. */
 export const MIN_SCORE_FLOOR = 0
 export const MIN_SCORE_CEILING = 100

@@ -1139,4 +1139,71 @@ because they were never told a scan was running.
 572 tests, build clean. Still to come: the I/O layer, the publish control, and
 the `/found` screen.
 
+---
+
+## 🎚 The consumer opt-in surface, and a correction about Figma (15 Aug 2026)
+
+**Correction first: the Figma frames were always there.** `get_metadata` with no
+node id returns only the FIRST page, so this session twice reported that the
+file held one page and the consumer frames were unreachable. It has five, and
+`use_figma` lists them all. Page `03 · Consumer job board` already held a
+finished `Consumer · Match recommendation` frame — which was nearly redesigned
+from scratch. **Use `use_figma` to enumerate pages; do not trust
+`get_metadata` without a node id.**
+
+Reading that frame changed the build. The opt-in was about to go on
+`/career-arc` beside the evidence bank; the frame's own copy says *"Pause
+recommendations any time in settings."* It also gave the real tokens —
+consumer headlines are **Geist SemiBold 28, not Fraunces**, consistent with
+Fraunces being agency-side only.
+
+**New frame, signed off:** `Consumer · Settings — matching opt-in` (node
+`109:2`, page 03), built to those tokens and placed beside the screen it leads
+to.
+
+**Built:** `/settings`, `GET|POST /api/matching/preferences`,
+`lib/matching/preferences.ts`, and an `ns-switch` added to the design system
+(a real `role="switch"` button — the state has to be announced, and this one
+governs whether a person can be found by employers).
+
+**Migration 14 — because the signed-off frame promised something the schema
+could not keep.** The frame says *"Every time you change **either** switch we
+keep the date and the exact wording you agreed to."* Two things broke that:
+`matching_consent_events` could not say WHICH switch, and
+`profiles.recruiter_visibility` was **directly writable** — `authenticated`
+held UPDATE on every profiles column under an `auth.uid() = id` policy, so the
+enrichment flag could be flipped with no record at all. That is the exact
+weakness that justified giving matching its own opt-in, still live on the
+older flag.
+
+Migration 14 adds `subject` (`matching` | `enrichment`) and revokes column
+UPDATE on the two enrichment columns. **Column-level revoke, not a policy
+change** — name, country, cv_template and the digest preference stay
+user-writable exactly as before. Nothing in the app ever wrote
+`recruiter_visibility`, so this revokes a capability only reachable by hand.
+
+**Order of writes is deliberate:** the consent event is written BEFORE the
+flag. If the second write fails we hold a record of an intention that did not
+take effect — recoverable and visible. The other order risks a changed flag
+with no record of why, which is the failure the module exists to prevent.
+`setConsent(userId, subject, granted)` takes no context object, the same shape
+`recordDecision` uses on the agency side, so no code path lets one person
+consent for another.
+
+**Copy is load-bearing and tested.** "a rounded count, never who" is
+`matched_bucket`; "does not un-send an application" is the terminal `applied`
+state Postgres refuses to reverse; "shown only to you" is `published_roles`'
+RLS policy. Tests assert each line stays, because if the schema changes the
+copy becomes a lie.
+
+**Deviation from the frame, stated not hidden:** Settings is in the account
+menu rather than a nav tab. The real header's nav is already conditional
+(Career Path, Career Arc, Admin) and a fifth item crowds mobile widths.
+
+**Verified:** signed-out state renders on the `ns-` system, no console errors,
+`GET` and `POST` both 401 unauthenticated — and auth is checked *before* body
+validation, so a malformed body leaks nothing to an anonymous caller. 590
+tests, build clean. **The signed-in screen cannot be verified locally** — it
+needs a session and migration 14 on staging.
+
 _Last updated: 15 August 2026_

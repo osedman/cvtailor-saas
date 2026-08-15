@@ -301,10 +301,46 @@
   animation-delay: calc(var(--ns-i, 0) * 70ms);
 }
 @keyframes ns-rise { to { opacity: 1; transform: none; } }
+
+/* Consent switch. A real button with role="switch" — the state has to be
+   announced, and this one controls whether a person can be found by employers.
+   Off is the resting state everywhere and is never pre-selected. */
+.ns .ns-switch {
+  position: relative;
+  flex: none;
+  width: 46px; height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--ns-border-strong);
+  background: var(--ns-border);
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.ns .ns-switch[aria-checked="true"] {
+  background: var(--ns-coral);
+  border-color: var(--ns-coral-deep);
+}
+.ns .ns-switch:disabled { opacity: 0.55; cursor: default; }
+.ns .ns-switch::after {
+  content: "";
+  position: absolute; top: 2px; left: 2px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--ns-paper);
+  box-shadow: 0 1px 2px rgba(30, 24, 19, 0.18);
+  /* transform only — never animate left/width */
+  transition: transform 160ms ease;
+}
+.ns .ns-switch[aria-checked="true"]::after { transform: translateX(20px); }
+.ns .ns-switch:focus-visible {
+  outline: 2px solid var(--ns-coral);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ns .ns-stitch { animation: none; stroke-dashoffset: 0; }
   .ns .ns-rise { animation: none; opacity: 1; transform: none; }
   .ns .ns-card, .ns .ns-btn, .ns .ns-chip { transition: none; }
+  .ns .ns-switch, .ns .ns-switch::after { transition: none; }
 }
 
 /* North Star modal + interactive chips */
