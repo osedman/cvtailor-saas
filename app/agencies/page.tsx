@@ -507,9 +507,9 @@ export default function AgencyHomePage() {
               <div className="ag-card-body" style={{ textAlign: "center", padding: 40 }}>
                 <div style={{ fontWeight: 600, fontSize: 15 }}>Sign in to see your agency.</div>
                 <p style={{ fontSize: 12.5, color: "var(--ag-ink-3)", margin: "6px 0 16px" }}>
-                  Same login as Tailr: your email address and a magic link.
+                  Your email address and a magic link — no password.
                 </p>
-                <a className="ag-btn ag-btn-primary" href="/login" style={{ textDecoration: "none" }}>Sign in</a>
+                <a className="ag-btn ag-btn-primary" href="/agencies/sign-in" style={{ textDecoration: "none" }}>Sign in</a>
               </div>
             </div>
           )}

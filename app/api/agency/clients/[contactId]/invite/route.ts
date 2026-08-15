@@ -30,7 +30,7 @@ import {
   revokeClientInvite,
 } from "@/lib/agency/client-auth"
 import { sendEmail } from "@/lib/email"
-import { getAppOrigin } from "@/lib/site-url"
+import { getBusinessOrigin } from "@/lib/site-url"
 import { anonRateLimitId, checkRateLimit } from "@/lib/rate-limit"
 
 export const maxDuration = 30
@@ -147,7 +147,9 @@ export async function POST(
     // Throws AgencyAccessError for a contact outside the caller's agency, with
     // the same message it uses for one that does not exist.
     const { inviteId, rawToken, expiresAt } = await createClientInvite(auth.ctx, contactId)
-    const url = `${getAppOrigin()}/hiring/invite/${encodeURIComponent(rawToken)}`
+    // Business origin: /hiring is the client side of the agency product, and
+    // the hiring manager signs in at the business door.
+    const url = `${getBusinessOrigin()}/hiring/invite/${encodeURIComponent(rawToken)}`
 
     // The one read that gives us everything the email needs (agency name,
     // company, recipient address) without the route touching the database.

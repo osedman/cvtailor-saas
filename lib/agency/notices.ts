@@ -7,6 +7,7 @@
  */
 
 import { sendEmail } from "@/lib/email"
+import { getAppOrigin } from "@/lib/site-url"
 import { writeAudit, type AgencyClient } from "./db"
 
 export type NoticeOutcome =
@@ -103,8 +104,12 @@ export async function sendOneNotice(admin: AgencyClient, noticeId: string): Prom
       roleLocation: role?.location ?? "",
       retentionDays: agency?.retention_days ?? 180,
       personalNote: notice.personal_note ?? "",
+      // The consumer app origin, via the one helper. This read
+      // NEXT_PUBLIC_SITE_URL directly with an apex default, which is a third
+      // answer to a question lib/site-url.ts already answers — and the rights
+      // doorway belongs to the candidate, so it stays off the agency domain.
       rightsUrl: candidate.rights_token
-        ? `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://gettailr.com"}/rights/${candidate.rights_token}`
+        ? `${getAppOrigin()}/rights/${candidate.rights_token}`
         : "",
     }),
     from: `${agencyName} via Tailr <notices@gettailr.com>`,

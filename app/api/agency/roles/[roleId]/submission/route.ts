@@ -21,6 +21,7 @@ import {
   requireAgencyContext,
   writeAudit,
 } from "@/lib/agency/db"
+import { getAppOrigin } from "@/lib/site-url"
 import { recomputeAndStore } from "@/lib/agency/rescore"
 import { probeAreasForClient } from "@/lib/agency/probes"
 
@@ -252,7 +253,17 @@ export async function POST(
           expires_at: expiresAt,
         })
         if (recError) throw recError
-        links.push({ contact_id: contactId, url: `/portal/${raw}`, expires_at: expiresAt })
+        // Absolute, and built server-side on the consumer app origin. It was
+        // relative, so the recruiter's clipboard inherited whatever host they
+        // were standing on — which after the product split is the business
+        // domain, and the portal is a client-facing doorway that lives with
+        // the app. A copied link that resolves off-product is indistinguishable
+        // from a broken one.
+        links.push({
+          contact_id: contactId,
+          url: `${getAppOrigin()}/portal/${raw}`,
+          expires_at: expiresAt,
+        })
       }
     }
 

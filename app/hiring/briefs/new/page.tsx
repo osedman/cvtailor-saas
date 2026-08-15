@@ -144,7 +144,7 @@ export default function NewBriefPage() {
             </p>
             {screen === "signed-out" && (
               <p style={{ marginTop: 18 }}>
-                <Link className="agd-tbtn primary" href="/login?next=/hiring/briefs/new">
+                <Link className="agd-tbtn primary" href="/agencies/sign-in?next=/hiring/briefs/new">
                   Sign in
                 </Link>
               </p>

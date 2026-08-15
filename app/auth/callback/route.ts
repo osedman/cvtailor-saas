@@ -1,13 +1,20 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { runPostAuth } from '@/lib/post-auth'
-import { getAppOrigin } from '@/lib/site-url'
+import { doorFromHost, getAppOrigin, getBusinessOrigin } from '@/lib/site-url'
 import { withAuthCookieOptions } from '@/lib/supabase/cookie-options'
-import { DEFAULT_LANDING, resolveLandingPath, safeNextPath } from '@/lib/hat-routing'
+import { DOOR_FALLBACK } from '@/lib/auth-paths'
+import { resolveLandingPath, safeNextPath } from '@/lib/hat-routing'
 
 /**
  * PKCE code-exchange flow. Kept for backward compatibility.
  * Cookies are written onto the redirect response so the session sticks.
+ *
+ * Every redirect below stays on the origin the exchange arrived at. Pinning
+ * them to the consumer origin — which is what this did before the product
+ * split — sends a recruiter who signed in at the business domain into the
+ * consumer app, and on a non-subdomain business host it also strips the
+ * session cookies written during the exchange, landing them signed out.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
@@ -15,11 +22,12 @@ export async function GET(request: NextRequest) {
   // An explicit next wins; without one the destination depends on which hats
   // this person wears, which we only know once the session exists.
   const requestedNext = safeNextPath(searchParams.get('next'))
-  const app = getAppOrigin()
+  const door = doorFromHost(request.headers.get('host'))
+  const origin = door === 'business' ? getBusinessOrigin() : getAppOrigin()
 
   const fail = (description: string) =>
     NextResponse.redirect(
-      `${app}/tailor?error=auth&error_description=${encodeURIComponent(description)}`,
+      `${origin}${DOOR_FALLBACK[door]}?error=auth&error_description=${encodeURIComponent(description)}`,
     )
 
   if (!code) {
@@ -28,7 +36,7 @@ export async function GET(request: NextRequest) {
 
   // Provisional target; rewritten below once the user is known. Cookies are
   // set on this response, so it has to exist before the exchange.
-  let redirect = NextResponse.redirect(`${app}${requestedNext ?? DEFAULT_LANDING}`)
+  let redirect = NextResponse.redirect(`${origin}${requestedNext ?? DOOR_FALLBACK[door]}`)
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -58,7 +66,7 @@ export async function GET(request: NextRequest) {
   // Rewrite the Location rather than building a new response: the session
   // cookies were written onto `redirect` during the exchange above, and a
   // fresh NextResponse would drop them and land the user signed out.
-  const landing = await resolveLandingPath(data?.user?.id, requestedNext)
-  redirect.headers.set('location', `${app}${landing}`)
+  const landing = await resolveLandingPath(data?.user?.id, requestedNext, door)
+  redirect.headers.set('location', `${origin}${landing}`)
   return redirect
 }

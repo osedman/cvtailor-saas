@@ -6,6 +6,7 @@ import { checkRateLimit, anonRateLimitId } from "@/lib/rate-limit"
 // to live here as a private copy; two copies of a security check is how one of
 // them quietly drifts permissive.
 import { safeNextPath } from "@/lib/hat-routing"
+import { doorFromHost, getAppOrigin, getBusinessOrigin } from "@/lib/site-url"
 
 /**
  * Send magic-link / OTP via Resend, bypassing Supabase Auth's SMTP mailer.
@@ -30,18 +31,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 })
   }
 
+  // The door this sign-in came through — the two products have separate front
+  // doors sharing this one engine, so the confirm link must return to the host
+  // the person actually started on.
+  const door = doorFromHost(request.headers.get("host"))
+
   // Unauthenticated endpoint that sends email — limit per target address AND
   // per caller IP so it can't email-bomb an inbox or drain the Resend quota.
+  // Keyed by door as well: one person is often both a consumer and a
+  // recruiter, and their job-hunting must not throttle their day job.
   const ip = (request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown"
   const limited =
-    (await checkRateLimit(anonRateLimitId(`email:${email}`), "auth")) ??
-    (await checkRateLimit(anonRateLimitId(`ip:${ip}`), "auth"))
+    (await checkRateLimit(anonRateLimitId(`email:${door}:${email}`), "auth")) ??
+    (await checkRateLimit(anonRateLimitId(`ip:${door}:${ip}`), "auth"))
   if (limited) return limited
 
+  // Origin header first (it already follows the calling host), then the
+  // configured origin for this door. The previous last resort was a hardcoded
+  // staging Vercel URL, which would have emailed a staging link from
+  // production the moment a caller arrived without an Origin header.
   const origin =
     request.headers.get("origin") ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    "https://cvtailor-saas-git-staging-ooifoh-gmailcoms-projects.vercel.app"
+    (door === "business" ? getBusinessOrigin() : getAppOrigin())
   const redirectTo = `${origin.replace(/\/$/, "")}/auth/confirm`
 
   try {

@@ -19,25 +19,27 @@
 
 import { agencyAdmin } from "@/lib/agency/db"
 
-export const DEFAULT_LANDING = "/tailor"
-export const HIRING_LANDING = "/hiring"
+/**
+ * The guard and the landing constants live in lib/auth-paths.ts, which has no
+ * server imports, because this module pulls in agencyAdmin (→ next/headers +
+ * the service-role key) and a client component importing from here fails the
+ * build. Re-exported so every existing importer of this module is unchanged.
+ */
+export {
+  AGENCY_LANDING,
+  DEFAULT_LANDING,
+  HIRING_LANDING,
+  safeNextPath,
+} from "@/lib/auth-paths"
 
-/** Same-origin relative paths only — an open redirect here would be handed a
- * freshly-minted session, so this is the strictest check in the flow.
- *
- * The backslash cases are not paranoia: browsers normalise `\` to `/` in URLs,
- * so `/\evil.example.com` and `/\/evil.example.com` are read as
- * protocol-relative and navigate off-origin exactly like `//evil.example.com`.
- * Any backslash is rejected outright — no legitimate route in this app has one. */
-export function safeNextPath(raw: unknown): string | null {
-  if (typeof raw !== "string") return null
-  const next = raw.trim()
-  if (!next.startsWith("/") || next.startsWith("//")) return null
-  if (next.includes("\\")) return null
-  if (next.includes("://")) return null
-  if (next.length > 512) return null
-  return next
-}
+import {
+  AGENCY_LANDING,
+  DEFAULT_LANDING,
+  DOOR_FALLBACK,
+  HIRING_LANDING,
+  safeNextPath,
+  type AuthDoor,
+} from "@/lib/auth-paths"
 
 /**
  * Resolve the landing path for a just-authenticated user.
@@ -47,17 +49,21 @@ export function safeNextPath(raw: unknown): string | null {
  */
 export async function resolveLandingPath(
   userId: string | null | undefined,
-  requested?: unknown
+  requested?: unknown,
+  door: AuthDoor = "consumer"
 ): Promise<string> {
   const explicit = safeNextPath(requested)
   if (explicit) return explicit
-  if (!userId) return DEFAULT_LANDING
+  const fallback = DOOR_FALLBACK[door]
+  if (!userId) return fallback
 
   try {
     const admin = agencyAdmin()
 
-    // A recruiter keeps the existing default: they already have a working
-    // habit, and many of them are consumer users too.
+    // A recruiter who came through the CONSUMER door keeps the long-standing
+    // /tailor default — many of them are consumer users too and that habit
+    // predates the split. Through the BUSINESS door the same person asked for
+    // the recruiter product by the domain they typed, so send them there.
     const { data: membership } = await admin
       .from("members")
       .select("agency_id")
@@ -65,10 +71,11 @@ export async function resolveLandingPath(
       .eq("status", "active")
       .limit(1)
       .maybeSingle()
-    if (membership) return DEFAULT_LANDING
+    if (membership) return door === "business" ? AGENCY_LANDING : DEFAULT_LANDING
 
     // A linked client contact with no agency membership is a hiring manager
-    // and nothing else — the consumer app is not their product.
+    // and nothing else — the consumer app is not their product, through
+    // either door.
     const { data: link } = await admin
       .from("client_contacts")
       .select("id")
@@ -77,8 +84,8 @@ export async function resolveLandingPath(
       .maybeSingle()
     if (link) return HIRING_LANDING
 
-    return DEFAULT_LANDING
+    return fallback
   } catch {
-    return DEFAULT_LANDING
+    return fallback
   }
 }

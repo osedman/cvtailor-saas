@@ -911,4 +911,62 @@ checked, not the diff. Verified after: 308 → `/` → 200.
 first parameter. Nothing calls it positionally (checked), so no silent argument
 shift.
 
-_Last updated: 12 August 2026_
+---
+
+## 🚪 Product split, phase A: separate doors for consumer and B2B (14 Aug 2026)
+
+**Why.** With real users, one shared front door has costs: a hiring manager who
+is privately a job-seeker signs in through a consumer-branded page, B2B sales
+sits on a consumer domain, and one careless post-auth redirect crosses products.
+Decided 14 Aug: separate doors and separate domains, **one auth engine**
+underneath (one `auth.users` pool, so every FK, the invite binding and the
+consumer bridge are untouched), **one Vercel project** (one env-var set — the
+28 Jul scoped-env burn stays un-repeated), **one Supabase project**.
+
+This amends §5.4.1 (shared hat-routing) and §5.4.7 (single deployment).
+
+**Shipped in this pass — staging only, and inert until `DOMAIN_SPLIT_ENABLED`:**
+
+| Area | Change |
+|---|---|
+| `lib/site-url.ts` | Third origin: `getBusinessOrigin()` / `businessPath()` / `getBusinessHost()`, env-configured (`NEXT_PUBLIC_BUSINESS_URL`) so a bought domain is config + DNS, not code. `BUSINESS_PATH_PREFIXES` + `isBusinessPath()`. |
+| `lib/site-url.ts` | The token doorways (`/portal`, `/rights`, `/consent`, `/reference`) added to `APP_PATH_PREFIXES` — they were in **neither** list, which is why `www` happily served them. They stay on the consumer app: a candidate exercising a right should not be sent to a domain branded for the agency they are answering. |
+| `proxy.ts` | Host routing both ways, plus `/` on the business host → `/agencies`. |
+| `lib/auth-paths.ts` (new) | `safeNextPath` + the landing constants, extracted into a module with **no server imports**. |
+| `app/agencies/sign-in/` (new) | The business door. Same OTP engine, agency design system, light paper. |
+| `lib/hat-routing.ts` | `resolveLandingPath` takes a **door**: from the business door a recruiter lands `/agencies` (was `/tailor`); the consumer door is unchanged. |
+| Link minting | `/hiring/invite` → business origin; `/rights` and `/portal` → app origin. Four sites that bypassed `site-url.ts` now use it. |
+
+**Two bugs found and fixed on the way, both live before this work:**
+
+1. **Open redirect in the consumer door.** `app/login/page.tsx` carried a
+   *fourth* copy of `safeNextPath` that checked the leading slash and the
+   scheme but **not backslashes** — the identical bug the guardrail test was
+   written for after `/auth/confirm` shipped it. It could not import the shared
+   guard because that guard sat in a module importing `agencyAdmin`, so a
+   client component pulling it in would drag `next/headers` + the service-role
+   key into the browser bundle and fail the build. **Extracting the guard is
+   what made "one guard, not four" actually available.** Both doors are now in
+   the source-scan's `ENTRY_POINTS` (4 files, was 3).
+
+2. **A 500 on the one path an auth error travels.** `getAppOrigin()` returned
+   whatever was configured, unvalidated, and the proxy uses it as a `new URL()`
+   base — a scheme-less value (`localhost:3000`) threw `ERR_INVALID_URL`, so a
+   user whose magic link failed got a server error instead of the toast
+   explaining why. Origins are now normalised and validated, falling through to
+   the default when unusable. **Found by curling the route with a `Host`
+   header, not by reading the diff** — the unit test stubbed a valid env and
+   was perfectly happy.
+
+**Verified:** 523 tests (was 495), build clean, `/agencies/sign-in` renders and
+prerenders. Proxy rules exercised through the real `proxy()` with real
+`NextRequest`s — including the rollback story, that with the flag off the
+business rules are inert. Live: `Host: app.gettailr.com` redirects check out and
+auth params survive.
+
+**Not done:** DNS, the Vercel env vars, and Supabase's redirect allowlist —
+`/auth/confirm` and `/auth/callback` must be registered for the business host
+before the flag is flipped. Analytics still fires on both products (A6).
+Production still has **zero** agency code.
+
+_Last updated: 14 August 2026_

@@ -117,6 +117,17 @@
 .ag-title { font-family: var(--ag-display); font-size: var(--t-display); font-weight: 600; letter-spacing: var(--track-tight); line-height: 1.15; }
 .ag-sub { color: var(--ag-ink-3); margin-top: 6px; max-width: 60ch; }
 
+/* ---------- the business front door ----------
+ * The recruiter sign-in, on its own domain. Same shape as the hiring-manager
+ * invite door (`.hm-door` in hiring.css) because it is the same kind of
+ * screen — one small decision, centred, on light paper, never the workspace.
+ * Duplicated rather than shared: hiring.css is not loaded under /agencies,
+ * and the alternative is a cross-import between two route groups for eleven
+ * lines of layout. */
+.ag-door { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 40px 20px; }
+.ag-door-card { width: 100%; max-width: 460px; }
+.ag-door-mark { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+
 /* ---------- primitives ---------- */
 .ag-card { background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); overflow: hidden; }
 .ag-card-head { padding: 14px 18px; border-bottom: 1px solid var(--ag-border); display: flex; justify-content: space-between; align-items: center; gap: 12px; }

@@ -549,11 +549,11 @@ export default function HiringDashboardPage() {
                 Sign in to open your workspace.
               </p>
               <p className="ag-note" style={{ margin: "6px 0 16px", maxWidth: "52ch" }}>
-                Same login as the rest of Tailr: your email address and a link we send you.
+                Your email address and a link we send you — no password.
               </p>
               <a
                 className="ag-btn ag-btn-primary"
-                href="/login?next=%2Fhiring"
+                href="/agencies/sign-in?next=%2Fhiring"
                 style={{ textDecoration: "none" }}
               >
                 Sign in

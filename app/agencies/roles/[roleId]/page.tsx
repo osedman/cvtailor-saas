@@ -1625,7 +1625,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             const shortlistedList = rankedCandidates.filter((c) => decisions[c.id] === "shortlist")
             const heldList = rankedCandidates.filter((c) => decisions[c.id] === "hold")
             const snap = submissionResult?.snapshot ?? null
-            const origin = typeof window !== "undefined" ? window.location.origin : ""
             const recipients = contacts.filter((c) => chosenContacts.includes(c.id))
             const musts = requirements.filter((r) => r.weight === "must")
 
@@ -1907,8 +1906,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                 submissionResult.links.map((l) => (
                                   <div className="ag-link-row" key={l.url}>
                                     <span className="ag-meta">LINK</span>
-                                    <code className="ag-link-url">{origin}{l.url}</code>
-                                    <button className="ag-btn ag-btn-secondary" onClick={() => navigator.clipboard?.writeText(`${origin}${l.url}`)}>Copy</button>
+                                    {/* Absolute, from the server. It used to be
+                                        relative and prefixed with
+                                        window.location.origin here, which after
+                                        the product split would have handed the
+                                        client a portal link on the recruiter's
+                                        own domain. */}
+                                    <code className="ag-link-url">{l.url}</code>
+                                    <button className="ag-btn ag-btn-secondary" onClick={() => navigator.clipboard?.writeText(l.url)}>Copy</button>
                                   </div>
                                 ))
                               ) : (

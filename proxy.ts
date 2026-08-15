@@ -4,21 +4,41 @@ import {
   APEX_HOST,
   APP_HOST,
   MARKETING_HOST,
+  getBusinessHost,
+  getBusinessOrigin,
   getMarketingOrigin,
   getAppOrigin,
   isAppPath,
+  isBusinessPath,
+  isHostNeutralPath,
 } from '@/lib/site-url'
 import { withAuthCookieOptions } from '@/lib/supabase/cookie-options'
 
 /**
  * Next.js 16 proxy (replaces middleware.ts). Handles:
  * 1. www/app domain-split redirects (see docs/DOMAINS.md)
- * 2. Supabase session refresh for Auth (keeps long-lived refresh cookies fresh)
+ * 2. consumer/business product-split redirects (see docs/DOMAINS.md)
+ * 3. Supabase session refresh for Auth (keeps long-lived refresh cookies fresh)
+ *
+ * The product split keeps Tailr for Agencies (/agencies, /hiring) on its own
+ * host and the consumer product on the app host. Both are served by this one
+ * deployment, so there is one env-var set — the 28 Jul lesson about
+ * Preview-scoped variables applies to every alternative to this.
+ *
+ * The token doorways (/portal, /rights, /consent, /reference) count as app
+ * paths: see the note in lib/site-url.ts for why they belong with the
+ * consumer app rather than the agency that sent them.
  */
 export async function proxy(request: NextRequest) {
   const host = request.headers.get('host')?.split(':')[0]?.toLowerCase() ?? ''
   const { pathname, search } = request.nextUrl
   const splitEnabled = process.env.DOMAIN_SPLIT_ENABLED === 'true'
+  const businessHost = getBusinessHost()
+
+  // The shared auth engine and the API are served on every host and are never
+  // host-redirected — see isHostNeutralPath. Short-circuited before any rule
+  // below so no later condition can accidentally claim them.
+  const hostNeutral = isHostNeutralPath(pathname)
 
   // app.gettailr.com/ → marketing site owns the landing page.
   // Exception: auth error/success query params belong on /tailor (where the
@@ -29,6 +49,30 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL(`/tailor${search}`, getAppOrigin()), 308)
     }
     return NextResponse.redirect(new URL(getMarketingOrigin()), 308)
+  }
+
+  // The business host's front page is the recruiter product, not marketing.
+  if (splitEnabled && businessHost && host === businessHost) {
+    if (pathname === '/' || pathname === '') {
+      return NextResponse.redirect(new URL('/agencies', getBusinessOrigin()), 308)
+    }
+    // A consumer path reached on the business host belongs on the app host.
+    if (!hostNeutral && isAppPath(pathname)) {
+      return NextResponse.redirect(new URL(`${getAppOrigin()}${pathname}${search}`), 308)
+    }
+  }
+
+  // A business path reached on a consumer-facing host belongs on the business
+  // host. isAppPath already subtracts business paths, but this is stated
+  // explicitly so the ordering below is not load-bearing.
+  if (
+    splitEnabled &&
+    businessHost &&
+    !hostNeutral &&
+    (host === APEX_HOST || host === APP_HOST || host === MARKETING_HOST) &&
+    isBusinessPath(pathname)
+  ) {
+    return NextResponse.redirect(new URL(`${getBusinessOrigin()}${pathname}${search}`), 308)
   }
 
   // Apex product routes → app subdomain (only once split is flipped on)

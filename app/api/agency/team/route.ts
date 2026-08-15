@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/server"
 import { sendEmail } from "@/lib/email"
 import { agencyAdmin, requireAgencyContext, writeAudit } from "@/lib/agency/db"
+import { getBusinessOrigin } from "@/lib/site-url"
 
 export const maxDuration = 30
 
@@ -126,7 +127,11 @@ export async function POST(req: NextRequest) {
       .select("name")
       .eq("id", auth.ctx.agencyId)
       .single()
-    const origin = req.nextUrl.origin
+    // The business origin, not req.nextUrl.origin: this invites a recruiter to
+    // the agency product, and the link must land on the business door however
+    // the calling request happened to arrive (a preview host, an internal
+    // hostname, an apex redirect).
+    const origin = getBusinessOrigin()
     await sendEmail({
       to: email,
       subject: `You have been added to ${agencyRow?.name ?? "an agency"} on Tailr`,

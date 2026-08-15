@@ -10,14 +10,20 @@
  * must never hang on this.
  */
 
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 import { cookies } from "next/headers"
 import { createServerClient } from "@supabase/ssr"
-import { DEFAULT_LANDING, resolveLandingPath } from "@/lib/hat-routing"
+import { resolveLandingPath } from "@/lib/hat-routing"
+import { DOOR_FALLBACK } from "@/lib/auth-paths"
+import { doorFromHost } from "@/lib/site-url"
 
 export const maxDuration = 10
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // The door is the host the sign-in actually happened on, so a recruiter who
+  // came in at the business domain lands in the recruiter product rather than
+  // the consumer app. It decides where someone goes, never what they may see.
+  const door = doorFromHost(request.headers.get("host"))
   try {
     const cookieStore = await cookies()
     const supabase = createServerClient(
@@ -38,10 +44,10 @@ export async function GET() {
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ path: DEFAULT_LANDING })
+    if (!user) return NextResponse.json({ path: DOOR_FALLBACK[door] })
 
-    return NextResponse.json({ path: await resolveLandingPath(user.id) })
+    return NextResponse.json({ path: await resolveLandingPath(user.id, undefined, door) })
   } catch {
-    return NextResponse.json({ path: DEFAULT_LANDING })
+    return NextResponse.json({ path: DOOR_FALLBACK[door] })
   }
 }

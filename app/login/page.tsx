@@ -5,21 +5,16 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { SignInModal } from "@/components/auth/sign-in-modal"
-
-/** Only same-origin relative paths — blocks open redirects. */
-function safeNextPath(raw: string | null): string {
-  if (!raw) return "/tailor"
-  const next = raw.trim()
-  if (!next.startsWith("/") || next.startsWith("//") || next.includes("://")) return "/tailor"
-  if (next.length > 512) return "/tailor"
-  return next
-}
+import { DEFAULT_LANDING, safeNextPath } from "@/lib/auth-paths"
 
 function LoginInner() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const next = safeNextPath(searchParams.get("next"))
+  // The shared guard, not a fourth copy of it: the local one this replaced
+  // checked the leading slash and the scheme but not the backslash, so
+  // `?next=/\evil.com` resolved off-origin right after a session was minted.
+  const next = safeNextPath(searchParams.get("next")) ?? DEFAULT_LANDING
 
   useEffect(() => {
     if (!loading && user) router.replace(next)
@@ -36,8 +31,8 @@ function LoginInner() {
   return (
     <div className="min-h-screen bg-[#f9f6f0]">
       <SignInModal
-        next={next === "/tailor" ? undefined : next}
-        onClose={() => router.push("/tailor")}
+        next={next === DEFAULT_LANDING ? undefined : next}
+        onClose={() => router.push(DEFAULT_LANDING)}
         onSuccess={() => router.replace(next)}
       />
     </div>

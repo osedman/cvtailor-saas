@@ -130,6 +130,15 @@ describe("the `next` guard has exactly one implementation", () => {
     "app/auth/confirm/page.tsx",
     "app/auth/callback/route.ts",
     "app/api/auth/request-otp/route.ts",
+    // Added 14 Aug: this one had drifted too — it checked the leading slash
+    // and the scheme but not the backslash, the identical bug, in the door
+    // both B2B surfaces link into with ?next=. It could not import the shared
+    // guard while that guard lived alongside agencyAdmin, so the guard moved
+    // to lib/auth-paths.ts (no server imports) and this file now delegates.
+    "app/login/page.tsx",
+    // The business door. Same engine, same guard — a second door is exactly
+    // the moment a second copy of the check would have appeared.
+    "app/agencies/sign-in/page.tsx",
   ]
 
   /** A hand-rolled guard always starts here — the leading-slash test. */
