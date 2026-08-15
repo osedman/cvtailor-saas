@@ -8,6 +8,8 @@
  * cross-tenant hole rather than a cosmetic bug.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import { readFileSync } from "fs"
+import { join } from "path"
 
 const cookieGet = vi.fn()
 const authGetUser = vi.fn()
@@ -118,5 +120,37 @@ describe("requireAgencyContext", () => {
     expect(res.ok).toBe(false)
     if (res.ok) return
     expect(res.failure).toBe("unauthenticated")
+  })
+})
+
+/**
+ * The preference must not outlive the person who set it.
+ *
+ * A source scan, in the manner of typography-consistency.test.ts: the cookie
+ * is httpOnly with a year on it, and supabase.auth.signOut() does not touch
+ * it, so without this wiring one recruiter's working context sits in the next
+ * account's browser on a shared machine. It grants nothing — the resolution
+ * tests above prove a stale id is ignored — but the selected agency's NAME is
+ * visible in the switcher, and that is somebody else's client list.
+ */
+describe("the agency preference is cleared on sign-out", () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
+
+  it("exposes a DELETE that expires the cookie without needing a session", () => {
+    const source = read("app/api/agency/session/route.ts")
+    expect(source).toMatch(/export async function DELETE/)
+    const handler = source.slice(source.indexOf("export async function DELETE"))
+    expect(handler).toMatch(/maxAge:\s*0/)
+    // No auth gate inside DELETE: clearing state when the session is already
+    // gone is the entire point, so requiring one would make it a no-op.
+    const body = handler.slice(0, handler.indexOf("export async function GET"))
+    expect(body).not.toMatch(/requireAgencyContext/)
+  })
+
+  it("is actually called by signOut", () => {
+    const source = read("components/auth/auth-provider.tsx")
+    const signOut = source.slice(source.indexOf("async function signOut"))
+    expect(signOut).toMatch(/\/api\/agency\/session/)
+    expect(signOut).toMatch(/DELETE/)
   })
 })

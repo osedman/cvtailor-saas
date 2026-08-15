@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from 'sonner'
+import { ProductAnalytics } from '@/components/analytics'
 import { AuthProvider } from '@/components/auth/auth-provider'
 import { Onboarding } from '@/components/onboarding/onboarding'
 import './globals.css'
@@ -35,7 +35,7 @@ export default function RootLayout({
           <Onboarding />
           <Toaster position="bottom-right" />
         </AuthProvider>
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        {process.env.NODE_ENV === 'production' && <ProductAnalytics />}
       </body>
     </html>
   )

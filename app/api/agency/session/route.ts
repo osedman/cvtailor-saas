@@ -24,6 +24,23 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   )
 }
 
+/**
+ * Forget the preference. Called on sign-out.
+ *
+ * The cookie is httpOnly with a year on it, and signOut() only clears the
+ * Supabase session — so it outlived the person who set it. It grants nothing
+ * (requireAgencyContext re-validates against real memberships, and an id the
+ * next user is not in is ignored), but on a shared machine it is still one
+ * account's working context sitting in the next account's browser, and the
+ * agency name it selects is visible in the switcher. Deliberately requires no
+ * session: the whole point is to clear state when there is no longer one.
+ */
+export async function DELETE() {
+  const res = NextResponse.json({ cleared: true })
+  res.cookies.set(AGENCY_COOKIE, "", { path: "/", maxAge: 0 })
+  return res
+}
+
 export async function GET() {
   try {
     const auth = await requireAgencyContext()

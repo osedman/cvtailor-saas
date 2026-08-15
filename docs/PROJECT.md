@@ -969,4 +969,64 @@ auth params survive.
 before the flag is flipped. Analytics still fires on both products (A6).
 Production still has **zero** agency code.
 
-_Last updated: 14 August 2026_
+---
+
+## 🔒 Product split, phase A finished: session scope, and who gets measured (15 Aug 2026)
+
+**A4 — the business host keeps its own session.** `authCookieOptions()` now
+takes a host. The business domain is a `gettailr.com` subdomain today, so the
+`.gettailr.com` parent-domain cookie would have handed the agency product the
+consumer login through nothing but a DNS coincidence — the two products sharing
+a session by accident, which is precisely what the split exists to stop.
+Business hosts are host-only, always: one auth pool underneath, two sessions
+above it. The check deliberately runs **before** the
+`NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` override, because that override exists to
+*widen* the consumer session and widening it onto the business product is the
+one thing it must never do. The host comes from `x-forwarded-host` first
+(behind Vercel, `host` is the internal one) on the server, and
+`window.location` in the browser. Unknown host → consumer default: an unknown
+host must not silently widen scope onto the business product, but must also not
+break the consumer session it is probably serving.
+
+Consumer hosts are untouched — `app` / `www` / apex still share, and a test
+pins that.
+
+**A4 — `ag_agency` no longer outlives its owner.** The preference cookie is
+httpOnly with a year on it and `supabase.auth.signOut()` does not touch it, so
+one recruiter's working context sat in the next account's browser on a shared
+machine. It granted nothing — `requireAgencyContext` re-validates against real
+memberships, and the resolution tests prove a stale id is ignored — but the
+selected agency's **name** shows in the switcher, and that is somebody else's
+client list. `DELETE /api/agency/session` expires it and `signOut()` calls it.
+The handler deliberately requires no session: clearing state when the session
+is already gone is the whole point.
+
+**A6 — the token doorways are no longer measured.** `<Analytics />` fired on
+every route, including `/consent`, `/reference`, `/rights`, `/portal` and the
+consumer `/arc` share. Two problems, and the second is the sharper one: the
+people opening those pages are candidates, referees and clients exercising a
+right or answering a request, not product users; and **every one of those paths
+carries a live secret in the URL**, so measuring them risks writing a working
+token into a record we cannot purge. `components/analytics.tsx` drops them at
+render *and* inside `beforeSend` — render alone loses the race with a
+client-side navigation, and "usually caught" is not a property worth having
+when the thing not caught is a token.
+
+Splitting consumer from business needed nothing extra: the products are on
+different hosts and events carry the full URL, so the domain already separates
+them. (The first draft of this passed two props — `beforeSendUrl` and
+`data-product` — that do not exist on `AnalyticsProps`. Checked against the
+installed types rather than shipped.)
+
+**Verified by effect, not status code:** `DELETE` returns a real
+`set-cookie: ag_agency=; Max-Age=0`. Analytics checked in a **production
+build** (it renders only in production, so dev proves nothing) by reading the
+live DOM: `/tailor` and `/agencies/sign-in` load `_vercel/insights/script.js`
+with `window.va` defined; `/consent/faketoken` has neither. 535 tests (was
+523), build clean.
+
+**Phase A is done.** Still not done and still blocking the flag: DNS, the
+Vercel env vars, and Supabase's redirect allowlist for the business host.
+Production has zero agency code.
+
+_Last updated: 15 August 2026_

@@ -60,6 +60,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signOut() {
     await supabase.auth.signOut()
+    // The agency preference is httpOnly with a year on it, so signOut() alone
+    // leaves one person's working context in the next person's browser.
+    // Best-effort: the session is already gone either way.
+    try {
+      await fetch("/api/agency/session", { method: "DELETE" })
+    } catch {
+      /* nothing to recover — the sign-out itself succeeded */
+    }
   }
 
   return (

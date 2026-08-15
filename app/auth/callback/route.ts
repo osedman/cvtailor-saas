@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
   // An explicit next wins; without one the destination depends on which hats
   // this person wears, which we only know once the session exists.
   const requestedNext = safeNextPath(searchParams.get('next'))
-  const door = doorFromHost(request.headers.get('host'))
+  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host')
+  const door = doorFromHost(host)
   const origin = door === 'business' ? getBusinessOrigin() : getAppOrigin()
 
   const fail = (description: string) =>
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            redirect.cookies.set(name, value, withAuthCookieOptions(options))
+            redirect.cookies.set(name, value, withAuthCookieOptions(options, host))
           })
         },
       },
