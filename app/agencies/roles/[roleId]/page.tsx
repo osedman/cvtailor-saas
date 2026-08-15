@@ -826,129 +826,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </div>
                   </div>
 
-                  {/*
-                    Publish for matching. Built to Figma 10:2 (the live card)
-                    and 118:2 (the three states it did not cover).
-
-                    The NOT YET state exists because the frame puts an enabled
-                    button on step 01, but a role has no requirements until
-                    step 02 and the scan refuses to run without them — an
-                    enabled button here would only ever produce an error.
-
-                    There is deliberately no count anywhere in this card. The
-                    scan's liveness is shown instead, because without it
-                    "found nobody", "found people who haven't applied" and
-                    "the scan is broken" are indistinguishable.
-                  */}
-                  <div className="ag-card">
-                    <div className="ag-card-head">
-                      <span className="ag-card-title">Publish for Tailr matching</span>
-                      <span className="ag-pill">
-                        {requirements.length === 0
-                          ? "Not yet"
-                          : matching?.enabled
-                            ? "Matching live"
-                            : matching
-                              ? "Paused"
-                              : "Matching off"}
-                      </span>
-                      <span className="ag-pill">Audit logged</span>
-                    </div>
-                    <div className="ag-card-body">
-                      {requirements.length === 0 ? (
-                        <>
-                          <p className="ag-note" style={{ marginTop: 0 }}>
-                            Matching scores people against this role&apos;s requirements, so it needs
-                            them parsed first. Extract them above and this turns on.
-                          </p>
-                          <button className="ag-btn ag-btn-secondary" style={{ marginTop: 12 }} disabled>
-                            Parse requirements first
-                          </button>
-                          <p className="ag-note" style={{ marginTop: 8 }}>
-                            Nothing has been published and nobody has been scanned.
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="ag-note" style={{ marginTop: 0 }}>
-                            There is no job board. Tailr scans each consumer user&apos;s own evidence
-                            — on their side — and quietly nudges the people who fit. Applying is
-                            their consent; until someone applies, you see nobody.
-                          </p>
-
-                          <label className="ag-label" htmlFor="ag-min-score" style={{ marginTop: 14 }}>
-                            Minimum score
-                          </label>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <input
-                              id="ag-min-score"
-                              className="ag-input"
-                              type="number"
-                              min={0}
-                              max={100}
-                              step={1}
-                              style={{ width: 90 }}
-                              value={minScoreDraft}
-                              onChange={(e) => setMinScoreDraft(Number(e.target.value))}
-                              disabled={busy === "matching"}
-                            />
-                            <span className="ag-meta">
-                              as scored on arrival — before review or overrides
-                            </span>
-                          </div>
-
-                          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                            <button
-                              className={matching?.enabled ? "ag-btn ag-btn-secondary" : "ag-btn ag-btn-coral"}
-                              onClick={() => setMatchingEnabled(!matching?.enabled)}
-                              disabled={busy === "matching"}
-                            >
-                              {busy === "matching" && <span className="ag-spin" />}
-                              {matching?.enabled
-                                ? "Pause matching"
-                                : matching
-                                  ? "Resume matching"
-                                  : "Publish for matching"}
-                            </button>
-                            {matching?.enabled && (
-                              <button
-                                className="ag-btn ag-btn-secondary"
-                                onClick={() => setMatchingEnabled(true)}
-                                disabled={busy === "matching" || minScoreDraft === matching.minScore}
-                              >
-                                Update score
-                              </button>
-                            )}
-                          </div>
-
-                          <p className="ag-note" style={{ marginTop: 10 }}>
-                            {matching?.enabled ? (
-                              <>
-                                Tailr is scanning on the candidate&apos;s side.{" "}
-                                {matching.scanQueued
-                                  ? "A scan is queued now."
-                                  : matching.lastScanAt
-                                    ? `Last scan ${new Date(matching.lastScanAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`
-                                    : "The first scan runs shortly."}
-                                {matching.nextScanAllowedAt && new Date(matching.nextScanAllowedAt) > new Date() && (
-                                  <>
-                                    {" "}Next scan available{" "}
-                                    {new Date(matching.nextScanAllowedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                                    . Changing the score applies to that scan — it does not buy an
-                                    extra one.
-                                  </>
-                                )}
-                              </>
-                            ) : matching ? (
-                              "Paused — the role has stopped being shown to anyone new. People it already reached keep what they were shown, and can still apply."
-                            ) : (
-                              "Or keep it direct-sourced — add candidates yourself in step 03."
-                            )}
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </div>
                 </div>
               </div>
               <div className="ag-principle">
@@ -2297,6 +2174,139 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               </>
             )
           })()}
+
+          {/*
+            PUBLISH FOR MATCHING — role-level, not step-level.
+
+            Built to Figma 10:2 (the live card) and 118:2 (the states it did
+            not cover), but deliberately NOT in 10:2's intake rail. A role
+            opens on its furthest step — candidates if any exist, else parse
+            if requirements do — and publishing needs requirements, so an
+            intake-only card rendered solely in the one state where it says
+            "not yet" and was invisible in every state where it could be used.
+            There was no button, exactly as reported. Publishing is one
+            sourcing decision about the role, so it sits below the step
+            content on every step.
+
+            The NOT YET state still exists, because requirements can genuinely
+            be absent and the scan refuses to run without them — an enabled
+            button then could only ever produce an error.
+
+            No count anywhere in this card. Scan liveness is shown instead:
+            without it "found nobody", "found people who haven't applied" and
+            "the scan is broken" are indistinguishable.
+          */}
+          {role && (
+          <div className="ag-card" style={{ marginTop: 20 }}>
+            <div className="ag-card-head">
+              <span className="ag-card-title">Publish for Tailr matching</span>
+              <span className="ag-pill">
+                {requirements.length === 0
+                  ? "Not yet"
+                  : matching?.enabled
+                    ? "Matching live"
+                    : matching
+                      ? "Paused"
+                      : "Matching off"}
+              </span>
+              <span className="ag-pill">Audit logged</span>
+            </div>
+            <div className="ag-card-body">
+              {requirements.length === 0 ? (
+                <>
+                  <p className="ag-note" style={{ marginTop: 0 }}>
+                    Matching scores people against this role&apos;s requirements, so it needs
+                    them parsed first. Extract them above and this turns on.
+                  </p>
+                  <button className="ag-btn ag-btn-secondary" style={{ marginTop: 12 }} disabled>
+                    Parse requirements first
+                  </button>
+                  <p className="ag-note" style={{ marginTop: 8 }}>
+                    Nothing has been published and nobody has been scanned.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="ag-note" style={{ marginTop: 0 }}>
+                    There is no job board. Tailr scans each consumer user&apos;s own evidence
+                    — on their side — and quietly nudges the people who fit. Applying is
+                    their consent; until someone applies, you see nobody.
+                  </p>
+
+                  <label className="ag-label" htmlFor="ag-min-score" style={{ marginTop: 14 }}>
+                    Minimum score
+                  </label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <input
+                      id="ag-min-score"
+                      className="ag-input"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      style={{ width: 90 }}
+                      value={minScoreDraft}
+                      onChange={(e) => setMinScoreDraft(Number(e.target.value))}
+                      disabled={busy === "matching"}
+                    />
+                    <span className="ag-meta">
+                      as scored on arrival — before review or overrides
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+                    <button
+                      className={matching?.enabled ? "ag-btn ag-btn-secondary" : "ag-btn ag-btn-coral"}
+                      onClick={() => setMatchingEnabled(!matching?.enabled)}
+                      disabled={busy === "matching"}
+                    >
+                      {busy === "matching" && <span className="ag-spin" />}
+                      {matching?.enabled
+                        ? "Pause matching"
+                        : matching
+                          ? "Resume matching"
+                          : "Publish for matching"}
+                    </button>
+                    {matching?.enabled && (
+                      <button
+                        className="ag-btn ag-btn-secondary"
+                        onClick={() => setMatchingEnabled(true)}
+                        disabled={busy === "matching" || minScoreDraft === matching.minScore}
+                      >
+                        Update score
+                      </button>
+                    )}
+                  </div>
+
+                  <p className="ag-note" style={{ marginTop: 10 }}>
+                    {matching?.enabled ? (
+                      <>
+                        Tailr is scanning on the candidate&apos;s side.{" "}
+                        {matching.scanQueued
+                          ? "A scan is queued now."
+                          : matching.lastScanAt
+                            ? `Last scan ${new Date(matching.lastScanAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`
+                            : "The first scan runs shortly."}
+                        {matching.nextScanAllowedAt && new Date(matching.nextScanAllowedAt) > new Date() && (
+                          <>
+                            {" "}Next scan available{" "}
+                            {new Date(matching.nextScanAllowedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                            . Changing the score applies to that scan — it does not buy an
+                            extra one.
+                          </>
+                        )}
+                      </>
+                    ) : matching ? (
+                      "Paused — the role has stopped being shown to anyone new. People it already reached keep what they were shown, and can still apply."
+                    ) : (
+                      "Or keep it direct-sourced — add candidates yourself in step 03."
+                    )}
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+          )}
         </div>
       </main>
     </>

@@ -164,3 +164,34 @@ describe("the cached prompt is the same prompt", () => {
     expect(cvBlockLine).not.toMatch(/cache_control/)
   })
 })
+
+describe("the publish control is reachable", () => {
+  const page = readFileSync(
+    join(process.cwd(), "app/agencies/roles/[roleId]/page.tsx"),
+    "utf8"
+  )
+
+  it("is not nested inside a step conditional", () => {
+    // It was, and that made it unreachable: a role opens on its FURTHEST step
+    // (candidates if any exist, else parse if requirements do), while the card
+    // lived under step === "intake". So it rendered only in the one state
+    // where it says "not yet" and vanished in every state where it could be
+    // used — reported as "there's no button that lets me publish it".
+    //
+    // Publishing is one decision about the ROLE. This asserts the card sits
+    // after every step block rather than inside one.
+    const cardAt = page.indexOf('<span className="ag-card-title">Publish for Tailr matching')
+    expect(cardAt).toBeGreaterThan(-1)
+
+    const stepConditionals = [...page.matchAll(/step === "(\w+)"/g)].map((m) => m.index ?? 0)
+    expect(stepConditionals.length).toBeGreaterThan(3)
+    expect(Math.max(...stepConditionals)).toBeLessThan(cardAt)
+  })
+
+  it("still refuses to offer a button with no requirements", () => {
+    const cardAt = page.indexOf('<span className="ag-card-title">Publish for Tailr matching')
+    const card = page.slice(cardAt, cardAt + 4000)
+    expect(card).toMatch(/requirements\.length === 0/)
+    expect(card).toMatch(/Parse requirements first/)
+  })
+})
