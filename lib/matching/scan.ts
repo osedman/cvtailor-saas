@@ -199,13 +199,16 @@ export async function runMatchScan(roleId: string, queuedJobId?: string): Promis
     // ── skip-on-unchanged ──────────────────────────────────
     const { data: marks, error: markErr } = await publicAdmin
       .from("match_scan_marks")
-      .select("user_id, profile_hash, requirements_hash")
+      .select("user_id, profile_hash, requirements_hash, min_score")
       .eq("published_role_id", role.id)
     if (markErr) throw markErr
     const markByUser = new Map(
-      ((marks ?? []) as Array<{ user_id: string; profile_hash: string; requirements_hash: string }>).map(
-        (m) => [m.user_id, m]
-      )
+      ((marks ?? []) as Array<{
+        user_id: string
+        profile_hash: string
+        requirements_hash: string
+        min_score: number | null
+      }>).map((m) => [m.user_id, m])
     )
 
     const hashByUser = new Map<string, string>()
@@ -214,7 +217,17 @@ export async function runMatchScan(roleId: string, queuedJobId?: string): Promis
       const hash = profileHash(person.evidence)
       hashByUser.set(person.userId, hash)
       const mark = markByUser.get(person.userId)
-      if (mark && mark.profile_hash === hash && mark.requirements_hash === role.requirements_hash) {
+      // THE THRESHOLD IS PART OF THE SKIP KEY. Without it the recruiter could
+      // raise the bar but never lower it: no score is stored for someone who
+      // did not match, so the only way to reconsider them is to assess them
+      // again — and a mark that ignored min_score said "already done" forever.
+      // A null min_score is a pre-migration-18 mark: treat as stale.
+      if (
+        mark &&
+        mark.profile_hash === hash &&
+        mark.requirements_hash === role.requirements_hash &&
+        mark.min_score === role.min_score
+      ) {
         summary.skippedUnchanged++
         continue
       }
@@ -296,6 +309,7 @@ export async function runMatchScan(roleId: string, queuedJobId?: string): Promis
           user_id: hit.userId,
           profile_hash: hashByUser.get(hit.userId) ?? "",
           requirements_hash: role.requirements_hash,
+          min_score: role.min_score,
           matched: matchedNow,
           assessed_at: new Date().toISOString(),
         },

@@ -217,3 +217,37 @@ describe("the publish response describes the row, not the intention", () => {
     expect(finish).toMatch(/scanQueued: queuedJobId != null/)
   })
 })
+
+describe("the threshold is not one-way", () => {
+  const scan = read("lib/matching/scan.ts")
+
+  it("min_score is part of the skip key", () => {
+    // No score is stored for someone who did not match, so the ONLY way to
+    // reconsider them at a lower bar is to assess them again. A skip key of
+    // (profile, requirements) alone said "already assessed" forever, and a
+    // recruiter could raise the threshold but never lower it. Found by
+    // lowering it on staging and watching nothing happen.
+    const skip = scan.slice(scan.indexOf("skip-on-unchanged"), scan.indexOf("stage 1: the cheap slice"))
+    expect(skip).toMatch(/mark\.profile_hash === hash/)
+    expect(skip).toMatch(/mark\.requirements_hash === role\.requirements_hash/)
+    expect(skip).toMatch(/mark\.min_score === role\.min_score/)
+  })
+
+  it("reads min_score back off the mark, or the comparison is always false", () => {
+    const skip = scan.slice(scan.indexOf("skip-on-unchanged"), scan.indexOf("stage 1: the cheap slice"))
+    expect(skip).toMatch(/\.select\("[^"]*min_score[^"]*"\)/)
+  })
+
+  it("writes it when marking, or nothing ever skips again", () => {
+    expect(scan).toMatch(/min_score: role\.min_score/)
+  })
+
+  it("still stores no score for someone who did not match", () => {
+    // The threshold is not the score. Adding min_score to the mark must not
+    // become an excuse to store what the person actually scored.
+    const markWrite = scan.slice(scan.indexOf('from("match_scan_marks").upsert'))
+    const block = markWrite.slice(0, markWrite.indexOf("}"))
+    expect(block).not.toMatch(/score\.overall/)
+    expect(block).not.toMatch(/breakdown/)
+  })
+})
