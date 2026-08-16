@@ -122,6 +122,24 @@ describe("requirementsHash", () => {
     const reweighted: MatchRequirement[] = [{ ...REQS[0], weight: "nice" }, REQS[1], REQS[2]]
     expect(requirementsHash(REQS)).not.toBe(requirementsHash(reweighted))
   })
+
+  it("produces the exact canonical digest (pinned — stored in the database)", () => {
+    // published_roles.requirements_hash and role_matching.requirements_hash
+    // hold this function's output, and apply compares against them. Changing
+    // the canonical form (separators included: they are single ASCII spaces,
+    // nothing invisible) silently strands every live snapshot as "stale" —
+    // which is precisely how ROL-2403's apply 409'd on 16 Aug. If this test
+    // is in your way, you are changing the hash contract: migrate the stored
+    // hashes in the same change or republish every live role.
+    const pinned: MatchRequirement[] = [
+      { id: "b", ref: "R02", text: " Writes docs ", weight: "nice" },
+      { id: "a", ref: "R01", text: "Ships weekly", weight: "must" },
+    ]
+    // sha256 of "R01 must Ships weeklyR02 nice Writes docs"
+    expect(requirementsHash(pinned)).toBe(
+      "010e2429be5935784029df814183e5cf6893c8e3704c7bc8cd102a7a3954c0f7"
+    )
+  })
 })
 
 describe("scoreForMatching", () => {

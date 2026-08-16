@@ -26,7 +26,6 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/server"
-import { createHash } from "crypto"
 import {
   agencyAdmin,
   assertWriter,
@@ -36,6 +35,7 @@ import {
 import type { AgencyContext, Weight } from "./types"
 import { MIN_SCORE_CEILING, MIN_SCORE_FLOOR } from "@/lib/matching/limits"
 import { queueMatchScan } from "@/lib/matching/scan"
+import { requirementsHash as hashRequirements } from "@/lib/matching/scan-core"
 
 /**
  * What a recruiter may know about matching on their own role.
@@ -65,15 +65,6 @@ interface SnapshotRequirement {
   ref: string
   text: string
   weight: Weight
-}
-
-/** Same shape scan-core hashes — order-independent, content-sensitive. */
-function hashRequirements(requirements: SnapshotRequirement[]): string {
-  const canonical = [...requirements]
-    .sort((a, b) => (a.ref < b.ref ? -1 : 1))
-    .map((r) => `${r.ref} ${r.weight} ${r.text.trim()}`)
-    .join("")
-  return createHash("sha256").update(canonical).digest("hex")
 }
 
 /** Read the recruiter-visible state. User-scoped client: RLS re-checks. */
