@@ -1571,4 +1571,21 @@ fragment rendered by the signed-in return. The stale-409 had been masking this
 one all along: every prior click failed at the gate before reaching the sheet,
 so the sheet's absence was unobservable until the first bug died.
 
+## ✅ The first real apply crossed the wall (16 Aug 2026, 14:22 UTC)
+
+Ose applied to ROL-2403 from /found — the first real quiet-matching
+application end to end, on his own data. Verified by effect in SQL, every
+write the RPC promises: rec `state='applied'`; ONE consent event
+`subject='application'` carrying the full manifest (evidenceMap included);
+candidate **CAN-04** `source='matched'`; 12 evidence rows `origin='matched'`
+(9 backed with his own verbatim quotes, 3 explicit MISSING — exactly what the
+consent sheet showed); one score_breakdowns row; **zero candidate_notices**
+(Art 13 at apply — the manifest is the notice); audit row
+`created/candidate/CAN-04`. Rights link issued and saved.
+
+Remaining on this thread: recruiter-side check (RLS Test Alpha → ROL-2403 →
+step 03, "Matched · applied themselves" badge) and the rights doorway. Known
+nit: the consent sheet shows "name and email" as the email twice when the
+profile has no full_name.
+
 _Last updated: 16 August 2026_
