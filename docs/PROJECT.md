@@ -1635,4 +1635,53 @@ rows origin matched, one score row, zero notices. Also proof-by-use of the
 match floor: ROL-2402 (Backend Payments) scanned his BA-shaped bank and
 correctly recommended nothing.
 
+## 🧹 Task chips cleared, and the consent sheet that was a modal in name only (16 Aug 2026)
+
+**Local dev is off production.** `.env.development.local` is a symlink to
+`~/.config/tailr/tailr.env`; it pointed at `wgpaaafseibcqagiiavt` (prod) with a
+live prod service-role key in it. Repointed to tailr-staging and the service
+key replaced with a loud placeholder. Verified by effect, not by reading the
+file: the running dev server's client bundle carries the staging ref and
+**zero** production references. **Ose still needs to rotate the production
+service-role key** — it sat in a local dev file, so treat it as exposed. There
+is no MCP tool for rotation; it is a dashboard action.
+
+**`String(error)` swept out** (f9d6bf0): 85 call sites across 51 files now use
+`errorMessage()`. Supabase errors are plain objects, so the old idiom rendered
+them as "[object Object]" — the exact failure that hid a stale schema cache
+from a recruiter. `app/api/hiring/me/route.ts` is deliberately untouched (its
+field-limited logger exists because Postgres messages can quote a row value,
+which on this schema can be an email). A guardrail test now fails the build on
+the banned fallback, and it earned its keep immediately by catching three
+stragglers the sweep's regex missed.
+
+**web-design-guidelines pass on the consumer surfaces** (52581e4), verified in
+a real browser rather than by reading. The one that mattered: both `/found`
+dialogs declared `role="dialog" aria-modal="true"` while the page behind them
+stayed tabbable, Escape did nothing, focus never entered, and closing dropped
+focus to the top of the document. One `useDialog` hook (`lib/use-dialog.ts`)
+now carries focus trap, Escape, focus restore, scroll lock and overscroll
+containment for both — except that the sent-panel deliberately does **not**
+dismiss on scrim click, because its rights link is shown once.
+
+Also fixed: every control in the tailor workspace has a real `<label>` (the JD
+box's only accessible name was a placeholder, which role mode then hid);
+focus rings replacing bare `focus:outline-none`; 16px inputs on mobile so iOS
+stops zooming; 44px hit areas on the consent switch, Exit role mode and Fetch;
+an `<h2>` lifted out of a card `<button>` where it folded into the button's
+accessible name; long emails/agency names wrap; clipboard copy reports success
+or failure instead of silently no-opping.
+
+**Consent-record dates now render in UTC** via `lib/format-date.ts`. A consent
+stamped at 23:40 UTC displayed a different day depending on where it was read
+— from the same row, on the surface whose entire purpose is answering "when
+did I agree, and to what?".
+
+**Lesson (in the skill):** Turbopack served a stale `globals.css` through an
+HMR reload, a `touch`, a server restart and `rm -rf .next/cache`. Only
+`rm -rf .next` fixed it, and the chunk name and byte count were identical
+throughout — verify CSS by curling the chunk, never by reading the file.
+
+700 tests, build clean.
+
 _Last updated: 16 August 2026_
