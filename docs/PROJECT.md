@@ -1583,9 +1583,12 @@ consent sheet showed); one score_breakdowns row; **zero candidate_notices**
 (Art 13 at apply — the manifest is the notice); audit row
 `created/candidate/CAN-04`. Rights link issued and saved.
 
-Remaining on this thread: recruiter-side check (RLS Test Alpha → ROL-2403 →
-step 03, "Matched · applied themselves" badge) and the rights doorway. Known
-nit: the consent sheet shows "name and email" as the email twice when the
-profile has no full_name.
+Both human checks passed: the recruiter side shows CAN-04 with the
+"Matched · applied themselves" badge (RLS Test Alpha → ROL-2403 → step 03),
+and the rights doorway opens from the issued link. **The quiet-matching loop
+has now been walked end to end by a human on real data** — opt-in → scan →
+recommendation → consent sheet → apply → recruiter pipeline → rights.
+Known nit: the consent sheet shows "name and email" as the email twice when
+the profile has no full_name.
 
 _Last updated: 16 August 2026_
