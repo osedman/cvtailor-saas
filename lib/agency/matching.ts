@@ -269,11 +269,29 @@ async function finishPublish(
     queuedJobId = await queueMatchScan(ctx.agencyId, roleId)
   }
 
+  /**
+   * READ THE ROW BACK. This used to assert what the state ought to be —
+   * `lastScanAt: null` hardcoded, and `nextScanAllowedAt` copied from the
+   * value read BEFORE the write. So the card kept saying "the first scan runs
+   * shortly" after scans had run, and showed a cooldown that was already
+   * spent. It looked stale because it was: the response described the write
+   * we intended rather than the row that exists.
+   *
+   * A scan can also finish between the queue above and this read (the empty
+   * pool case takes about a second), so the freshest possible read is also
+   * the most likely to be right.
+   */
+  const { data: saved } = await admin
+    .from("role_matching")
+    .select("enabled, min_score, last_scan_at, next_scan_allowed_at")
+    .eq("role_id", roleId)
+    .maybeSingle()
+
   return {
-    enabled: true,
-    minScore,
-    lastScanAt: null,
-    nextScanAllowedAt: existing?.next_scan_allowed_at as string | null,
+    enabled: saved ? Boolean(saved.enabled) : true,
+    minScore: (saved?.min_score as number) ?? minScore,
+    lastScanAt: (saved?.last_scan_at as string | null) ?? null,
+    nextScanAllowedAt: (saved?.next_scan_allowed_at as string | null) ?? null,
     scanQueued: queuedJobId != null,
     queuedJobId,
   }

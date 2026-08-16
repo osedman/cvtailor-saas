@@ -195,3 +195,25 @@ describe("the publish control is reachable", () => {
     expect(card).toMatch(/Parse requirements first/)
   })
 })
+
+describe("the publish response describes the row, not the intention", () => {
+  const lib = read("lib/agency/matching.ts")
+
+  it("reads role_matching back before returning", () => {
+    // It used to assert what the state ought to be: lastScanAt hardcoded null
+    // and nextScanAllowedAt copied from the read taken BEFORE the write. The
+    // card then claimed "the first scan runs shortly" after scans had run, and
+    // showed a cooldown already spent — reported as the control being stale,
+    // which it literally was.
+    const finish = lib.slice(lib.indexOf("async function finishPublish"))
+    const ret = finish.slice(finish.indexOf("return {"))
+    expect(ret).not.toMatch(/lastScanAt: null,/)
+    expect(finish).toMatch(/\.from\("role_matching"\)[\s\S]{0,200}last_scan_at/)
+  })
+
+  it("still reports whether a scan was queued from this request", () => {
+    // That one IS about the intention — no row records it — so it stays local.
+    const finish = lib.slice(lib.indexOf("async function finishPublish"))
+    expect(finish).toMatch(/scanQueued: queuedJobId != null/)
+  })
+})
