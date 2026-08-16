@@ -1405,4 +1405,41 @@ was never built. Now it is:
 Both flags default false, so the failure mode is a missing link rather than an
 offered door. 618 tests, build clean.
 
-_Last updated: 15 August 2026_
+---
+
+## 🔎 /found — "a role found you" (16 Aug 2026)
+
+Built to Figma `13:2` on the `ns-` system. The first real recommendation
+(ROL-2403, 56.97, 6/6 must-haves, nine verbatim quotes) existed in the
+database before the screen did, so it was built against real data.
+
+**The RLS design is the data access.** Every read and write on this surface
+runs on the USER-SCOPED client — SELECT-own recommendations, published roles
+visible only-if-recommended, state transitions via column grant + trigger. If
+a policy regresses, this page breaks visibly rather than a service-role read
+papering over it.
+
+**`'applied'` cannot pass through this surface, three layers deep:** the lib
+type is `"seen" | "dismissed"`, the route whitelists the same two, and the DB
+trigger refuses it from a client session anyway. A state string on a PATCH
+must never be able to claim a bundle crossed the wall.
+
+**Copy is the frame's, and tested line by line** — "a recommendation, not a
+listing", "nothing is shared unless you apply", "dismissing shares nothing",
+"same list the recruiter uses", MISSING rendered explicitly. Tailor/Apply
+render DISABLED with the reason (the apply route does not exist yet), per the
+"Fill from transcript" precedent. A closed role loses the apply path and says
+"your record of it stays yours".
+
+**Header pill** ("A role found you") renders only when an open recommendation
+exists, fed by `/api/found/summary` which returns counts and never content.
+
+Verified locally: signed-out state renders, no console errors, summary returns
+zeros signed-out (a normal state, not an error), `/api/found` and PATCH 401,
+no horizontal scroll at 375px. 662 tests, build clean. **The signed-in screen
+needs Ose's staging session — the real recommendation is waiting on it.**
+
+Next: the integration test (publish → scan → assert rows), then the apply
+route.
+
+_Last updated: 16 August 2026_

@@ -20,12 +20,34 @@ export function Header({ onSignInClick, onHistoryClick, enhanced = false }: Head
   const [showUserMenu, setShowUserMenu] = useState(false)
   const { user, loading, signOut } = useAuth()
   const careerBeta = useCareerBeta()
+  // Roles that found this person and are still open. Counts only — the
+  // summary route never carries role content around the app. Zero renders
+  // nothing at all: a permanent empty nav item would be noise, and the pill
+  // exists to be believed when it does appear.
+  const [foundOpen, setFoundOpen] = useState(0)
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10)
     window.addEventListener("scroll", handleScroll)
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
+
+  useEffect(() => {
+    if (!user) {
+      setFoundOpen(0)
+      return
+    }
+    let live = true
+    fetch("/api/found/summary")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (live && s) setFoundOpen(Number(s.open) || 0)
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [user])
 
   function handleSignInClick() {
     if (onSignInClick) onSignInClick()
@@ -59,6 +81,16 @@ export function Header({ onSignInClick, onHistoryClick, enhanced = false }: Head
             {/* Nav links — only for signed-in users */}
             {!loading && user && (
               <>
+                {foundOpen > 0 && (
+                  <Link
+                    href="/found"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#b3341b] bg-[#fff7f4] border border-[#f5d9d0] rounded-full hover:bg-[#ffeae4] transition-colors"
+                    title="A role matched your evidence — only you can see it"
+                  >
+                    <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#dc4f33]" />
+                    <span>A role found you</span>
+                  </Link>
+                )}
                 {onHistoryClick && (
                   <button
                     onClick={onHistoryClick}
