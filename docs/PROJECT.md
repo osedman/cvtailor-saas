@@ -1553,4 +1553,22 @@ mangling or an invisible behaviour difference, and both deserve a red build.
 682 tests, build clean. Verified against ROL-2403: the fixed function over the
 live rows now equals the stored `39c22a22…`. Ose's real apply is next.
 
+## 🎭 Behind the 409, a second bug: the sheet that could never open (16 Aug 2026)
+
+With the hash fixed, Ose clicked apply and *nothing happened* — no sheet, no
+toast. Supabase edge logs showed why that "nothing" was new information: at
+13:51:42 the manifest GET ran its full query sequence (recommendation →
+snapshot → requirements → **then profiles/career_evidence/agencies**, the
+triple that only fires after the hash gate passes — proof the fix was live and
+the server returned a manifest), and no RPC ever followed. The click died in
+the browser after a successful response.
+
+Cause (6f50371): the consent sheet and the sent-confirmation panel were
+rendered **inside the `!user` early return** — the signed-out branch, the one
+place `manifest` can never be set. A signed-in user's click fetched the
+manifest and had nowhere to show it. Both overlays now live in an `overlays`
+fragment rendered by the signed-in return. The stale-409 had been masking this
+one all along: every prior click failed at the gate before reaching the sheet,
+so the sheet's absence was unobservable until the first bug died.
+
 _Last updated: 16 August 2026_
