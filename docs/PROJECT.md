@@ -1591,4 +1591,40 @@ recommendation → consent sheet → apply → recruiter pipeline → rights.
 Known nit: the consent sheet shows "name and email" as the email twice when
 the profile has no full_name.
 
+## ✂️ Tailor-first apply — the promised CV finally crosses (16 Aug 2026)
+
+The 13 Aug decision said "applying shares the tailored CV + evidence map";
+the first build sent the evidence-bank render as a stand-in. Now built and on
+staging (e959b03), designed in Figma first ("Tailor-first apply — the changed
+surfaces", page 03, signed off by Ose):
+
+- **/found's band makes tailoring primary** (as frame 13:2 always drew it) and
+  opens `/tailor?rec=…` in **role mode**: the JD is rendered server-side from
+  the frozen snapshot (`renderSnapshotJd`, deterministic so re-runs hit the
+  tailor cache free) and the paste box locks read-only — "tailored against
+  the role as it found you" is true by construction, not by trusting a
+  textarea. The tailor route ignores the client JD when a recommendation id
+  rides the request. Exit role mode = ordinary free tailoring.
+- **Migration 20** (applied to tailr-staging): `tailor_history_id` +
+  `tailored_against_hash` on `role_recommendations`, `on delete set null`,
+  deliberately NOT in the authenticated UPDATE column grant — the link is
+  service-role-written by the tailor route with the user in the predicate,
+  because RLS checks the recommendation's owner, not the target row's.
+- **Apply sends the tailored CV** — the person's last-saved version, edits
+  included — instead of the bank render, ONLY while the hash it was tailored
+  against equals the snapshot's current hash. A republish with changed
+  requirements silently retires it and the band honestly reverts to "Tailor
+  my CV to this role". Ownership of the history row is re-proven at apply.
+  Replace, never both (signed off). No model call at apply, unchanged.
+- **The sheet names what crosses** ("Your tailored CV for this role — exactly
+  as you last saved it"), so CONSENT_COPY_VERSION bumped to
+  matching-2026-08-16.
+
+697 tests (new: matching-tailor-first — brief determinism, the tailored flag's
+hash guard, and source scans pinning the frozen-brief override, the
+double-owned link write, replace-not-both, and the read-only brief route),
+build clean. Awaiting Ose's walk: tailor from ROL-2403's card, then the apply
+sheet should name the tailored CV. Note ROL-2403 is already applied — the walk
+needs a fresh recommendation or a state reset.
+
 _Last updated: 16 August 2026_
