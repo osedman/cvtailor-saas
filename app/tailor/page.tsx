@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect, useRef, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ChevronDown } from "lucide-react"
 import { Header } from "@/components/cv-tailor/header"
@@ -10,6 +10,7 @@ import { CareerPathAnnouncement } from "@/components/cv-tailor/career-path-annou
 import { CareerSignalBanner } from "@/components/cv-tailor/career-signal-banner"
 import { CareerSyncPanel } from "@/components/cv-tailor/career-sync-panel"
 import { ResizablePanels } from "@/components/cv-tailor/resizable-panels"
+import { RoleModeBanner, type RoleModeInfo } from "@/components/cv-tailor/role-mode-banner"
 import { TailorButton } from "@/components/cv-tailor/tailor-button"
 import { ResultsTabs, type ResultTabName } from "@/components/cv-tailor/results-tabs"
 import { EmptyState } from "@/components/cv-tailor/empty-state"
@@ -49,6 +50,49 @@ async function readJson<T>(res: Response): Promise<T> {
     throw new Error(msg || `Server error ${res.status}. Please try again.`)
   }
   return data as T
+}
+
+/**
+ * Role mode entry: /tailor?rec=<recommendation id>. Fetches the brief (the
+ * frozen snapshot rendered as a JD) and hands it up. The server re-derives
+ * the same text on tailor, so this fetch is display, not authority. Failure
+ * falls back to normal free tailoring with the reason toasted — a role-mode
+ * link must never strand someone on a broken page.
+ */
+function RoleModeLoader({
+  onBrief,
+}: {
+  onBrief: (role: RoleModeInfo, jd: string) => void
+}) {
+  const searchParams = useSearchParams()
+  const rec = searchParams.get("rec")
+  const loadedFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (!rec || loadedFor.current === rec) return
+    loadedFor.current = rec
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/found/${rec}/tailor-brief`)
+        const data = await readJson<{
+          brief: { recommendationId: string; jd: string; roleTitle: string; company: string; agencyName: string; roleRef: string }
+        }>(res)
+        const b = data.brief
+        onBrief(
+          {
+            recommendationId: b.recommendationId,
+            roleTitle: b.roleTitle,
+            company: b.company,
+            agencyName: b.agencyName,
+            roleRef: b.roleRef,
+          },
+          b.jd
+        )
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not load that role — tailoring freely instead.")
+      }
+    })()
+  }, [rec, onBrief])
+  return null
 }
 
 function AuthErrorHandler() {
@@ -101,6 +145,10 @@ export default function CVTailorPage() {
   const [historyId, setHistoryId] = useState<string | null>(null)
   const [scoreDelta, setScoreDelta] = useState<{ from: number; to: number; skills: string[] } | null>(null)
   const [tailoredFromCv, setTailoredFromCv] = useState<string | null>(null)
+  /** Role mode: set when entered via /tailor?rec=… — locks the JD panel and
+   *  rides the recommendation id into the tailor request. */
+  const [roleMode, setRoleMode] = useState<RoleModeInfo | null>(null)
+  const router = useRouter()
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
   const [resultsTab, setResultsTab] = useState<ResultTabName>("Tailored CV")
   /** Inputs fold away once a result lands; "Tailor another" reopens them. */
@@ -172,7 +220,12 @@ export default function CVTailorPage() {
         const res = await fetch("/api/tailor", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cv: cvText, jobDescription, jobUrl: scrapedJobUrl }),
+          body: JSON.stringify({
+            cv: cvText,
+            jobDescription,
+            jobUrl: scrapedJobUrl,
+            recommendationId: roleMode?.recommendationId,
+          }),
           signal: ac.signal,
         })
         data = await readJson<{ result?: TailorResult; historyId?: string | null; error?: string }>(res)
@@ -200,6 +253,15 @@ export default function CVTailorPage() {
         toast.info("Same CV and job as a previous run — showing your existing result.", { duration: 6000 })
       }
 
+      if (roleMode) {
+        toast.success(
+          (data as { linked?: boolean }).linked
+            ? `Tailored against ${roleMode.roleRef}. When you're ready, apply from your recommendations — it will send this version.`
+            : "Tailored — but linking it to your recommendation failed. Run tailor once more (it's a free re-run) to retry.",
+          { duration: 8000 }
+        )
+      }
+
       if (data.compressed) {
         toast.info("Your CV was quite long, so we removed formatting noise before tailoring. All your experience and content is preserved.", { duration: 8000 })
       }
@@ -215,7 +277,7 @@ export default function CVTailorPage() {
       setLoadingStatus("Tailoring…")
       setProgressStep(0)
     }
-  }, [canTailor, user, cvText, jobDescription])
+  }, [canTailor, user, cvText, jobDescription, scrapedJobUrl, roleMode])
 
   const handleGenerateCoverLetter = useCallback(async () => {
     setLoadingCoverLetter(true)
@@ -364,6 +426,14 @@ export default function CVTailorPage() {
   return (
     <div className={`min-h-screen flex flex-col ${enhanced ? "bg-[#f4f1ea]" : "bg-white"}`}>
       <Suspense fallback={null}><AuthErrorHandler /></Suspense>
+      <Suspense fallback={null}>
+        <RoleModeLoader
+          onBrief={(role, jd) => {
+            setRoleMode(role)
+            setJobDescription(jd)
+          }}
+        />
+      </Suspense>
       <Header
         enhanced={enhanced}
         onSignInClick={() => setShowSignIn(true)}
@@ -422,6 +492,17 @@ export default function CVTailorPage() {
                 </span>
               </button>
             )}
+            {roleMode && (
+              <RoleModeBanner
+                role={roleMode}
+                onExit={() => {
+                  // Exit keeps the JD text as a starting point but unlocks it
+                  // and drops the link — the next run is ordinary tailoring.
+                  setRoleMode(null)
+                  router.replace("/tailor")
+                }}
+              />
+            )}
             <ResizablePanels
               enhanced={enhanced}
               guideStep={guideStep}
@@ -430,6 +511,7 @@ export default function CVTailorPage() {
               jobDescription={jobDescription}
               setJobDescription={setJobDescription}
               onJobUrlScraped={setScrapedJobUrl}
+              jobLocked={!!roleMode}
             />
           </div>
         )}

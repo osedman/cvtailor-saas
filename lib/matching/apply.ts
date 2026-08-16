@@ -61,6 +61,10 @@ export interface ApplyManifest {
   name: string
   email: string | null
   evidenceCardCount: number
+  /** What the CV text is: their tailored CV for this role, or the bank render. */
+  cvSource: "tailored" | "evidence_bank"
+  /** When the tailored CV was last saved (edits included). Null for bank. */
+  tailoredSavedAt: string | null
   cvTextChars: number
   cvTextSha256: string
   evidenceMap: Array<{ ref: string; text: string; strength: Strength; quote: string | null }>
@@ -109,7 +113,9 @@ async function loadApplyContext(userId: string, recommendationId: string) {
 
   const { data: rec, error: recErr } = await pub
     .from("role_recommendations")
-    .select("id, user_id, published_role_id, state, score, score_breakdown, evidence")
+    .select(
+      "id, user_id, published_role_id, state, score, score_breakdown, evidence, tailor_history_id, tailored_against_hash"
+    )
     .eq("id", recommendationId)
     .maybeSingle()
   if (recErr) throw recErr
@@ -140,20 +146,50 @@ async function loadApplyContext(userId: string, recommendationId: string) {
     return { failure: "stale" as const }
   }
 
-  const [{ data: profile }, { data: bank }, { data: agencyRow }] = await Promise.all([
-    pub.from("profiles").select("full_name, email").eq("id", userId).maybeSingle(),
-    pub
-      .from("career_evidence")
-      .select(
-        "id, category, claim, source_role, source_company, source_span, cv_line, pinned, hidden, rephrased_text, sort_order"
-      )
-      .eq("user_id", userId)
-      .eq("hidden", false),
-    admin.from("agencies").select("retention_days").eq("id", snapshot.agency_id).maybeSingle(),
-  ])
+  // The tailored CV, if one was produced for THIS version of the role.
+  // Honoured only while the hash it was tailored against equals the
+  // snapshot's current hash — a republish with changed requirements retires
+  // it silently (the /found button reverts to "Tailor my CV"), because
+  // sending a document tailored to requirements that no longer exist would
+  // not be what anyone meant. Ownership is re-proven here rather than
+  // trusted from the link.
+  const wantTailored =
+    rec.tailor_history_id != null &&
+    rec.tailored_against_hash === snapshot.requirements_hash
 
-  const cvText = buildProfileText((bank ?? []) as EvidenceRow[])
+  const [{ data: profile }, { data: bank }, { data: agencyRow }, { data: historyRow }] =
+    await Promise.all([
+      pub.from("profiles").select("full_name, email").eq("id", userId).maybeSingle(),
+      pub
+        .from("career_evidence")
+        .select(
+          "id, category, claim, source_role, source_company, source_span, cv_line, pinned, hidden, rephrased_text, sort_order"
+        )
+        .eq("user_id", userId)
+        .eq("hidden", false),
+      admin.from("agencies").select("retention_days").eq("id", snapshot.agency_id).maybeSingle(),
+      wantTailored
+        ? pub
+            .from("tailor_history")
+            .select("id, user_id, result, edited_at, created_at")
+            .eq("id", rec.tailor_history_id as string)
+            .eq("user_id", userId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ])
+
+  const tailoredCv = ((historyRow?.result as { tailoredCV?: string } | null)?.tailoredCV ?? "").trim()
+  const bankText = buildProfileText((bank ?? []) as EvidenceRow[])
+
+  // The tailored CV replaces the bank render — never both (signed off 16
+  // Aug). The bank render remains the fallback so applying still works for
+  // someone who never tailored.
+  const cvSource: "tailored" | "evidence_bank" = tailoredCv ? "tailored" : "evidence_bank"
+  const cvText = tailoredCv || bankText
   if (!cvText) return { failure: "empty_bank" as const }
+  const tailoredSavedAt = tailoredCv
+    ? ((historyRow?.edited_at as string | null) ?? (historyRow?.created_at as string | null))
+    : null
 
   const email = (profile?.email as string | null) ?? null
   const name = ((profile?.full_name as string | null) ?? "").trim() || email || "Tailr applicant"
@@ -171,6 +207,8 @@ async function loadApplyContext(userId: string, recommendationId: string) {
     snapshot,
     requirements,
     cvText,
+    cvSource,
+    tailoredSavedAt,
     bankCount: (bank ?? []).length,
     name,
     email,
@@ -189,6 +227,8 @@ function manifestOf(ctx: Exclude<Awaited<ReturnType<typeof loadApplyContext>>, {
     name: ctx.name,
     email: ctx.email,
     evidenceCardCount: ctx.bankCount,
+    cvSource: ctx.cvSource,
+    tailoredSavedAt: ctx.tailoredSavedAt,
     cvTextChars: ctx.cvText.length,
     cvTextSha256: createHash("sha256").update(ctx.cvText).digest("hex"),
     evidenceMap: ctx.requirements.map((req) => {

@@ -91,7 +91,9 @@ export function profileHash(evidence: EvidenceRow[]): string {
  * ROL-2403's apply 409'd forever: the copies differed only in invisible
  * separator bytes. Changing the canonical form strands every live snapshot.
  */
-export function requirementsHash(requirements: MatchRequirement[]): string {
+export function requirementsHash(
+  requirements: Array<Pick<MatchRequirement, "ref" | "weight" | "text">>
+): string {
   const canonical = [...requirements]
     .sort((a, b) => (a.ref < b.ref ? -1 : 1))
     .map((r) => `${r.ref} ${r.weight} ${r.text.trim()}`)

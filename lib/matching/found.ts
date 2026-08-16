@@ -50,6 +50,12 @@ export interface FoundRole {
     status: string
   }
   requirements: FoundRequirement[]
+  /**
+   * Set when a tailored CV exists for THIS version of the role — the link is
+   * shown only while the hash it was tailored against matches the snapshot,
+   * so a republished role honestly reverts to "Tailor my CV to this role".
+   */
+  tailored: { savedAt: string } | null
 }
 
 interface RecRow {
@@ -59,6 +65,8 @@ interface RecRow {
   score: number | string
   created_at: string
   evidence: Array<{ requirement_ref: string; strength: string; quote: string | null }>
+  tailor_history_id?: string | null
+  tailored_against_hash?: string | null
 }
 
 interface RoleRow {
@@ -72,7 +80,12 @@ interface RoleRow {
   summary: string
   status: string
   requirements: Array<{ ref: string; text: string; weight: Weight }>
+  requirements_hash?: string
 }
+
+/** tailor_history rows the recommendations link to: id → last-saved time. */
+export type TailoredSavedAt = Map<string, string>
+
 
 /**
  * Pure join, exported for tests: the recommendation's evidence map laid over
@@ -80,7 +93,11 @@ interface RoleRow {
  * evidence map somehow lacks renders as missing — never invented, never
  * dropped, same rule as everywhere else in the product.
  */
-export function joinFound(recs: RecRow[], roles: RoleRow[]): FoundRole[] {
+export function joinFound(
+  recs: RecRow[],
+  roles: RoleRow[],
+  tailoredSavedAt: TailoredSavedAt = new Map()
+): FoundRole[] {
   const roleById = new Map(roles.map((r) => [r.id, r]))
   const out: FoundRole[] = []
 
@@ -106,11 +123,21 @@ export function joinFound(recs: RecRow[], roles: RoleRow[]): FoundRole[] {
       }
     })
 
+    // Tailored only counts while the hash it was made against is the hash
+    // the snapshot still has — and only if the history row was actually
+    // readable (deleted history reads as never-tailored, not as an error).
+    const savedAt = rec.tailor_history_id ? tailoredSavedAt.get(rec.tailor_history_id) : undefined
+    const tailored =
+      savedAt && role.requirements_hash && rec.tailored_against_hash === role.requirements_hash
+        ? { savedAt }
+        : null
+
     out.push({
       id: rec.id,
       state: rec.state as FoundRole["state"],
       score: typeof rec.score === "string" ? parseFloat(rec.score) : rec.score,
       foundAt: rec.created_at,
+      tailored,
       role: {
         title: role.title,
         company: role.company,
@@ -141,26 +168,40 @@ export async function listFound(
   const [{ data: recs, error: recErr }, { data: pref }] = await Promise.all([
     db
       .from("role_recommendations")
-      .select("id, published_role_id, state, score, created_at, evidence"),
+      .select(
+        "id, published_role_id, state, score, created_at, evidence, tailor_history_id, tailored_against_hash"
+      ),
     db.from("match_preferences").select("matching_opt_in").maybeSingle(),
   ])
   if (recErr) throw recErr
 
   const recRows = (recs ?? []) as RecRow[]
   let roleRows: RoleRow[] = []
+  const savedAt: TailoredSavedAt = new Map()
   if (recRows.length > 0) {
-    const { data: roles, error: roleErr } = await db
-      .from("published_roles")
-      .select(
-        "id, title, company, agency_name, location, salary_band, seniority, summary, status, requirements"
-      )
-      .in("id", [...new Set(recRows.map((r) => r.published_role_id))])
+    const historyIds = [
+      ...new Set(recRows.map((r) => r.tailor_history_id).filter(Boolean)),
+    ] as string[]
+    const [{ data: roles, error: roleErr }, { data: histories }] = await Promise.all([
+      db
+        .from("published_roles")
+        .select(
+          "id, title, company, agency_name, location, salary_band, seniority, summary, status, requirements, requirements_hash"
+        )
+        .in("id", [...new Set(recRows.map((r) => r.published_role_id))]),
+      historyIds.length > 0
+        ? db.from("tailor_history").select("id, edited_at, created_at").in("id", historyIds)
+        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+    ])
     if (roleErr) throw roleErr
     roleRows = (roles ?? []) as RoleRow[]
+    for (const h of histories ?? []) {
+      savedAt.set(h.id as string, ((h.edited_at as string | null) ?? h.created_at) as string)
+    }
   }
 
   return {
-    found: joinFound(recRows, roleRows),
+    found: joinFound(recRows, roleRows, savedAt),
     matchingOn: Boolean(pref?.matching_opt_in),
   }
 }

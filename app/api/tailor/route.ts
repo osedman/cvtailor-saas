@@ -4,12 +4,47 @@ import {
   anthropic, SYSTEM_PROMPT, EXTRACT_TOOL, REWRITE_TOOL, ROLE_GUIDANCE,
   type ExtractResult, type RequirementMapping, type RoleFamily,
 } from '@/lib/anthropic'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { loadProvenSkills } from '@/lib/roadmap-store'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { loadTailorBrief, type TailorBrief } from '@/lib/matching/tailor-brief'
 
 export const maxDuration = 300
+
+/**
+ * Role mode's one write outside tailor_history: point the recommendation at
+ * the tailored CV it now has. Service-role because the authenticated UPDATE
+ * grant is deliberately limited to state columns — a client-writable link
+ * could name a history row the session cannot prove is its own. Here both
+ * sides are proven: the brief came through RLS, and the history row was
+ * inserted (or cache-read) as this user. Best-effort: a failed link leaves
+ * /found honestly showing "Tailor my CV" — and the next run is a free cache
+ * hit that retries it.
+ */
+async function linkRecommendation(
+  userId: string,
+  brief: TailorBrief | null,
+  historyId: string | null
+): Promise<boolean> {
+  if (!brief || !historyId) return false
+  try {
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from('role_recommendations')
+      .update({
+        tailor_history_id: historyId,
+        tailored_against_hash: brief.requirementsHash,
+      })
+      .eq('id', brief.recommendationId)
+      .eq('user_id', userId)
+    if (error) throw error
+    return true
+  } catch (e) {
+    console.error('[tailor] recommendation link failed:', e)
+    return false
+  }
+}
 
 const CV_RAW_LIMIT = 30_000
 const CV_COMPRESS_THRESHOLD = 12_000
@@ -192,7 +227,28 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Validate input
-    const { cv, jobDescription, jobUrl } = await req.json()
+    const { cv, jobDescription: clientJd, jobUrl, recommendationId } = await req.json()
+
+    // Role mode: entered from a recommendation on /found. The JD is rendered
+    // server-side from the frozen snapshot and the client's copy is ignored —
+    // "tailored against this role's frozen requirements" is true by
+    // construction, not by trusting a textarea. The brief loader re-checks
+    // ownership, settled state and liveness through RLS.
+    let brief: TailorBrief | null = null
+    let jobDescription: string = typeof clientJd === 'string' ? clientJd : ''
+    if (typeof recommendationId === 'string' && recommendationId) {
+      const briefResult = await loadTailorBrief(supabase, recommendationId)
+      if (!briefResult.ok) {
+        const status = { not_found: 404, settled: 409, not_live: 410 }[briefResult.reason] ?? 500
+        return NextResponse.json(
+          { error: 'This recommendation cannot be tailored against any more.', reason: briefResult.reason },
+          { status }
+        )
+      }
+      brief = briefResult.brief
+      jobDescription = brief.jd
+    }
+
     if (!cv || !jobDescription) {
       return NextResponse.json({ error: 'Both cv and jobDescription are required' }, { status: 400 })
     }
@@ -237,7 +293,8 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle()
     if (cachedRow?.result) {
-      return NextResponse.json({ result: cachedRow.result, historyId: cachedRow.id, cached: true })
+      const linked = await linkRecommendation(user.id, brief, cachedRow.id as string)
+      return NextResponse.json({ result: cachedRow.result, historyId: cachedRow.id, cached: true, linked })
     }
 
     // 2c. Rate limit (protects against runaway Claude API cost / abuse) —
@@ -358,7 +415,9 @@ export async function POST(req: NextRequest) {
       console.error('[tailor] history save failed:', e)
     }
 
-    return NextResponse.json({ result, historyId, compressed, scoreDelta })
+    const linked = await linkRecommendation(user.id, brief, historyId)
+
+    return NextResponse.json({ result, historyId, compressed, scoreDelta, linked })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     const status = (err as { status?: number })?.status

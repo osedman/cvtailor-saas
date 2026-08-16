@@ -68,7 +68,10 @@ export function bucketOf(count: number): MatchBucket {
  * changes in a way that changes what is being agreed to** — not for a typo, but
  * for anything that alters the promise.
  */
-export const CONSENT_COPY_VERSION = "matching-2026-08-15"
+// 2026-08-16: the apply sheet now names the tailored CV as what crosses when
+// one exists ("exactly as you last saved it"), replacing the evidence-bank
+// line — a change in what is being agreed to, hence the bump.
+export const CONSENT_COPY_VERSION = "matching-2026-08-16"
 
 /** The two opt-ins. Separate purposes; they revoke independently. */
 export const CONSENT_SUBJECTS = ["matching", "enrichment"] as const

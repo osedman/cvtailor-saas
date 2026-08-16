@@ -14,6 +14,10 @@ interface ResizablePanelsProps {
   enhanced?: boolean
   /** Drives the onboarding coachmark badges on the panel headers. */
   guideStep?: "cv" | "job" | "tailor" | null
+  /** Role mode (tailoring against a role that found you): the JD is the
+   *  frozen snapshot, rendered server-side — read-only here so what you see
+   *  is what the pipeline actually uses. The URL scraper hides with it. */
+  jobLocked?: boolean
 }
 
 function CoachBadge({ n, label }: { n: number; label: string }) {
@@ -85,6 +89,7 @@ export function ResizablePanels({
   onJobUrlScraped,
   enhanced = false,
   guideStep = null,
+  jobLocked = false,
 }: ResizablePanelsProps) {
   // Shared style fragments toggled by the enhanced (gated) workspace UI.
   const panelShell = enhanced
@@ -366,10 +371,16 @@ export function ResizablePanels({
           {/* Panel header */}
           <div className={`flex-shrink-0 px-3 pt-2.5 pb-1.5 ${panelHeaderBg}`}>
             <span className={labelCls}>Job Description</span>
-            {guideStep === "job" && <CoachBadge n={2} label="Next" />}
+            {jobLocked && (
+              <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-[0.5px] text-[#b3341b]">
+                Locked to the role that found you
+              </span>
+            )}
+            {!jobLocked && guideStep === "job" && <CoachBadge n={2} label="Next" />}
           </div>
 
-          {/* URL scraper bar */}
+          {/* URL scraper bar (free tailoring only — a locked JD is the point) */}
+          {!jobLocked && (
           <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-gray-100 bg-white/60">
             <Link className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
             <input
@@ -392,12 +403,15 @@ export function ResizablePanels({
               </button>
             )}
           </div>
+          )}
 
           {/* Textarea */}
           <textarea
             value={jobDescription}
             onChange={(e) => setJobDescription(e.target.value)}
-            className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300"
+            readOnly={jobLocked}
+            aria-readonly={jobLocked || undefined}
+            className={`flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none text-sm leading-relaxed placeholder:text-gray-300 ${jobLocked ? "text-[#4e463d] cursor-default" : "text-[#1e1813]"}`}
             placeholder="Or paste the job description here…"
           />
 

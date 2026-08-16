@@ -15,9 +15,11 @@
  * exactly what would be shared, the confirm POSTs with an EMPTY body — the
  * server recomputes the payload, so the sheet and the share cannot differ —
  * and the button says "Send this to {agency}", not "Apply", per the frame
- * decision. Only "Tailor my CV to this role" is still disabled with its
- * reason, per the Fill-from-transcript precedent: the tailor-first flow is
- * its own integration and a control must not pretend.
+ * decision. Tailor-first (Figma "Tailor-first apply — changed surfaces",
+ * signed off 16 Aug): "Tailor my CV to this role" opens /tailor?rec=… in
+ * role mode, and once a tailored CV exists for THIS version of the role the
+ * band flips — applying sends that CV, exactly as last saved, instead of the
+ * evidence-bank render.
  *
  * The score displays as "N% match before tailoring" — the unreviewed,
  * un-overridden number, same as the recruiter's threshold means. MISSING
@@ -87,6 +89,8 @@ export default function FoundPage() {
     name: string
     email: string | null
     evidenceCardCount: number
+    cvSource: "tailored" | "evidence_bank"
+    tailoredSavedAt: string | null
     evidenceMap: Array<{ ref: string; text: string; strength: string; quote: string | null }>
     score: number
   } | null>(null)
@@ -237,10 +241,22 @@ export default function FoundPage() {
                   · Your name{manifest.email ? " and email" : ""} — {manifest.name}
                   {manifest.email ? ` · ${manifest.email}` : ""}
                 </li>
-                <li className="t-small">
-                  · Your evidence bank as a profile ({manifest.evidenceCardCount} claims, your own
-                  wording)
-                </li>
+                {/* What the CV text actually is — the changed line (Figma
+                    "Tailor-first apply", section C). The tailored CV replaces
+                    the bank render, never both. */}
+                {manifest.cvSource === "tailored" ? (
+                  <li className="t-small">
+                    · Your tailored CV for this role — exactly as you last saved it
+                    {manifest.tailoredSavedAt
+                      ? ` (${new Date(manifest.tailoredSavedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, edits included)`
+                      : " (edits included)"}
+                  </li>
+                ) : (
+                  <li className="t-small">
+                    · Your evidence bank as a profile ({manifest.evidenceCardCount} claims, your own
+                    wording)
+                  </li>
+                )}
                 <li className="t-small">
                   · The evidence map for this role (
                   {manifest.evidenceMap.filter((e) => e.strength !== "missing").length} backed,{" "}
@@ -477,6 +493,21 @@ export default function FoundPage() {
                   className="mt-8 rounded-2xl border p-5 sm:p-6"
                   style={{ background: "var(--ns-tint-1)", borderColor: "var(--ns-tint-2)" }}
                 >
+                  {/* Two band states (Figma "Tailor-first apply", sections
+                      A/B): before a tailored CV exists, tailoring is the
+                      primary act; once one exists for THIS version of the
+                      role, applying with it is. */}
+                  {active.tailored && isLive && active.state !== "applied" && (
+                    <span
+                      className="ns-chip mb-3 inline-flex"
+                      style={{ background: "#fff", borderColor: "var(--ns-tint-2)", color: "var(--ns-coral-deep)" }}
+                    >
+                      TAILORED CV READY · SAVED{" "}
+                      {new Date(active.tailored.savedAt)
+                        .toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+                        .toUpperCase()}
+                    </span>
+                  )}
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                       <p className="t-display text-3xl" style={{ color: "var(--ns-coral-deep)" }}>
@@ -486,23 +517,35 @@ export default function FoundPage() {
                     </div>
                     {isLive && active.state !== "applied" && (
                       <div className="flex flex-wrap gap-2.5">
-                        {/* Tailor-first is its own integration; disabled with
-                            the reason, per the Fill-from-transcript precedent. */}
-                        <button
-                          className="ns-btn ns-btn-secondary"
-                          disabled
-                          title="Not built yet — tailoring against this role's frozen requirements ships next. Applying with your evidence bank works today."
-                        >
-                          Tailor my CV to this role →
-                        </button>
-                        <button
-                          className="ns-btn ns-btn-primary"
-                          onClick={() => void openManifest(active.id)}
-                          disabled={applyBusy}
-                        >
-                          {applyBusy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-                          Apply with my evidence
-                        </button>
+                        {active.tailored ? (
+                          <>
+                            <button
+                              className="ns-btn ns-btn-primary"
+                              onClick={() => void openManifest(active.id)}
+                              disabled={applyBusy}
+                            >
+                              {applyBusy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                              Apply — send your tailored CV
+                            </button>
+                            <Link className="ns-btn ns-btn-secondary" href={`/tailor?rec=${active.id}`}>
+                              Re-open in Tailor
+                            </Link>
+                          </>
+                        ) : (
+                          <>
+                            <Link className="ns-btn ns-btn-primary" href={`/tailor?rec=${active.id}`}>
+                              Tailor my CV to this role →
+                            </Link>
+                            <button
+                              className="ns-btn ns-btn-secondary"
+                              onClick={() => void openManifest(active.id)}
+                              disabled={applyBusy}
+                            >
+                              {applyBusy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                              Apply with my evidence
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                     {active.state === "applied" && (
@@ -510,15 +553,20 @@ export default function FoundPage() {
                     )}
                   </div>
                   <p className="t-small mt-4 max-w-[70ch]">
-                    {isLive ? (
+                    {!isLive ? (
+                      <>This role has closed. Your record of it stays yours.</>
+                    ) : active.tailored ? (
                       <>
-                        Applying shares your tailored CV and evidence map with{" "}
-                        {active.role.agencyName} — for this role only, never a searchable pool.
-                        You&apos;ll get a notice of exactly what was shared, and you can withdraw
-                        it.
+                        Applying sends the version you last saved — edits included — plus your
+                        evidence map, to {active.role.agencyName}. For this role only, never a
+                        searchable pool.
                       </>
                     ) : (
-                      <>This role has closed. Your record of it stays yours.</>
+                      <>
+                        Tailoring happens in your Tailr, against this role&apos;s requirements
+                        exactly as they found you. Nothing is shared by tailoring — applying is
+                        still the only door, and you&apos;ll see exactly what would be sent first.
+                      </>
                     )}
                   </p>
                 </div>

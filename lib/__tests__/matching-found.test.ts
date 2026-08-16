@@ -134,12 +134,22 @@ describe("the page keeps the frame's promises", () => {
     expect(page).toMatch(/MISSING — nothing in your bank for this yet/)
   })
 
-  it("only tailor-first remains disabled, with its reason", () => {
-    // Applying is real now; the tailor-first flow is its own integration and
-    // keeps the Fill-from-transcript precedent: disabled with a title.
-    const disabledCount = (page.match(/disabled\s*\n?\s*title="Not built yet/g) ?? []).length
-    expect(disabledCount).toBe(1)
+  it("tailor-first is live: role mode entered by link, no disabled placeholder", () => {
+    // Built 16 Aug (Figma "Tailor-first apply — changed surfaces"). The old
+    // disabled-with-reason placeholder must not linger anywhere.
+    expect(page).toMatch(/\/tailor\?rec=\$\{active\.id\}/)
+    expect(page).not.toMatch(/title="Not built yet/)
     expect(page).toMatch(/Apply with my evidence/)
+  })
+
+  it("the band flips on a tailored CV, and the sheet names what crosses", () => {
+    // Two states, one truth: the tailored CV replaces the bank render, and
+    // the flip is driven by active.tailored — which the server sets only
+    // while the tailored-against hash still matches the snapshot.
+    expect(page).toMatch(/active\.tailored \?/)
+    expect(page).toMatch(/Apply — send your tailored CV/)
+    expect(page).toMatch(/cvSource === "tailored"/)
+    expect(page).toMatch(/exactly as you last saved it/)
   })
 
   it("the confirm button names the agency, not a generic Apply", () => {
