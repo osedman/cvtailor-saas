@@ -1623,8 +1623,16 @@ surfaces", page 03, signed off by Ose):
 697 tests (new: matching-tailor-first — brief determinism, the tailored flag's
 hash guard, and source scans pinning the frozen-brief override, the
 double-owned link write, replace-not-both, and the read-only brief route),
-build clean. Awaiting Ose's walk: tailor from ROL-2403's card, then the apply
-sheet should name the tailored CV. Note ROL-2403 is already applied — the walk
-needs a fresh recommendation or a state reset.
+build clean.
+
+**Walked by Ose same day, verified by effect.** He minted ROL-2411 (same BA
+JD), published for matching, the scan recommended him (64.72), and the full
+tailor-first path ran: role mode → tailor → band flipped → apply. SQL proof:
+manifest `cvSource: "tailored"`, manifest sha256 = sha of his tailored CV
+(6,457 chars) = sha of the `cv_text` now sitting in the agency pipeline as
+CAN-01. The agency received exactly the document he last saved. 10 evidence
+rows origin matched, one score row, zero notices. Also proof-by-use of the
+match floor: ROL-2402 (Backend Payments) scanned his BA-shaped bank and
+correctly recommended nothing.
 
 _Last updated: 16 August 2026_
