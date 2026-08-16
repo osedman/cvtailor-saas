@@ -153,8 +153,11 @@ describe("the page keeps the frame's promises", () => {
   })
 
   it("the confirm button names the agency, not a generic Apply", () => {
-    // Frame decision: "Send this to Halcyon Search", never "Apply".
-    expect(page).toMatch(/Send this to \{manifest\.sharedWith\}/)
+    // Frame decision: "Send this to Halcyon Search", never "Apply". Matched
+    // on the interpolation rather than the exact JSX form, so adding a busy
+    // label ("Sending…") does not read as breaking the promise — but
+    // dropping the agency's name still does.
+    expect(page).toMatch(/Send this to \$?\{manifest\.sharedWith\}/)
   })
 
   it("the apply POST carries no body — the server recomputes everything", () => {

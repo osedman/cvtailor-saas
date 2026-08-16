@@ -313,7 +313,20 @@
   border: 1px solid var(--ns-border-strong);
   background: var(--ns-border);
   cursor: pointer;
+  touch-action: manipulation;
   transition: background 160ms ease, border-color 160ms ease;
+}
+/* The track is 26px because that is what the frame draws, but a 26px tap
+   target on a control that governs whether employers can find you is a
+   mis-tap waiting to happen. The hit area is extended to 44px without
+   moving the visuals. */
+.ns .ns-switch::before {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%; min-width: 44px;
+  height: 44px;
 }
 .ns .ns-switch[aria-checked="true"] {
   background: var(--ns-coral);

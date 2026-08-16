@@ -243,6 +243,14 @@ role rows. Interaction feedback is transform/opacity only.
 - **Figma: resize BEFORE setting `textAutoResize`.** Resize resets sizing to
   fixed, so text overflows without reserving space. 27 nodes were affected
   across frames already signed off.
+- **Turbopack will serve a stale `globals.css` and swear blind your edit isn't
+  there.** 16 Aug: a `::before` hit-area rule was on disk, in the right file,
+  imported by `app/layout.tsx` — and absent from the served chunk through an
+  HMR reload, a `touch`, a server restart AND `rm -rf .next/cache`. Only
+  `rm -rf .next` (the whole directory) fixed it; the chunk name and byte count
+  were identical throughout, which is the tell. JSX-derived Tailwind utilities
+  recompile fine, so a CSS-file change going missing while class changes land
+  is this bug. Verify CSS by curling the chunk, not by reading the file.
 - Local `npm run build` needs placeholder Supabase env or `/_not-found` fails
   to prerender:
   `NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder npm run build`

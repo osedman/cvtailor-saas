@@ -110,6 +110,10 @@ export function ResizablePanels({
   const [restoredFromStorage, setRestoredFromStorage] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const fileInputId = useId()
+  const cvFieldId = useId()
+  const jdFieldId = useId()
+  const jdLockNoteId = useId()
+  const jobUrlFieldId = useId()
 
   // Restore CV from localStorage on mount
   useEffect(() => {
@@ -202,7 +206,7 @@ export function ResizablePanels({
     if (!jobUrl.trim()) return
     const parsed = normalizeJobUrl(jobUrl)
     if (!parsed) {
-      toast.error("That doesn't look like a valid job URL")
+      toast.error("That doesn’t look like a valid job URL — check it and try again")
       return
     }
     setScrapingUrl(true)
@@ -250,7 +254,7 @@ export function ResizablePanels({
           {/* Panel header */}
           <div className={`flex-shrink-0 flex items-center justify-between px-3 pt-2.5 pb-1.5 ${panelHeaderBg}`}>
             <div className="flex items-center gap-2">
-              <span className={labelCls}>Your CV</span>
+              <label className={labelCls} htmlFor={cvFieldId}>Your CV</label>
               {guideStep === "cv" && <CoachBadge n={1} label="Start here" />}
               {cvFileName && (
                 <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
@@ -320,10 +324,14 @@ export function ResizablePanels({
             </a>
             </>
           ) : (
+            /* Shares cvFieldId with the empty-state paste box below: the two
+               are mutually exclusive on `cvText`, so exactly one is ever in
+               the document and the label always points at the live one. */
             <textarea
+              id={cvFieldId}
               value={cvText}
               onChange={(e) => setCvText(e.target.value)}
-              className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300"
+              className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#dc4f33] text-base sm:text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300"
               placeholder="Your CV text…"
             />
           )}
@@ -331,9 +339,10 @@ export function ResizablePanels({
           {/* Always-visible paste area when empty (below the drop zone) */}
           {!cvText && !parsingFile && (
             <textarea
+              id={cvFieldId}
               value={cvText}
               onChange={(e) => setCvText(e.target.value)}
-              className="w-full h-20 px-3 py-2 bg-transparent resize-none focus:outline-none text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300 border-t border-gray-100"
+              className="w-full h-20 px-3 py-2 bg-transparent resize-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#dc4f33] text-base sm:text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300 border-t border-gray-100"
               placeholder="…or paste your CV text here"
             />
           )}
@@ -366,13 +375,16 @@ export function ResizablePanels({
       </div>
 
       {/* ── Right Panel: Job Description ── */}
-      <div className="flex flex-col p-4" style={{ width: `${100 - leftWidth}%` }}>
+      <div className="flex min-w-0 flex-col p-4" style={{ width: `${100 - leftWidth}%` }}>
         <div className={`relative flex-1 flex flex-col rounded-lg overflow-hidden ${panelShell}`}>
           {/* Panel header */}
           <div className={`flex-shrink-0 px-3 pt-2.5 pb-1.5 ${panelHeaderBg}`}>
-            <span className={labelCls}>Job Description</span>
+            <label className={labelCls} htmlFor={jdFieldId}>Job Description</label>
             {jobLocked && (
-              <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-[0.5px] text-[#b3341b]">
+              <span
+                id={jdLockNoteId}
+                className="ml-2 align-middle text-[11px] font-semibold uppercase tracking-[0.5px] text-[#b3341b]"
+              >
                 Locked to the role that found you
               </span>
             )}
@@ -382,24 +394,35 @@ export function ResizablePanels({
           {/* URL scraper bar (free tailoring only — a locked JD is the point) */}
           {!jobLocked && (
           <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-gray-100 bg-white/60">
-            <Link className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            <Link className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" aria-hidden="true" />
+            <label className="sr-only" htmlFor={jobUrlFieldId}>Job posting URL</label>
             <input
-              type="text"
+              id={jobUrlFieldId}
+              type="url"
               inputMode="url"
               autoComplete="url"
+              spellCheck={false}
               value={jobUrl}
               onChange={(e) => setJobUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleScrapeUrl()}
               placeholder="Paste any job URL to auto-fill…"
-              className="flex-1 text-xs bg-transparent focus:outline-none text-[#1e1813] placeholder:text-gray-300 min-w-0"
+              className="flex-1 text-base sm:text-xs bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#dc4f33] text-[#1e1813] placeholder:text-gray-300 min-w-0"
             />
             {jobUrl && (
               <button
                 onClick={handleScrapeUrl}
                 disabled={scrapingUrl}
-                className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-white bg-[#dc4f33] rounded hover:bg-[#b3341b] disabled:opacity-60 transition-colors"
+                aria-busy={scrapingUrl}
+                className="flex-shrink-0 inline-flex min-h-[44px] items-center gap-1 px-3 py-1 text-[11px] font-medium text-white bg-[#dc4f33] rounded hover:bg-[#b3341b] disabled:opacity-60 transition-colors [touch-action:manipulation] sm:min-h-0 sm:py-2"
               >
-                {scrapingUrl ? <Loader2 className="w-3 h-3 animate-spin" /> : "Fetch"}
+                {scrapingUrl ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+                    Fetching…
+                  </>
+                ) : (
+                  "Fetch"
+                )}
               </button>
             )}
           </div>
@@ -407,18 +430,30 @@ export function ResizablePanels({
 
           {/* Textarea */}
           <textarea
+            id={jdFieldId}
             value={jobDescription}
             onChange={(e) => setJobDescription(e.target.value)}
             readOnly={jobLocked}
             aria-readonly={jobLocked || undefined}
-            className={`flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none text-sm leading-relaxed placeholder:text-gray-300 ${jobLocked ? "text-[#4e463d] cursor-default" : "text-[#1e1813]"}`}
+            aria-describedby={jobLocked ? jdLockNoteId : undefined}
+            className={`flex-1 w-full px-3 py-2 bg-transparent resize-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#dc4f33] text-base sm:text-sm leading-relaxed placeholder:text-gray-300 ${jobLocked ? "text-[#4e463d] cursor-default" : "text-[#1e1813]"}`}
             placeholder="Or paste the job description here…"
           />
+          {/* The panel silently stops accepting input when role mode engages —
+              announce the flip rather than letting someone discover it by
+              typing into a field that ignores them. */}
+          <span className="sr-only" role="status">
+            {jobLocked ? "Job description is locked to the role that found you." : ""}
+          </span>
 
           {/* Footer */}
-          <div className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 ${panelFooterBg}`}>
-            <LengthBar charCount={jobDescription.length} threshold={JD_COMPRESS_THRESHOLD} limit={JD_RAW_LIMIT} noun="Job description" />
-            <span className="text-[10px] text-gray-400 flex-shrink-0 ml-auto">{jobDescription.length.toLocaleString()} chars</span>
+          <div className={`flex-shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 ${panelFooterBg}`}>
+            <span className="min-w-0">
+              <LengthBar charCount={jobDescription.length} threshold={JD_COMPRESS_THRESHOLD} limit={JD_RAW_LIMIT} noun="Job description" />
+            </span>
+            <span className="text-[10px] text-gray-400 flex-shrink-0 ml-auto [font-variant-numeric:tabular-nums]">
+              {jobDescription.length.toLocaleString("en-GB")} chars
+            </span>
           </div>
         </div>
       </div>

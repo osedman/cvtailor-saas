@@ -28,16 +28,26 @@ export function RoleModeBanner({
   onExit: () => void
 }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-4 rounded-xl border border-[#f5d9d0] bg-[#fff7f4] px-5 py-3.5">
+    <div
+      className="mb-4 flex flex-wrap items-center gap-4 rounded-xl border px-5 py-3.5"
+      style={{ borderColor: "var(--ns-tint-2)", background: "var(--ns-tint-1)" }}
+    >
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-semibold uppercase tracking-[1px] text-[#b3341b]">
+        <p
+          className="text-[11px] font-semibold uppercase tracking-[1px]"
+          style={{ color: "var(--ns-coral-deep)" }}
+        >
           Tailoring against a role that found you
         </p>
-        <p className="mt-0.5 truncate text-[14px] font-semibold text-[#1e1813]">
+        <p
+          className="mt-0.5 truncate text-[14px] font-semibold"
+          style={{ color: "var(--ns-ink)" }}
+          title={`${role.roleTitle}${role.company ? ` — ${role.company}` : ""} · via ${role.agencyName}`}
+        >
           {role.roleTitle}
           {role.company ? ` — ${role.company}` : ""} · via {role.agencyName}
         </p>
-        <p className="mt-1 text-[11.5px] leading-snug text-[#6f675b]">
+        <p className="mt-1 text-[12.5px] leading-snug" style={{ color: "var(--ns-ink-55)" }}>
           The role&apos;s requirements are locked to the version you were matched on — the
           job panel is read-only in this mode. Tailoring shares nothing; when you&apos;re
           ready, apply from{" "}
@@ -49,7 +59,8 @@ export function RoleModeBanner({
       </div>
       <button
         onClick={onExit}
-        className="shrink-0 rounded-lg border border-[#eee6da] bg-white px-3.5 py-2 text-[12.5px] font-medium text-[#4e463d] transition-colors hover:border-[#dc4f33]/50"
+        className="inline-flex min-h-[44px] shrink-0 items-center rounded-lg border bg-white px-3.5 py-2 text-[12.5px] font-medium transition-colors [touch-action:manipulation] hover:border-[color:var(--ns-coral)]"
+        style={{ borderColor: "var(--ns-border)", color: "var(--ns-ink-70)" }}
       >
         Exit role mode
       </button>

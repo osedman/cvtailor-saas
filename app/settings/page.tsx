@@ -30,6 +30,7 @@ import { Header } from "@/components/cv-tailor/header"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { ConsentSubject } from "@/lib/matching/limits"
 import { errorMessage } from "@/lib/error-message"
+import { formatDay, formatMoment } from "@/lib/format-date"
 
 interface ConsentEvent {
   subject: ConsentSubject
@@ -52,14 +53,12 @@ const PROMISES = [
   "Applying is the moment anything is shared — for that one role, and you can withdraw it.",
 ]
 
-function formatDate(iso: string | null): string {
-  if (!iso) return ""
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
-}
+/**
+ * The consent record is the answer to "when did I agree, and to what?" — so
+ * its dates are rendered in UTC and labelled, not in the reader's local zone.
+ * A consent stamped at 23:40 UTC otherwise shows a different day depending on
+ * where it is read, from the same row. See lib/format-date.ts.
+ */
 
 function Switch({
   checked,
@@ -79,16 +78,23 @@ function Switch({
         role="switch"
         aria-checked={checked}
         aria-label={label}
+        aria-busy={busy}
         disabled={busy}
         className="ns-switch"
         onClick={() => onChange(!checked)}
       />
+      {/* The visible state is aria-hidden because the switch already
+          announces it; the saving state is not, because "did that save?" is
+          the one question the control cannot answer on its own. */}
       <span
         className="t-mono"
         style={{ minWidth: 26, textTransform: "uppercase" }}
         aria-hidden="true"
       >
         {busy ? "…" : checked ? "On" : "Off"}
+      </span>
+      <span className="sr-only" aria-live="polite">
+        {busy ? `Saving ${label}…` : ""}
       </span>
     </div>
   )
@@ -251,7 +257,7 @@ export default function SettingsPage() {
                 stops the scan and expires anything already found — it does not un-send an
                 application you chose to make.
                 {state.matching && state.matchingSince && (
-                  <> On since {formatDate(state.matchingSince)}.</>
+                  <> On since {formatDay(state.matchingSince)}.</>
                 )}
               </p>
             </section>
@@ -283,7 +289,7 @@ export default function SettingsPage() {
               <p className="t-small mt-4">
                 Neither switch turns the other on. Neither is on by default.
                 {state.enrichment && state.enrichmentSince && (
-                  <> On since {formatDate(state.enrichmentSince)}.</>
+                  <> On since {formatDay(state.enrichmentSince)}.</>
                 )}
               </p>
             </section>
@@ -291,9 +297,10 @@ export default function SettingsPage() {
             {/* ── The record ─────────────────────────────────────── */}
             <section
               className="mt-6 rounded-xl border p-5"
+              aria-labelledby="your-record-heading"
               style={{ background: "var(--ns-tint-1)", borderColor: "var(--ns-tint-2)" }}
             >
-              <p className="t-eyebrow">Your record</p>
+              <h2 id="your-record-heading" className="t-eyebrow">Your record</h2>
               <p className="t-small mt-2 max-w-[74ch]">
                 Every time you change either switch we keep the date and the exact wording you
                 agreed to. A flag on its own cannot answer &ldquo;when did I agree, and to
@@ -303,9 +310,10 @@ export default function SettingsPage() {
               {state.history.length > 0 ? (
                 <ul className="mt-4 space-y-1.5">
                   {state.history.map((e, i) => (
-                    <li key={`${e.createdAt}-${i}`} className="t-mono">
-                      {formatDate(e.createdAt)} · {e.subject === "matching" ? "matching" : "enrichment"}{" "}
-                      · {e.action} · {e.copyVersion}
+                    <li key={`${e.createdAt}-${i}`} className="t-mono break-words">
+                      {formatMoment(e.createdAt)} ·{" "}
+                      {e.subject === "matching" ? "matching" : "enrichment"} · {e.action} ·{" "}
+                      {e.copyVersion}
                     </li>
                   ))}
                 </ul>

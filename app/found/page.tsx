@@ -32,6 +32,8 @@ import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Header } from "@/components/cv-tailor/header"
 import { useAuth } from "@/components/auth/auth-provider"
+import { useDialog } from "@/lib/use-dialog"
+import { formatDayShort } from "@/lib/format-date"
 import type { FoundRole } from "@/lib/matching/found"
 import { errorMessage } from "@/lib/error-message"
 
@@ -101,6 +103,7 @@ export default function FoundPage() {
     candidateRef: string
     rightsPath: string
   } | null>(null)
+  const [copied, setCopied] = useState<boolean | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -195,6 +198,28 @@ export default function FoundPage() {
     }
   }, [manifestFor, load])
 
+  // Closing the sheet shares nothing, so click-outside and Escape are safe
+  // dismissals here — the copy already says so ("Closing this shares nothing").
+  const closeSheet = useCallback(() => {
+    setManifest(null)
+    setManifestFor(null)
+  }, [])
+  const sheet = useDialog(!!manifest, closeSheet)
+  const closeSent = useCallback(() => {
+    setAppliedResult(null)
+    setCopied(null)
+  }, [])
+  const sent = useDialog(!!appliedResult, closeSent)
+
+  const copyRightsLink = useCallback(async (rightsPath: string) => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${rightsPath}`)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+    }
+  }, [])
+
   const active = found?.find((f) => f.id === selected) ?? null
   const open = (found ?? []).filter((f) => f.state !== "dismissed")
   const isLive = active?.role.status === "live"
@@ -225,20 +250,24 @@ export default function FoundPage() {
             confirm sends no body, so the two cannot diverge. The button names
             the agency — "Send this to X", never a generic "Apply". */}
         {manifest && (
-          <div className="ns-scrim" role="dialog" aria-modal="true" aria-label="What applying shares">
+          <div className="ns-scrim" onClick={sheet.onScrimClick}>
             <div
-              className="w-full max-w-lg rounded-2xl border p-6 max-h-[85vh] overflow-y-auto"
+              ref={sheet.panelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="apply-sheet-title"
+              className="w-full max-w-lg rounded-2xl border p-6 max-h-[85vh] overflow-y-auto [overscroll-behavior:contain]"
               style={{ background: "var(--ns-paper)", borderColor: "var(--ns-border)" }}
             >
               <p className="t-eyebrow">Before anything is shared</p>
-              <h2 className="t-title mt-1.5 text-xl">
+              <h2 id="apply-sheet-title" className="t-title mt-1.5 text-xl text-pretty">
                 Send your application to {manifest.sharedWith}?
               </h2>
               <p className="t-body mt-2" style={{ color: "var(--ns-ink-70)" }}>
                 For {manifest.roleTitle} — this role only, never a searchable pool. They receive:
               </p>
               <ul className="mt-3 space-y-1.5">
-                <li className="t-small">
+                <li className="t-small break-words">
                   · Your name{manifest.email ? " and email" : ""} — {manifest.name}
                   {manifest.email ? ` · ${manifest.email}` : ""}
                 </li>
@@ -249,7 +278,7 @@ export default function FoundPage() {
                   <li className="t-small">
                     · Your tailored CV for this role — exactly as you last saved it
                     {manifest.tailoredSavedAt
-                      ? ` (${new Date(manifest.tailoredSavedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, edits included)`
+                      ? ` (${formatDayShort(manifest.tailoredSavedAt)}, edits included)`
                       : " (edits included)"}
                   </li>
                 ) : (
@@ -275,18 +304,12 @@ export default function FoundPage() {
                   className="ns-btn ns-btn-primary"
                   onClick={() => void confirmApply()}
                   disabled={applyBusy}
+                  aria-busy={applyBusy}
                 >
                   {applyBusy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-                  Send this to {manifest.sharedWith}
+                  {applyBusy ? "Sending…" : `Send this to ${manifest.sharedWith}`}
                 </button>
-                <button
-                  className="ns-btn ns-btn-secondary"
-                  onClick={() => {
-                    setManifest(null)
-                    setManifestFor(null)
-                  }}
-                  disabled={applyBusy}
-                >
+                <button className="ns-btn ns-btn-secondary" onClick={closeSheet} disabled={applyBusy}>
                   Not now
                 </button>
               </div>
@@ -299,13 +322,21 @@ export default function FoundPage() {
 
         {/* ── the notice of exactly what was shared ───────────────────── */}
         {appliedResult && (
-          <div className="ns-scrim" role="dialog" aria-modal="true" aria-label="Application sent">
+          /* No scrim-click dismissal here on purpose: the rights link is shown
+             once, and a stray click outside must not be how it disappears. */
+          <div className="ns-scrim">
             <div
-              className="w-full max-w-lg rounded-2xl border p-6"
+              ref={sent.panelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="apply-sent-title"
+              className="w-full max-w-lg rounded-2xl border p-6 max-h-[85vh] overflow-y-auto [overscroll-behavior:contain]"
               style={{ background: "var(--ns-paper)", borderColor: "var(--ns-border)" }}
             >
               <p className="t-eyebrow">Sent</p>
-              <h2 className="t-title mt-1.5 text-xl">You are in their pipeline as {appliedResult.candidateRef}.</h2>
+              <h2 id="apply-sent-title" className="t-title mt-1.5 text-xl text-pretty">
+                You are in their pipeline as {appliedResult.candidateRef}.
+              </h2>
               <p className="t-body mt-2" style={{ color: "var(--ns-ink-70)" }}>
                 Exactly what you confirmed was shared — nothing else. This is your rights link for
                 that record: access, correction, or erasure, no account needed. Save it; it is
@@ -317,16 +348,21 @@ export default function FoundPage() {
               <div className="mt-5 flex gap-2.5">
                 <button
                   className="ns-btn ns-btn-secondary"
-                  onClick={() =>
-                    navigator.clipboard?.writeText(`${window.location.origin}${appliedResult.rightsPath}`)
-                  }
+                  onClick={() => void copyRightsLink(appliedResult.rightsPath)}
                 >
-                  Copy link
+                  {copied ? "Copied" : "Copy link"}
                 </button>
-                <button className="ns-btn ns-btn-primary" onClick={() => setAppliedResult(null)}>
+                <button className="ns-btn ns-btn-primary" onClick={closeSent}>
                   Done
                 </button>
               </div>
+              {/* The copy either worked or it did not, and this link is shown
+                  once — clipboard access is blocked often enough (insecure
+                  context, permissions) that a silent no-op is unacceptable. */}
+              <p className="t-small mt-2" aria-live="polite" style={{ color: "var(--ns-ink-55)" }}>
+                {copied === true && "Copied to your clipboard."}
+                {copied === false && "Could not copy automatically — select the link above and copy it."}
+              </p>
             </div>
           </div>
         )}
@@ -403,8 +439,12 @@ export default function FoundPage() {
                   <p className="t-eyebrow">
                     Recommended · {Math.round(rec.score)}% match before tailoring
                   </p>
-                  <h2 className="t-title mt-1.5 text-lg">{rec.role.title}</h2>
-                  <p className="t-small mt-1">
+                  {/* Not a heading: this sits inside the card's button, where
+                      an <h2> would fold into the button's accessible name and
+                      put a rung in the outline that leads nowhere. The role
+                      title IS the <h2> on the detail pane at the right. */}
+                  <p className="t-title mt-1.5 text-lg break-words">{rec.role.title}</p>
+                  <p className="t-small mt-1 break-words">
                     {rec.role.company || "Confidential"} · via {rec.role.agencyName}
                     {rec.role.salaryBand ? ` · ${rec.role.salaryBand}` : ""}
                     {rec.role.location ? ` · ${rec.role.location}` : ""}
@@ -498,15 +538,15 @@ export default function FoundPage() {
                       A/B): before a tailored CV exists, tailoring is the
                       primary act; once one exists for THIS version of the
                       role, applying with it is. */}
+                  {/* Uppercased in CSS, not JS: a screen reader reading the
+                      DOM text gets ordinary words rather than something it
+                      may spell out letter by letter. */}
                   {active.tailored && isLive && active.state !== "applied" && (
                     <span
-                      className="ns-chip mb-3 inline-flex"
+                      className="ns-chip mb-3 inline-flex uppercase"
                       style={{ background: "#fff", borderColor: "var(--ns-tint-2)", color: "var(--ns-coral-deep)" }}
                     >
-                      TAILORED CV READY · SAVED{" "}
-                      {new Date(active.tailored.savedAt)
-                        .toLocaleDateString("en-GB", { day: "numeric", month: "short" })
-                        .toUpperCase()}
+                      Tailored CV ready · saved {formatDayShort(active.tailored.savedAt)}
                     </span>
                   )}
                   <div className="flex flex-wrap items-center justify-between gap-4">
