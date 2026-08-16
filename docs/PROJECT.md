@@ -1518,4 +1518,39 @@ evidence=2 origin matched, notices=0, consent=1 with manifest, state=applied,
 duplicate apply REFUSED. Integration suite extended with the apply chapter
 (fixture fix: `agencies.slug` is NOT NULL). 679 tests, build clean.
 
+## 🕳 The invisible-bytes 409 — caught by hexdump, not by the debug toast (16 Aug 2026)
+
+The "stale requirements" 409 that blocked the first real apply is fixed, and
+the cause explains why three independent SQL recomputations kept "confirming"
+a hash the runtime refused: **the two copies of the requirements hash differed
+only in invisible bytes.** `scan-core.requirementsHash` — the one apply calls —
+separated ref/weight/text with literal NUL (0x00) and joined entries on literal
+SOH (0x01), raw control characters sitting inside its template strings. The
+publisher's copy (`hashRequirements` in `lib/agency/matching.ts`) used ordinary
+spaces and an empty join. Every editor, every diff, every Read of the two
+functions rendered them character-for-character identical; only a hexdump told
+them apart. So publish stored the space-version hash, apply recomputed the
+NUL-version, and the freshness gate could never pass — while every SQL
+emulation, naturally typed with visible spaces, reproduced the *stored* value
+and pointed the finger at the runtime.
+
+Found by running the real imported function over the real staging rows in one
+process next to the inline algorithm (`fn.toString()` betrayed the `\0`s after
+esbuild re-printed them as escapes) — the deployed debug toast was never
+needed, and it turned out its `debug` payload was dropped at the lib boundary
+anyway. The person's click was replaced by a hexdump.
+
+The fix (680bc51): scan-core rewritten with real spaces — the canonical form
+is the one the database already holds, so no stored hash moves; the
+publisher's duplicate deleted in favour of importing the shared function (one
+canonicalisation, structurally); the temporary 409 diagnostic stripped from
+lib and route. Two guardrails so this stays dead: a pinned-digest test on
+`requirementsHash` (its output lives in `published_roles` and `role_matching`;
+changing the canonical form silently strands every live snapshot), and a new
+source-scan test that fails the build on any raw control byte in `app/`,
+`components/`, `lib/` or `supabase/` — a control character in source is either
+mangling or an invisible behaviour difference, and both deserve a red build.
+682 tests, build clean. Verified against ROL-2403: the fixed function over the
+live rows now equals the stored `39c22a22…`. Ose's real apply is next.
+
 _Last updated: 16 August 2026_
