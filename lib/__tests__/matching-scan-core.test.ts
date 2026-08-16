@@ -7,6 +7,7 @@
  */
 import { describe, it, expect } from "vitest"
 import {
+  meetsMatchFloor,
   buildProfileText,
   profileHash,
   requirementsHash,
@@ -226,11 +227,47 @@ describe("toRecommendationEvidence", () => {
   })
 })
 
+describe("the match floor", () => {
+  const ev = (strength: string) =>
+    [{ requirement_ref: "R1", strength, quote: strength === "missing" ? null : "q" }] as never
+
+  it("refuses a recommendation with no evidence at all", () => {
+    // The first real recommendation this product produced scored 10.5 with
+    // all ten requirements MISSING — a role "found" someone it had no reason
+    // to find. 30% of the score is calibration judgement, independent of
+    // evidence, so anyone assessed floats above zero.
+    expect(meetsMatchFloor({ must_have_hit: 0, must_have_total: 5 }, ev("missing"))).toBe(false)
+    expect(meetsMatchFloor({ must_have_hit: 0, must_have_total: 5 }, [])).toBe(false)
+  })
+
+  it("requires a must-have when the role has must-haves", () => {
+    const some = [
+      { requirement_ref: "R1", strength: "strong", quote: "q" },
+      { requirement_ref: "R2", strength: "missing", quote: null },
+    ] as never
+    expect(meetsMatchFloor({ must_have_hit: 0, must_have_total: 5 }, some)).toBe(false)
+    expect(meetsMatchFloor({ must_have_hit: 1, must_have_total: 5 }, some)).toBe(true)
+  })
+
+  it("does not require one when the role has none", () => {
+    // A role of nothing but nice-to-haves would otherwise match nobody, ever
+    // — a silent dead end rather than a high bar.
+    expect(meetsMatchFloor({ must_have_hit: 0, must_have_total: 0 }, ev("transferable"))).toBe(true)
+  })
+
+  it("counts any real strength as evidence, not just strong", () => {
+    for (const s of ["strong", "transferable", "partial"]) {
+      expect(meetsMatchFloor({ must_have_hit: 1, must_have_total: 1 }, ev(s))).toBe(true)
+    }
+  })
+})
+
 describe("selectMatches", () => {
+  // Everyone here clears the floor; the floor itself is tested above.
   const person = (userId: string, overall: number): ScannedPerson => ({
     userId,
-    score: { overall } as ScannedPerson["score"],
-    evidence: [],
+    score: { overall, must_have_hit: 1, must_have_total: 1 } as ScannedPerson["score"],
+    evidence: [{ requirement_ref: "R1", strength: "strong", quote: "q" }],
     profileHash: "h",
   })
 
@@ -250,5 +287,16 @@ describe("selectMatches", () => {
 
   it("returns nothing rather than everything when nobody clears the bar", () => {
     expect(selectMatches([person("a", 10), person("b", 20)], 70)).toEqual([])
+  })
+
+  it("drops a high scorer who has no evidence behind it", () => {
+    // Clearing the threshold is necessary, not sufficient.
+    const hollow: ScannedPerson = {
+      userId: "hollow",
+      score: { overall: 95, must_have_hit: 0, must_have_total: 3 } as ScannedPerson["score"],
+      evidence: [{ requirement_ref: "R1", strength: "missing", quote: null }],
+      profileHash: "h",
+    }
+    expect(selectMatches([hollow, person("real", 71)], 70).map((p) => p.userId)).toEqual(["real"])
   })
 })

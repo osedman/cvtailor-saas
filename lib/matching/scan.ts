@@ -272,15 +272,24 @@ export async function runMatchScan(roleId: string, queuedJobId?: string): Promis
       summary.assessed++
 
       const score = scoreForMatching(assessment, requirements)
+      // The evidence map is built BEFORE the decision, because the floor is
+      // partly about the evidence: a recommendation with nothing in its
+      // "why you" panel is a false match, not a weak one. This used to pass
+      // an empty array here and decide on the score alone.
+      const evidenceMap = toRecommendationEvidence(assessment, requirements)
       const matchedNow =
         selectMatches(
-          [{ userId: hit.userId, score, evidence: [], profileHash: hashByUser.get(hit.userId) ?? "" }],
+          [{
+            userId: hit.userId,
+            score,
+            evidence: evidenceMap,
+            profileHash: hashByUser.get(hit.userId) ?? "",
+          }],
           role.min_score
         ).length === 1
 
       if (matchedNow) {
         summary.matched++
-        const evidenceMap = toRecommendationEvidence(assessment, requirements)
         const { error: upErr } = await publicAdmin.from("role_recommendations").upsert(
           {
             user_id: hit.userId,
