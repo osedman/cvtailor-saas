@@ -136,8 +136,25 @@ async function loadApplyContext(userId: string, recommendationId: string) {
   if (reqErr) throw reqErr
   const requirements = (liveReqs ?? []) as LiveRequirement[]
 
-  if (requirementsHash(requirements) !== snapshot.requirements_hash) {
-    return { failure: "stale" as const }
+  const computedHash = requirementsHash(requirements)
+  if (computedHash !== snapshot.requirements_hash) {
+    /**
+     * TEMPORARY DIAGNOSTIC (16 Aug): a live apply on staging hit this branch
+     * while three independent SQL recomputations said the hashes agree. The
+     * debug block rides the 409 so the toast itself says which input the
+     * runtime actually saw — row count zero means the requirements query is
+     * the lie; differing hash over 12 rows means the computation is. Strip
+     * once the culprit is caught. No PII: counts and hash prefixes only.
+     */
+    return {
+      failure: "stale" as const,
+      debug: {
+        reqCount: requirements.length,
+        computed: computedHash.slice(0, 8),
+        stored: String(snapshot.requirements_hash ?? "null").slice(0, 8),
+        roleId: String(snapshot.role_id).slice(0, 8),
+      },
+    }
   }
 
   const [{ data: profile }, { data: bank }, { data: agencyRow }] = await Promise.all([

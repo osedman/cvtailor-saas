@@ -61,8 +61,15 @@ export async function GET(
 
     const result = await getApplyManifest(user.id, id)
     if (!result.ok) {
+      const debug = (result as { debug?: Record<string, unknown> }).debug
       return NextResponse.json(
-        { error: REASON_COPY[result.reason], reason: result.reason },
+        {
+          error:
+            REASON_COPY[result.reason] +
+            // Temporary diagnostic — see lib/matching/apply.ts stale branch.
+            (debug ? ` [debug: ${JSON.stringify(debug)}]` : ""),
+          reason: result.reason,
+        },
         { status: STATUS[result.reason] ?? 500 }
       )
     }
