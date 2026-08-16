@@ -205,7 +205,16 @@ export default function FoundPage() {
           <a className="ns-btn ns-btn-primary mt-6" href="/login?next=%2Ffound">
             Sign in
           </a>
-  
+        </main>
+      </div>
+    )
+  }
+
+  /** Rendered from the signed-in return below. These once sat inside the
+   * signed-out early return, where `manifest` can never be set — so a
+   * successful manifest GET opened nothing at all. */
+  const overlays = (
+    <>
         {/* ── the consent sheet: Art 13 at the moment of applying ───────
             Everything named here is exactly what the server will share; the
             confirm sends no body, so the two cannot diverge. The button names
@@ -304,10 +313,8 @@ export default function FoundPage() {
             </div>
           </div>
         )}
-      </main>
-      </div>
-    )
-  }
+    </>
+  )
 
   return (
     <div className="ns min-h-screen">
@@ -538,6 +545,7 @@ export default function FoundPage() {
             )}
           </div>
         )}
+        {overlays}
       </main>
     </div>
   )
