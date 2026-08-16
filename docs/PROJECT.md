@@ -1442,4 +1442,41 @@ needs Ose's staging session — the real recommendation is waiting on it.**
 Next: the integration test (publish → scan → assert rows), then the apply
 route.
 
+---
+
+## 🧪 The matching integration suite — and what its guard caught first (16 Aug 2026)
+
+Six bugs shipped in quiet matching and every one was found by Ose clicking,
+because every one lived where mocked tests cannot see: missing grants, a
+stale schema cache, a SECURITY DEFINER guard that never fired, a no-op
+column revoke, a one-way threshold, a half-publish across two schemas.
+
+`lib/__tests__/matching-loop.integration.test.ts` runs the loop against the
+REAL staging database — publish → snapshot/matching/audit/queued-job → scan →
+recommendation + mark → skip-on-unchanged → cooldown → threshold-change
+re-assessment (the migration-18 regression, permanently pinned) → pause. The
+model call is the only mock; it was proven live and burning tokens per run
+buys nothing. ZZ-prefixed fixtures, torn down in afterAll. Gated behind
+`INTEGRATION=1`; the ordinary suite skips it offline.
+
+**Its first act was refusing to run** — and the refusal was correct:
+
+> **`.env.development.local` points local dev at PRODUCTION.**
+> `NEXT_PUBLIC_SUPABASE_URL` there is `wgpaaafseibcqagiiavt` — "Cv-Tailor
+> tool", the production project — with its service-role key beside it. So
+> `npm run dev` on this machine reads and writes the production database.
+> Possibly a leftover from the 30 Jul key-rotation lockout. Nothing in this
+> session wrote through it (only signed-out pages and 401s locally), but it
+> is a standing footgun and its own task chip. Repointing it is Ose's call —
+> it changes his local sessions and needs keys only he can copy.
+
+Consequently the suite takes **explicit** credentials
+(`INTEGRATION_SUPABASE_URL` / `INTEGRATION_SUPABASE_SERVICE_ROLE_KEY`) and
+refuses anything that is not the staging ref — it will never inherit the
+app's env, because the app's env is exactly what was wrong. Both gates
+verified by running them.
+
+**Not yet run green**: it needs the staging service key, which only Ose can
+supply. Run command is in the file header.
+
 _Last updated: 16 August 2026_
