@@ -79,6 +79,17 @@ Editor BEFORE merge** (idempotent, RLS with all four per-user policies).
 No new env vars. Agency code excluded. Watch after ship: hero CTA clickthrough
 and tailor-start rate.
 
+## 🚢 PORT: North Star fixes + 019 migration file (11 Aug 2026)
+
+Surgical fix port from staging (content-diffed, not commit-copied — several
+"unported" commits turned out to be already hand-ported). Carries: effort-hours
+integer coercion at the single write path (the enrichment 500), the model's
+effort estimate no longer thrown away at enrich time, server-side logging of
+career-path POST failures, and the 019_career_evidence.sql file (prod DB
+already migrated; the repo was missing the file — schema-drift hygiene).
+Deliberately excluded: plan review at lock-target (needs the plan_review
+migration), course-catalog grounding, Concept B UI.
+
 ## ✅ Shipped
 
 | Item | Type | PR | Notes |
