@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAgencyContext } from "@/lib/agency/db"
 import { listAuditEntries, AUDIT_GROUPS } from "@/lib/agency/audit-view"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 20
 
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ entries })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

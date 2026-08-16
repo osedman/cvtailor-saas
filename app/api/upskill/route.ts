@@ -12,6 +12,7 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { splitByEffort } from '@/lib/career-path-compute'
 import { addItems, setItemStatus, loadItems, type StoredRoadmapItem } from '@/lib/roadmap-store'
+import { errorMessage } from '@/lib/error-message'
 
 export const maxDuration = 300
 
@@ -185,7 +186,7 @@ export async function POST(req: NextRequest) {
       candidates: sanitizeDeep(candidates),
     })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     const status = (err as { status?: number })?.status
     if (status === 429) {
       return NextResponse.json({ error: 'Too many requests right now — please wait a moment and try again.' }, { status: 429 })
@@ -211,7 +212,7 @@ export async function PATCH(req: NextRequest) {
     const items = await setItemStatus(supabase, user.id, skill, status as CareerItemStatus)
     return NextResponse.json({ items })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

@@ -20,6 +20,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { unlinkClientContact } from "@/lib/agency/client-auth"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 15
 
@@ -56,7 +57,7 @@ export async function DELETE(
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

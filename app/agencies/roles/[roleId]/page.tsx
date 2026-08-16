@@ -15,6 +15,7 @@ import {
   ArrowUpRight, Banknote, Briefcase, ChevronUp, FileText,
   Flame, Highlighter, MapPin, Tag, Target, Users,
 } from "lucide-react"
+import { errorMessage } from "@/lib/error-message"
 
 type Step = "intake" | "parse" | "candidates" | "screening" | "compare" | "submission"
 
@@ -260,7 +261,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       if (!res.ok) throw new Error(body?.error || "That did not save.")
       setMatching(body.matching)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(errorMessage(e))
     } finally {
       setBusy(null)
     }
@@ -346,7 +347,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         filled: body.filled ?? [],
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorMessage(err))
     } finally {
       setBusy(null)
     }
@@ -377,7 +378,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       setPaste("")
       await loadCandidates()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorMessage(err))
     } finally {
       setBusy(null)
     }
@@ -527,7 +528,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       })
       setPreviewFormat(format as "document" | "email" | "portal")
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorMessage(err))
     } finally {
       setBusy(null)
     }

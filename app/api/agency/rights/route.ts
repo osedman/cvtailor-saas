@@ -22,6 +22,7 @@ import {
   requireAgencyContext,
   writeAudit,
 } from "@/lib/agency/db"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 60
 
@@ -60,7 +61,7 @@ export async function GET() {
     })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }
@@ -134,7 +135,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ outcome, erased })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

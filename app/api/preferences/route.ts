@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { toTemplateId, CV_TEMPLATES } from '@/lib/cv-templates'
+import { errorMessage } from '@/lib/error-message'
 
 export const maxDuration = 10
 
@@ -22,7 +23,7 @@ export async function GET() {
     // product must degrade to the default, never render an undefined token set.
     return NextResponse.json({ cvTemplate: toTemplateId(data?.cv_template) })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
@@ -48,7 +49,7 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ cvTemplate: requested })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

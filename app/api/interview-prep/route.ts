@@ -3,6 +3,7 @@ import { anthropic, INTERVIEW_PREP_TOOL } from '@/lib/anthropic'
 import { createClient } from '@/lib/supabase/server'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { errorMessage } from '@/lib/error-message'
 
 export const maxDuration = 60
 
@@ -52,7 +53,7 @@ ${jobDescription}`,
 
     return NextResponse.json(sanitizeDeep(toolUse.input))
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     console.error('[interview-prep] error:', msg)
     return NextResponse.json({ error: msg }, { status: 500 })
   }

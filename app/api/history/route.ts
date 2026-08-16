@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { errorMessage } from '@/lib/error-message'
 
 export const maxDuration = 10
 
@@ -19,7 +20,7 @@ export async function GET() {
     if (error) throw error
     return NextResponse.json({ history: data ?? [] })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

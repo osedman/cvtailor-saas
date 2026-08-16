@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { errorMessage } from '@/lib/error-message'
 
 export const maxDuration = 30
 
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ text })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     console.error('[parse-cv] error:', msg)
     return NextResponse.json(
       { error: `Failed to parse file: ${msg}. Please copy and paste your CV text instead.` },

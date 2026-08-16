@@ -33,6 +33,7 @@ import { toast } from "sonner"
 import { Header } from "@/components/cv-tailor/header"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { FoundRole } from "@/lib/matching/found"
+import { errorMessage } from "@/lib/error-message"
 
 const HOW_IT_WORKS = [
   "There is no job board — roles come to you, matched on your evidence.",
@@ -115,7 +116,7 @@ export default function FoundPage() {
     } catch (err) {
       // A failed load must not read as an empty one — "nothing found you" is
       // a statement about the person's job search, and it had better be true.
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorMessage(err))
       setFound(null)
     } finally {
       setLoading(false)
@@ -155,7 +156,7 @@ export default function FoundPage() {
         setSelected(null)
         void load()
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : String(err))
+        toast.error(errorMessage(err))
       }
     },
     [load]
@@ -170,7 +171,7 @@ export default function FoundPage() {
       setManifest(data.manifest)
       setManifestFor(id)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(errorMessage(err))
     } finally {
       setApplyBusy(false)
     }
@@ -188,7 +189,7 @@ export default function FoundPage() {
       setManifestFor(null)
       void load()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(errorMessage(err))
     } finally {
       setApplyBusy(false)
     }

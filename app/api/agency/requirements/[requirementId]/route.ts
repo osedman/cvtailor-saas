@@ -12,6 +12,7 @@ import {
   updateRequirement,
 } from "@/lib/agency/db"
 import type { Weight } from "@/lib/agency/types"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 15
 
@@ -52,7 +53,7 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }
@@ -73,7 +74,7 @@ export async function DELETE(
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

@@ -31,6 +31,7 @@ import {
 } from "@/lib/agency/db"
 import { createJob, extractFileText, finishJob } from "@/lib/agency/ingest"
 import type { Weight } from "@/lib/agency/types"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 300
 
@@ -280,13 +281,13 @@ export async function POST(
       jobId,
       "failed",
       "model_error",
-      error instanceof Error ? error.message.slice(0, 500) : String(error)
+      errorMessage(error).slice(0, 500)
     )
     if (error instanceof AgencyAccessError) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

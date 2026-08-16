@@ -25,6 +25,7 @@ import { requireAgencyContext } from "@/lib/agency/db"
 import { computeScore, type ScoringBaselines } from "@/lib/agency/scoring"
 import type { Strength, Weight } from "@/lib/agency/types"
 import { getHatsHeld } from "@/lib/hat-routing"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
 
@@ -533,7 +534,7 @@ export async function GET() {
     })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

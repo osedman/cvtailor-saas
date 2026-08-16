@@ -9,6 +9,7 @@ import { loadProvenSkills } from '@/lib/roadmap-store'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { loadTailorBrief, type TailorBrief } from '@/lib/matching/tailor-brief'
+import { errorMessage } from '@/lib/error-message'
 
 export const maxDuration = 300
 
@@ -419,7 +420,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ result, historyId, compressed, scoreDelta, linked })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     const status = (err as { status?: number })?.status
     console.error('[tailor] error:', status ?? '', msg)
 

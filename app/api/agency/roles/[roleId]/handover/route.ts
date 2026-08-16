@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/error-message"
 /**
  * Generate and hand over the pack.
  *
@@ -23,7 +24,7 @@ function authFail(f: "unauthenticated" | "no_agency") {
 function fail(e: unknown) {
   if (e instanceof AgencyAccessError) return NextResponse.json({ error: e.message }, { status: 403 })
   return NextResponse.json(
-    { error: e instanceof Error ? e.message : String(e) },
+    { error: errorMessage(e) },
     { status: 500 }
   )
 }

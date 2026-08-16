@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { requireAgencyContext } from "@/lib/agency/db"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 15
 
@@ -34,7 +35,7 @@ export async function GET() {
     return NextResponse.json({ contacts: data ?? [] })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ contact: data }, { status: 201 })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

@@ -9,6 +9,7 @@ import {
   validateShareSettings,
   type ShareSettings,
 } from '@/lib/career-arc-share'
+import { errorMessage } from '@/lib/error-message'
 
 /**
  * Owner-side management of the Career Arc share link (rebuild stage 3).
@@ -73,7 +74,7 @@ export async function GET() {
     if (error) throw error
     return NextResponse.json({ share: data ? shape(data as ShareRow) : null })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
+    return NextResponse.json({ error: errorMessage(err) }, { status: 500 })
   }
 }
 
@@ -108,7 +109,7 @@ export async function POST() {
     if (error) throw error
     return NextResponse.json({ share: shape(data as ShareRow) })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
+    return NextResponse.json({ error: errorMessage(err) }, { status: 500 })
   }
 }
 
@@ -193,6 +194,6 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ error: `Unknown action "${action}".` }, { status: 400 })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
+    return NextResponse.json({ error: errorMessage(err) }, { status: 500 })
   }
 }

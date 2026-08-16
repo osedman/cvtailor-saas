@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { isAdminEmail } from '@/lib/admin'
 import { isMarketEnabled, fetchMarket } from '@/lib/job-market'
+import { errorMessage } from '@/lib/error-message'
 
 export const maxDuration = 30
 
@@ -57,7 +58,7 @@ export async function GET() {
         bodyPreview: text.slice(0, 200),
       }
     } catch (err) {
-      directProbe = { threw: err instanceof Error ? err.message : String(err) }
+      directProbe = { threw: errorMessage(err) }
     }
   }
 
@@ -69,7 +70,7 @@ export async function GET() {
       ? { returned: 'data', totalRoles: m.totalRoles, hasBand: !!m.band, jobs: m.jobs.length }
       : { returned: 'null' }
   } catch (err) {
-    viaFetchMarket = { threw: err instanceof Error ? err.message : String(err) }
+    viaFetchMarket = { threw: errorMessage(err) }
   }
 
   return NextResponse.json({ env, directProbe, viaFetchMarket })

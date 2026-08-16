@@ -24,6 +24,7 @@ import {
 import { getAppOrigin } from "@/lib/site-url"
 import { recomputeAndStore } from "@/lib/agency/rescore"
 import { probeAreasForClient } from "@/lib/agency/probes"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 60
 
@@ -54,7 +55,7 @@ export async function GET(
     return NextResponse.json({ submissions: data ?? [] })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }
@@ -283,7 +284,7 @@ export async function POST(
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { listBriefsForAgency } from "@/lib/agency/briefs"
 import type { BriefStatus } from "@/lib/agency/types"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 15
 
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

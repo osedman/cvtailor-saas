@@ -19,6 +19,7 @@ import {
 } from "@/lib/agency/db"
 import { applyOverrides, loadScoringState, recomputeAndStore } from "@/lib/agency/rescore"
 import type { Strength } from "@/lib/agency/types"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
 
@@ -63,7 +64,7 @@ export async function GET(
     return NextResponse.json({ review: review.data, overrides, score: score.data })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }
@@ -154,7 +155,7 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }
@@ -195,7 +196,7 @@ export async function DELETE(
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

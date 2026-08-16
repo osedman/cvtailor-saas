@@ -15,6 +15,7 @@
 import { createHash } from "crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { agencyAdmin, writeAudit } from "@/lib/agency/db"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 15
 
@@ -74,7 +75,7 @@ export async function GET(
     })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }
@@ -150,7 +151,7 @@ export async function POST(
     return NextResponse.json({ recorded: true }, { status: 201 })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

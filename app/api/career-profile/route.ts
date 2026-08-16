@@ -14,6 +14,7 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { auditEvidenceCards, normalizeForMatch, resolveStoredCv } from '@/lib/career-evidence'
 import { remapClaimRedactions } from '@/lib/career-arc-share'
+import { errorMessage } from '@/lib/error-message'
 
 export const maxDuration = 300
 
@@ -75,7 +76,7 @@ export async function GET() {
     if (error) throw error
     return NextResponse.json({ profile: data ?? null })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
@@ -253,7 +254,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ profile: saved, evidence: evidence ?? [] })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     const status = (err as { status?: number })?.status
     if (status === 429) {
       return NextResponse.json({ error: 'Too many requests right now — please wait a moment and try again.' }, { status: 429 })
@@ -294,7 +295,7 @@ export async function PATCH(req: NextRequest) {
     if (error) throw error
     return NextResponse.json({ profile: saved })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

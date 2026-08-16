@@ -26,6 +26,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { acceptBrief, declineBrief } from "@/lib/agency/briefs"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
 
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bri
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

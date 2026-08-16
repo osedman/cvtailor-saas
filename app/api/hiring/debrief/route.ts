@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError } from "@/lib/agency/db"
 import { requireHiringContext } from "@/lib/agency/client-auth"
 import { recordDebrief, type DebriefAnswer } from "@/lib/agency/artifacts"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 15
 
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

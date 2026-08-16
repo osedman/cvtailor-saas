@@ -20,6 +20,7 @@ import {
   scheduleRound,
   setRoundStatus,
 } from "@/lib/agency/rounds"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 15
 
@@ -35,7 +36,7 @@ function fail(error: unknown, fallbackStatus = 500) {
     return NextResponse.json({ error: error.message }, { status: 403 })
   }
   return NextResponse.json(
-    { error: error instanceof Error ? error.message : String(error) },
+    { error: errorMessage(error) },
     { status: fallbackStatus }
   )
 }

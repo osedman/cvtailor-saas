@@ -18,6 +18,7 @@
 import { NextResponse } from "next/server"
 import { requireAgencyContext } from "@/lib/agency/db"
 import { listClientAccess } from "@/lib/agency/client-auth"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 15
 
@@ -38,7 +39,7 @@ export async function GET() {
     return NextResponse.json({ clients })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

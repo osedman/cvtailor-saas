@@ -15,6 +15,7 @@ import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { requestCapture } from "@/lib/agency/consent"
 import { sendEmail } from "@/lib/email"
 import { getAppOrigin } from "@/lib/site-url"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 20
 
@@ -141,7 +142,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

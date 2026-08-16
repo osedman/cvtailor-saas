@@ -3,6 +3,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { isAdminViewer } from '@/lib/admin'
 import { buildAdminInsights, type CourseOpsInput } from '@/lib/admin-insights'
 import type { MetricsRun } from '@/lib/admin-metrics'
+import { errorMessage } from '@/lib/error-message'
 
 export const maxDuration = 30
 
@@ -227,7 +228,7 @@ export async function GET() {
       env: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'unknown',
     })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     console.error('[admin/insights] error:', msg)
     return NextResponse.json({ error: msg }, { status: 500 })
   }

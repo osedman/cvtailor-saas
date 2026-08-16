@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { CV_TEXT_LIMIT, extractFileText, ingestCandidate } from "@/lib/agency/ingest"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 300
 
@@ -65,7 +66,7 @@ export async function GET(
     })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }
@@ -145,7 +146,7 @@ export async function POST(
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

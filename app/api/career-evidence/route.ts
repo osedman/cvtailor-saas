@@ -20,6 +20,7 @@ import {
   resolveStoredCv,
   validateRephrase,
 } from '@/lib/career-evidence'
+import { errorMessage } from '@/lib/error-message'
 
 export const maxDuration = 300
 
@@ -80,7 +81,7 @@ export async function GET() {
 
     return NextResponse.json({ evidence, usage, usedCvCount })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
@@ -209,7 +210,7 @@ export async function PATCH(req: NextRequest) {
     const evidence = await loadEvidence(supabase, user.id)
     return NextResponse.json({ evidence })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     const status = (err as { status?: number })?.status
     if (status === 429) {
       return NextResponse.json({ error: 'Too many requests right now — please wait a moment and try again.' }, { status: 429 })

@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/server"
 import { checkRateLimit, anonRateLimitId } from "@/lib/rate-limit"
 import { CONSENT_SUBJECTS, type ConsentSubject } from "@/lib/matching/limits"
 import { getConsentState, listConsentEvents, setConsent } from "@/lib/matching/preferences"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 10
 
@@ -39,7 +40,7 @@ export async function GET() {
     ])
     return NextResponse.json({ ...state, history })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
     const history = await listConsentEvents(user.id)
     return NextResponse.json({ ...state, history })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

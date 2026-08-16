@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeJobUrl } from '@/lib/job-url'
+import { errorMessage } from '@/lib/error-message'
 
 export const maxDuration = 30
 
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ text })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     console.error('[scrape-job] error:', msg)
     return NextResponse.json({
       error: msg.includes('timed out') || msg.includes('timeout')

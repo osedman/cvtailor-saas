@@ -16,6 +16,7 @@ import { createAdminClient } from "@/lib/supabase/server"
 import { sendEmail } from "@/lib/email"
 import { agencyAdmin, requireAgencyContext, writeAudit } from "@/lib/agency/db"
 import { getBusinessOrigin } from "@/lib/site-url"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
 
@@ -56,7 +57,7 @@ export async function GET() {
     })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }
@@ -141,7 +142,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ added: true, role }, { status: 201 })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }
@@ -199,7 +200,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ updated: patch })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

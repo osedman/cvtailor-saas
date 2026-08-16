@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { listRecipientsForRole, revokeRecipient } from "@/lib/agency/recipients"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 15
 
@@ -36,7 +37,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

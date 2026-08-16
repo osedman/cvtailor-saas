@@ -32,6 +32,7 @@ import {
 import { sendEmail } from "@/lib/email"
 import { getBusinessOrigin } from "@/lib/site-url"
 import { anonRateLimitId, checkRateLimit } from "@/lib/rate-limit"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
 
@@ -199,7 +200,7 @@ export async function POST(
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }
@@ -238,7 +239,7 @@ export async function DELETE(
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: 500 }
     )
   }

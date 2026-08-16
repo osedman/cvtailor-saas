@@ -29,6 +29,7 @@ import { toast } from "sonner"
 import { Header } from "@/components/cv-tailor/header"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { ConsentSubject } from "@/lib/matching/limits"
+import { errorMessage } from "@/lib/error-message"
 
 interface ConsentEvent {
   subject: ConsentSubject
@@ -112,7 +113,7 @@ export default function SettingsPage() {
       // A failed load must not read as an empty one — an unset switch and an
       // unreachable server look identical otherwise, and one of those is a
       // statement about consent.
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorMessage(err))
       setState(null)
     } finally {
       setLoading(false)
@@ -144,7 +145,7 @@ export default function SettingsPage() {
             : "Turned off. Nothing further will be shared."
         )
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : String(err))
+        toast.error(errorMessage(err))
       } finally {
         setBusy(null)
       }

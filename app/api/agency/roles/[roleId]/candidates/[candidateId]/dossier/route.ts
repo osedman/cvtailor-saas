@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/error-message"
 /**
  * The living dossier for one candidate on one role.
  *
@@ -32,7 +33,7 @@ export async function GET(
       return NextResponse.json({ error: e.message }, { status: 403 })
     }
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
+      { error: errorMessage(e) },
       { status: 500 }
     )
   }
