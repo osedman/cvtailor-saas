@@ -11,11 +11,13 @@
  * the scan will not overwrite, the shared assessment module), so if the
  * schema changes the copy must change with it — and vice versa.
  *
- * Tailor and Apply render DISABLED with a title saying why, per the repo
- * precedent ("Fill from transcript"): the apply route — consent event first,
- * itemised disclosure manifest, the bundle crossing the wall — does not exist
- * yet, and a control whose backend does not exist must say so rather than
- * pretend.
+ * Applying is real: a manifest sheet (GET /api/found/[id]/apply) shows
+ * exactly what would be shared, the confirm POSTs with an EMPTY body — the
+ * server recomputes the payload, so the sheet and the share cannot differ —
+ * and the button says "Send this to {agency}", not "Apply", per the frame
+ * decision. Only "Tailor my CV to this role" is still disabled with its
+ * reason, per the Fill-from-transcript precedent: the tailor-first flow is
+ * its own integration and a control must not pretend.
  *
  * The score displays as "N% match before tailoring" — the unreviewed,
  * un-overridden number, same as the recruiter's threshold means. MISSING
@@ -75,6 +77,25 @@ export default function FoundPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const seenSent = useRef<Set<string>>(new Set())
+  // The apply flow: manifest fetched → sheet shown → confirmed → done panel.
+  // The POST body is empty; the server recomputes everything, so the sheet
+  // and the share cannot be two different things.
+  const [manifest, setManifest] = useState<{
+    sharedWith: string
+    roleTitle: string
+    retentionDays: number
+    name: string
+    email: string | null
+    evidenceCardCount: number
+    evidenceMap: Array<{ ref: string; text: string; strength: string; quote: string | null }>
+    score: number
+  } | null>(null)
+  const [manifestFor, setManifestFor] = useState<string | null>(null)
+  const [applyBusy, setApplyBusy] = useState(false)
+  const [appliedResult, setAppliedResult] = useState<{
+    candidateRef: string
+    rightsPath: string
+  } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -136,8 +157,41 @@ export default function FoundPage() {
     [load]
   )
 
+  const openManifest = useCallback(async (id: string) => {
+    setApplyBusy(true)
+    try {
+      const res = await fetch(`/api/found/${id}/apply`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || "Could not prepare the application.")
+      setManifest(data.manifest)
+      setManifestFor(id)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setApplyBusy(false)
+    }
+  }, [])
+
+  const confirmApply = useCallback(async () => {
+    if (!manifestFor) return
+    setApplyBusy(true)
+    try {
+      const res = await fetch(`/api/found/${manifestFor}/apply`, { method: "POST" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || "That did not send.")
+      setAppliedResult({ candidateRef: data.candidateRef, rightsPath: data.rightsPath })
+      setManifest(null)
+      setManifestFor(null)
+      void load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setApplyBusy(false)
+    }
+  }, [manifestFor, load])
+
   const active = found?.find((f) => f.id === selected) ?? null
-  const open = (found ?? []).filter((f) => f.state === "new" || f.state === "seen")
+  const open = (found ?? []).filter((f) => f.state !== "dismissed")
   const isLive = active?.role.status === "live"
 
   if (!authLoading && !user) {
@@ -151,7 +205,106 @@ export default function FoundPage() {
           <a className="ns-btn ns-btn-primary mt-6" href="/login?next=%2Ffound">
             Sign in
           </a>
-        </main>
+  
+        {/* ── the consent sheet: Art 13 at the moment of applying ───────
+            Everything named here is exactly what the server will share; the
+            confirm sends no body, so the two cannot diverge. The button names
+            the agency — "Send this to X", never a generic "Apply". */}
+        {manifest && (
+          <div className="ns-scrim" role="dialog" aria-modal="true" aria-label="What applying shares">
+            <div
+              className="w-full max-w-lg rounded-2xl border p-6 max-h-[85vh] overflow-y-auto"
+              style={{ background: "var(--ns-paper)", borderColor: "var(--ns-border)" }}
+            >
+              <p className="t-eyebrow">Before anything is shared</p>
+              <h2 className="t-title mt-1.5 text-xl">
+                Send your application to {manifest.sharedWith}?
+              </h2>
+              <p className="t-body mt-2" style={{ color: "var(--ns-ink-70)" }}>
+                For {manifest.roleTitle} — this role only, never a searchable pool. They receive:
+              </p>
+              <ul className="mt-3 space-y-1.5">
+                <li className="t-small">
+                  · Your name{manifest.email ? " and email" : ""} — {manifest.name}
+                  {manifest.email ? ` · ${manifest.email}` : ""}
+                </li>
+                <li className="t-small">
+                  · Your evidence bank as a profile ({manifest.evidenceCardCount} claims, your own
+                  wording)
+                </li>
+                <li className="t-small">
+                  · The evidence map for this role (
+                  {manifest.evidenceMap.filter((e) => e.strength !== "missing").length} backed,{" "}
+                  {manifest.evidenceMap.filter((e) => e.strength === "missing").length} shown as
+                  missing)
+                </li>
+                <li className="t-small">· Your match score ({Math.round(manifest.score)}%)</li>
+              </ul>
+              <p className="t-small mt-3" style={{ color: "var(--ns-ink-55)" }}>
+                They keep it for {manifest.retentionDays} days after the role closes, and you can
+                exercise your rights over it at any time — the link comes with your confirmation.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2.5">
+                <button
+                  className="ns-btn ns-btn-primary"
+                  onClick={() => void confirmApply()}
+                  disabled={applyBusy}
+                >
+                  {applyBusy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                  Send this to {manifest.sharedWith}
+                </button>
+                <button
+                  className="ns-btn ns-btn-secondary"
+                  onClick={() => {
+                    setManifest(null)
+                    setManifestFor(null)
+                  }}
+                  disabled={applyBusy}
+                >
+                  Not now
+                </button>
+              </div>
+              <p className="t-small mt-3" style={{ color: "var(--ns-ink-40)" }}>
+                Closing this shares nothing.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── the notice of exactly what was shared ───────────────────── */}
+        {appliedResult && (
+          <div className="ns-scrim" role="dialog" aria-modal="true" aria-label="Application sent">
+            <div
+              className="w-full max-w-lg rounded-2xl border p-6"
+              style={{ background: "var(--ns-paper)", borderColor: "var(--ns-border)" }}
+            >
+              <p className="t-eyebrow">Sent</p>
+              <h2 className="t-title mt-1.5 text-xl">You are in their pipeline as {appliedResult.candidateRef}.</h2>
+              <p className="t-body mt-2" style={{ color: "var(--ns-ink-70)" }}>
+                Exactly what you confirmed was shared — nothing else. This is your rights link for
+                that record: access, correction, or erasure, no account needed. Save it; it is
+                shown once.
+              </p>
+              <p className="t-mono mt-3 break-all rounded-lg border px-3 py-2" style={{ background: "#fdfcf9", borderColor: "var(--ns-border)" }}>
+                {typeof window !== "undefined" ? window.location.origin : ""}{appliedResult.rightsPath}
+              </p>
+              <div className="mt-5 flex gap-2.5">
+                <button
+                  className="ns-btn ns-btn-secondary"
+                  onClick={() =>
+                    navigator.clipboard?.writeText(`${window.location.origin}${appliedResult.rightsPath}`)
+                  }
+                >
+                  Copy link
+                </button>
+                <button className="ns-btn ns-btn-primary" onClick={() => setAppliedResult(null)}>
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
       </div>
     )
   }
@@ -324,26 +477,29 @@ export default function FoundPage() {
                       </p>
                       <p className="t-small mt-0.5">match before tailoring</p>
                     </div>
-                    {isLive && (
+                    {isLive && active.state !== "applied" && (
                       <div className="flex flex-wrap gap-2.5">
-                        {/* Disabled until the apply route exists: consent event
-                            first, itemised manifest, then the bundle crosses
-                            the wall. A control must not pretend. */}
+                        {/* Tailor-first is its own integration; disabled with
+                            the reason, per the Fill-from-transcript precedent. */}
                         <button
-                          className="ns-btn ns-btn-primary"
+                          className="ns-btn ns-btn-secondary"
                           disabled
-                          title="Not built yet. Applying will be an explicit, itemised consent when it ships — nothing is shared until then."
+                          title="Not built yet — tailoring against this role's frozen requirements ships next. Applying with your evidence bank works today."
                         >
                           Tailor my CV to this role →
                         </button>
                         <button
-                          className="ns-btn ns-btn-secondary"
-                          disabled
-                          title="Not built yet. Applying will be an explicit, itemised consent when it ships — nothing is shared until then."
+                          className="ns-btn ns-btn-primary"
+                          onClick={() => void openManifest(active.id)}
+                          disabled={applyBusy}
                         >
-                          Apply with current CV
+                          {applyBusy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                          Apply with my evidence
                         </button>
                       </div>
+                    )}
+                    {active.state === "applied" && (
+                      <span className="ns-chip ns-chip-missing">APPLIED</span>
                     )}
                   </div>
                   <p className="t-small mt-4 max-w-[70ch]">
@@ -361,9 +517,11 @@ export default function FoundPage() {
                 </div>
 
                 <div className="mt-6 flex flex-wrap items-center gap-3">
+                  {active.state !== "applied" && (
                   <button className="ns-btn ns-btn-secondary" onClick={() => void dismiss(active.id)}>
                     Not interested
                   </button>
+                  )}
                   <span className="t-small">
                     Dismissing shares nothing. Pause recommendations any time in{" "}
                     <Link href="/settings" className="underline">

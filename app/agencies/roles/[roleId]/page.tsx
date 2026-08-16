@@ -963,6 +963,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                               <span className="ag-prof-name">
                                 {c.full_name}
                                 {c.duplicate_of && <span className="ag-pill ag-pill-warn" style={{ marginLeft: 8 }}>Also in your pipeline</span>}
+                                {/* Arrival channel, per the applicant-pool frame: matched
+                                    applicants chose to be here and arrive pre-evidenced.
+                                    Badged, ranked with everyone else, never separated. */}
+                                {c.source === "matched" && <span className="ag-pill" style={{ marginLeft: 8 }}>Matched · applied themselves</span>}
                               </span>
                               <span className="ag-meta">{c.ref} · {c.current_title || "Unknown role"}</span>
                             </span>

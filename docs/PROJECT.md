@@ -1479,4 +1479,43 @@ verified by running them.
 **Not yet run green**: it needs the staging service key, which only Ose can
 supply. Run command is in the file header.
 
+---
+
+## 📮 Applying — the bundle crosses the wall, atomically (16 Aug 2026)
+
+The last unbuilt piece of the matching loop. Migration 19 (applied to
+staging, structurally verified, behaviourally proven with a rolled-back
+probe): `public.apply_matched_recommendation()` — ONE transaction in the
+spirit of `purge_candidate()`, the single path by which a matched person
+becomes a candidate. Claim first (the concurrency lock: a double-click aborts
+whole, and the rollback erases the consent event too — a consent record for
+an application that did not happen would itself be wrong), then consent event
+with the manifest, candidate (`source='matched'`), identities + duplicate
+detection, evidence (`origin='matched'`), score breakdown with a
+recomputed-by-construction inputs_hash, audit.
+
+Deliberate absences and divergences, each pinned by a test:
+- **No `candidate_notices` row.** Art 13 at the moment of applying — the
+  manifest IS the notice. (Probe: notices=0.)
+- **No model call.** What they confirmed is what crosses.
+- **No candidate limit.** MAX_CANDIDATES_PER_ROLE on this path would be
+  auto-rejection by arithmetic.
+- **Suppression is an audited override, not a block** — the person who once
+  objected is choosing to apply.
+- **Stale requirements refuse.** Live requirements drifted from the snapshot
+  → 409, nothing shared; the recruiter's republish (which rescans) is the fix.
+
+The route: GET `/api/found/[id]/apply` returns the manifest; POST executes
+with an EMPTY body — the server recomputes the payload, so the sheet and the
+share cannot be two different things. `/found` gained the consent sheet
+("Send this to {agency}", never "Apply"), the shown-once rights link on
+success, and APPLIED state. The recruiter's candidate list badges
+`Matched · applied themselves`. Tailor-first remains disabled with its
+reason — its own integration, next.
+
+RPC probe on staging (all fixtures rolled back): CAN-01 minted, candidate=1,
+evidence=2 origin matched, notices=0, consent=1 with manifest, state=applied,
+duplicate apply REFUSED. Integration suite extended with the apply chapter
+(fixture fix: `agencies.slug` is NOT NULL). 679 tests, build clean.
+
 _Last updated: 16 August 2026_

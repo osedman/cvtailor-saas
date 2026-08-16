@@ -303,6 +303,11 @@ export async function runMatchScan(roleId: string, queuedJobId?: string): Promis
               confidence_completeness: score.confidence_completeness,
               must_have_hit: score.must_have_hit,
               must_have_total: score.must_have_total,
+              // The apply path reconstructs the scan's baselines from this
+              // breakdown to recompute an inputs_hash the recruiter side can
+              // verify. confidence_level is the one input the categories
+              // alone cannot recover.
+              confidence_level: score.confidence_level,
             },
             evidence: evidenceMap,
             updated_at: new Date().toISOString(),

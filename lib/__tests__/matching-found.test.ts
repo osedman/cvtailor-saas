@@ -134,15 +134,30 @@ describe("the page keeps the frame's promises", () => {
     expect(page).toMatch(/MISSING — nothing in your bank for this yet/)
   })
 
-  it("apply and tailor are disabled with the reason, not hidden or faked", () => {
-    // Repo precedent: a control whose backend does not exist renders
-    // disabled with a title that says so.
+  it("only tailor-first remains disabled, with its reason", () => {
+    // Applying is real now; the tailor-first flow is its own integration and
+    // keeps the Fill-from-transcript precedent: disabled with a title.
     const disabledCount = (page.match(/disabled\s*\n?\s*title="Not built yet/g) ?? []).length
-    expect(disabledCount).toBe(2)
+    expect(disabledCount).toBe(1)
+    expect(page).toMatch(/Apply with my evidence/)
+  })
+
+  it("the confirm button names the agency, not a generic Apply", () => {
+    // Frame decision: "Send this to Halcyon Search", never "Apply".
+    expect(page).toMatch(/Send this to \{manifest\.sharedWith\}/)
+  })
+
+  it("the apply POST carries no body — the server recomputes everything", () => {
+    expect(page).toMatch(/\{ method: "POST" \}/)
+  })
+
+  it("an applied recommendation cannot be dismissed or re-applied", () => {
+    expect(page).toMatch(/active\.state !== "applied" && \(/)
+    expect(page).toMatch(/active\.state === "applied" && \(/)
   })
 
   it("a closed role loses the apply path and says why", () => {
-    expect(page).toMatch(/\{isLive && \(/)
+    expect(page).toMatch(/\{isLive && active\.state !== "applied" && \(/)
     expect(page).toMatch(/This role has closed\. Your record of it stays yours\./)
   })
 

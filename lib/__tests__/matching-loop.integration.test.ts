@@ -96,6 +96,15 @@ describe.skipIf(!RUN)("the matching loop, on the real database", () => {
       memberships: [],
     }) as any
 
+  const recId = async (): Promise<string> => {
+    const { data } = await pub
+      .from("role_recommendations")
+      .select("id")
+      .eq("published_role_id", ids.publishedRoleId)
+      .single()
+    return data.id
+  }
+
   beforeAll(async () => {
     // Explicit credentials only. The app's own env files are deliberately NOT
     // read: on first run they pointed at production.
@@ -130,7 +139,7 @@ describe.skipIf(!RUN)("the matching loop, on the real database", () => {
 
     const { data: agency, error: aErr } = await admin
       .from("agencies")
-      .insert({ name: "ZZ Integration Agency" })
+      .insert({ name: "ZZ Integration Agency", slug: "zz-integration-agency" })
       .select("id")
       .single()
     if (aErr) throw aErr
@@ -187,6 +196,7 @@ describe.skipIf(!RUN)("the matching loop, on the real database", () => {
     await admin.from("role_matching").delete().eq("role_id", ids.roleId)
     await admin.from("ingestion_jobs").delete().eq("role_id", ids.roleId)
     await admin.from("audit_log").delete().eq("agency_id", ids.agencyId)
+    await admin.from("candidates").delete().eq("role_id", ids.roleId)
     await admin.from("requirements").delete().eq("role_id", ids.roleId)
     await admin.from("job_roles").delete().eq("id", ids.roleId)
     await admin.from("agencies").delete().eq("id", ids.agencyId)
@@ -295,6 +305,89 @@ describe.skipIf(!RUN)("the matching loop, on the real database", () => {
       .eq("published_role_id", ids.publishedRoleId)
       .single()
     expect(rec.state).toBe("new")
+  }, 60_000)
+
+
+  it("applies: one transaction — consent event, candidate, evidence, score, audit; no notice", async () => {
+    // Put the published threshold back where the recommendation can be
+    // applied against a fresh snapshot+hash (the 90-publish above refreshed
+    // the snapshot; requirements unchanged so the hash still matches).
+    const { applyToRole } = await import("@/lib/matching/apply")
+
+    const result = await applyToRole(ids.userId, await recId())
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.result.candidateRef).toMatch(/^CAN-/)
+    expect(result.result.rightsPath).toMatch(/^\/rights\//)
+
+    // The candidate bundle, all of it.
+    const { data: cand } = await admin
+      .from("candidates")
+      .select("id, source, source_detail, cv_text, parse_status, ingested_by")
+      .eq("role_id", ids.roleId)
+      .single()
+    expect(cand.source).toBe("matched")
+    expect(cand.ingested_by).toBe(ids.userId)
+    expect(cand.cv_text).toContain("Ran the ZZ integration workshops end to end")
+
+    const { data: ev } = await admin
+      .from("candidate_evidence")
+      .select("strength, quote, origin")
+      .eq("candidate_id", cand.id)
+    expect(ev).toHaveLength(2)
+    expect(ev.every((e: { origin: string }) => e.origin === "matched")).toBe(true)
+
+    const { data: sb } = await admin
+      .from("score_breakdowns")
+      .select("overall, inputs_hash, engine_version")
+      .eq("candidate_id", cand.id)
+      .single()
+    expect(Number(sb.overall)).toBeGreaterThan(0)
+    expect(sb.inputs_hash).toMatch(/^[0-9a-f]{64}$/)
+
+    // THE ABSENCE THAT MATTERS: no Art 14 notice. The manifest was the notice.
+    const { count: notices } = await admin
+      .from("candidate_notices")
+      .select("id", { count: "exact", head: true })
+      .eq("candidate_id", cand.id)
+    expect(notices).toBe(0)
+
+    // The consent ledger holds the manifest.
+    const { data: consent } = await pub
+      .from("matching_consent_events")
+      .select("subject, action, manifest")
+      .eq("user_id", ids.userId)
+      .eq("subject", "application")
+    expect(consent).toHaveLength(1)
+    expect(consent[0].manifest.sharedWith).toBe("ZZ Integration Agency")
+
+    // The recommendation is terminally applied.
+    const { data: rec } = await pub
+      .from("role_recommendations")
+      .select("state, applied_at")
+      .eq("id", await recId())
+      .single()
+    expect(rec.state).toBe("applied")
+    expect(rec.applied_at).toBeTruthy()
+  }, 60_000)
+
+  it("a second apply aborts whole — no duplicate candidate, no duplicate consent", async () => {
+    const { applyToRole } = await import("@/lib/matching/apply")
+    const second = await applyToRole(ids.userId, await recId())
+    expect(second).toEqual({ ok: false, reason: "settled" })
+
+    const { count: cands } = await admin
+      .from("candidates")
+      .select("id", { count: "exact", head: true })
+      .eq("role_id", ids.roleId)
+    expect(cands).toBe(1)
+
+    const { count: consents } = await pub
+      .from("matching_consent_events")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", ids.userId)
+      .eq("subject", "application")
+    expect(consents).toBe(1)
   }, 60_000)
 
   it("pausing stops visibility without touching the person's record", async () => {
