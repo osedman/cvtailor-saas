@@ -1772,4 +1772,49 @@ existing sweep deletes the audio on its own), then per-round enrichment
 dossier from two layers into five. Still unbuilt, still gated. No UI for
 upload yet either: the route exists, the control does not.
 
+## 📝 Interview capture, part 2: transcription (17 Aug 2026)
+
+Still behind the gate. **Migration 22** reuses `agency.ingestion_jobs` — the
+queue already carrying jd_parse, cv_parse, score and match_scan — rather than
+growing a second job system with its own retry semantics to get subtly wrong.
+It gains `round_id`, because candidate_id + role_id cannot say *which*
+interview when a candidate sits in several rounds. A partial unique index
+allows one live transcribe job per round.
+
+**NO REAL VENDOR IS WIRED IN, and that is the design.** Sending a candidate's
+voice to a third party makes that party a **sub-processor** — a decision for
+Ose and the lawyer, named in the DPA, not one this module gets to make. So
+`TranscriptionProvider` is an interface with a synthetic implementation, and
+an unrecognised `TRANSCRIPTION_PROVIDER` **throws** rather than falling back,
+because the failure mode of guessing here is audio leaving the building
+unannounced. The whole pipeline is built and drillable today; the day a vendor
+is named it is one adapter.
+
+**Diarization is not optional**, and it is a fairness property, not a feature:
+only the CANDIDATE's words may become the candidate's evidence. Attributing an
+interviewer's question ("so you led the migration?") to the candidate would be
+a fairness bug wearing a data-modelling costume. Any vendor that cannot return
+speaker-labelled segments is not a candidate vendor.
+
+**Which speaker IS the candidate is a human's answer.** Diarization returns
+numbers; picking one by longest-talker would be inference about a person by
+the back door. So verification is not a rubber stamp — a recruiter confirms
+the transcript reads correctly AND names the candidate's speaker, and that
+single act stamps `verified_at`, which is exactly what releases the audio to
+the deletion sweep. **"The recording is deleted once the transcript is
+checked" and the act of checking it are deliberately the same event.**
+Transcribing never stamps it, and a failed run leaves the audio alone —
+deleting on failure would destroy the only copy of something the candidate
+agreed to have transcribed once.
+
+Drilled on staging, rolled back: a second live job per round is refused
+(`unique_violation`); **0 sweepable after transcription, 1 after a human
+verifies**. 738 tests, build clean.
+
+**Left in this chain:** per-round enrichment (transcript → evidence rows,
+`origin='round'`, rescore) — the part that turns the dossier from two layers
+into five, and the one that has to honour `evidence_quote_iff_present` and the
+withdrawal cascade. Plus: still no UI anywhere for upload, transcribe or
+verify — three routes, no controls. And a vendor still has to be chosen.
+
 _Last updated: 17 August 2026_
