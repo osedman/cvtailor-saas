@@ -1725,4 +1725,51 @@ token the stylesheet does not define. `suppressHydrationWarning` added to
 in dark are token-correct and hardcode-free, but no signed-in human has looked
 at them — that wants a pass through /agencies in dark.
 
+## 🎙 Interview capture, part 1: the bucket and the way in (17 Aug 2026)
+
+Built **behind the gate**, against synthetic audio. Nothing here may point at
+a real candidate until the lawyer has read `CONSENT-COPY-DRAFT` §2/§3 and the
+DPIA is done — the point is that the day the gate clears is a day something is
+switched on, not started.
+
+**Migration 21 — `agency-recordings`** (applied to tailr-staging): private,
+audio only, 200MB, and with **no storage policies at all**. `storage.objects`
+has RLS on, so `authenticated` can neither read, write nor list it. Every byte
+moves through a service-role signed URL minted by a route that has already
+checked membership, writer role and capture consent — the audit-coupling rule
+applied to a blob: if the UI can reach it directly, the check can be skipped.
+
+**Audio only, deliberately.** Conference tools export video, and video of a
+candidate's face is a materially larger privacy footprint than their voice —
+indefensible for a feature whose entire argument is verbatim quotes mapped to
+requirements with no inference about the person. A recruiter with an mp4
+extracts the audio; the friction is the point. *(Flagged for Ose: this is a
+product decision, reversible by widening the bucket's mime list.)*
+
+**Upload is two steps**, because tens of megabytes do not fit through a
+serverless route body: `POST` mints a short-lived ticket and writes nothing,
+the browser PUTs straight to storage, `PUT` confirms. The artifact row is
+written **only after the blob is proven present** — a row pointing at nothing
+would put a phantom in the deletion sweep's sights, and that sweep's silence
+is a promise being kept.
+
+**THE gate is `capture_consent_status = 'granted'`**, applied through one
+shared function so mint and confirm cannot drift. A recruiter cannot grant it
+on a candidate's behalf: `recordDecision` takes a raw token and nothing else.
+
+**A latent bug this activated, now fixed:** `recordDebrief`'s update filtered
+on `kind='debrief'`, so against a transcript artifact it matched no rows,
+changed nothing, and still returned success. Unreachable until transcripts
+could exist. A recorded round now refuses a debrief outright.
+
+**Drilled on staging, rolled back:** unverified audio is invisible to the
+sweep (0), verified audio is claimed by it (1), and
+`artifact_recording_iff_transcript` holds. 721 tests, build clean.
+
+**Next in this chain:** transcription (provider, async job, verify → the
+existing sweep deletes the audio on its own), then per-round enrichment
+(transcript → evidence, `origin='round'`, rescore) — the part that turns the
+dossier from two layers into five. Still unbuilt, still gated. No UI for
+upload yet either: the route exists, the control does not.
+
 _Last updated: 17 August 2026_
