@@ -17,6 +17,17 @@ import { join } from "path"
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 
 const lib = read("lib/agency/recordings.ts")
+
+/**
+ * Source scans must read CODE, not prose. These files document their own
+ * prohibitions ("never a path", "no tone or sentiment"), so a naive scan
+ * finds the comment explaining the rule and fails the rule. Strip comments
+ * first — this has now bitten three separate assertions.
+ */
+export const codeOnly = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+
+const libCode = codeOnly(lib)
 const route = read("app/api/agency/rounds/[roundId]/recording/route.ts")
 const migration = read("supabase/migrations/20260817090000_agency_recordings_bucket.sql")
 const artifacts = read("lib/agency/artifacts.ts")
@@ -67,8 +78,10 @@ describe("what the upload path must never do", () => {
   })
 
   it("keeps paths and content out of the audit row", () => {
-    const audit = lib.slice(lib.indexOf("action: \"recording_uploaded\""))
-    expect(audit).not.toMatch(/recording_path|path:/)
+    const audit = libCode.slice(libCode.indexOf('action: "recording_uploaded"'))
+    // Up to the end of the toValue block, which is what actually gets stored.
+    const block = audit.slice(0, audit.indexOf("})") + 2)
+    expect(block).not.toMatch(/recording_path|path:/)
   })
 
   it("cross-tenant rounds read as not found, not forbidden", () => {

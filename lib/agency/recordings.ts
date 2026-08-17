@@ -245,6 +245,100 @@ export async function confirmUpload(
   return { ok: true, artifactId }
 }
 
+// ── Read ──────────────────────────────────────────────────────────────
+
+/**
+ * The five states the capture panel renders, resolved server-side so the UI
+ * never has to infer one from a pile of nullable columns — the place that
+ * decides "is this transcribed yet" should be one place, not every renderer.
+ */
+export type CaptureState =
+  | "no_consent"
+  | "ready"
+  | "uploaded"
+  | "transcribing"
+  | "failed"
+  | "needs_check"
+  | "verified"
+
+export interface CaptureView {
+  state: CaptureState
+  consentStatus: string
+  /** Never the path — the UI has no use for it and it is not the UI's. */
+  hasRecording: boolean
+  audioDeleted: boolean
+  uploadedBytes: number | null
+  segmentCount: number
+  /** Distinct diarization labels; the recruiter picks the candidate's. */
+  speakers: number[]
+  candidateSpeaker: number | null
+  verifiedAt: string | null
+  jobStatus: string | null
+  jobError: string | null
+}
+
+export async function getCaptureState(
+  ctx: AgencyContext,
+  roundId: string
+): Promise<CaptureView | null> {
+  const admin = agencyAdmin()
+
+  const { data: round } = await admin
+    .from("interview_rounds")
+    .select("id, agency_id, capture_consent_status")
+    .eq("id", roundId)
+    .maybeSingle()
+  if (!round || round.agency_id !== ctx.agencyId) return null
+
+  const { data: artifact } = await admin
+    .from("round_artifacts")
+    .select("kind, content, recording_path, recording_deleted_at, verified_at")
+    .eq("round_id", roundId)
+    .maybeSingle()
+
+  const { data: job } = await admin
+    .from("ingestion_jobs")
+    .select("status, error_detail")
+    .eq("round_id", roundId)
+    .eq("kind", "transcribe")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const content = (artifact?.content ?? {}) as {
+    segments?: Array<{ speaker: number }>
+    candidateSpeaker?: number | null
+  }
+  const segments = content.segments ?? []
+  const speakers = [...new Set(segments.map((s) => s.speaker))].sort((a, b) => a - b)
+
+  const consentStatus = round.capture_consent_status as string
+  const transcript = artifact?.kind === "transcript" ? artifact : null
+
+  let state: CaptureState
+  if (consentStatus !== "granted") state = "no_consent"
+  else if (transcript?.verified_at) state = "verified"
+  else if (segments.length > 0) state = "needs_check"
+  else if (job?.status === "failed") state = "failed"
+  else if (job?.status === "queued" || job?.status === "running") state = "transcribing"
+  else if (transcript?.recording_path) state = "uploaded"
+  else state = "ready"
+
+  return {
+    state,
+    consentStatus,
+    hasRecording: Boolean(transcript?.recording_path),
+    audioDeleted: Boolean(transcript?.recording_deleted_at),
+    uploadedBytes: null,
+    segmentCount: segments.length,
+    speakers,
+    candidateSpeaker: content.candidateSpeaker ?? null,
+    verifiedAt: (transcript?.verified_at as string | null) ?? null,
+    jobStatus: (job?.status as string | null) ?? null,
+    jobError: (job?.error_detail as string | null) ?? null,
+  }
+}
+
 /** Not exported to any route yet — the read path lands with transcription. */
 export async function assertRecordingsBucketExists(): Promise<boolean> {
   const admin = agencyAdmin()

@@ -26,6 +26,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { use } from "react"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { InterviewCapture } from "@/components/agency/interview-capture"
 
 interface Candidate {
   id: string
@@ -425,7 +426,8 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
               <p className="ag-field-label" id="booked">Booked</p>
               <div className="ag-stack" style={{ gap: 10 }}>
                 {rounds.map((r) => (
-                  <div key={r.id} className="ag-card ag-booked">
+                  <div key={r.id} style={{ display: "grid", gap: 10 }}>
+                  <div className="ag-card ag-booked">
                     <span className="ag-grow" style={{ minWidth: 0 }}>
                       <span className="ag-meta">
                         {r.candidateRef} · round {r.roundNumber}
@@ -472,6 +474,13 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                         {!askResult.emailed && <code className="ag-ask-url">{askResult.url}</code>}
                       </p>
                     )}
+                  </div>
+                  {/* Capture hangs off the round, not the rail: a cancelled
+                      round has nothing to record, and everything else can
+                      legitimately hold audio once the candidate agrees. */}
+                  {r.status !== "cancelled" && (
+                    <InterviewCapture roundId={r.id} candidateName={r.candidateName} />
+                  )}
                   </div>
                 ))}
               </div>
