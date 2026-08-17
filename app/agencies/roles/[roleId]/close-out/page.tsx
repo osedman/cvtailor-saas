@@ -43,7 +43,10 @@ interface ReferenceRow {
 }
 
 const STATUS_TONE: Record<ReferenceRow["status"], string> = {
-  received: "var(--ag-sage, #5d6e50)",
+  // --ag-sage has never existed (the token is --ag-calm), so this silently
+  // resolved to the hardcoded fallback every time — and that fallback is a
+  // light-ground green.
+  received: "var(--ag-calm)",
   requested: "var(--ag-warn)",
   chasing: "var(--ag-warn)",
   drafted: "var(--ag-ink-3)",

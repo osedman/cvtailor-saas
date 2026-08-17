@@ -423,13 +423,22 @@
  * ladder: coral = breaks today, amber = soon, sage = waiting, no rush. */
 .ag-app { --ag-calm: #6e7a63; --ag-glass: rgba(249, 246, 240, 0.88); }
 
-/* The dashboard runs the mockup's dark theme: same tokens, dark values.
- * Scoped by :has(.agd-main) so only the dashboard (the one screen that
- * renders .agd-main) goes dark — the six step role workflow keeps its
- * light paper until it gets its own dark pass. Every component reads
- * tokens, so ink and paper swap roles and the chips, primary buttons and
- * active nav invert into cream exactly as the mockup's dark mode did. */
-.ag-app:has(.agd-main) {
+/* Dark is now a MODE, not a screen.
+ *
+ * It used to be scoped by :has(.agd-main) — the dashboard was dark and the
+ * workflow was light, whether you liked it or not. Same values now, but
+ * driven by `data-ag-theme` on <html> (set pre-paint by next-themes, so
+ * there is no flash of the wrong theme), and applied only to surfaces that
+ * opted in with `.ag-themed`.
+ *
+ * The `.ag-themed` marker matters: /portal and /rights are `.ag-app` too,
+ * and they are doorways — a candidate opening a rights link has never
+ * touched this toggle and must not inherit a recruiter's preference.
+ *
+ * Every component reads tokens, so ink and paper swap roles and the chips,
+ * primary buttons and active nav invert into cream exactly as the mockup's
+ * dark mode did. */
+[data-ag-theme="dark"] .ag-app.ag-themed {
   --ag-ink: #f6f1e8;
   --ag-ink-2: #cfc5b7;
   --ag-ink-3: #9c9184;
@@ -446,6 +455,14 @@
   --ag-warn: #d9973f;
   --ag-calm: #93a186;
   --ag-glass: rgba(26, 21, 17, 0.88);
+
+  /* These two were missing while dark was dashboard-only, and it did not
+   * show because the dashboard never used them. Now that dark reaches the
+   * dossier and the round delta, the light values — both chosen to be dark
+   * ENOUGH to read on cream — would sit muddy on this ground. Lifted cuts,
+   * same hues. */
+  --ag-coral-text: #ff8368;   /* the readable coral, dark ground */
+  --ag-warn-mark: #e0a250;    /* amber as a dot or bar */
 }
 
 .agd-main { padding: 0 0 96px; }
@@ -999,3 +1016,62 @@
 .ag-setting-row { display: flex; align-items: center; gap: 12px; margin: 14px 0 10px; flex-wrap: wrap; }
 .ag-setting-input { width: 120px; font-variant-numeric: tabular-nums; }
 .ag-setting-save { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* ── Theme toggle ──────────────────────────────────────────────────────
+ * Fixed rather than placed in the sidebar, because ten pages hand-roll
+ * that sidebar and a control duplicated ten times is a control that will
+ * be in nine places in a month. Reads tokens, so it themes itself.
+ * Segmented (light / system / dark) so "system" is reachable — a plain
+ * two-way switch silently drops the option most people actually want. */
+.ag-theme-toggle {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 40;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--ag-border);
+  border-radius: 999px;
+  background: var(--ag-paper);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+.ag-theme-opt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 36px visible, 44px touch target via the inset pseudo below. */
+  width: 36px;
+  height: 36px;
+  position: relative;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ag-ink-3);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color 140ms ease, background 140ms ease;
+}
+.ag-theme-opt::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+}
+.ag-theme-opt:hover { color: var(--ag-ink); }
+.ag-theme-opt.is-active {
+  background: var(--ag-ink);
+  color: var(--ag-paper);
+}
+.ag-theme-opt:focus-visible {
+  outline: 2px solid var(--ag-coral);
+  outline-offset: 2px;
+}
+.ag-theme-icon { width: 15px; height: 15px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-theme-opt { transition: none; }
+}

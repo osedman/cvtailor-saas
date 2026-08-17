@@ -9,6 +9,7 @@
 
 import type { Metadata } from "next"
 import { Fraunces, Geist, Geist_Mono } from "next/font/google"
+import { AgencyShell } from "@/components/agency/agency-shell"
 import "./agencies.css"
 
 const agSans = Geist({ subsets: ["latin"], variable: "--font-ag-sans" })
@@ -23,5 +24,9 @@ export const metadata: Metadata = {
 }
 
 export default function AgenciesLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`ag-app ${agSans.variable} ${agMono.variable} ${agDisplay.variable}`}>{children}</div>
+  return (
+    <AgencyShell className={`${agSans.variable} ${agMono.variable} ${agDisplay.variable}`}>
+      {children}
+    </AgencyShell>
+  )
 }

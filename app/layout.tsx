@@ -27,8 +27,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // suppressHydrationWarning is required by next-themes and scoped to THIS
+  // element's attributes: the agency shell's theme script writes
+  // data-ag-theme and color-scheme onto <html> before React hydrates, so the
+  // server markup legitimately differs. It suppresses nothing else in the tree.
   return (
-    <html lang="en" className="bg-white">
+    <html lang="en" className="bg-white" suppressHydrationWarning>
       <body className={`font-sans antialiased bg-white text-[#1e1813] ${_geist.variable} ${_geistMono.variable}`}>
         <AuthProvider>
           {children}

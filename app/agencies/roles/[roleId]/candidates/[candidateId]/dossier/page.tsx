@@ -36,10 +36,12 @@ import { deltaForRound, type DeltaItem } from "@/lib/agency/round-delta"
 
 /** Provenance ramp, matching the frame: sand → amber → coral → ink. The
  * deeper the colour, the more recently that layer moved the requirement. */
+// Tokens, not literals: these have to follow light/dark, and a hex here
+// stays a light-ground hue on a dark ground.
 const LAYER_TONE: Record<string, string> = {
-  cv: "#b09a7a",
-  screening: "#c97a2f",
-  round: "#dc4f33",
+  cv: "var(--ag-ink-4)",
+  screening: "var(--ag-warn-mark)",
+  round: "var(--ag-coral)",
 }
 
 const STRENGTH_LABEL: Record<string, string> = {
@@ -371,10 +373,10 @@ function RoundDeltaView({ d, n }: { d: Dossier; n: number }) {
         {delta.decision ? ` Decision: ${delta.decision}.` : ""}
       </p>
       <div className="ag-delta-grid">
-        <DeltaLane title={`Added · ${delta.added.length}`} items={delta.added} tone="#5d6e50" />
-        <DeltaLane title={`Changed · ${delta.changed.length}`} items={delta.changed} tone="#a5560b" />
-        <DeltaLane title={`Revisited · ${delta.revisited.length}`} items={delta.revisited} tone="#c6391d" />
-        <DeltaLane title={`Still open · ${delta.stillOpen.length}`} items={delta.stillOpen} tone="#6f675b" />
+        <DeltaLane title={`Added · ${delta.added.length}`} items={delta.added} tone="var(--ag-calm)" />
+        <DeltaLane title={`Changed · ${delta.changed.length}`} items={delta.changed} tone="var(--ag-warn)" />
+        <DeltaLane title={`Revisited · ${delta.revisited.length}`} items={delta.revisited} tone="var(--ag-coral-text)" />
+        <DeltaLane title={`Still open · ${delta.stillOpen.length}`} items={delta.stillOpen} tone="var(--ag-ink-3)" />
       </div>
     </>
   )

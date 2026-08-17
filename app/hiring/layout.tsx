@@ -19,6 +19,7 @@
 
 import type { Metadata } from "next"
 import { Fraunces, Geist, Geist_Mono } from "next/font/google"
+import { AgencyShell } from "@/components/agency/agency-shell"
 import "../agencies/agencies.css"
 import "./hiring.css"
 
@@ -35,6 +36,8 @@ export const metadata: Metadata = {
 
 export default function HiringLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`ag-app ${agSans.variable} ${agMono.variable} ${agDisplay.variable}`}>{children}</div>
+    <AgencyShell className={`${agSans.variable} ${agMono.variable} ${agDisplay.variable}`}>
+      {children}
+    </AgencyShell>
   )
 }
