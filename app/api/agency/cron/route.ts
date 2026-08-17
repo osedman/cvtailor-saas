@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { agencyAdmin } from "@/lib/agency/db"
 import { sendOneNotice } from "@/lib/agency/notices"
 import { runQueuedMatchScans } from "@/lib/matching/scan"
+import { runQueuedTranscriptions } from "@/lib/agency/transcription"
 import {
   RECORDING_BUCKET,
   listRecordingsDueForDeletion,
@@ -55,6 +56,7 @@ async function run(req: NextRequest) {
     notices_suppressed: 0,
     notices_failed: 0,
     match_scans_run: 0,
+    transcriptions_run: 0,
   }
 
   // ---- 1. Retention purge -----------------------------------
@@ -163,6 +165,20 @@ async function run(req: NextRequest) {
     summary.match_scans_run = await runQueuedMatchScans()
   } catch (e) {
     console.error("[agency-cron] match-scan sweep threw:", e instanceof Error ? e.message : e)
+  }
+
+  // ---- 4. Transcriptions ------------------------------------
+  //
+  // Queued only by an explicit recruiter action on a round that already has
+  // consented audio; this is just the runner. It cannot reach 1b in the same
+  // pass — a fresh transcript has verified_at null until a HUMAN checks it
+  // and names the candidate's speaker, and that is the event that releases
+  // the audio for deletion. The gap between these two steps is a person, on
+  // purpose.
+  try {
+    summary.transcriptions_run = await runQueuedTranscriptions()
+  } catch (e) {
+    console.error("[agency-cron] transcription sweep threw:", e instanceof Error ? e.message : e)
   }
 
   return NextResponse.json(summary)

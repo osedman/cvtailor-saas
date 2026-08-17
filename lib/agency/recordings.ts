@@ -30,7 +30,11 @@
 import { agencyAdmin, writeAudit, assertWriter, AgencyAccessError } from "./db"
 import type { AgencyContext } from "./types"
 
-export const RECORDINGS_BUCKET = "agency-recordings"
+// One name for one bucket. artifacts.ts has owned this since the deletion
+// sweep was written; a second constant is how a sweep ends up pointed
+// somewhere the uploader is not.
+export { RECORDING_BUCKET } from "./artifacts"
+import { RECORDING_BUCKET } from "./artifacts"
 
 /** Mirrors the bucket's allowed_mime_types; audio only, deliberately. */
 export const ALLOWED_AUDIO = [
@@ -142,11 +146,11 @@ export async function createUploadTicket(
 
   const admin = agencyAdmin()
   const { data, error } = await admin.storage
-    .from(RECORDINGS_BUCKET)
+    .from(RECORDING_BUCKET)
     .createSignedUploadUrl(path, { upsert: false })
   if (error) throw error
 
-  return { ok: true, ticket: { path: data.path, token: data.token, bucket: RECORDINGS_BUCKET } }
+  return { ok: true, ticket: { path: data.path, token: data.token, bucket: RECORDING_BUCKET } }
 }
 
 /**
@@ -174,7 +178,7 @@ export async function confirmUpload(
   const folder = round.agency_id
   const name = path.slice(folder.length + 1)
   const { data: listed, error: listErr } = await admin.storage
-    .from(RECORDINGS_BUCKET)
+    .from(RECORDING_BUCKET)
     .list(folder, { search: name, limit: 1 })
   if (listErr) throw listErr
   const blob = (listed ?? []).find((o) => o.name === name)
@@ -244,7 +248,7 @@ export async function confirmUpload(
 /** Not exported to any route yet — the read path lands with transcription. */
 export async function assertRecordingsBucketExists(): Promise<boolean> {
   const admin = agencyAdmin()
-  const { data, error } = await admin.storage.getBucket(RECORDINGS_BUCKET)
+  const { data, error } = await admin.storage.getBucket(RECORDING_BUCKET)
   if (error) throw new AgencyAccessError(error.message)
   return Boolean(data && data.public === false)
 }
