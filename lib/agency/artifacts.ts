@@ -104,9 +104,19 @@ export async function recordDebrief(
   // it rather than failing — a write-up is edited, not versioned.
   const { data: existing } = await admin
     .from("round_artifacts")
-    .select("id")
+    .select("id, kind")
     .eq("round_id", input.roundId)
     .maybeSingle()
+
+  // A recorded round cannot also be written up as an unrecorded one. This was
+  // unreachable until recordings existed: the update below filters on
+  // kind='debrief', so against a transcript it would have matched no rows,
+  // changed nothing, and still returned success.
+  if (existing && existing.kind !== "debrief") {
+    throw new AgencyAccessError(
+      "this round has a recording; a debrief is for a round that was not recorded"
+    )
+  }
 
   let artifactId: string
   if (existing) {
