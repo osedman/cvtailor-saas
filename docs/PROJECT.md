@@ -1817,4 +1817,54 @@ into five, and the one that has to honour `evidence_quote_iff_present` and the
 withdrawal cascade. Plus: still no UI anywhere for upload, transcribe or
 verify — three routes, no controls. And a vendor still has to be chosen.
 
+## 🎛 Interview capture, part 3: the panel (17 Aug 2026)
+
+Built to Figma **"Recruiter · Interview capture — the five states"** (page 02,
+signed off). One panel per round on `/agencies/roles/[roleId]/interviews`,
+except cancelled rounds. `GET .../capture` resolves which state a round is in
+**server-side**, so one place decides "is this transcribed yet" instead of
+every renderer inferring it from nullable columns — and it returns neither the
+recording path nor the transcript text, because the path is not the UI's
+business and the transcript is read through the dossier as quotes mapped to
+requirements, never as a raw tape.
+
+Two decisions from the frame, both kept:
+
+1. **Without consent there is no upload control — absent, not disabled.** A
+   greyed-out button beside "they have not agreed" invites the recruiter to
+   wonder how to enable it; absence says the question is not theirs. A
+   deliberate departure from the Fill-from-transcript precedent, which is
+   about features *we* have not built rather than a decision someone else
+   has made.
+2. **Naming the speaker IS the verification, and verification is what deletes
+   the audio.** One click, and the copy says so before it happens.
+
+**Transcription now runs on the response** via `after()`, with cron as the
+backstop — the same shape publish uses for match scans. The job row is written
+before the response returns, and `runTranscription` only acts on a job still
+`queued`, so the two runners cannot transcribe the same audio twice. Without
+this the walk was unwalkable: a queued job would sit until 03:30.
+
+**Test lesson, third time paid:** source-scan assertions must strip comments.
+"never a path or a byte of content" contains the word `path`; the scan found
+its own documentation and failed. Same trap hit the "no tone/sentiment" and
+"verified_at" assertions. `codeOnly()` now strips comments before scanning.
+
+738 tests, build clean.
+
+### ⚠ The walk is blocked, and deliberately not shortcut
+
+All three rounds on ROL-2401 are `completed`, hold a **debrief** artifact, and
+sit at `capture_consent_status = 'pending'` — so every one renders state 01 and
+cannot progress (a debriefed round cannot take audio: one artifact per round,
+and a debrief means "this was not recorded"). There are also **no free
+availability slots** left on that role.
+
+So capture needs a **fresh round**, and consent must come from the candidate's
+own click on `/consent/{token}`. Granting it by SQL would fake the single thing
+this feature exists to protect, so it has not been done. The path is: offer
+availability as the HM → book a round as the recruiter → "Ask about recording"
+→ open the returned consent link and grant → the panel goes live. That is also
+the recruiter-loop walk-through outstanding since 14 Aug.
+
 _Last updated: 17 August 2026_
