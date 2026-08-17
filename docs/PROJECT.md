@@ -1684,4 +1684,45 @@ throughout — verify CSS by curling the chunk, never by reading the file.
 
 700 tests, build clean.
 
-_Last updated: 16 August 2026_
+## 🌗 Light/dark on the agency surface — a mode, not a screen (17 Aug 2026)
+
+Ose: the dashboard is too dark, and no cream dashboard either. We looked at
+two re-themed variants in Figma (dim graphite at #2f2a26 and a stronger lift
+at #3b352f, both on page 01 beside the original) plus a type pass moving 32
+chrome labels off Geist Mono. He took neither — **"just implement a
+light/dark mode"** — so the variants stay in Figma as a record and the mono
+pass is dropped.
+
+The mechanism was already half-built: the base `.ag-app` tokens ARE a light
+theme, and the `:has(.agd-main)` block was a complete dark one. So this was a
+scoping change, not a new palette. Dark is now driven by `data-ag-theme` on
+`<html>` (next-themes, written pre-paint — no flash), with a light / system /
+dark control fixed to the shell, defaulting to system.
+
+**Scoped to `.ag-themed`, which /portal and /rights deliberately lack.** A
+candidate opening a rights link has never touched the toggle and must not
+inherit a recruiter's preference. Verified in the browser: with the attribute
+set to dark, the doorway still resolves light tokens and the control does not
+render there.
+
+The control lives in the **layout**, not in the ten pages that each hand-roll
+a sidebar — the same duplication that lost step 06 for four days.
+
+**Widening dark from one screen to all of them exposed three latent bugs**,
+every one invisible while the dashboard was the only dark surface:
+`--ag-coral-text` and `--ag-warn-mark` had **no dark values at all** (both are
+deliberately dark-on-light hues, so the dossier provenance ramp and the
+round-delta lanes would have rendered muddy on the dark ground), and
+`--ag-sage` **never existed**, so `var(--ag-sage, #5d6e50)` silently resolved
+to its hardcoded fallback forever. Eight hardcoded hexes moved onto tokens.
+
+Guardrail (`agency-theme-tokens.test.ts`) fails the build if a colour token
+lacks a dark value, if an agency component hardcodes a hex, or if it names a
+token the stylesheet does not define. `suppressHydrationWarning` added to
+`<html>` per next-themes' documented requirement.
+
+705 tests, build clean. **Not yet seen authenticated:** the workflow screens
+in dark are token-correct and hardcode-free, but no signed-in human has looked
+at them — that wants a pass through /agencies in dark.
+
+_Last updated: 17 August 2026_
