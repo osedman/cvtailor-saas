@@ -17,9 +17,9 @@
  * names.
  */
 
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
 import { requireAgencyContext, AgencyAccessError } from "@/lib/agency/db"
-import { queueTranscription, verifyTranscript } from "@/lib/agency/transcription"
+import { queueTranscription, verifyTranscript, runTranscription } from "@/lib/agency/transcription"
 import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
@@ -71,7 +71,22 @@ export async function POST(
 
     const result = await queueTranscription(a.ctx, roundId)
     if (!result.ok) return refuse(result.reason)
-    return NextResponse.json({ jobId: result.jobId, status: "queued" })
+
+    // Queue first, then run after the response — the same shape publish uses
+    // for match scans. The row is written before this returns, so a process
+    // that dies here loses nothing and the cron picks it up; and
+    // runTranscription only acts on a job still 'queued', so the cron and
+    // this runner cannot both transcribe the same audio.
+    const jobId = result.jobId
+    after(async () => {
+      try {
+        await runTranscription(jobId)
+      } catch {
+        /* recorded on the job row; the cron retries what is still queued */
+      }
+    })
+
+    return NextResponse.json({ jobId, status: "queued" })
   } catch (error) {
     if (error instanceof AgencyAccessError) {
       return NextResponse.json({ error: errorMessage(error) }, { status: 403 })
