@@ -99,17 +99,18 @@ function requiredText(
 /** Optional free text: absent and blank are both fine; a non-string is not. */
 function optionalText(
   raw: unknown,
-  field: string
+  field: string,
+  maxLen: number = MAX_FIELD
 ): { ok: true; value: string } | { ok: false; response: NextResponse } {
   if (raw === undefined || raw === null) return { ok: true, value: "" }
   if (typeof raw !== "string") {
     return { ok: false, response: badRequest(`${field} must be text.`, field) }
   }
   const value = raw.trim()
-  if (value.length > MAX_FIELD) {
+  if (value.length > maxLen) {
     return {
       ok: false,
-      response: badRequest(`${field} must be ${MAX_FIELD} characters or fewer.`, field),
+      response: badRequest(`${field} must be ${maxLen} characters or fewer.`, field),
     }
   }
   return { ok: true, value }
@@ -161,6 +162,9 @@ export async function POST(req: NextRequest) {
     if (!comp.ok) return comp.response
     const location = optionalText(input.location, "location")
     if (!location.ok) return location.response
+    // A full job description, not a form field — its own cap.
+    const jdRaw = optionalText(input.jdRaw, "jdRaw", 30_000)
+    if (!jdRaw.ok) return jdRaw.response
 
     // contactId goes in as the caller sent it; submitBrief() is what proves it
     // against the session's links and picks the agency off that link.
@@ -173,6 +177,7 @@ export async function POST(req: NextRequest) {
       niceToHaves: niceToHaves.value,
       comp: comp.value,
       location: location.value,
+      jdRaw: jdRaw.value,
     })
 
     return NextResponse.json({ briefId }, { status: 201 })

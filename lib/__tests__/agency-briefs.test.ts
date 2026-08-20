@@ -1030,3 +1030,30 @@ describe("a full brief lifecycle leaves no body text and no PII in the log", () 
     expect(store.rows("role_briefs")).toHaveLength(2)
   })
 })
+
+describe("the brief carries the JD (20 Aug simplification)", () => {
+  const { readFileSync } = require("fs") as typeof import("fs")
+  const { join } = require("path") as typeof import("path")
+  const src = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
+  const lib = src("lib/agency/briefs.ts")
+  const route = src("app/api/hiring/briefs/route.ts")
+
+  it("the pasted JD leads the composed jd_raw; brief fields follow as context", () => {
+    // Accept is the "auto gets the JD into intake" step: composeJdRaw feeds
+    // the minted role's jd_raw, and the client's own document must come
+    // first, unlabelled — it IS the document.
+    const fn = lib.slice(lib.indexOf("function composeJdRaw"))
+    expect(fn.indexOf("brief.jd_raw")).toBeGreaterThan(-1)
+    expect(fn.indexOf("brief.jd_raw")).toBeLessThan(fn.indexOf('push("Mission"'))
+  })
+
+  it("a full JD gets a document-sized cap, not a form-field cap", () => {
+    expect(lib).toMatch(/MAX_JD = 30_000/)
+    expect(route).toMatch(/"jdRaw", 30_000/)
+  })
+
+  it("list rows carry presence only — the JD text rides into the role, not the inbox", () => {
+    expect(lib).toMatch(/hasJd: Boolean/)
+    expect(lib).not.toMatch(/jdRaw: row\.jd_raw/)
+  })
+})

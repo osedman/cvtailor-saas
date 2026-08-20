@@ -36,6 +36,7 @@ interface BriefRow {
   decidedAt: string | null
   roleId: string | null
   roleRef: string | null
+  hasJd: boolean
 }
 
 type Filter = "all" | "submitted" | "accepted" | "declined"
@@ -226,6 +227,11 @@ export default function AgencyBriefsPage() {
                   <div className="ag-grow">
                     <p className="ag-brief-who">
                       {row.company} · {row.contactName} · {relative(row.createdAt)}
+                      {row.hasJd && (
+                        <span className="ag-meta" style={{ marginLeft: 8, color: "var(--ag-calm)" }}>
+                          JD attached — accepting carries it into intake
+                        </span>
+                      )}
                     </p>
                     <h2 className="ag-brief-title">{row.roleTitle}</h2>
                   </div>

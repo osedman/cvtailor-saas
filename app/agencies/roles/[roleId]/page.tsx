@@ -179,6 +179,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       if (!res.ok) return setError("Role not found in your agency")
       const body = await res.json()
       setRole(body.role)
+      setBriefJd(body.brief_jd ?? null)
       if (body.agency?.name) setAgencyName(body.agency.name)
       setIntro((prev) => prev || `Hi — here are the candidates I'd put in front of you for ${body.role?.title ?? "this role"}. Each one has had a screening call with me, and I've noted where the CV overstated or understated the fit.`)
       setRequirements(body.requirements ?? [])
@@ -209,6 +210,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // unconditional loop fired one request per candidate on every switch: eight
   // candidates meant eight requests each time the recruiter changed tile.
   const loadedDetail = useRef<Set<string>>(new Set())
+  /** The client's own JD, when this role was minted from a brief that carried
+   * one. Drives the intake provenance line and the pull-it-back button. */
+  const [briefJd, setBriefJd] = useState<string | null>(null)
   useEffect(() => {
     if (step !== "screening" || candidates.length === 0) return
     if (!activeCandidate) setActiveCandidate(candidates[0].id)
@@ -267,11 +271,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     }
   }
 
-  async function saveIntake() {
+  async function saveIntake(override?: Partial<Role>) {
     if (!role) return
     // Intake fields only. Status changes go through closeRole so they are
     // audit logged deliberately, never as a side effect of typing.
-    const { title, company, company_context, salary_band, location, seniority, jd_raw, recruiter_notes } = role
+    // `override` exists for saves fired in the same tick as a patchRole —
+    // React state has not settled yet, and saving the stale closure would
+    // show one JD and store another.
+    const { title, company, company_context, salary_band, location, seniority, jd_raw, recruiter_notes } = { ...role, ...override }
     await fetch(`/api/agency/roles/${roleId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -794,7 +801,29 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </label>
                   </div>
                   <div className="ag-card-body">
-                    <textarea className="ag-textarea jd" placeholder="Paste the client's job description here" value={role.jd_raw} onChange={(e) => patchRole({ jd_raw: e.target.value })} onBlur={saveIntake} />
+                    <textarea className="ag-textarea jd" placeholder="Paste the client's job description here" value={role.jd_raw} onChange={(e) => patchRole({ jd_raw: e.target.value })} onBlur={() => void saveIntake()} />
+                    {/* The client's JD arrived with the brief. Accept copied
+                        it in; this line is the provenance, and the button is
+                        the way back to their exact text after edits. */}
+                    {briefJd && briefJd === role.jd_raw.trim() && (
+                      <p className="ag-note" style={{ marginTop: 8, color: "var(--ag-ink-3)" }}>
+                        This JD came with the client&rsquo;s brief — parse it, or edit first.
+                      </p>
+                    )}
+                    {briefJd && briefJd !== role.jd_raw.trim() && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+                        <button
+                          className="ag-btn ag-btn-secondary"
+                          disabled={busy !== null}
+                          onClick={() => { patchRole({ jd_raw: briefJd }); void saveIntake({ jd_raw: briefJd }) }}
+                        >
+                          Use the JD from the client&rsquo;s brief
+                        </button>
+                        <span className="ag-note" style={{ color: "var(--ag-ink-3)" }}>
+                          Replaces the box with their exact text.
+                        </span>
+                      </div>
+                    )}
                     <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                       <input className="ag-input" placeholder="Or a link to the posting" value={jdUrl} onChange={(e) => setJdUrl(e.target.value)} />
                       <button className="ag-btn ag-btn-secondary" onClick={() => jdUrl.trim() && extract({ url: jdUrl.trim() })} disabled={busy !== null || !jdUrl.trim()}>
@@ -810,19 +839,19 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   <div className="ag-card">
                     <div className="ag-card-head"><span className="ag-card-title">Role &amp; client</span></div>
                     <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
-                      <div><label className="ag-label">Role title</label><input className="ag-input" value={role.title} onChange={(e) => patchRole({ title: e.target.value })} onBlur={saveIntake} /></div>
-                      <div><label className="ag-label">Company</label><input className="ag-input" value={role.company} onChange={(e) => patchRole({ company: e.target.value })} onBlur={saveIntake} /></div>
-                      <div><label className="ag-label">Context</label><textarea className="ag-textarea" style={{ minHeight: 80 }} value={role.company_context} onChange={(e) => patchRole({ company_context: e.target.value })} onBlur={saveIntake} /></div>
+                      <div><label className="ag-label">Role title</label><input className="ag-input" value={role.title} onChange={(e) => patchRole({ title: e.target.value })} onBlur={() => void saveIntake()} /></div>
+                      <div><label className="ag-label">Company</label><input className="ag-input" value={role.company} onChange={(e) => patchRole({ company: e.target.value })} onBlur={() => void saveIntake()} /></div>
+                      <div><label className="ag-label">Context</label><textarea className="ag-textarea" style={{ minHeight: 80 }} value={role.company_context} onChange={(e) => patchRole({ company_context: e.target.value })} onBlur={() => void saveIntake()} /></div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                        <div><label className="ag-label">Comp band</label><input className="ag-input" value={role.salary_band} onChange={(e) => patchRole({ salary_band: e.target.value })} onBlur={saveIntake} /></div>
-                        <div><label className="ag-label">Location</label><input className="ag-input" value={role.location} onChange={(e) => patchRole({ location: e.target.value })} onBlur={saveIntake} /></div>
+                        <div><label className="ag-label">Comp band</label><input className="ag-input" value={role.salary_band} onChange={(e) => patchRole({ salary_band: e.target.value })} onBlur={() => void saveIntake()} /></div>
+                        <div><label className="ag-label">Location</label><input className="ag-input" value={role.location} onChange={(e) => patchRole({ location: e.target.value })} onBlur={() => void saveIntake()} /></div>
                       </div>
                     </div>
                   </div>
                   <div className="ag-card">
                     <div className="ag-card-head"><span className="ag-card-title">Recruiter notes</span><span className="ag-pill">Private</span></div>
                     <div className="ag-card-body">
-                      <textarea className="ag-textarea" placeholder="What the client said that never made the JD" value={role.recruiter_notes} onChange={(e) => patchRole({ recruiter_notes: e.target.value })} onBlur={saveIntake} />
+                      <textarea className="ag-textarea" placeholder="What the client said that never made the JD" value={role.recruiter_notes} onChange={(e) => patchRole({ recruiter_notes: e.target.value })} onBlur={() => void saveIntake()} />
                       <p className="ag-note" style={{ marginTop: 8 }}>Notes feed the scoring and never reach the client.</p>
                     </div>
                   </div>

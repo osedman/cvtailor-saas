@@ -31,6 +31,7 @@ type Screen = "loading" | "signed-out" | "not-linked" | "ready"
 
 interface Draft {
   roleTitle: string
+  jdRaw: string
   team: string
   mission: string
   mustHaves: string
@@ -41,6 +42,7 @@ interface Draft {
 
 const EMPTY: Draft = {
   roleTitle: "",
+  jdRaw: "",
   team: "",
   mission: "",
   mustHaves: "",
@@ -206,6 +208,22 @@ export default function NewBriefPage() {
                 value={draft.team}
                 onChange={(e) => field("team", e.target.value)}
                 placeholder="Data Platform — 6 engineers, reports to Head of Engineering"
+              />
+            </Field>
+
+            <Field
+              label="Job description"
+              htmlFor="brief-jd"
+              optional
+              hint="Paste the JD if you have one — your recruiter parses the requirements straight from it, so you never retype what a document already says. The fields below add what the JD leaves out."
+            >
+              <textarea
+                id="brief-jd"
+                className="ag-textarea"
+                rows={7}
+                value={draft.jdRaw}
+                onChange={(e) => field("jdRaw", e.target.value)}
+                placeholder="Paste the full job description here…"
               />
             </Field>
 

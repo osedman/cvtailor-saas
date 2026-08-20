@@ -50,6 +50,8 @@ import type { AgencyContext, BriefStatus, HiringBrief, HiringContext, HiringLink
 /** Body fields. Generous enough for a real brief pasted from a doc, small
  * enough that a paste-bomb cannot be used to fill the table. */
 const MAX_FIELD = 4000
+// A full job description, not a form field. Mirrors the role route's jd_raw cap.
+const MAX_JD = 30_000
 
 /** The title is a headline, not a body. It is also the audit entity_ref, so it
  * stays short enough to read in a log table. */
@@ -138,6 +140,7 @@ export async function submitBrief(
     niceToHaves?: string
     comp?: string
     location?: string
+    jdRaw?: string
   }
 ): Promise<{ briefId: string }> {
   const link = linkForContact(ctx, input.contactId)
@@ -160,6 +163,7 @@ export async function submitBrief(
       nice_to_haves: capText(input.niceToHaves, MAX_FIELD),
       comp: capText(input.comp, MAX_FIELD),
       location: capText(input.location, MAX_FIELD),
+      jd_raw: capText(input.jdRaw, MAX_JD),
       status: "submitted",
     })
     .select("id")
@@ -223,7 +227,7 @@ export async function listBriefsForHiringManager(ctx: HiringContext): Promise<Hi
  * a hiring manager can see. Two surfaces, two column lists.
  */
 const AGENCY_BRIEF_LIST_COLUMNS =
-  "id, contact_id, role_title, status, role_id, created_at, decided_at"
+  "id, contact_id, role_title, status, role_id, created_at, decided_at, jd_raw"
 
 /** Everything the conversion in acceptBrief needs, and nothing else. The body
  * fields appear HERE and never in an audit row (rule 4 at the top of the file). */
@@ -243,6 +247,9 @@ export interface AgencyBriefRow {
   roleId: string | null
   /** The minted role's ref ('ROL-04'), resolved only when roleId is set. */
   roleRef: string | null
+  /** Whether the hiring manager pasted a JD with the brief. Presence only —
+   * the text itself rides into the role on accept, not into list rows. */
+  hasJd: boolean
 }
 
 /**
@@ -319,6 +326,11 @@ async function resumeAcceptedBrief(
  */
 function composeJdRaw(brief: Record<string, unknown>): string {
   const sections: string[] = []
+  // The pasted JD leads, unlabelled — it IS the document. The structured
+  // brief fields follow as context: they carry the client's own emphasis,
+  // which the parser should read alongside the formal text.
+  const jd = capText(brief.jd_raw as string | null | undefined, MAX_JD)
+  if (jd) sections.push(jd)
   const push = (heading: string, value: unknown) => {
     const text = capText(value as string | null | undefined, MAX_FIELD)
     if (text) sections.push(`${heading}\n${text}`)
@@ -410,6 +422,7 @@ export async function listBriefsForAgency(
       decidedAt: (row.decided_at as string | null) ?? null,
       roleId,
       roleRef: roleId ? roleRefs.get(roleId) ?? null : null,
+      hasJd: Boolean(((row.jd_raw as string | null) ?? "").trim()),
     }
   })
 }

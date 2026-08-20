@@ -41,7 +41,7 @@ export async function GET(
     const role = await getJobRole(auth.db, auth.ctx, roleId)
     if (!role) return NextResponse.json({ error: "Role not found" }, { status: 404 })
 
-    const [requirements, constraints, agency] = await Promise.all([
+    const [requirements, constraints, agency, brief] = await Promise.all([
       auth.db
         .from("requirements")
         .select("id, ref, text, weight, category, origin, sort_order")
@@ -55,6 +55,15 @@ export async function GET(
       // The client document signs itself "prepared by <agency>", so the
       // workflow needs the agency's own name, not just the client's.
       auth.db.from("agencies").select("name").eq("id", auth.ctx.agencyId).maybeSingle(),
+      // The client's own JD, if this role was minted from a brief that
+      // carried one. Read so intake can offer "pull the JD from the brief"
+      // when the box is empty or has drifted — accept copies it in, but a
+      // recruiter can paste over it and want the original back.
+      auth.db
+        .from("role_briefs")
+        .select("jd_raw, contact_id")
+        .eq("role_id", roleId)
+        .maybeSingle(),
     ])
 
     return NextResponse.json({
@@ -62,6 +71,7 @@ export async function GET(
       requirements: requirements.data ?? [],
       constraints: constraints.data ?? [],
       agency: agency.data ?? null,
+      brief_jd: ((brief.data?.jd_raw as string | undefined) ?? "").trim() || null,
       caller_role: auth.ctx.role,
     })
   } catch (error) {
