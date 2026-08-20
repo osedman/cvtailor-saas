@@ -165,6 +165,16 @@ export async function POST(req: NextRequest) {
     // A full job description, not a form field — its own cap.
     const jdRaw = optionalText(input.jdRaw, "jdRaw", 30_000)
     if (!jdRaw.ok) return jdRaw.response
+    // Process facts. Rounds: an integer 1-6 or absent — anything else is a
+    // client bug, said plainly rather than silently nulled.
+    const roundsRaw = input.interviewRounds
+    if (roundsRaw !== undefined && roundsRaw !== null) {
+      if (!Number.isInteger(roundsRaw) || (roundsRaw as number) < 1 || (roundsRaw as number) > 6) {
+        return badRequest("interviewRounds must be a whole number from 1 to 6.", "interviewRounds")
+      }
+    }
+    const startTarget = optionalText(input.startTarget, "startTarget", MAX_TITLE)
+    if (!startTarget.ok) return startTarget.response
 
     // contactId goes in as the caller sent it; submitBrief() is what proves it
     // against the session's links and picks the agency off that link.
@@ -178,6 +188,8 @@ export async function POST(req: NextRequest) {
       comp: comp.value,
       location: location.value,
       jdRaw: jdRaw.value,
+      interviewRounds: (roundsRaw as number | null | undefined) ?? undefined,
+      startTarget: startTarget.value,
     })
 
     return NextResponse.json({ briefId }, { status: 201 })

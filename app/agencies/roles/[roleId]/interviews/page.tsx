@@ -76,7 +76,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
   const { roleId } = use(params)
   const router = useRouter()
 
-  const [role, setRole] = useState<{ ref: string; title: string } | null>(null)
+  const [role, setRole] = useState<{ ref: string; title: string; plannedRounds: number | null; startTarget: string } | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [slots, setSlots] = useState<OpenSlot[] | null>(null)
   const [rounds, setRounds] = useState<RoundRow[]>([])
@@ -100,7 +100,13 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
       if (roleRes.status === 401) return router.push("/agencies")
       if (roleRes.ok) {
         const body = await roleRes.json()
-        if (body?.role) setRole({ ref: body.role.ref, title: body.role.title })
+        if (body?.role)
+          setRole({
+            ref: body.role.ref,
+            title: body.role.title,
+            plannedRounds: body.role.planned_rounds ?? null,
+            startTarget: (body.role.start_target ?? "").trim(),
+          })
       }
       if (candRes.ok) {
         const body = await candRes.json()
@@ -290,6 +296,16 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                 ? `${client?.company || "Your client"} has offered ${slots.length} window${slots.length === 1 ? "" : "s"}. Pick who meets them — the time comes out of the client’s own diary, so booking one takes it off the board for everyone.`
                 : "Your client has not offered any times yet. They add them from their own workspace, and they appear here the moment they do."}
           </p>
+
+          {role && (role.plannedRounds || role.startTarget) && (
+            <p className="ag-note" style={{ marginTop: 6, color: "var(--ag-ink-3)" }}>
+              From the brief:
+              {role.plannedRounds ? ` the client expects ${role.plannedRounds} round${role.plannedRounds === 1 ? "" : "s"}` : ""}
+              {role.plannedRounds && role.startTarget ? " ·" : ""}
+              {role.startTarget ? ` wants someone in seat: ${role.startTarget}` : ""}
+              . Their plan, not a gate — what you book is what counts.
+            </p>
+          )}
 
           {error && (
             <p className="ag-banner" role="alert">

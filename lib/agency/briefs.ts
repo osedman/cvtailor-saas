@@ -141,6 +141,10 @@ export async function submitBrief(
     comp?: string
     location?: string
     jdRaw?: string
+    /** How many rounds the client expects (1-6). Advisory — see migration 24. */
+    interviewRounds?: number
+    /** When they want someone in seat, in their words ("ASAP", "October"). */
+    startTarget?: string
   }
 ): Promise<{ briefId: string }> {
   const link = linkForContact(ctx, input.contactId)
@@ -164,6 +168,13 @@ export async function submitBrief(
       comp: capText(input.comp, MAX_FIELD),
       location: capText(input.location, MAX_FIELD),
       jd_raw: capText(input.jdRaw, MAX_JD),
+      interview_rounds:
+        Number.isInteger(input.interviewRounds) &&
+        (input.interviewRounds as number) >= 1 &&
+        (input.interviewRounds as number) <= 6
+          ? input.interviewRounds
+          : null,
+      start_target: capText(input.startTarget, MAX_TITLE),
       status: "submitted",
     })
     .select("id")
@@ -572,6 +583,8 @@ export async function acceptBrief(
       location: capText(brief.location as string | null | undefined, MAX_FIELD),
       seniority: "",
       jd_raw: composeJdRaw(brief),
+      planned_rounds: (brief.interview_rounds as number | null) ?? null,
+      start_target: capText(brief.start_target as string | null | undefined, MAX_TITLE),
       recruiter_notes: "",
       status: "draft",
       created_by: ctx.userId,

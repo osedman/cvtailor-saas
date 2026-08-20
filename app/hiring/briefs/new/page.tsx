@@ -32,6 +32,8 @@ type Screen = "loading" | "signed-out" | "not-linked" | "ready"
 interface Draft {
   roleTitle: string
   jdRaw: string
+  interviewRounds: number | null
+  startTarget: string
   team: string
   mission: string
   mustHaves: string
@@ -43,6 +45,8 @@ interface Draft {
 const EMPTY: Draft = {
   roleTitle: "",
   jdRaw: "",
+  interviewRounds: null,
+  startTarget: "",
   team: "",
   mission: "",
   mustHaves: "",
@@ -271,6 +275,50 @@ export default function NewBriefPage() {
                 value={draft.niceToHaves}
                 onChange={(e) => field("niceToHaves", e.target.value)}
                 placeholder={"dbt · Terraform\nPrior healthcare domain"}
+              />
+            </Field>
+
+            <Field
+              label="How many interview rounds do you expect?"
+              htmlFor="brief-rounds"
+              optional
+              hint="Your plan, not a contract — rounds are booked one at a time, and the number on record follows what actually happens."
+            >
+              <div role="radiogroup" aria-label="Expected interview rounds" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[1, 2, 3, 4].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    role="radio"
+                    aria-checked={draft.interviewRounds === n}
+                    className="ag-btn ag-btn-secondary"
+                    style={
+                      draft.interviewRounds === n
+                        ? { background: "var(--ag-ink)", color: "var(--ag-paper)", borderColor: "var(--ag-ink)" }
+                        : undefined
+                    }
+                    onClick={() =>
+                      setDraft((d) => ({ ...d, interviewRounds: d.interviewRounds === n ? null : n }))
+                    }
+                  >
+                    {n === 4 ? "4+" : n}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            <Field
+              label="When do you want someone in seat?"
+              htmlFor="brief-start"
+              optional
+              hint="In your words — a month, a quarter, or just how urgent it is."
+            >
+              <input
+                id="brief-start"
+                className="ag-input"
+                value={draft.startTarget}
+                onChange={(e) => field("startTarget", e.target.value)}
+                placeholder="October — the current contractor leaves end of September"
               />
             </Field>
 
