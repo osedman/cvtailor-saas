@@ -1867,4 +1867,34 @@ availability as the HM → book a round as the recruiter → "Ask about recordin
 → open the returned consent link and grant → the panel goes live. That is also
 the recruiter-loop walk-through outstanding since 14 Aug.
 
-_Last updated: 17 August 2026_
+## 📥 Intake simplified: the brief carries the JD (20 Aug 2026)
+
+Ose's call, after two rounds of confirm-loop design: **too complex**. The
+client-confirmation flow (HM re-weighting screen + recruiter four-state card,
+designed 17 Aug) is **parked, not built** — both frames renamed PARKED in
+Figma as a record. What shipped instead (3620985) is one hop:
+
+**The hiring manager pastes the JD with the brief → accepting mints the role
+with that JD already in intake → the recruiter parses.** Nobody retypes a
+document that already exists.
+
+- Migration 23: `role_briefs.jd_raw` (applied to tailr-staging).
+- Brief form gains an optional JD box; hint says the fields below add what
+  the JD leaves out. `composeJdRaw` leads with the pasted document,
+  unlabelled — it IS the document — with the structured fields following as
+  parser context.
+- Inbox rows say "JD attached — accepting carries it into intake" (presence
+  only; the text rides into the role, never the list).
+- Intake shows provenance when the JD came from the brief, and a "Use the JD
+  from the client's brief" button when the box has drifted — the way back to
+  the client's exact text. RLS verified live (role_briefs SELECT + membership
+  policy), not assumed.
+
+**Fixed in passing:** `saveIntake` destructured stale state — a save fired in
+the same tick as a `patchRole` stored one JD while showing another. The fix
+grew the signature, and TypeScript then caught seven blur handlers that would
+have fed FocusEvents in as overrides.
+
+741 tests, build clean.
+
+_Last updated: 20 August 2026_
