@@ -1897,4 +1897,37 @@ have fed FocusEvents in as overrides.
 
 741 tests, build clean.
 
+## 🧾 The brief states the process; the recruiter records the facts (20 Aug 2026)
+
+Second half of the intake refinement (9ae8433, migration 24 applied):
+
+**The brief now carries the client's process** — expected interview rounds
+(1–6, toggleable pick) and "when do you want someone in seat", in their words.
+Accept copies both onto the role, and the interviews screen shows them where
+booking happens, framed as *their plan, not a gate*: round numbers stay
+derived from real rounds, nothing enforces the plan, the recruiter owns the
+process (§5.5). Role requirements were already on the brief (must-haves /
+nice-to-haves) and ride the parse via composeJdRaw.
+
+**Right-to-work capture** — `agency.candidate_compliance`, its own table
+rather than columns on candidates, because candidates carries a table-level
+authenticated UPDATE grant and "I verified this person's right to work" must
+not be writable without its audit row. Zero authenticated write grants
+(verified by query); the service-role route writes row + audit in one
+operation. The card sits on candidate detail with the AUDIT LOGGED pill.
+
+Three lines held, each pinned by a test:
+- **Statuses are facts** — unverified / verified / needs_sponsorship, and
+  deliberately no `not_eligible`: that is a conclusion about a person. A
+  guardrail scans every agency source for `rtw_status` ever filtering a list.
+- **A checked status requires a note saying how** (share code + date) — the
+  note is the assertion, the status its summary. The audit row records
+  `has_note`, never the note's content.
+- **No document storage.** Identity documents are their own compliance
+  surface with their own retention rules.
+
+Test lesson, now four times paid: **source scans must strip comments** —
+the migration documenting "deliberately no not_eligible" failed its own scan.
+748 tests, build clean.
+
 _Last updated: 20 August 2026_
