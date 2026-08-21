@@ -1930,4 +1930,42 @@ Test lesson, now four times paid: **source scans must strip comments** —
 the migration documenting "deliberately no not_eligible" failed its own scan.
 748 tests, build clean.
 
+## 💷 Placements — the event the business is paid for (20 Aug 2026)
+
+Built (785036c, migration 25 applied). The loop ended at decision →
+references → handover with **no record of who got the job**, so fill rate,
+time-to-fill, fee value and rebate exposure were all uncomputable from the
+product's own data.
+
+`agency.placements`, one row per (role, candidate) — a role may fill several
+seats, a candidate is placed on it once, and the unique index is the whole
+mechanism against a double-recorded fee. Fee lives on the placement rather
+than the client, because it is agreed per placement even where terms are
+standing.
+
+- **Fall-off is first class** and refuses to save without a reason. The most
+  expensive thing that happens to an agency should teach it something.
+- **The rebate window is derived**, never stored — `start_date +
+  rebate_weeks` — so a corrected start date cannot strand a stale window.
+  Tested on values: 1 Sep + 12 weeks = 24 Nov, open before, closed after.
+- **Timestamps stamp once on arrival.** Re-saving an accepted placement does
+  not move the day it was accepted.
+- **Status is an outcome, never a judgement.** A scan proves no source
+  filters or ranks on `declined` — the same rule as `rtw_status` and client
+  declines.
+- **Recording a placement never closes the role.** Closing starts the
+  retention clock and stays deliberate; a role can also place more than one
+  person, so auto-closing would be wrong as often as right.
+
+Audit-coupled like `candidate_compliance`: no authenticated write grants
+(verified by query), service-role route, audit row in the same operation.
+Money and dates ARE in the audit trail deliberately — a fee is the agency's
+own commercial fact, unlike a compliance note which is the candidate's.
+
+**Left open beside it:** terms of business still have no home, because there
+is no clients table — only `client_contacts`, a person with a company string.
+Fee defaults there would model a company on a person row. Needs a decision.
+
+759 tests, build clean.
+
 _Last updated: 20 August 2026_

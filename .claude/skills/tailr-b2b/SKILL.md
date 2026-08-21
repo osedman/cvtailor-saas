@@ -270,7 +270,20 @@ role rows. Interaction feedback is transform/opacity only.
   cut 13 Aug in favour of candidate-side recommendation), not built.
 
 
-## QUEUED: the placement record (specced 20 Aug, not built)
+## BUILT 20 Aug: the placement record (migration 25)
+
+`agency.placements`, one row per (role, candidate). Fee on the placement,
+fall-off first-class and refusing to save without a reason, rebate window
+DERIVED from start_date + rebate_weeks. Status is an outcome not a judgement
+('declined' never filters or ranks); recording one never closes the role.
+Audit-coupled, SELECT-only grants. Card on candidate detail.
+
+**Still open around it:** terms of business have no home — there is no clients
+table, only `client_contacts` (a person, with a company string), so putting
+fee defaults there would model a company on a person row. Needs a decision
+before it is built. The original spec follows for reference.
+
+### Original spec (superseded by the build above)
 
 **The biggest commercial gap.** The loop ends at decision → references →
 handover, but the placement — the event the entire business is paid for — is
