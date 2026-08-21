@@ -178,21 +178,27 @@ export function InterviewCapture({
 
   if (!view) {
     return (
-      <div className="ag-card" style={{ padding: 20 }}>
+      <div className="ag-capture">
         <span className="ag-meta">Loading capture…</span>
       </div>
     )
   }
 
+  // Nothing to say and nothing to do: a consented round with no recording yet
+  // is the ONLY pre-upload state worth a panel. Rendering "not checked" chrome
+  // on every scheduled round is what made this screen feel like admin.
+  const idle = view.state === "no_consent"
+  
+
   const chip = CHIP[view.state]
 
   return (
-    <section className="ag-card" style={{ padding: "20px 24px" }} aria-labelledby={`cap-${roundId}`}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <h3 id={`cap-${roundId}`} style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
-          Interview capture
+    <section className={`ag-capture${idle ? " is-idle" : ""}`} aria-labelledby={`cap-${roundId}`}>
+      <div className="ag-capture-head">
+        <h3 id={`cap-${roundId}`} className="ag-capture-title">
+          Recording
         </h3>
-        <span style={{ flex: 1 }} />
+        <span className="ag-grow" />
         <span className="ag-meta" style={{ color: chip.tone }}>{chip.label}</span>
       </div>
 

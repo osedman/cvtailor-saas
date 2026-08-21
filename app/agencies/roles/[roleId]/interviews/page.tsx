@@ -13,13 +13,15 @@
  * actually offered from their own workspace. Booking one takes it off the
  * board for everyone, so the copy says so before the button is pressed.
  *
- * THE AMBER NOTE IS NOT DECORATION. The signed-off concept promised that Tailr
- * generates the meeting link and "joins, captures and transcribes". None of
- * that is built, and it cannot be until the candidate-facing consent copy
- * clears the DPIA gate (AGENCIES_SCHEMA.md §5.5). Rendering a Tailr-generated
- * link here would be exactly the faked capability the project forbids, so the
- * recruiter pastes their own and the screen states what does not exist yet.
- * Delete that note the day capture ships, and not before.
+ * THE AMBER NOTE IS NOT DECORATION, and it was rewritten on 20 Aug rather
+ * than deleted. The signed-off concept promised Tailr would generate the
+ * meeting link and "join, capture and transcribe". Half of that is now real:
+ * capture and transcription shipped 17 Aug (behind the DPIA gate, with the
+ * candidate's own consent as the only door). Tailr still does NOT host or
+ * record the call — the recruiter records it and uploads afterwards — and
+ * per-round enrichment is still unbuilt. So the note now says exactly that.
+ * It goes when Tailr genuinely hosts the call, and not before; claiming a
+ * capability we do not have is the thing this project forbids.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -410,9 +412,9 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                 </div>
                 {/* See the file header: this note is load-bearing, not filler. */}
                 <p className="ag-callout ag-book-warn">
-                  Tailr does not host or record this call yet. Use your own meeting link; recording,
-                  transcripts and per-round enrichment are not built, and no candidate has been
-                  asked to consent to any of it.
+                  Tailr does not host or record this call. Use your own meeting link and, if the
+                  candidate agrees to it, upload the recording afterwards — the ask, the upload and
+                  the transcript live on the round below. Per-round enrichment is not built yet.
                 </p>
               </div>
 
@@ -442,8 +444,8 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
               <p className="ag-field-label" id="booked">Booked</p>
               <div className="ag-stack" style={{ gap: 10 }}>
                 {rounds.map((r) => (
-                  <div key={r.id} style={{ display: "grid", gap: 10 }}>
-                  <div className="ag-card ag-booked">
+                  <div key={r.id} className="ag-card">
+                  <div className="ag-booked">
                     <span className="ag-grow" style={{ minWidth: 0 }}>
                       <span className="ag-meta">
                         {r.candidateRef} · round {r.roundNumber}
@@ -458,16 +460,12 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                     </span>
                     {r.status === "scheduled" && (
                       <>
+                        {/* Marking it done is the act that moves the round on,
+                            so it leads. The consent ask is a different kind of
+                            thing — it reaches a person — and cancelling is the
+                            quietest, because it gives the client's time back. */}
                         <button
-                          className="ag-btn ag-btn-secondary"
-                          onClick={() => askConsent(r.id)}
-                          disabled={busy}
-                          title="Emails the candidate a link asking whether this call may be recorded. Their answer is theirs; you are not told what they chose."
-                        >
-                          Ask about recording
-                        </button>
-                        <button
-                          className="ag-btn ag-btn-secondary"
+                          className="ag-btn ag-btn-primary"
                           onClick={() => setStatus(r.id, "completed")}
                           disabled={busy}
                         >
@@ -475,6 +473,18 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                         </button>
                         <button
                           className="ag-btn ag-btn-secondary"
+                          onClick={() => askConsent(r.id)}
+                          disabled={busy || r.captureConsentStatus !== "pending"}
+                          title={
+                            r.captureConsentStatus === "pending"
+                              ? "Emails the candidate a link asking whether this call may be recorded. Their answer is theirs; you are not told what they chose."
+                              : "Already asked. Their answer is theirs, and this screen never shows it."
+                          }
+                        >
+                          {r.captureConsentStatus === "pending" ? "Ask about recording" : "Recording asked"}
+                        </button>
+                        <button
+                          className="ag-btn"
                           onClick={() => setStatus(r.id, "cancelled")}
                           disabled={busy}
                         >
@@ -491,9 +501,8 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                       </p>
                     )}
                   </div>
-                  {/* Capture hangs off the round, not the rail: a cancelled
-                      round has nothing to record, and everything else can
-                      legitimately hold audio once the candidate agrees. */}
+                  {/* Inside the round card, below a rule — a round is one
+                      object. Cancelled rounds have nothing to record. */}
                   {r.status !== "cancelled" && (
                     <InterviewCapture roundId={r.id} candidateName={r.candidateName} />
                   )}
