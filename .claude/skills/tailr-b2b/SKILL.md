@@ -269,6 +269,62 @@ role rows. Interaction feedback is transform/opacity only.
 - **Quiet matching / applicant pool** — decided and designed (job board was
   cut 13 Aug in favour of candidate-side recommendation), not built.
 
+
+## QUEUED: the placement record (specced 20 Aug, not built)
+
+**The biggest commercial gap.** The loop ends at decision → references →
+handover, but the placement — the event the entire business is paid for — is
+not modelled anywhere. There is no record of who got the job.
+
+Without it you cannot compute the four numbers an agency owner runs on: fill
+rate, time-to-fill, fee value, rebate exposure. Even if Tailr never invoices,
+the record has to exist.
+
+**Shape (agreed direction, not yet DDL):**
+
+- `agency.placements` — one row per candidate placed on a role. `role_id`,
+  `candidate_id` (unique together), `offered_at`, `accepted_at`,
+  `declined_at`, `start_date`, `status` in
+  `('offered','accepted','declined','started','fell_through')`.
+- **Fee metadata**: `fee_percent`, `fee_value`, `rebate_weeks`,
+  `invoice_due_at`. These belong here rather than on the client, because the
+  fee is agreed per placement even when terms are standing.
+- **Fall-off**: `fell_through_at` + reason. Fall-off before the rebate period
+  ends is the money event agencies fear; it must be first-class, not a
+  status someone edits away.
+- **Audit-coupled** — placements are money. No authenticated write grants;
+  service-role route + audit row in one operation, same shape as
+  `candidate_compliance` (migration 24) which is the closest model to copy.
+- **Terms of business** get a home on the client at the same time: fee %,
+  rebate period, TOB-signed flag on `client_contacts` or a sibling table.
+
+**Lines to hold:** a placement is a FACT about an outcome, never a filter and
+never a ranking input. Declining an offer is not a judgement about a person.
+And nothing here may auto-close a role — closing stays the recruiter's act,
+because it starts the retention clock.
+
+**Why it is queued rather than built:** it is a commercial modelling decision
+(fee structures differ by agency: contingent, retained, fixed, percentage)
+and getting it wrong means migrating money data later. Worth 20 minutes with
+a real agency owner before the first line of DDL.
+
+## Other gaps named 20 Aug (not queued, not built)
+
+Ordered as they were assessed: **notifications** (every cross-wall event
+requires the other side to poll the app — briefs sat invisible for days,
+which is an adoption risk more than a bug); **candidate-side booking** (no
+.ics, no confirm/decline link — the candidate is coordinated off-system);
+**right-to-represent** (uploaded candidates have an Art 14 notice but no
+consent-to-represent, which is the artifact that wins a contingent fee
+dispute — the quiet-matching apply path already does this correctly, so the
+pattern exists); **closing the loop on unsuccessful candidates** (nothing
+tells the other four people a role was filled — ghosting, which a product
+arguing for candidate dignity should not facilitate); **role ownership**
+(members exist, roles have no owner, and real desks are commission-driven);
+**a stated non-compete commitment** for agencies evaluating a product whose
+vendor also runs a candidate platform. Temp/contract recruitment is a
+different product and is out of scope until decided otherwise.
+
 ## Open items
 
 - Lawyer review + DPIA + DPA (the gate). Consent copy is written and built.
