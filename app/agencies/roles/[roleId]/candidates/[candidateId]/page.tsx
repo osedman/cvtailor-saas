@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation"
 import { resolveProbes } from "@/lib/agency/probes"
 import { WORKFLOW_STEPS, stepNumber } from "@/lib/agency/steps"
 import { CandidateCompliance } from "@/components/agency/candidate-compliance"
+import { CandidatePlacement } from "@/components/agency/candidate-placement"
 
 interface Requirement { id: string; ref: string; text: string; weight: string; category?: string }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; salary_text?: string; redacted: boolean }
@@ -341,6 +342,8 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                   </div>
 
                   <CandidateCompliance candidateId={candidateId} />
+
+                  <CandidatePlacement candidateId={candidateId} />
 
                   <div className="ag-card">
                     <div className="ag-card-head">
