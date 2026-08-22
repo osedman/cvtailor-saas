@@ -2037,6 +2037,54 @@ served chunk by curl rather than by reading the file.
 
 ---
 
+---
+
+## 📅 Candidate-side booking — frame drawn, awaiting sign-off (22 Aug 2026)
+
+Next in the 20 Aug gap list after notifications. Today `scheduleRound()` writes
+the round and its audit row and **tells the candidate nothing** — no `.ics`
+exists anywhere in the codebase, and `sendEmail` has no attachment support. The
+recruiter books a time off the client's diary and the candidate finds out by
+phone, text, or not at all. Tailr holds the round and tells the one person
+whose day it is least.
+
+**Frame:** [`Candidate · Interview invitation — the booking doorway`](https://www.figma.com/design/AWRRbEOX6rLsltutFDL3zs/Tailr-%E2%80%94-Hiring-Manager-Concept?node-id=201-3)
+on a **new page, `05 · Candidate doorways`** — because Tailr has four live
+candidate- and referee-facing doorways (consent, rights, reference, portal) and
+until now **not one of them had a frame**. They were built from the copy
+outward, which is why they read well and look like nothing in particular.
+
+**The design decision that shaped it.** The recruiter keeps picking the time.
+The existing `Recruiter · Book an interview` frame promises that booking takes
+the slot off the client's board and cancelling gives it back — so offering the
+candidate a menu would mean holding three of the client's windows hostage while
+somebody thinks about it. The candidate therefore gets **confirm or decline a
+booked time**, and declining returns the slot, which is the mirror of the
+promise already made to the client.
+
+**Two departures worth arguing about at sign-off:**
+
+- **It names the client company.** The data-protection notice deliberately does
+  not (`noticeHtml` says so in its own comment). You cannot ask somebody to give
+  up a morning without telling them who they are meeting, so this is a
+  considered exception rather than an oversight — but it IS an exception.
+- **The joining link is withheld until confirmation.** A live meeting URL
+  sitting in an unconfirmed inbox is a call somebody can walk into unannounced.
+
+**And one thing it refuses:** declining asks for no reason and offers no
+free-text box. A candidate explaining a hospital appointment to their
+recruiter's software is a worse product than one that simply asks when suits.
+
+**No code written.** Per the repo's rule, the frame goes to Ose before
+implementation. What it implies when approved: a booking token on
+`interview_rounds` (the `consent_token_hash` pattern), a `/booking/[token]`
+doorway, an agency-branded candidate email on the `notices.ts` pattern rather
+than the internal `notify.ts` one, `.ics` generation, and attachment support in
+`lib/email.ts`.
+
+
+---
+
 ## 🌐 The agencies host, documented and configured (22 Aug 2026)
 
 **Decision: stay on a subdomain — `agencies.gettailr.com`** — which is what
