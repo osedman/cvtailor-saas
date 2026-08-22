@@ -1,0 +1,27 @@
+/* The booking doorway borrows consent.css wholesale; this adds only what the
+   interview details need. Kept separate so the consent surface cannot be
+   restyled by accident from here. */
+
+.bk-when {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  background: var(--cs-bg-2, #f2eee2);
+  border-radius: 8px;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.bk-rows { margin: 0 0 18px; display: flex; flex-direction: column; gap: 8px; }
+.bk-row { display: flex; gap: 12px; align-items: baseline; }
+.bk-row dt {
+  flex: none; width: 104px; margin: 0;
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--cs-ink-3, #6f675b);
+}
+.bk-row dd { margin: 0; font-size: 15px; line-height: 1.5; }
+.bk-link { word-break: break-all; }
+
+@media (max-width: 480px) {
+  .bk-row { flex-direction: column; gap: 2px; }
+  .bk-row dt { width: auto; }
+}

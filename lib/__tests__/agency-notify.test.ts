@@ -23,7 +23,7 @@
  * the grants and the real send are verified against the deployed database.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { readFileSync } from "fs"
+import { readFileSync, readdirSync } from "fs"
 import { join } from "path"
 
 type SendArgs = { to: string; subject: string; html: string }
@@ -70,6 +70,7 @@ const CLASSIFICATION: Record<NotifyEvent["kind"], "agency" | "client"> = {
   debrief_recorded: "agency",
   consent_answered: "agency",
   reference_submitted: "agency",
+  booking_answered: "agency",
 }
 
 function unionKinds(): string[] {
@@ -417,11 +418,20 @@ describe("preferences, applied", () => {
 
 describe("migration 29 and the event list stay in step", () => {
   it("the preference table stores every agency-bound kind and NOT the client one", () => {
-    const sql = readFileSync(
-      join(process.cwd(), "supabase/migrations/20260822140000_notification_prefs.sql"),
-      "utf8"
-    )
-    const body = sql.slice(sql.indexOf("event_kind  text not null"))
+    // The NEWEST migration that defines this constraint, not a named file: it
+    // was rebuilt in migration 31 to add booking_answered, and a hardcoded
+    // filename would have kept asserting against the stale list while the
+    // deployed one moved on. Exactly the trap audit-entity-types.test.ts was
+    // written to close.
+    const dir = join(process.cwd(), "supabase/migrations")
+    const file = readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .filter((f) => readFileSync(join(dir, f), "utf8").includes("event_kind in ("))
+      .sort()
+      .pop()
+    expect(file, "no migration defines the event_kind list").toBeTruthy()
+    const sql = readFileSync(join(dir, file!), "utf8")
+    const body = sql.slice(sql.lastIndexOf("event_kind in ("))
     const constraint = body.slice(0, body.indexOf("))"))
 
     for (const kind of unionKinds()) {

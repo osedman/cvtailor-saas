@@ -27,6 +27,7 @@
  */
 
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
+import { mintBookingToken, sendBookingInvite } from "./booking"
 import type {
   AgencyContext,
   HiringContext,
@@ -411,7 +412,22 @@ export async function scheduleRound(
     },
   })
 
-  return { roundId: round.id as string, roundNumber }
+  // Tell the candidate. Until this existed, Tailr held the round and told the
+  // one person whose day it was least — they found out by phone, text, or not
+  // at all. Fire-and-forget by design: a mail failure must not undo a booking
+  // that already took the slot off the client's board, and the recruiter can
+  // resend from the round.
+  const roundId = round.id as string
+  try {
+    const rawToken = await mintBookingToken(admin, roundId)
+    await sendBookingInvite(admin, roundId, rawToken)
+  } catch {
+    // Swallowed deliberately — see above. The absence shows on the round as a
+    // candidate who has not answered, which is the state the screen already
+    // renders.
+  }
+
+  return { roundId, roundNumber }
 }
 
 /**

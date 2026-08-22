@@ -20,6 +20,7 @@ export const SWITCHABLE_KINDS = [
   "debrief_recorded",
   "consent_answered",
   "reference_submitted",
+  "booking_answered",
   "invite_accepted",
 ] as const
 
@@ -60,6 +61,12 @@ export const NOTIFICATION_COPY: Record<
     title: "A referee completes a reference",
     blurb: "The reference itself stays in the app. This only tells you it is there to read.",
   },
+  booking_answered: {
+    eyebrow: "A candidate answers a time",
+    title: "Someone confirms or declines their interview",
+    blurb:
+      "If they cannot make it the slot goes back to the client's board on its own, so this is news rather than a task. Declining a time says nothing about the role.",
+  },
   invite_accepted: {
     eyebrow: "A client signs in",
     title: "Your client activates their access",
@@ -74,5 +81,6 @@ export const NOTIFICATION_SHORT: Record<SwitchableKind, string> = {
   debrief_recorded: "A write-up lands",
   consent_answered: "A candidate replies",
   reference_submitted: "A reference comes back",
+  booking_answered: "A candidate answers a time",
   invite_accepted: "A client signs in",
 }

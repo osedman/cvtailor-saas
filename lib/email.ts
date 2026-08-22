@@ -20,6 +20,16 @@ export async function sendEmail(opts: {
   /** Override the From header (must be a verified sender domain). Defaults to
    * WELCOME_FROM — agency candidate notices pass their own display name. */
   from?: string
+  /**
+   * Files to attach. Added for the interview invitation's calendar file: an
+   * invite a candidate cannot put in their diary is a worse product than one
+   * they can.
+   *
+   * `content` is raw text or bytes; it is base64-encoded here rather than by
+   * every caller, so nobody has to remember. Keep attachments small — Resend
+   * caps a message at 40 MB and this is meant for .ics files, not documents.
+   */
+  attachments?: Array<{ filename: string; content: string | Buffer; contentType?: string }>
 }): Promise<{ sent: boolean; skipped?: string; error?: string }> {
   const key = process.env.RESEND_API_KEY
   if (!key) return { sent: false, skipped: "RESEND_API_KEY not set" }
@@ -39,6 +49,15 @@ export async function sendEmail(opts: {
         subject: opts.subject,
         html: opts.html,
         ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
+        ...(opts.attachments?.length
+          ? {
+              attachments: opts.attachments.map((a) => ({
+                filename: a.filename,
+                content: Buffer.from(a.content).toString("base64"),
+                ...(a.contentType ? { content_type: a.contentType } : {}),
+              })),
+            }
+          : {}),
       }),
       signal: AbortSignal.timeout(10_000),
     })

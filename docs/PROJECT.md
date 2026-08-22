@@ -2134,12 +2134,52 @@ promise already made to the client.
 free-text box. A candidate explaining a hospital appointment to their
 recruiter's software is a worse product than one that simply asks when suits.
 
-**No code written.** Per the repo's rule, the frame goes to Ose before
-implementation. What it implies when approved: a booking token on
-`interview_rounds` (the `consent_token_hash` pattern), a `/booking/[token]`
-doorway, an agency-branded candidate email on the `notices.ts` pattern rather
-than the internal `notify.ts` one, `.ics` generation, and attachment support in
-`lib/email.ts`.
+**Approved and built (22 Aug).** Migrations 30 and 31, both applied to
+`tailr-staging`.
+
+**Migration 30** adds `booking_token_hash` (SHA-256, never in the clear, beside
+`consent_token_hash`), plus `candidate_response` and `candidate_responded_at`.
+`candidate_response` is deliberately its OWN column rather than a `status`
+value, so the trail can tell "they said no to Thursday" from "we called it
+off" — and so nothing can read a decline as leaving the role. Verified by
+effect: columns present, default `pending` (nobody agreed by omission), the
+list closed, `withdrawn` refused, token index present.
+
+**Declining releases the slot in the same write that cancels the round.**
+`slot_id` is cleared because the index preventing double-booking is
+`(slot_id) WHERE slot_id IS NOT NULL` and is status-agnostic — a cancelled
+round keeping its `slot_id` holds that client window forever, which
+`setRoundStatus()` documents because it has already happened once. The token is
+spent at the same time so a declined link cannot be replayed.
+
+**`lib/ics.ts`** is hand-rolled, and the tests are about the parts that break
+clients rather than the happy path: CRLF everywhere (Outlook silently ignores
+bare newlines rather than complaining), folding at 75 **octets** without
+splitting a multi-byte character, TEXT escaping, and `METHOD:PUBLISH` rather
+than `REQUEST` — an email client's Decline button cannot give the client's slot
+back, and a candidate whose "no" went nowhere is worse than no button.
+`sendEmail` gained attachment support for it.
+
+**The recruiter is told** via a new `booking_answered` notification, because
+otherwise this rebuilds the exact polling problem notifications were added to
+fix two hours earlier. Adding that kind was a controlled operation, as designed:
+TypeScript refused the union, the classification test refused an unclassified
+kind, and the constraint test refused the missing migration. Migration 31
+rebuilds the `event_kind` list from the complete deployed set.
+
+**One flaw found in my own test while doing it.** The constraint test named
+migration 29's file directly, so it would have kept asserting against a stale
+list the moment the constraint moved — exactly the trap
+`audit-entity-types.test.ts` was written to close. It now finds the NEWEST
+migration defining the list.
+
+Three behaviours mutation-tested: keeping the slot on decline, exposing the
+joining link before confirmation, and dropping the recruiter notification each
+redden a test.
+
+844 tests. **Not verified through a real session** — `/booking/<token>` serves
+200 and the API returns the generic 404 for an unknown token, but no invitation
+has been sent or answered end to end.
 
 
 ---

@@ -50,6 +50,7 @@ export type NotifyEvent =
   | { kind: "debrief_recorded"; roleId: string; candidateRef: string }
   | { kind: "consent_answered"; roleId: string; candidateRef: string }
   | { kind: "reference_submitted"; roleId: string; candidateRef: string }
+  | { kind: "booking_answered"; roleId: string; candidateRef: string }
 
 export type NotifyInput = NotifyEvent & {
   agencyId: string
@@ -358,6 +359,16 @@ function copyFor(input: NotifyInput): Copy {
         eyebrow: "A candidate replied",
         heading: "A candidate answered.",
         body: `${esc(input.candidateRef)} has responded to the ask about recording their interview. Their answer is on the round, and it stays between you and them.`,
+        ctaLabel: "Open the round",
+        ctaUrl: `${agencyOrigin}/agencies/roles/${encodeURIComponent(input.roleId)}`,
+      }
+
+    case "booking_answered":
+      return {
+        subject: `${input.candidateRef} answered their interview time`,
+        eyebrow: "A candidate replied",
+        heading: "A candidate answered their invitation.",
+        body: `${esc(input.candidateRef)} has responded to the time you booked. If they could not make it the slot has already gone back to the client's board, so nothing is being held.`,
         ctaLabel: "Open the round",
         ctaUrl: `${agencyOrigin}/agencies/roles/${encodeURIComponent(input.roleId)}`,
       }
