@@ -2186,9 +2186,40 @@ nothing until they can fail: ignoring the personal override reddened 4 tests,
 flipping absent-means-on reddened 5, and letting client-facing events consult
 the table reddened 1.
 
-**Still to build: the two screens themselves.** The backend resolves
-preferences and the frames are drawn; no React yet, and no route to read or
-write a preference.
+**The screens are built (22 Aug).** `/agencies/notifications` (personal, to
+frame 194:2) and a **Notification defaults** card on `/agencies/settings` (to
+94:2), behind one route — `GET/PATCH /api/agency/notifications` — so the two
+screens cannot resolve preferences differently from each other or from the
+mailer.
+
+`lib/agency/notification-kinds.ts` holds the five kinds and their copy with NO
+server imports. This is not tidiness: `notify.ts` imports `sendEmail` and
+`createAdminClient`, so a client component taking a runtime value from it drags
+the service-role key into the browser bundle and fails the build. It is the
+same reason `settings-limits.ts` exists, and the settings page already carries
+a comment saying so.
+
+**The switch is a real `role="switch"` button**, built to the same standard as
+the consumer `ns-switch`: `aria-checked` carries the EFFECTIVE value (what will
+actually happen), the 26px track gets a 44px hit area, animation is
+transform-only, and reduced-motion is honoured. The inherited state is dashed
+with an "Agency" label, and `aria-label` spells out "following the agency
+default, currently on/off" — the visual says whose decision it is, the label
+says it out loud.
+
+**"Follow the agency again" is a DELETE, not a write.** Storing the resolved
+value would look identical on screen and be a different feature: the owner
+later changes the default and this person, who explicitly asked to follow the
+agency, silently would not. That is the single easiest bug to ship here, and it
+is mutation-tested along with the owners-only check and the rule that setting a
+default never touches anybody's own row — all three reddened a test when
+broken.
+
+**Not browser-verified.** The dev server runs and loads its env correctly
+(`Environments: .env.development.local, .env.local` — which also confirms the
+build diagnosis above), but a stale `accounts.google.com` popup in the browser
+pane blocks all navigation, and an agent may not close a page-opened popup.
+Typecheck and 815 tests are green; the rendered page has not been looked at.
 
 **Build:** compiles clean. `npm run build` does fail locally at prerendering
 `/auth/confirm`, but that is pre-existing and environmental, not this change —

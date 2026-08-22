@@ -1092,3 +1092,121 @@
 .ag-capture.is-idle { background: var(--ag-bg-2); }
 .ag-capture-head { display: flex; align-items: center; gap: 10px; }
 .ag-capture-title { margin: 0; font-size: var(--t-body); font-weight: 600; color: var(--ag-ink); }
+
+/* ============================================================
+   NOTIFICATION PREFERENCES
+   Figma "Recruiter · Notification preferences" + the defaults card on
+   "Recruiter · Agency settings".
+
+   Three states, not two. On and Off are somebody's own choice; the third is
+   "following the agency default", drawn dashed because whose decision it is
+   matters as much as what the decision currently is. aria-checked always
+   carries the EFFECTIVE value — what will actually happen — because that is
+   what a screen reader user needs to know; the dashed treatment and the label
+   beside it say who decided.
+   ============================================================ */
+
+.ag-notif-list { display: flex; flex-direction: column; gap: 22px; }
+
+.ag-notif-row { display: flex; align-items: flex-start; gap: 24px; }
+.ag-notif-copy { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.ag-notif-eyebrow {
+  font-family: var(--ag-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--ag-ink-3); margin: 0;
+}
+.ag-notif-title { margin: 0; font-size: var(--t-title); font-weight: 600; line-height: 1.25; }
+.ag-notif-blurb { margin: 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink-2); }
+
+.ag-switch-cell { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+
+.ag-switch {
+  position: relative;
+  flex: none;
+  width: 46px; height: 26px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--ag-line-2);
+  background: var(--ag-border);
+  cursor: pointer;
+  padding: 0;
+  touch-action: manipulation;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+/* A 26px tap target on a control that decides whether you hear about your own
+   client is a mis-tap waiting to happen. Hit area to 44px, visuals unmoved. */
+.ag-switch::before {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%; min-width: 44px;
+  height: 44px;
+}
+.ag-switch::after {
+  content: "";
+  position: absolute; top: 2px; left: 2px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--ag-paper);
+  box-shadow: 0 1px 2px rgba(30, 24, 19, 0.18);
+  /* transform only — never animate left/width */
+  transition: transform 160ms ease;
+}
+.ag-switch[aria-checked="true"] { background: var(--ag-ink); border-color: var(--ag-ink); }
+.ag-switch[aria-checked="true"]::after { transform: translateX(20px); }
+.ag-switch:disabled { opacity: 0.55; cursor: default; }
+.ag-switch:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; }
+
+/* Following the agency default: nobody here has chosen, so the switch is
+   drawn as borrowed rather than owned. */
+.ag-switch.ag-switch-inherited {
+  border-style: dashed;
+  border-color: var(--ag-line-2);
+  background: var(--ag-bg-2);
+}
+.ag-switch.ag-switch-inherited[aria-checked="true"] { background: var(--ag-bg-2); }
+.ag-switch.ag-switch-inherited::after { background: var(--ag-line-2); box-shadow: none; }
+
+.ag-switch-label {
+  font-family: var(--ag-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--ag-ink-3);
+}
+.ag-switch-label.on { color: var(--ag-ink); }
+.ag-switch-label.inherited { color: var(--ag-ink-4); }
+
+.ag-notif-reset {
+  border: none; background: none; padding: 0; cursor: pointer;
+  font-family: var(--ag-sans); font-size: var(--t-caption);
+  color: var(--ag-ink-3); text-decoration: underline; text-underline-offset: 2px;
+}
+.ag-notif-reset:hover { color: var(--ag-ink); }
+.ag-notif-reset:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; border-radius: var(--r-xs); }
+.ag-notif-reset[hidden] { display: none; }
+
+/* The agency defaults card: one line per event, denser than the personal
+   screen because an owner is scanning five rows, not reading five arguments. */
+.ag-default-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--ag-border);
+}
+.ag-default-row:first-child { border-top: none; }
+.ag-default-label { flex: 1 1 auto; font-size: var(--t-body); color: var(--ag-ink); }
+.ag-default-row .ag-switch { width: 40px; height: 23px; }
+.ag-default-row .ag-switch::after { width: 17px; height: 17px; }
+.ag-default-row .ag-switch[aria-checked="true"]::after { transform: translateX(17px); }
+
+.ag-notif-note {
+  background: var(--ag-bg-2); border-radius: var(--r-sm);
+  padding: 12px 16px; font-size: var(--t-small); line-height: 1.55; color: var(--ag-ink-2);
+}
+
+@media (max-width: 640px) {
+  .ag-notif-row { gap: 14px; }
+  .ag-notif-title { font-size: var(--t-lead); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-switch, .ag-switch::after { transition: none; }
+}

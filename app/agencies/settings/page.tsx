@@ -33,6 +33,19 @@ import {
   RETENTION_MIN,
 } from "@/lib/agency/settings-limits"
 import type { AgencySettings } from "@/lib/agency/settings"
+import {
+  NOTIFICATION_SHORT,
+  SWITCHABLE_KINDS,
+  type PrefValue,
+  type SwitchableKind,
+} from "@/lib/agency/notification-kinds"
+
+type Prefs = {
+  mine: Record<SwitchableKind, PrefValue>
+  defaults: Record<SwitchableKind, boolean>
+  effective: Record<SwitchableKind, boolean>
+  canEditDefaults: boolean
+}
 
 export default function AgencySettingsPage() {
   const router = useRouter()
@@ -42,6 +55,8 @@ export default function AgencySettingsPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [prefs, setPrefs] = useState<Prefs | null>(null)
+  const [busyKind, setBusyKind] = useState<SwitchableKind | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -61,9 +76,44 @@ export default function AgencySettingsPage() {
     }
   }, [router])
 
+  const loadPrefs = useCallback(async () => {
+    try {
+      const res = await fetch("/api/agency/notifications")
+      if (!res.ok) return
+      const body = await res.json()
+      setPrefs(body.prefs as Prefs)
+    } catch {
+      // The defaults card simply does not render. It is not worth failing the
+      // retention settings over.
+    }
+  }, [])
+
   useEffect(() => {
     void load()
-  }, [load])
+    void loadPrefs()
+  }, [load, loadPrefs])
+
+  async function setDefault(kind: SwitchableKind, enabled: boolean) {
+    setBusyKind(kind)
+    setError(null)
+    try {
+      const res = await fetch("/api/agency/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "agency", kind, enabled }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not change that default.")
+        return
+      }
+      setPrefs(body.prefs as Prefs)
+    } catch {
+      setError("Could not change that default.")
+    } finally {
+      setBusyKind(null)
+    }
+  }
 
   const dirty =
     settings !== null &&
@@ -117,8 +167,10 @@ export default function AgencySettingsPage() {
           <div className="ag-rail-label">Navigate</div>
           <button className="ag-step" onClick={() => router.push("/agencies")}>Roles</button>
           <button className="ag-step" onClick={() => router.push("/agencies/clients")}>Client access</button>
+          <button className="ag-step" onClick={() => router.push("/agencies/briefs")}>Client briefs</button>
           <button className="ag-step" onClick={() => router.push("/agencies/audit")}>Audit log</button>
           <button className="ag-step on" aria-current="page">Settings</button>
+          <button className="ag-step" onClick={() => router.push("/agencies/notifications")}>Notifications</button>
         </div>
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Applies everywhere</div>
@@ -143,8 +195,10 @@ export default function AgencySettingsPage() {
           </p>
           <h1 className="ag-title">How long you keep people, and when you tell them</h1>
           <p className="ag-sub">
-            Two numbers with real consequences for people who never signed up to anything. Both are
-            audit logged, and both apply to every role from the moment you change them.
+            Two numbers with real consequences for people who never signed up to anything, and one
+            set of defaults for your own team. All three are audit logged. The numbers apply to
+            every role the moment you change them; the defaults only move people who have not
+            already chosen for themselves.
           </p>
 
           {error && (
@@ -231,6 +285,50 @@ export default function AgencySettingsPage() {
                 </p>
               </section>
 
+              {prefs !== null && (
+                <section className="ag-card ag-setting">
+                  <h2 className="ag-setting-title">Notification defaults</h2>
+                  <p className="ag-note">
+                    Where each of the five notifications starts for everyone in the agency. Unlike
+                    the two numbers above, this one is a starting point rather than a rule: any
+                    recruiter can override it for themselves, and most should be left alone.
+                  </p>
+                  <div style={{ marginTop: 14 }}>
+                    {SWITCHABLE_KINDS.map((kind) => (
+                      <div className="ag-default-row" key={kind}>
+                        <span className="ag-default-label">{NOTIFICATION_SHORT[kind]}</span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={prefs.defaults[kind]}
+                          aria-label={`${NOTIFICATION_SHORT[kind]} — agency default`}
+                          className="ag-switch"
+                          disabled={!prefs.canEditDefaults || busyKind === kind}
+                          onClick={() => setDefault(kind, !prefs.defaults[kind])}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="ag-notif-note" style={{ marginTop: 14 }}>
+                    Changing a default moves it only for people who have not chosen for themselves.
+                    It never overwrites somebody&apos;s own setting — an owner sets where everyone
+                    starts, not what everyone gets.
+                  </p>
+                  {!prefs.canEditDefaults && (
+                    <p className="ag-note" role="status">
+                      Only an owner can change these. Yours are on{" "}
+                      <button
+                        className="ag-notif-reset"
+                        onClick={() => router.push("/agencies/notifications")}
+                      >
+                        your own notifications page
+                      </button>
+                      .
+                    </p>
+                  )}
+                </section>
+              )}
+
               {!readOnly && (
                 <div className="ag-setting-save">
                   <button className="ag-btn ag-btn-primary" onClick={save} disabled={!dirty || busy}>
@@ -246,8 +344,10 @@ export default function AgencySettingsPage() {
               )}
 
               <p className="ag-note-quiet">
-                Changing either number is written to the audit log against your name. Shortening
-                retention does not delete anything already past its date until the nightly job runs.
+                Every change on this page is written to the audit log against your name. Shortening
+                retention does not delete anything already past its date until the nightly job
+                runs, and changing a default does not touch a recruiter who has already chosen for
+                themselves.
               </p>
             </div>
           )}
