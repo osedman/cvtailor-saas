@@ -29,6 +29,8 @@ import "../../hiring.css"
 
 type Screen = "loading" | "signed-out" | "not-linked" | "ready"
 
+import { MAX_FIELD, MAX_JD, MAX_TITLE } from "@/lib/agency/brief-limits"
+
 interface Draft {
   roleTitle: string
   jdRaw: string
@@ -55,8 +57,9 @@ const EMPTY: Draft = {
   location: "",
 }
 
-const MAX_TITLE = 200
-const MAX_FIELD = 4000
+// Imported, never redeclared: these caps used to be a local copy that had
+// drifted from the server's, which silently cut a pasted JD at 4,000
+// characters. See lib/agency/brief-limits.ts.
 
 export default function NewBriefPage() {
   const router = useRouter()
@@ -65,6 +68,8 @@ export default function NewBriefPage() {
   const [contactId, setContactId] = useState("")
   const [draft, setDraft] = useState<Draft>(EMPTY)
   const [saving, setSaving] = useState(false)
+  const [jdBusy, setJdBusy] = useState(false)
+  const [jdNote, setJdNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -97,9 +102,45 @@ export default function NewBriefPage() {
   const agency = link?.agencyName || "your recruiter"
   const canSend = draft.roleTitle.trim().length > 0 && !saving && !!link
 
+  /** The JD is a document, not a form field, and is capped like one — the
+   * server stores 30,000. Applying the 4,000 field cap here is what was
+   * quietly truncating pasted job descriptions before they were ever sent. */
+  function capFor(key: keyof Draft): number {
+    if (key === "roleTitle") return MAX_TITLE
+    if (key === "jdRaw") return MAX_JD
+    return MAX_FIELD
+  }
+
   function field(key: keyof Draft, value: string) {
-    const cap = key === "roleTitle" ? MAX_TITLE : MAX_FIELD
-    setDraft((d) => ({ ...d, [key]: value.slice(0, cap) }))
+    setDraft((d) => ({ ...d, [key]: value.slice(0, capFor(key)) }))
+  }
+
+  async function uploadJd(file: File) {
+    setJdBusy(true)
+    setJdNote(null)
+    setError(null)
+    try {
+      const body = new FormData()
+      body.append("file", file)
+      const res = await fetch("/api/hiring/briefs/extract", { method: "POST", body })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setJdNote(typeof data?.error === "string" ? data.error : "Could not read that file.")
+        return
+      }
+      // Fills the box rather than submitting: what gets sent is always
+      // something the hiring manager has had a chance to see and correct.
+      field("jdRaw", String(data.text ?? ""))
+      setJdNote(
+        data.truncated
+          ? `Read ${file.name}, and kept the first ${Number(data.characters).toLocaleString()} characters. Check the end of the box.`
+          : `Read ${file.name}. Edit it below if anything came through oddly.`
+      )
+    } catch {
+      setJdNote("Could not read that file.")
+    } finally {
+      setJdBusy(false)
+    }
   }
 
   async function send() {
@@ -229,6 +270,32 @@ export default function NewBriefPage() {
                 onChange={(e) => field("jdRaw", e.target.value)}
                 placeholder="Paste the full job description here…"
               />
+              <div className="ag-jd-upload">
+                <label className="ag-btn ag-btn-secondary" htmlFor="brief-jd-file">
+                  {jdBusy ? "Reading…" : "Upload a file"}
+                </label>
+                <input
+                  id="brief-jd-file"
+                  className="ag-sr-only"
+                  type="file"
+                  accept=".pdf,.docx,.txt,application/pdf,text/plain"
+                  disabled={jdBusy}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    // Reset first, so choosing the same file twice still fires.
+                    e.target.value = ""
+                    if (f) void uploadJd(f)
+                  }}
+                />
+                <span className="ag-note">
+                  PDF, DOCX or TXT · up to 10 MB — it fills the box above, which you can then edit.
+                </span>
+              </div>
+              {jdNote && (
+                <p className="ag-note" role="status">
+                  {jdNote}
+                </p>
+              )}
             </Field>
 
             <Field

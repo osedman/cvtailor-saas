@@ -1060,7 +1060,13 @@ describe("the brief carries the JD (20 Aug simplification)", () => {
   })
 
   it("a full JD gets a document-sized cap, not a form-field cap", () => {
-    expect(lib).toMatch(/MAX_JD = 30_000/)
+    // The constant moved to lib/agency/brief-limits on 22 Aug so the BROWSER
+    // could import it too. This test guarded the server only, which is exactly
+    // how the form kept truncating pasted JDs at 4,000 characters underneath
+    // a passing suite — see lib/__tests__/brief-limits.test.ts, which now
+    // covers both ends.
+    expect(lib).toMatch(/from "\.\/brief-limits"/)
+    expect(lib).toMatch(/jd_raw:\s*capText\(input\.jdRaw,\s*MAX_JD\)/)
     expect(route).toMatch(/"jdRaw", 30_000/)
   })
 

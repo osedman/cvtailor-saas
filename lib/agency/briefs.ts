@@ -46,17 +46,15 @@
 
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError, type AgencyClient } from "./db"
 import { notify } from "./notify"
+import { MAX_FIELD, MAX_JD, MAX_TITLE } from "./brief-limits"
 import type { AgencyContext, BriefStatus, HiringBrief, HiringContext, HiringLink } from "./types"
 
 /** Body fields. Generous enough for a real brief pasted from a doc, small
  * enough that a paste-bomb cannot be used to fill the table. */
-const MAX_FIELD = 4000
-// A full job description, not a form field. Mirrors the role route's jd_raw cap.
-const MAX_JD = 30_000
+// Limits now live in ./brief-limits so the form cannot drift from them.
 
 /** The title is a headline, not a body. It is also the audit entity_ref, so it
  * stays short enough to read in a log table. */
-const MAX_TITLE = 200
 
 /** A list is a list; detail reads fetch the body. Matches the dashboard cap in
  * client-auth.ts so the two surfaces cannot disagree about how much is "all". */

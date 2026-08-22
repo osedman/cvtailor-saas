@@ -2039,6 +2039,65 @@ served chunk by curl rather than by reading the file.
 
 ---
 
+---
+
+## 📎 The brief takes a JD file — and a silent truncation bug it uncovered (22 Aug 2026)
+
+Asked for by Ose: the hiring manager should be able to upload the job
+description, not only paste it.
+
+**It was an asymmetry, not a missing feature.** A recruiter has had three ways
+to supply a JD since intake was built — paste, upload a file, or hand over a
+link (`parse/route.ts`: "upload beats link beats stored paste"). The hiring
+manager, who is the person actually holding the document, could only paste.
+Most JDs live as a .docx in somebody's drive, so the one person with the file
+was the one asked to retype it.
+
+**The bug found on the way in, which is the more valuable half.** The server
+caps `jd_raw` at 30,000 characters and says why in a comment — "a full job
+description, not a form field". The FORM kept its own copy of the constants and
+applied its 4,000 general field cap to every box except the title. So a pasted
+JD was cut at 4,000 characters **in the browser**, before the server ever saw
+it, with no warning and no visible boundary. Typical JDs run three to eight
+thousand characters, so this was quietly losing the end of real briefs —
+usually the requirements at the bottom, which is precisely what the recruiter
+then parses.
+
+**A test already guarded this and did not catch it**, because it asserted the
+server constant only. That is the shape of the whole thing: the cap was correct
+everywhere it was tested and wrong where it was not.
+
+Both sides now import `lib/agency/brief-limits.ts` (no server imports, same
+reason `settings-limits.ts` exists), and `brief-limits.test.ts` fails if either
+end redeclares a cap or stops special-casing the JD.
+
+**The upload itself.** `POST /api/hiring/briefs/extract` takes a PDF, DOCX or
+TXT up to 10 MB, extracts the text with the extractor the recruiter side
+already uses, and returns it. **The file is never stored** — read in memory,
+converted, dropped — so there is no bucket, no retention question and nothing
+extra to delete when the role closes. Only the text is kept, in the same
+`jd_raw` column a paste already fills, so there is no schema change and no new
+path through the product.
+
+The extracted text **fills the textarea rather than submitting**, so what gets
+sent is always something the hiring manager has seen and can correct. A scanned
+PDF with no text layer says so specifically rather than "could not read the
+file". The control is a real `<input type="file">` with its label styled as the
+button, and `:focus-within` puts a visible ring on that label — without it a
+keyboard user tabs onto a control they cannot see.
+
+**Figma:** [`AMENDMENT 22 Aug · JD upload`](https://www.figma.com/design/AWRRbEOX6rLsltutFDL3zs/Tailr-%E2%80%94-Hiring-Manager-Concept?node-id=204-2)
+on page `01 · Hiring manager`, following the format of the 20 Aug JD field
+amendment rather than redrawing the brief screen.
+
+823 tests. Not browser-verified in its signed-in state: `/hiring/briefs/new`
+serves 200 and the extract route refuses unauthenticated callers with 401 (not
+500), and the new CSS is in the served bundle, but the upload has not been
+exercised through a real session.
+
+
+---
+
 ## 📅 Candidate-side booking — frame drawn, awaiting sign-off (22 Aug 2026)
 
 Next in the 20 Aug gap list after notifications. Today `scheduleRound()` writes
