@@ -2037,9 +2037,9 @@ served chunk by curl rather than by reading the file.
 
 ## 📬 Notifications: the silent return leg of every doorway (22 Aug 2026)
 
-**Status: on staging, migration 28 applied and verified there. Awaiting
-template sign-off before anything sends to a real address.** Branch `staging`,
-commit `a442937`. Named as the top gap on 20 Aug: "every cross-wall
+**Status: on staging, migration 28 applied and verified there. Templates
+signed off by Ose 22 Aug — notifications are cleared to send.** Branch
+`staging`. Named as the top gap on 20 Aug: "every cross-wall
 event requires the other side to poll the app — briefs sat invisible for days,
 which is an adoption risk more than a bug."
 
@@ -2120,7 +2120,35 @@ project a mock has agreed with wrong code.
 UI — both are new surfaces and would need a Figma frame first. There is
 therefore no off switch yet, which is the obvious follow-up.
 
-**Templates await sign-off** before anything sends to a real address.
+**Templates signed off 22 Aug.** All seven rendered for review before any
+send; approved as written.
+
+**The off switch — frame drawn 22 Aug, awaiting sign-off.**
+[`Recruiter · Notification preferences`](https://www.figma.com/design/AWRRbEOX6rLsltutFDL3zs/Tailr-%E2%80%94-Hiring-Manager-Concept?node-id=194-2)
+on page `02 · Recruiter`. Built to the existing screen shell (`Recruiter ·
+Agency settings`, 94:2) and the existing toggle-row pattern from the consumer
+settings frame (110:3), so it reuses rather than invents.
+
+The design decision it encodes, and the reason it is NOT a row on the agency
+settings screen: **notification preferences are personal, not agency-level.**
+`Recruiter · Agency settings` is owners-only and is about candidate rights —
+its own title is "How long you keep people, and when you tell them". Putting
+notifications there would let an owner silence a colleague's inbox, and the
+person who needs to know a brief arrived is the person holding that client.
+Five switches, all defaulting to On, because an unheard event is the problem
+this feature exists to solve.
+
+Two things the frame deliberately refuses. The email telling a hiring manager
+their brief was accepted or declined is not on the list — it is a message to a
+client, not a notification to a recruiter, and not theirs to switch off. And
+switching one off silences an inbox only: the event still happens, still writes
+its audit row, and still reaches colleagues. Turning one off is itself audit
+logged, because "nobody told me" and "I turned that off in March" are different
+conversations and only one is answerable.
+
+**No code written yet.** The personal-vs-agency choice determines the table
+shape, and a migration is the expensive thing to reverse, so this waits on the
+frame.
 
 **Build:** compiles clean. `npm run build` does fail locally at prerendering
 `/auth/confirm`, but that is pre-existing and environmental, not this change —
