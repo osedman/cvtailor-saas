@@ -2043,6 +2043,48 @@ served chunk by curl rather than by reading the file.
 
 ---
 
+---
+
+## 🕊 Closing the loop: a closed role tells its candidates (22 Aug 2026)
+
+The 20 Aug gap named as ghosting: "nothing tells the other four people a role
+was filled — which a product arguing for candidate dignity should not
+facilitate." Now closing a role emails the candidates who were in the process,
+and the close response tells the recruiter how many were told.
+
+**WHO is the decision that carries it: only people the loop was OPENED with.**
+Their considered-notice was sent, or they were interviewed. A candidate whose
+notice was suppressed has never heard from Tailr about this role, and a
+closure email would be the FIRST contact — worse than none. The placed
+candidate is excluded (their news arrived differently), as is anyone holding a
+live offer; a declined or fallen-through placement puts the person back in the
+set, because the role ended for them too.
+
+**WHAT it says:** the role ended, no reasons, no winner, no
+encouragement-shaped padding — and the one genuinely useful thing: their
+deletion date. The considered-notice promised "if nothing comes of this role,
+your data is deleted after N days"; this email is that promise being kept out
+loud, with the rights link when a token exists.
+
+**Mechanics.** Migration 33: one column, `candidates.closure_notified_at` —
+not a table, because candidate_notices is the Art 14 machinery with its own
+cron, and closure fires once at close. The stamp is the idempotency: close,
+reopen, close again emails nobody twice, and a FAILED send is deliberately
+not stamped so a re-close retries it. Suppression is re-checked at send time
+(an objection recorded after the interview wins). Every skip is audited.
+Hooked into the status→closed transition in the role PATCH, awaited so the
+UI can report the count, guarded so a mail failure cannot make the close
+look failed.
+
+**Template needs sign-off** — added to the templates artifact with an amber
+badge, alongside booking_answered which also postdates the original sign-off.
+
+860 tests. Mutations caught: eligibility dropped (everyone emailed), failure
+stamped anyway (burying the retry), live placements not excluded.
+
+
+---
+
 ## 👤 Roles get an owner (22 Aug 2026)
 
 The 20 Aug gap: "members exist, roles have no owner, and real desks are

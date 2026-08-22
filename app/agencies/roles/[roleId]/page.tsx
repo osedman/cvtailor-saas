@@ -115,6 +115,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [team, setTeam] = useState<Array<{ user_id: string; role: string; status: string; name: string }>>([])
   const [callerRole, setCallerRole] = useState<string>("viewer")
   const [ownerBusy, setOwnerBusy] = useState(false)
+  const [closureNote, setClosureNote] = useState<string | null>(null)
   const [paste, setPaste] = useState("")
   const [jdUrl, setJdUrl] = useState("")
   const [extractResult, setExtractResult] = useState<{ requirements: number; constraints: number; filled: string[] } | null>(null)
@@ -340,6 +341,17 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     if (res.ok) {
       const body = await res.json()
       patchRole({ status: body.role.status })
+      // Closing tells the unsuccessful candidates the loop ended. Say what
+      // happened — a count the recruiter can repeat to the client, and the
+      // absence of one when nobody was eligible.
+      if (body.closure) {
+        const c = body.closure as { sent: number; suppressed: number; noContact: number; failed: number }
+        setClosureNote(
+          c.sent > 0
+            ? `${c.sent} candidate${c.sent === 1 ? " was" : "s were"} told the role has closed.${c.failed > 0 ? ` ${c.failed} email${c.failed === 1 ? "" : "s"} failed — check the audit log.` : ""}`
+            : "Nobody needed telling — everyone in the process had already been told, or was never contacted about this role."
+        )
+      }
     }
   }
 
@@ -2268,6 +2280,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             Closing starts the retention clock on every candidate attached to it. Their CV data is erased once the window passes, and the closure is audit logged. Reopening clears the clock.
                           </p>
                           <div style={{ marginTop: 12 }}>
+                            {closureNote && (
+                              <p className="ag-note" role="status">{closureNote}</p>
+                            )}
                             {role.status === "closed" ? (
                               <button className="ag-btn ag-btn-secondary" onClick={() => setRoleStatus("open")}>Reopen role</button>
                             ) : (

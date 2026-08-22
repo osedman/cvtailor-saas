@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, agencyAdmin, getJobRole, requireAgencyContext, writeAudit } from "@/lib/agency/db"
 import { setRoleOwner } from "@/lib/agency/role-owner"
+import { sendClosureNotices, type ClosureResult } from "@/lib/agency/closure"
 import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
@@ -161,7 +162,22 @@ export async function PATCH(
       })
     }
 
-    return NextResponse.json({ role: data })
+    // Closing the loop: the candidates who were in this process are told it
+    // ended. Awaited so the response can say how many, but guarded — the role
+    // is already closed, and a mail failure must not make the close look
+    // failed. Idempotent per person (closure_notified_at), so re-closing a
+    // reopened role emails nobody twice.
+    let closure: ClosureResult | null = null
+    if (nextStatus === "closed" && before && before.status !== "closed") {
+      try {
+        closure = await sendClosureNotices(agencyAdmin(), roleId)
+      } catch {
+        closure = null
+      }
+    }
+
+
+    return NextResponse.json({ role: data, closure })
   } catch (error) {
     return NextResponse.json(
       { error: errorMessage(error) },
