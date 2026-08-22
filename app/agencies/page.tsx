@@ -41,6 +41,10 @@ interface Dashboard {
   caller_role: string
   caller_email: string
   also_hiring_manager?: boolean
+  briefs?: {
+    waiting: Array<{ id: string; role_title: string; company: string; created_at: string; has_jd: boolean }>
+    elsewhere: Array<{ agency_id: string; agency_name: string; count: number }>
+  }
   needs_you: { client_actions: ClientAction[]; rights_requests: RightsRequest[] }
   health: {
     brief_to_shortlist: { days: number | null; breach: string }
@@ -563,6 +567,67 @@ export default function AgencyHomePage() {
                       </button>
                     ))}
                   </div>
+                </section>
+              )}
+
+              {/*
+                BRIEFS FROM YOUR CLIENTS — always its own band, never folded
+                into the three attention cards. A submitted brief is the start
+                of the whole workflow, and it spent a week invisible because
+                the dashboard never mentioned briefs and the inbox only shows
+                the cookie's active agency. The elsewhere line exists for the
+                same reason: work waiting in another of your agencies must
+                say so, count-and-name only, with the switch one click away.
+              */}
+              {data && ((data.briefs?.waiting.length ?? 0) > 0 || (data.briefs?.elsewhere.length ?? 0) > 0) && (
+                <section className="agd-band" id="agd-briefs">
+                  <div className="agd-eyebrow-row">
+                    <h2 className="agd-eyebrow">Briefs from your clients</h2>
+                    <span className="agd-rule" />
+                    <span className="agd-aside">accepting one starts the role in intake</span>
+                  </div>
+                  {(data.briefs?.waiting ?? []).length > 0 && (
+                    <div className="agd-attn" style={{ gridTemplateColumns: "1fr" }}>
+                      {(data.briefs?.waiting ?? []).map((b) => (
+                        <button
+                          key={b.id}
+                          className="agd-card soon"
+                          onClick={() => router.push("/agencies/briefs")}
+                        >
+                          <span className="agd-when">{ago(b.created_at)}</span>
+                          <h3 className="agd-card-title">{b.role_title}</h3>
+                          <p className="agd-card-body">
+                            {b.company ? `From ${b.company}. ` : "From your client. "}
+                            {b.has_jd
+                              ? "JD attached — accepting carries it straight into intake."
+                              : "No JD — accepting opens intake to paste or upload one."}
+                          </p>
+                          <span className="agd-card-meta">
+                            Waiting on you
+                            <span className="agd-card-go">Review &amp; accept →</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {(data.briefs?.elsewhere ?? []).map((e) => (
+                    <p key={e.agency_id} className="agd-aside" style={{ marginTop: 10 }}>
+                      {e.agency_name} has {e.count} brief{e.count === 1 ? "" : "s"} waiting.{" "}
+                      <button
+                        className="agd-tbtn"
+                        onClick={async () => {
+                          await fetch("/api/agency/session", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ agencyId: e.agency_id }),
+                          })
+                          load()
+                        }}
+                      >
+                        Switch to {e.agency_name} →
+                      </button>
+                    </p>
+                  ))}
                 </section>
               )}
 

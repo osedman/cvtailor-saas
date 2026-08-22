@@ -77,6 +77,7 @@ export async function GET() {
       requirementsRes,
       submissionsRes,
       contactsRes,
+      briefsRes,
     ] = await Promise.all([
       db.from("job_roles").select("id, ref, title, company, salary_band, status, created_by, created_at, closed_at").eq("agency_id", ctx.agencyId).order("created_at", { ascending: false }),
       db.from("candidates").select("id, ref, full_name, role_id, parse_status, retention_expires_at").eq("agency_id", ctx.agencyId),
@@ -93,7 +94,55 @@ export async function GET() {
       db.from("requirements").select("id, ref, text, weight, role_id").eq("agency_id", ctx.agencyId),
       db.from("submissions").select("id, role_id, created_at").eq("agency_id", ctx.agencyId),
       db.from("client_contacts").select("id, full_name, company").eq("agency_id", ctx.agencyId),
+      // Deliberately NO agency filter: role_briefs' RLS policy already scopes
+      // rows to the caller's memberships, so one query yields this agency's
+      // briefs in full AND the other agencies' counts. A brief sitting in
+      // another of your agencies must not be invisible just because of which
+      // workspace the cookie points at — that is exactly how four briefs sat
+      // unseen for a week.
+      db
+        .from("role_briefs")
+        .select("id, agency_id, role_title, jd_raw, created_at, contact_id")
+        .eq("status", "submitted")
+        .order("created_at", { ascending: false })
+        .limit(50),
     ])
+
+    // Briefs: full rows for the active agency, counts-only elsewhere. The
+    // jd_raw text is reduced to a boolean immediately — the dashboard needs
+    // "is there a JD", never the JD.
+    const contactCompany = new Map(
+      (contactsRes.data ?? []).map((c) => [c.id as string, (c.company as string) ?? ""])
+    )
+    const briefRows = (briefsRes.data ?? []) as Array<{
+      id: string
+      agency_id: string
+      role_title: string | null
+      jd_raw: string | null
+      created_at: string
+      contact_id: string | null
+    }>
+    const briefs_waiting = briefRows
+      .filter((b) => b.agency_id === ctx.agencyId)
+      .map((b) => ({
+        id: b.id,
+        role_title: b.role_title || "Untitled brief",
+        company: (b.contact_id && contactCompany.get(b.contact_id)) || "",
+        created_at: b.created_at,
+        has_jd: Boolean(b.jd_raw && b.jd_raw.trim().length > 0),
+      }))
+    const elsewhereCounts = new Map<string, number>()
+    for (const b of briefRows) {
+      if (b.agency_id === ctx.agencyId) continue
+      elsewhereCounts.set(b.agency_id, (elsewhereCounts.get(b.agency_id) ?? 0) + 1)
+    }
+    const briefs_elsewhere = (ctx.memberships ?? [])
+      .filter((m) => elsewhereCounts.has(m.agencyId))
+      .map((m) => ({
+        agency_id: m.agencyId,
+        agency_name: m.agencyName,
+        count: elsewhereCounts.get(m.agencyId) ?? 0,
+      }))
 
     // Caller identity for the signed-in card. Email only, and only the
     // caller's own — members has no name column.
@@ -489,6 +538,7 @@ export async function GET() {
       agency: agencyRes.data ?? null,
       caller_role: ctx.role,
       caller_email: caller?.email ?? "",
+      briefs: { waiting: briefs_waiting, elsewhere: briefs_elsewhere },
       // Whether this recruiter is ALSO a client contact somewhere. Purely
       // "which doors exist for this account" — no agency data. Without it a
       // multi-hat person has no route to /hiring, which is how this dashboard

@@ -99,8 +99,11 @@ export default function AgencyBriefsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(action === "decline" ? { action, reason: why } : { action }),
       })
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string
+        roleId?: string
+      }
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
         setError(body.error || "That did not go through.")
         setBusy(null)
         return
@@ -108,6 +111,14 @@ export default function AgencyBriefsPage() {
       setConfirming(null)
       setDeclining(null)
       setReason("")
+      // Accepting mints the role — go straight into it. The server has
+      // always returned roleId; the page used to throw it away and leave the
+      // recruiter standing in the inbox, which is half of how "post a brief"
+      // never became "start the intake".
+      if (action === "accept" && body.roleId) {
+        router.push(`/agencies/roles/${body.roleId}`)
+        return
+      }
       await load()
     } catch {
       setError("That did not go through.")
