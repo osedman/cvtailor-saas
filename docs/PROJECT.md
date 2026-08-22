@@ -2769,4 +2769,39 @@ prefilled. Declining stays put.
 four brief cards; the Alpha view says "Halcyon Search has 4 briefs waiting →
 Switch".
 
+---
+
+## 🕳 The brief carried a JD; the role it minted did not (22 Aug 2026)
+
+Reported minutes after the visibility fix: "one of the briefs had a JD
+attached, it's not showing up." It was showing up on the brief — and being
+**silently destroyed on accept**.
+
+`BRIEF_CONVERSION_COLUMNS` is the SELECT `readOwnBrief` uses, and it never
+listed **`jd_raw`** (the column landed 20 Aug). So `composeJdRaw()` read
+`undefined` off the row and composed the role's intake from the structured
+fields alone. ROL-2403's brief carried **5,108 characters**; the role it
+minted had an **empty intake box**, with no error anywhere. `interview_rounds`
+and `start_target` were missing from the same list.
+
+Why nothing caught it: the brief row is `Record<string, unknown>`, so an
+absent key is `undefined` rather than a compile error — and a mocked test
+returns whatever object the test author wrote, columns list ignored. The
+class of bug is only visible against real data.
+
+Fix: the three columns added, with the list documented as the conversion's
+contract. `briefs-conversion.test.ts` **derives** the requirement from the
+code — every `brief.X` that `acceptBrief` and `composeJdRaw` read must appear
+in the SELECT — so the next inherited column fails the build until it is
+added. Probe-mutated per the standing rule: removing `jd_raw` reddens two
+tests; a guardrail that has never failed proves nothing. It also pins that
+the pasted JD leads the composition, since flipping that order would make a
+parsed role read the client's summary as the job description.
+
+**ROL-2403 repaired on staging**: intake recomposed from its brief (JD first,
+then Mission / Must-haves / Nice-to-haves), scoped to unparsed drafts with an
+empty box so no recruiter edit could be overwritten. 5,108 chars restored.
+
+884 tests, build clean.
+
 _Last updated: 22 August 2026_

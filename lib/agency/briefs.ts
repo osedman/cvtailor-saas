@@ -251,8 +251,24 @@ const AGENCY_BRIEF_LIST_COLUMNS =
 
 /** Everything the conversion in acceptBrief needs, and nothing else. The body
  * fields appear HERE and never in an audit row (rule 4 at the top of the file). */
+/**
+ * EVERY column acceptBrief carries onto the minted role.
+ *
+ * This list is the conversion's contract, and it silently lost the JD. It
+ * omitted jd_raw (added 20 Aug), so composeJdRaw() read `undefined` off the
+ * row and composed from the structured fields alone — a brief with a
+ * 5,108-character JD attached minted a role with an EMPTY intake box, with no
+ * error anywhere. Same omission cost interview_rounds and start_target, which
+ * the insert below also reads.
+ *
+ * Nothing in TypeScript catches this: the row is Record<string, unknown>, so
+ * a missing key is `undefined` rather than a compile error. If you add a
+ * column to role_briefs that the role should inherit, add it HERE — and
+ * briefs-conversion.test.ts asserts every field the insert reads is on this
+ * list.
+ */
 const BRIEF_CONVERSION_COLUMNS =
-  "id, agency_id, contact_id, role_title, team, mission, must_haves, nice_to_haves, comp, location, status, role_id"
+  "id, agency_id, contact_id, role_title, team, mission, must_haves, nice_to_haves, comp, location, status, role_id, jd_raw, interview_rounds, start_target"
 
 /** A brief as the recruiter's triage queue needs it: the client's identity
  * (their own address book — never logged), and the role it became, if any. */
