@@ -444,37 +444,26 @@ export default function AgencyHomePage() {
         </div>
 
         <AgencySwitcher />
-        <div>
-          <div className="ag-rail-label">On this page</div>
-          <nav className="agd-nav">
-            <button className="agd-nav-item on" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
-              <span className="agd-nav-dot" />Today
-            </button>
-            <button className="agd-nav-item" onClick={() => scrollTo("agd-roles")}>
-              <span className="agd-nav-dot" />Roles
-              {liveRoles.length > 0 && <span className="agd-nav-count">{liveRoles.length}</span>}
-            </button>
-            <button className="agd-nav-item" onClick={() => scrollTo("agd-queue")}>
-              <span className="agd-nav-dot" />Candidates
-              {inFlight > 0 && <span className="agd-nav-count">{inFlight}</span>}
-            </button>
-            <button className="agd-nav-item" onClick={() => scrollTo("agd-clients")}>
-              <span className="agd-nav-dot" />Clients
-            </button>
-            <button className="agd-nav-item" onClick={() => scrollTo("agd-health")}>
-              <span className="agd-nav-dot" />Reports
-            </button>
-          </nav>
-        </div>
-
         {/*
-          Route navigation, which this screen never had. Its "Navigate" list
-          was in-page anchors only, so the dashboard — the screen you land on
-          — offered no way to reach briefs, clients, audit or settings at all.
-          Shared component: the five sub-screens each hand-rolled this list
-          and had already drifted apart.
+          One nav. The dashboard's own sections nest under Roles rather than
+          forming a second list beside it — the first pass had both, with
+          "Roles" and "Clients" appearing in each and meaning different things.
         */}
-        <AgencyNav current="roles" />
+        <AgencyNav
+          current="roles"
+          onSection={(id) =>
+            id === "top"
+              ? window.scrollTo({ top: 0, behavior: "smooth" })
+              : scrollTo(id)
+          }
+          sections={[
+            { id: "top", label: "Today" },
+            { id: "agd-roles", label: "Roles", count: liveRoles.length },
+            { id: "agd-queue", label: "Candidates", count: inFlight },
+            { id: "agd-clients", label: "Clients" },
+            { id: "agd-health", label: "Reports" },
+          ]}
+        />
 
         {data && (
           <div className="ag-active-role">

@@ -1247,3 +1247,13 @@
 }
 .ag-owner-select:disabled { opacity: 0.55; }
 .ag-owner-select:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 1px; }
+
+/* Sections of the CURRENT page, nested under its nav item. The indent and the
+ * rule are the whole point: they say "part of this screen, not another one".
+ * Before this the dashboard had a second nav list beside the route list, with
+ * Roles and Clients in both meaning different things. */
+.ag-app .ag-nav-sections {
+  margin: 2px 0 8px 14px;
+  padding-left: 10px;
+  border-left: 1px solid var(--ag-border);
+}

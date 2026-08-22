@@ -24,10 +24,12 @@ const SCREENS: Array<[string, string]> = [
 ]
 
 describe("every agency screen uses the shared nav", () => {
-  it.each(SCREENS)("%s renders AgencyNav", (path, key) => {
+  it.each(SCREENS)("%s renders AgencyNav for its own key", (path, key) => {
+    // Props may be inline or multi-line (the dashboard passes sections), so
+    // match the tag and the key rather than one exact formatting.
     const s = read(path)
-    expect(s).toMatch(/<AgencyNav current="/)
-    expect(s).toContain(`<AgencyNav current="${key}"`)
+    expect(s).toMatch(/<AgencyNav[\s\n]/)
+    expect(s).toMatch(new RegExp(`<AgencyNav[\\s\\S]{0,80}current="${key}"`))
   })
 
   it("no screen hand-rolls its own route list any more", () => {
@@ -39,11 +41,25 @@ describe("every agency screen uses the shared nav", () => {
     }
   })
 
-  it("the dashboard's in-page anchors are labelled as such, not as Navigate", () => {
-    // Both lists live in that sidebar; calling them both "Navigate" is what
-    // disguised the absence of any route out of the dashboard.
+  it("there is exactly ONE nav list per screen", () => {
+    // The first fix added routes ALONGSIDE the dashboard's scroll anchors,
+    // leaving two navigations in one rail — with "Roles" and "Clients" in
+    // both, meaning different things in each. A page's sections now nest
+    // under its own nav item instead.
+    for (const [path] of SCREENS) {
+      const s = read(path)
+      const railLabels = (s.match(/ag-rail-label">(Navigate|On this page)</g) ?? []).length
+      expect(railLabels, `${path} has ${railLabels} nav rails`).toBe(0)
+      const strayNav = /<nav className="agd-nav"/.test(s)
+      expect(strayNav, `${path} still renders its own agd-nav list`).toBe(false)
+    }
+  })
+
+  it("the dashboard's sections are passed to the nav, not rendered beside it", () => {
     const s = read("app/agencies/page.tsx")
-    expect(s).toMatch(/ag-rail-label">On this page</)
+    expect(s).toMatch(/sections=\{\[/)
+    expect(s).toMatch(/id: "agd-roles"/)
+    expect(s).toMatch(/onSection=/)
   })
 })
 

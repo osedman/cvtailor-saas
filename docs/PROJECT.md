@@ -2843,4 +2843,32 @@ reverting accept to `auth.ctx` reddens the tenancy test.
 
 900 tests, build clean.
 
+---
+
+## 🧭 …and then there were two navs (22 Aug 2026)
+
+Immediately after the shared-nav commit: *"but now there's 2 navigation which
+isn't good."* Correct, and worse than it looked — the dashboard rail carried
+the new route list AND its old in-page anchor list, with **"Roles" and
+"Clients" appearing in both, meaning different things in each**: one scrolled,
+one navigated. Adding the missing nav beside the existing one, rather than
+reconciling them, was a half-fix.
+
+Now there is one list. A page's own sections **nest under its nav item**,
+rendered only while you are on that page — the indent and rule say "part of
+this screen", and there is exactly one place to look. `AgencyNav` takes
+optional `sections` / `onSection`; the dashboard passes Today · Roles ·
+Candidates · Clients · Reports and they appear beneath **Roles**.
+
+Dropped on the way: the old list hardcoded `on` to "Today", so it claimed you
+were at the top no matter how far you had scrolled. No highlight beats a
+wrong one; real scroll-spy can come later if it earns itself.
+
+Guard extended — **zero** `ag-rail-label` nav rails and **zero** stray
+`agd-nav` lists on any of the six screens, since one list is now the
+component's job. Probe-mutated: putting a second list back on the dashboard
+reddens it.
+
+901 tests, build clean.
+
 _Last updated: 22 August 2026_

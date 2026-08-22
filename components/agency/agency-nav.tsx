@@ -1,17 +1,24 @@
 "use client"
 
 /**
- * The recruiter sidebar's navigate list — ONE definition, every screen.
+ * The recruiter sidebar's navigation — ONE list, every screen.
  *
  * It was hand-rolled five times and had drifted: the briefs page offered
  * Roles / Client access / Audit log while its siblings also offered Settings
- * and Notifications, and the DASHBOARD — the screen you land on — offered
- * nothing at all. So the only route to a client brief was knowing the URL,
- * which is most of why four of them sat unseen for a week.
+ * and Notifications, and the DASHBOARD offered no route navigation at all
+ * (its "Navigate" list was in-page scroll anchors). So the only route to a
+ * client brief was knowing the URL, which is most of why four sat unseen for
+ * a week.
  *
- * The current screen renders as `.ag-step.on` with aria-current rather than
- * being omitted, so the list is the same length everywhere and you can always
- * see where you are.
+ * ONE LIST, NOT TWO. The first fix added routes ALONGSIDE the dashboard's
+ * anchors, which left two navigations in one rail — and "Roles" and "Clients"
+ * appearing in both, meaning different things in each. A page's own sections
+ * now nest UNDER its nav item, visible only while you are on that page: the
+ * indent says "part of this screen" and there is exactly one place to look.
+ *
+ * The current item renders with aria-current rather than being omitted, so
+ * the list is the same length everywhere — omitting it is half of why the
+ * drift went unnoticed.
  *
  * The Briefs count is deliberately cross-agency: a brief waiting in another
  * of your agencies is still waiting on you, and the badge is the only thing
@@ -23,6 +30,13 @@ import { useRouter } from "next/navigation"
 
 export type AgencyNavKey = "roles" | "briefs" | "clients" | "audit" | "settings" | "notifications"
 
+/** A section of the CURRENT page, jumped to rather than navigated to. */
+export interface AgencyNavSection {
+  id: string
+  label: string
+  count?: number
+}
+
 const ITEMS: Array<{ key: AgencyNavKey; label: string; href: string }> = [
   { key: "roles", label: "Roles", href: "/agencies" },
   { key: "briefs", label: "Client briefs", href: "/agencies/briefs" },
@@ -32,7 +46,18 @@ const ITEMS: Array<{ key: AgencyNavKey; label: string; href: string }> = [
   { key: "notifications", label: "Notifications", href: "/agencies/notifications" },
 ]
 
-export function AgencyNav({ current }: { current: AgencyNavKey }) {
+export function AgencyNav({
+  current,
+  sections,
+  onSection,
+  activeSection,
+}: {
+  current: AgencyNavKey
+  /** Sections of this page, nested under its item. Omit for short screens. */
+  sections?: AgencyNavSection[]
+  onSection?: (id: string) => void
+  activeSection?: string
+}) {
   const router = useRouter()
   const [waiting, setWaiting] = useState(0)
 
@@ -44,8 +69,7 @@ export function AgencyNav({ current }: { current: AgencyNavKey }) {
         if (live && Array.isArray(d?.briefs)) setWaiting(d.briefs.length)
       })
       // Chrome must never break a page: a failed count renders as no badge,
-      // which is the same as none waiting. The band on the dashboard and the
-      // inbox itself both still tell the truth.
+      // which reads the same as none waiting. The inbox still tells the truth.
       .catch(() => {})
     return () => {
       live = false
@@ -58,19 +82,37 @@ export function AgencyNav({ current }: { current: AgencyNavKey }) {
       {ITEMS.map((item) => {
         const isCurrent = item.key === current
         return (
-          <button
-            key={item.key}
-            className={`ag-step${isCurrent ? " on" : ""}`}
-            aria-current={isCurrent ? "page" : undefined}
-            onClick={isCurrent ? undefined : () => router.push(item.href)}
-          >
-            {item.label}
-            {item.key === "briefs" && waiting > 0 && (
-              <span className="ag-pill" style={{ marginLeft: 8 }}>
-                {waiting}
-              </span>
+          <div key={item.key}>
+            <button
+              className={`ag-step${isCurrent ? " on" : ""}`}
+              aria-current={isCurrent ? "page" : undefined}
+              onClick={isCurrent ? undefined : () => router.push(item.href)}
+            >
+              {item.label}
+              {item.key === "briefs" && waiting > 0 && (
+                <span className="ag-pill" style={{ marginLeft: 8 }}>
+                  {waiting}
+                </span>
+              )}
+            </button>
+            {isCurrent && sections && sections.length > 0 && (
+              <nav className="agd-nav ag-nav-sections" aria-label="On this page">
+                {sections.map((s) => (
+                  <button
+                    key={s.id}
+                    className={`agd-nav-item${activeSection === s.id ? " on" : ""}`}
+                    onClick={() => onSection?.(s.id)}
+                  >
+                    <span className="agd-nav-dot" />
+                    {s.label}
+                    {typeof s.count === "number" && s.count > 0 && (
+                      <span className="agd-nav-count">{s.count}</span>
+                    )}
+                  </button>
+                ))}
+              </nav>
             )}
-          </button>
+          </div>
         )
       })}
     </div>
