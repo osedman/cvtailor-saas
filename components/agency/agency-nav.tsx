@@ -20,6 +20,11 @@
  * the list is the same length everywhere — omitting it is half of why the
  * drift went unnoticed.
  *
+ * NO SECTION MAY REPEAT ITS OWN PAGE (22 Aug walk-through). The dashboard
+ * nested a "Today" section that scrolled to the top of the page its own nav
+ * item already routes to — the same destination named twice, and the second
+ * name led nowhere new. A page's item IS the way back to its top.
+ *
  * The Briefs count is deliberately cross-agency: a brief waiting in another
  * of your agencies is still waiting on you, and the badge is the only thing
  * that says so before you have thought to switch.
@@ -28,7 +33,14 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
-export type AgencyNavKey = "roles" | "briefs" | "clients" | "audit" | "settings" | "notifications"
+export type AgencyNavKey =
+  | "roles"
+  | "candidates"
+  | "briefs"
+  | "clients"
+  | "audit"
+  | "settings"
+  | "notifications"
 
 /** A section of the CURRENT page, jumped to rather than navigated to. */
 export interface AgencyNavSection {
@@ -39,6 +51,10 @@ export interface AgencyNavSection {
 
 const ITEMS: Array<{ key: AgencyNavKey; label: string; href: string }> = [
   { key: "roles", label: "Dashboard", href: "/agencies" },
+  // Candidates was a COUNT in the dashboard's section list and never a route,
+  // so a person was reachable only through the role they were on. It is a
+  // destination now — the count always implied one (22 Aug walk-through).
+  { key: "candidates", label: "Candidates", href: "/agencies/candidates" },
   { key: "briefs", label: "Client briefs", href: "/agencies/briefs" },
   { key: "clients", label: "Client access", href: "/agencies/clients" },
   { key: "audit", label: "Audit log", href: "/agencies/audit" },

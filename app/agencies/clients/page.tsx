@@ -101,6 +101,12 @@ export default function ClientAccessPage() {
   const router = useRouter()
   // null while loading — an empty array is a real answer, not a spinner.
   const [rows, setRows] = useState<ClientAccessRow[] | null>(null)
+  // Adding a client lived ONLY inside a role's submission step, so a new
+  // agency could not add its first client without opening a role. Found in
+  // Ose's walk-through, 22 Aug.
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState({ company: "", email: "", full_name: "" })
+  const [addBusy, setAddBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busyContact, setBusyContact] = useState<string | null>(null)
   const [issued, setIssued] = useState<{
@@ -129,6 +135,36 @@ export default function ClientAccessPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  async function addContact() {
+    const company = draft.company.trim()
+    const email = draft.email.trim()
+    if (!company || !email) {
+      return setError("A client needs a company and an email address.")
+    }
+    setAddBusy(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/agency/contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company, email, full_name: draft.full_name.trim() }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        return setError(typeof body?.error === "string" ? body.error : "Could not add that client.")
+      }
+      setDraft({ company: "", email: "", full_name: "" })
+      setAdding(false)
+      // Adding does NOT grant access — the new row appears with no invite,
+      // and inviting stays a separate, deliberate act with its own audit row.
+      await load()
+    } catch {
+      setError("Could not add that client.")
+    } finally {
+      setAddBusy(false)
+    }
+  }
 
   function patchRow(contactId: string, patch: Partial<ClientAccessRow>) {
     setRows((prev) => (prev ? prev.map((r) => (r.contactId === contactId ? { ...r, ...patch } : r)) : prev))
@@ -314,7 +350,71 @@ export default function ClientAccessPage() {
                 not give them your candidate pool, your notes, or anything you have not deliberately sent them.
               </p>
             </div>
+            {!adding && (
+              <button className="ag-btn ag-btn-primary" onClick={() => setAdding(true)}>
+                Add a client
+              </button>
+            )}
           </div>
+
+          {adding && (
+            <div className="ag-card ag-add-client" style={{ marginBottom: 20 }}>
+              <div className="ag-card-head">
+                <span className="ag-card-title">Add a client</span>
+                <span className="ag-meta">Adding them does not give them access</span>
+              </div>
+              <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
+                <div className="ag-add-client-grid">
+                  <label className="ag-field">
+                    <span className="ag-field-label">Company</span>
+                    <input
+                      className="ag-input"
+                      value={draft.company}
+                      autoFocus
+                      onChange={(e) => setDraft((d) => ({ ...d, company: e.target.value }))}
+                      placeholder="Meridian Health"
+                    />
+                  </label>
+                  <label className="ag-field">
+                    <span className="ag-field-label">Their email</span>
+                    <input
+                      className="ag-input"
+                      type="email"
+                      value={draft.email}
+                      onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))}
+                      placeholder="name@company.com"
+                    />
+                  </label>
+                  <label className="ag-field">
+                    <span className="ag-field-label">Their name (optional)</span>
+                    <input
+                      className="ag-input"
+                      value={draft.full_name}
+                      onChange={(e) => setDraft((d) => ({ ...d, full_name: e.target.value }))}
+                      placeholder="Marcus Webb"
+                    />
+                  </label>
+                </div>
+                <p className="ag-note">
+                  This adds them to your address book. They get nothing until you send an invite,
+                  which is the next step on their row — and that is the act the audit log records as
+                  granting access.
+                </p>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button className="ag-btn ag-btn-primary" onClick={addContact} disabled={addBusy}>
+                    {addBusy ? "Adding…" : "Add client"}
+                  </button>
+                  <button
+                    className="ag-btn ag-btn-secondary"
+                    disabled={addBusy}
+                    onClick={() => { setAdding(false); setDraft({ company: "", email: "", full_name: "" }) }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {issued && (
             <div className="ag-card" style={{ marginBottom: 20, borderColor: "var(--ag-coral)" }}>

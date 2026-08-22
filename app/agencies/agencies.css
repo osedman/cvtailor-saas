@@ -1295,3 +1295,78 @@
   text-decoration: none; padding: 4px 10px;
   border: 1px solid var(--ag-line-2); border-radius: var(--r-sm);
 }
+
+/* ============================================================
+   CANDIDATES TABLE — Figma "Recruiter · Candidates".
+   A place to find somebody, so it is rows rather than cards. Decision is a
+   pill because state should read at a glance; it is never a rank, and the
+   table's order is when somebody was added.
+   ============================================================ */
+
+.ag-cand-table { padding: 0; overflow: hidden; }
+.ag-cand-filters {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  padding: 14px 18px; background: var(--ag-bg-2); border-bottom: 1px solid var(--ag-border);
+}
+.ag-cand-search { flex: 1 1 260px; min-width: 0; }
+.ag-cand-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.ag-cand-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--ag-line-2); background: var(--ag-paper);
+  border-radius: var(--r-pill); padding: 7px 13px;
+  font-family: var(--ag-sans); font-size: var(--t-small); color: var(--ag-ink-2); cursor: pointer;
+}
+.ag-cand-chip.on { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); font-weight: 600; }
+.ag-cand-chip:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; }
+.ag-cand-chip-n { font-family: var(--ag-mono); font-size: var(--t-micro); opacity: 0.75; font-variant-numeric: tabular-nums; }
+
+/* The one place the page is allowed to scroll sideways is this container. */
+.ag-cand-scroll { overflow-x: auto; }
+table.ag-cand { width: 100%; border-collapse: collapse; font-size: var(--t-small); }
+table.ag-cand th {
+  text-align: left; white-space: nowrap;
+  font-family: var(--ag-mono); font-size: var(--t-micro); font-weight: 500;
+  letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3);
+  padding: 11px 14px; border-bottom: 1px solid var(--ag-border);
+}
+table.ag-cand th.num, table.ag-cand td.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.ag-cand td { padding: 12px 14px; border-bottom: 1px solid var(--ag-border); color: var(--ag-ink-2); white-space: nowrap; }
+table.ag-cand tbody tr:last-child td { border-bottom: none; }
+table.ag-cand tbody tr { cursor: pointer; }
+table.ag-cand tbody tr:hover td { background: var(--ag-bg-2); }
+table.ag-cand tbody tr:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: -2px; }
+.ag-cand-ref { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); }
+.ag-cand-name { font-weight: 600; color: var(--ag-ink); }
+.ag-cand-role { color: var(--ag-ink-3); }
+.ag-cand-date { color: var(--ag-ink-3); }
+.ag-cand-none { color: var(--ag-ink-4); }
+.ag-cand-erased, .ag-cand-closed {
+  margin-left: 8px; font-family: var(--ag-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3);
+  border: 1px solid var(--ag-line-2); border-radius: var(--r-pill); padding: 1px 7px;
+}
+.ag-cand-pill {
+  display: inline-block; font-family: var(--ag-mono); font-size: var(--t-micro);
+  letter-spacing: 0.05em; text-transform: uppercase; border-radius: var(--r-pill); padding: 3px 9px;
+}
+/* Semantic, and separate from the brand accent: shortlisted and rejected are
+   states, not emphasis. */
+.ag-cand-pill.shortlist { color: #3d6b45; border: 1px solid #3d6b45; background: #eef4ee; }
+.ag-cand-pill.reject { color: var(--ag-coral-deep); border: 1px solid var(--ag-coral-deep); background: var(--ag-tint-1); }
+.ag-cand-pill.hold { color: var(--ag-warn); border: 1px solid var(--ag-warn); background: #fdf8ee; }
+
+@media (max-width: 720px) {
+  .ag-cand-filters { align-items: stretch; }
+  .ag-cand-search { flex: 1 1 100%; }
+}
+
+/* Add-a-client, on the screen named for it. Creating a contact used to exist
+   only inside a role's submission step, so a new agency could not add its
+   first client at all (22 Aug walk-through). */
+.ag-add-client-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.ag-field { display: flex; flex-direction: column; gap: 5px; }
+.ag-field-label {
+  font-family: var(--ag-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3);
+}
+@media (max-width: 720px) { .ag-add-client-grid { grid-template-columns: 1fr; } }

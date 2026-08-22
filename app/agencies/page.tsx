@@ -458,9 +458,12 @@ export default function AgencyHomePage() {
               : scrollTo(id)
           }
           sections={[
-            { id: "top", label: "Today" },
+            // "Today" is gone: it scrolled to the top of the page the
+            // Dashboard item already routes to — one destination, two names,
+            // and the second led nowhere new. Candidates is gone from here
+            // too; it is a real screen now rather than a scroll anchor.
             { id: "agd-roles", label: "Roles", count: liveRoles.length },
-            { id: "agd-queue", label: "Candidates", count: inFlight },
+            { id: "agd-queue", label: "In flight", count: inFlight },
             { id: "agd-clients", label: "Clients" },
             { id: "agd-health", label: "Reports" },
           ]}
