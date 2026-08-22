@@ -2045,6 +2045,45 @@ served chunk by curl rather than by reading the file.
 
 ---
 
+---
+
+## 🖊 Right-to-represent framed + the non-compete drafted (22 Aug 2026)
+
+The last two 20 Aug gaps, both sign-off-gated deliverables rather than code.
+
+**Right-to-represent** — frame drawn, no code, per the rule:
+[`Candidate · Right to represent`](https://www.figma.com/design/AWRRbEOX6rLsltutFDL3zs/Tailr-%E2%80%94-Hiring-Manager-Concept?node-id=209-2)
+on page `05 · Candidate doorways`. A candidate who APPLIED consented
+explicitly (the manifest is the record); an UPLOADED candidate never agreed to
+anything — the agency notices them (Art 14) and represents them anyway. When
+two agencies claim one placement, the one holding the candidate's dated
+agreement wins the contingent fee.
+
+The shape it proposes, for argument at sign-off: the ask lives on the RIGHTS
+doorway the notice email already links to (no new token, no new email);
+agreement is per role, never blanket; **unanswered is not yes** — an
+unanswered candidate is visible on the submission screen as not-yet-agreed,
+and including them in a client submission carries a loud, audited,
+per-submission override rather than a block. Decline is a dated fact, not a
+deletion; a yes is withdrawable from the same page, and withdrawal stops
+future submissions without unsending past ones. Never filters or ranks on
+the answer.
+
+**Non-compete commitment** — `docs/NON-COMPETE-DRAFT.md`, drafted under one
+rule: every sentence checkable against the codebase today. Six claims, each
+naming its mechanism (schema separation, candidate-side matching, the apply
+transaction, host-only cookies) — and claim 5 states the unflattering truth
+plainly: one database, schema-separated, and physically separate storage is a
+thing to price rather than promise. NOT PUBLISHED; it is a public promise, so
+it waits for Ose and ideally the same lawyer session as the consent copy.
+
+**That closes the 20 Aug gap list.** Notifications ✅ · candidate booking ✅ ·
+right-to-represent (framed, awaiting sign-off) · closing the loop ✅ · role
+ownership ✅ · non-compete (drafted, awaiting sign-off).
+
+
+---
+
 ## 🕊 Closing the loop: a closed role tells its candidates (22 Aug 2026)
 
 The 20 Aug gap named as ghosting: "nothing tells the other four people a role
