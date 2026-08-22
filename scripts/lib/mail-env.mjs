@@ -4,7 +4,8 @@
  * Exists because the three send scripts each loaded a different env file
  * (.env.local vs .env.development.local), so whether a mailer worked depended
  * on which file happened to hold RESEND_API_KEY. Resolution order here is:
- * real shell env first, then .env.local, then .env.development.local.
+ * real shell env first, then .env.mail.local, then .env.local, then
+ * .env.development.local.
  *
  * The sender guard is deliberately stricter than a substring match: the From
  * address must END in a gettailr.com address, and — via assertVerifiedSender —
@@ -15,7 +16,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const ENV_FILES = [".env.local", ".env.development.local"];
+// .env.mail.local is read FIRST and is for the mailers only. Next.js does not
+// load it, so production credentials can live there for a send without
+// repointing the local dev server at the production database.
+const ENV_FILES = [".env.mail.local", ".env.local", ".env.development.local"];
 
 function parseEnvFile(file) {
   let text;
@@ -95,6 +99,15 @@ export function requireMailEnv({ rootDir = process.cwd(), requireSupabase = true
     die(
       "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.",
       `Looked in the shell env and: ${ENV_FILES.join(", ")}`,
+    );
+  }
+  // A placeholder authenticates as nothing and surfaces as an opaque Supabase
+  // 401 several frames deep. Name it here instead.
+  if (requireSupabase && !/^(eyJ|sb_secret|sbp_)/.test(SERVICE_KEY)) {
+    die(
+      "SUPABASE_SERVICE_ROLE_KEY looks like a placeholder, not a key.",
+      `It reads "${SERVICE_KEY.slice(0, 12)}..." (${SERVICE_KEY.length} chars); a real one starts eyJ or sb_secret.`,
+      "Put the production service_role key in .env.mail.local.",
     );
   }
 
