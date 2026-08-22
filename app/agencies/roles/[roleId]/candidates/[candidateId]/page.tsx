@@ -177,7 +177,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
         <div className="ag-screen">
           <div className="ag-crumbbar">
             <span className="ag-crumb">
-              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Roles</button>
+              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
               {" / "}
               <button className="ag-crumb-link" onClick={() => router.push(`/agencies/roles/${roleId}`)}>
                 {role ? `${role.company || "Role"} — ${role.title}` : "Role workflow"}

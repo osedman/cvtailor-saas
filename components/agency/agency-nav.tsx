@@ -38,7 +38,7 @@ export interface AgencyNavSection {
 }
 
 const ITEMS: Array<{ key: AgencyNavKey; label: string; href: string }> = [
-  { key: "roles", label: "Roles", href: "/agencies" },
+  { key: "roles", label: "Dashboard", href: "/agencies" },
   { key: "briefs", label: "Client briefs", href: "/agencies/briefs" },
   { key: "clients", label: "Client access", href: "/agencies/clients" },
   { key: "audit", label: "Audit log", href: "/agencies/audit" },

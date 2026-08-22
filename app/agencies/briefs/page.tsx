@@ -162,7 +162,7 @@ export default function AgencyBriefsPage() {
         <div className="ag-screen">
           <div className="ag-crumbbar">
             <span className="ag-crumb">
-              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Roles</button>
+              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
               {" / "}
               <b>Client briefs</b>
             </span>

@@ -205,7 +205,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
         <AgencySwitcher />
         <div>
           <div className="ag-rail-label">Navigate</div>
-          <button className="ag-step" onClick={() => router.push("/agencies")}>Roles</button>
+          <button className="ag-step" onClick={() => router.push("/agencies")}>Dashboard</button>
           <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}`)}>This role</button>
           <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}/interviews`)}>Interviews</button>
           <button className="ag-step on" aria-current="page">Close-out</button>
@@ -224,7 +224,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
         <div className="ag-screen">
           <div className="ag-crumbbar">
             <span className="ag-crumb">
-              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Roles</button>
+              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
               {" / "}
               <button className="ag-crumb-link" onClick={() => router.push(`/agencies/roles/${roleId}`)}>
                 {role?.ref || "Role"}

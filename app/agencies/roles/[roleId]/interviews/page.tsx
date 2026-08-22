@@ -249,7 +249,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
         <AgencySwitcher />
         <div>
           <div className="ag-rail-label">Navigate</div>
-          <button className="ag-step" onClick={() => router.push("/agencies")}>Roles</button>
+          <button className="ag-step" onClick={() => router.push("/agencies")}>Dashboard</button>
           <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}`)}>
             This role
           </button>
@@ -272,7 +272,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
         <div className="ag-screen">
           <div className="ag-crumbbar">
             <span className="ag-crumb">
-              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Roles</button>
+              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
               {" / "}
               <button className="ag-crumb-link" onClick={() => router.push(`/agencies/roles/${roleId}`)}>
                 {role?.ref || "Role"}

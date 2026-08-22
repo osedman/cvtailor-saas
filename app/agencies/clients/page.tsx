@@ -290,7 +290,7 @@ export default function ClientAccessPage() {
         <div className="ag-screen">
           <div className="ag-crumbbar">
             <span className="ag-crumb">
-              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Roles</button>
+              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
               {" / "}
               <b>Client access</b>
             </span>
