@@ -2146,9 +2146,49 @@ its audit row, and still reaches colleagues. Turning one off is itself audit
 logged, because "nobody told me" and "I turned that off in March" are different
 conversations and only one is answerable.
 
-**No code written yet.** The personal-vs-agency choice determines the table
-shape, and a migration is the expensive thing to reverse, so this waits on the
-frame.
+**Ose chose agency default + personal override (22 Aug), so both frames were
+updated and the backend is built.** The personal frame gained a third switch
+state — a dashed toggle labelled "Agency", meaning "following the default,
+nobody has overridden it", because inheriting is a real state and not the same
+as being off. `Recruiter · Agency settings` (94:2) gained a **Notification
+defaults** card, and its title copy was corrected: it said "Two numbers with
+real consequences" while showing three cards.
+
+**Migration 29** (`20260822140000_notification_prefs.sql`) — ONE table, not
+two. `user_id IS NULL` is the agency default; a row with a user_id is that
+person's own choice. Two tables would have duplicated the event_kind check and
+the audit shape for nothing. The cost is that NULL carries meaning, so two
+PARTIAL unique indexes make it an enforced invariant instead of a convention:
+exactly one default per (agency, event), exactly one override per (agency,
+person, event).
+
+Resolution lives in exactly one place, `resolvePreference()` in notify.ts:
+your row, else the agency's, else ON. **Absent means on** — an unheard event is
+the problem the feature exists to solve, so silence is chosen, never inherited
+by omission. Defaults are deliberately not seeded, so a new event kind cannot
+default to whatever a seeder last wrote.
+
+`brief_answered` is **absent from the check constraint**, not merely unused. It
+is a message to somebody's client about their own brief, so a recruiter must
+not be able to mute it, and the database refuses to store it as a preference.
+A test asserts the constraint and `facesClient()` agree, in both directions.
+
+**Applied to `tailr-staging` and verified by effect**, seven checks: service_role
+can write (the exact check missing from `candidate_compliance` and `placements`
+this morning); a second agency default is refused; a personal override
+coexists with the default; a second override for the same person is refused;
+`brief_answered` is refused by the check constraint; `authenticated` holds no
+write grants at all; service_role holds all four. Probe rows deleted, table
+verified empty.
+
+**The three preference rules were mutation-tested**, because passing tests mean
+nothing until they can fail: ignoring the personal override reddened 4 tests,
+flipping absent-means-on reddened 5, and letting client-facing events consult
+the table reddened 1.
+
+**Still to build: the two screens themselves.** The backend resolves
+preferences and the frames are drawn; no React yet, and no route to read or
+write a preference.
 
 **Build:** compiles clean. `npm run build` does fail locally at prerendering
 `/auth/confirm`, but that is pre-existing and environmental, not this change —

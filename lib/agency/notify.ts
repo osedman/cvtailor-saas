@@ -37,6 +37,7 @@ export type NotifyOutcome =
   | "sent"
   | "skipped_actor"
   | "skipped_no_recipient"
+  | "skipped_disabled"
   | "partial"
   | "failed"
 
@@ -67,6 +68,31 @@ type Recipient = { email: string; name: string; userId: string | null }
  */
 export function facesClient(kind: NotifyEvent["kind"]): boolean {
   return kind === "brief_answered"
+}
+
+/**
+ * Whether one person wants one kind of notification.
+ *
+ * Two layers, resolved in this order and nowhere else: the person's own row
+ * wins if they have one; otherwise the agency's default (the row with a null
+ * user_id); otherwise ON. Absent means on because an unheard event is the
+ * problem this whole file exists to solve — silence is something somebody
+ * chooses, never something that happens by omission.
+ *
+ * Exported so the settings screen resolves it the same way rather than
+ * reimplementing the precedence and drifting.
+ */
+export function resolvePreference(
+  rows: Array<{ user_id: string | null; enabled: boolean }>,
+  userId: string | null
+): boolean {
+  if (userId) {
+    const mine = rows.find((r) => r.user_id === userId)
+    if (mine) return mine.enabled
+  }
+  const agencyDefault = rows.find((r) => r.user_id === null)
+  if (agencyDefault) return agencyDefault.enabled
+  return true
 }
 
 /**
@@ -104,25 +130,45 @@ async function notifyInner(admin: AgencyClient, input: NotifyInput): Promise<Not
     return "skipped_no_recipient"
   }
 
+  // Preferences are personal, so this is per recipient, not per event. A
+  // client-facing notification is never filtered: brief_answered is a message
+  // to somebody's client about their own brief, not a preference a recruiter
+  // holds, and the table's check constraint refuses to store one.
+  let wanted = targets
+  if (!facesClient(input.kind)) {
+    const { data: prefRows } = await admin
+      .from("notification_prefs")
+      .select("user_id, enabled")
+      .eq("agency_id", input.agencyId)
+      .eq("event_kind", input.kind)
+    const rows = (prefRows ?? []) as Array<{ user_id: string | null; enabled: boolean }>
+    wanted = targets.filter((t) => resolvePreference(rows, t.userId))
+    if (wanted.length === 0) {
+      await audit(admin, input, "skipped_disabled", undefined, { of: targets.length })
+      return "skipped_disabled"
+    }
+  }
+
   const { subject, html } = notificationHtml(input)
   let sent = 0
   const failures: string[] = []
 
-  for (const target of targets) {
+  for (const target of wanted) {
     const result = await sendEmail({ to: target.email, subject, html })
     if (result.sent) sent += 1
     else failures.push(result.error ?? result.skipped ?? "unknown")
   }
 
-  if (sent === targets.length) {
-    await audit(admin, input, "sent", undefined, { recipients: targets.length })
+  const silenced = targets.length - wanted.length
+  if (sent === wanted.length) {
+    await audit(admin, input, "sent", undefined, { recipients: wanted.length, silenced })
     return "sent"
   }
   if (sent > 0) {
-    await audit(admin, input, "partial", failures[0], { sent, of: targets.length })
+    await audit(admin, input, "partial", failures[0], { sent, of: wanted.length, silenced })
     return "partial"
   }
-  await audit(admin, input, "failed", failures[0], { of: targets.length })
+  await audit(admin, input, "failed", failures[0], { of: wanted.length, silenced })
   return "failed"
 }
 

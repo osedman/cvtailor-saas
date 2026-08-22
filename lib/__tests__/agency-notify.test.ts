@@ -60,7 +60,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }))
 
-import { notify, facesClient, type NotifyEvent } from "../agency/notify"
+import { notify, facesClient, resolvePreference, type NotifyEvent } from "../agency/notify"
 
 /** Every kind, and the side it is allowed to reach. */
 const CLASSIFICATION: Record<NotifyEvent["kind"], "agency" | "client"> = {
@@ -294,5 +294,144 @@ describe("failure is never the caller's problem", () => {
     // The event kind, never its content.
     expect(entry.entityRef).toBe("debrief_recorded")
     expect(entry.action).toBe("skipped_no_recipient")
+  })
+})
+
+
+describe("preference resolution (pure — no mocks, so it cannot agree with wrong code)", () => {
+  const AG = (enabled: boolean) => ({ user_id: null, enabled })
+  const ME = (enabled: boolean) => ({ user_id: "rec-1", enabled })
+  const SOMEONE_ELSE = (enabled: boolean) => ({ user_id: "rec-2", enabled })
+
+  it("absent means ON — an unheard event is the problem this exists to solve", () => {
+    expect(resolvePreference([], "rec-1")).toBe(true)
+  })
+
+  it("the agency default applies when the person has not chosen", () => {
+    expect(resolvePreference([AG(false)], "rec-1")).toBe(false)
+    expect(resolvePreference([AG(true)], "rec-1")).toBe(true)
+  })
+
+  it("a personal choice beats the agency default, in BOTH directions", () => {
+    // The direction that matters most: an owner cannot silence a colleague.
+    expect(resolvePreference([AG(false), ME(true)], "rec-1")).toBe(true)
+    expect(resolvePreference([AG(true), ME(false)], "rec-1")).toBe(false)
+  })
+
+  it("somebody else's override is not mine", () => {
+    expect(resolvePreference([AG(true), SOMEONE_ELSE(false)], "rec-1")).toBe(true)
+    expect(resolvePreference([AG(false), SOMEONE_ELSE(true)], "rec-1")).toBe(false)
+  })
+
+  it("falls to the agency default when there is no person to resolve for", () => {
+    expect(resolvePreference([AG(false)], null)).toBe(false)
+    expect(resolvePreference([AG(false), ME(true)], null)).toBe(false)
+  })
+})
+
+describe("preferences, applied", () => {
+  it("does not send to somebody who switched it off", async () => {
+    const admin = fakeAdmin({
+      job_roles: { data: { created_by: "rec-1" } },
+      members: MEMBERS,
+      notification_prefs: { data: [{ user_id: "rec-1", enabled: false }] },
+    })
+    const out = await notify(admin, {
+      kind: "debrief_recorded",
+      agencyId: "a1",
+      actorId: "hm-1",
+      roleId: "role-1",
+      candidateRef: "CAN-02",
+    })
+    expect(out).toBe("skipped_disabled")
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it("still sends when the agency default is off but the person opted back in", async () => {
+    const admin = fakeAdmin({
+      job_roles: { data: { created_by: "rec-1" } },
+      members: MEMBERS,
+      notification_prefs: {
+        data: [
+          { user_id: null, enabled: false },
+          { user_id: "rec-1", enabled: true },
+        ],
+      },
+    })
+    const out = await notify(admin, {
+      kind: "debrief_recorded",
+      agencyId: "a1",
+      actorId: "hm-1",
+      roleId: "role-1",
+      candidateRef: "CAN-02",
+    })
+    expect(out).toBe("sent")
+    expect((sendEmail.mock.calls[0]![0] as SendArgs).to).toBe("rec@agency.test")
+  })
+
+  it("records how many were silenced, so a quiet event is still legible", async () => {
+    const admin = fakeAdmin({
+      job_roles: { data: { created_by: "rec-1" } },
+      members: MEMBERS,
+      notification_prefs: { data: [{ user_id: "rec-1", enabled: false }] },
+    })
+    await notify(admin, {
+      kind: "debrief_recorded",
+      agencyId: "a1",
+      actorId: "hm-1",
+      roleId: "role-1",
+      candidateRef: "CAN-02",
+    })
+    const entry = writeAudit.mock.calls[0]![1]
+    expect(entry.action).toBe("skipped_disabled")
+    expect(entry.toValue).toMatchObject({ of: 1 })
+  })
+
+  it("a client-facing notification ignores preferences entirely", async () => {
+    // brief_answered is a message to somebody's client about their own brief.
+    // If this ever consulted the table it would be letting a recruiter mute
+    // their client's reply.
+    let prefsQueried = false
+    const base = fakeAdmin({
+      client_contacts: { data: { email: "hm@client.test", full_name: "Dana", agency_id: "a1" } },
+    })
+    const admin = {
+      from: (name: string) => {
+        if (name === "notification_prefs") prefsQueried = true
+        return (base as unknown as { from: (n: string) => unknown }).from(name)
+      },
+    } as never
+
+    const out = await notify(admin, {
+      kind: "brief_answered",
+      agencyId: "a1",
+      actorId: "rec-1",
+      contactId: "c1",
+      roleTitle: "Staff Platform Engineer",
+      accepted: true,
+    })
+    expect(out).toBe("sent")
+    expect(prefsQueried, "brief_answered must never consult the preference table").toBe(false)
+  })
+})
+
+describe("migration 29 and the event list stay in step", () => {
+  it("the preference table stores every agency-bound kind and NOT the client one", () => {
+    const sql = readFileSync(
+      join(process.cwd(), "supabase/migrations/20260822140000_notification_prefs.sql"),
+      "utf8"
+    )
+    const body = sql.slice(sql.indexOf("event_kind  text not null"))
+    const constraint = body.slice(0, body.indexOf("))"))
+
+    for (const kind of unionKinds()) {
+      if (facesClient(kind as NotifyEvent["kind"])) {
+        expect(constraint, `${kind} faces the client and must not be storable as a preference`)
+          .not.toContain(`'${kind}'`)
+      } else {
+        expect(constraint, `${kind} is agency-bound and must be switchable`)
+          .toContain(`'${kind}'`)
+      }
+    }
   })
 })
