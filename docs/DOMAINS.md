@@ -1,4 +1,4 @@
-# Domain split: www (marketing) + app (consumer) + agencies (B2B)
+# Domain split: www (marketing) + app (consumer) + a separate B2B domain
 
 **Target**
 
@@ -6,18 +6,22 @@
 |------|--------|-----------|
 | `www.gettailr.com` | Marketing landing | Marketing (Framer / Webflow / similar) |
 | `app.gettailr.com` | Tailr product, CONSUMER side + the token doorways | Engineering |
-| `agencies.gettailr.com` | Tailr for Agencies + hiring managers | Engineering |
+| **a separate domain (TBC)** | Tailr for Agencies + hiring managers | Engineering |
 | `gettailr.com` (apex) | Redirects only | DNS |
 
-> **OPEN (22 Aug 2026):** Ose has said B2B will have **its own production
-> domain**, and that nothing agency-related goes into consumer production —
-> staging is the home for it for now. That may mean this same deployment on a
-> different domain (what is written below), or a genuinely separate deployment
-> and domain. **The two are different plans**, and the difference is not
-> cosmetic: on a separate registrable domain the session cookie can no longer
-> span both sides and the Magic Link template's single `{{ .SiteURL }}` sends
-> B2B sign-ins to the consumer domain. See "If you ever leave the subdomain" at
-> the bottom. Everything below assumes the subdomain.
+The B2B host is deliberately **not** a `gettailr.com` subdomain — see "The B2B
+domain" below. `agencies.gettailr.com` appears in `lib/site-url.ts` as the
+fallback default only, so the product has a working host before the real one is
+bought; it is not the plan.
+
+> **DECIDED (22 Aug 2026): Tailr for Agencies gets its own separate domain**,
+> not a `gettailr.com` subdomain, and does not go into consumer production at
+> all. Staging is the home for the B2B product until that domain exists.
+>
+> The subdomain steps below are kept because marketing + app still split that
+> way. For the B2B host, follow **"The B2B domain"** section instead — and note
+> that `agencies.gettailr.com` throughout this file is only the *default* in
+> `lib/site-url.ts`, not a commitment.
 
 All three are served by **one** Vercel deployment and one env-var set. Code
 support lives in `lib/site-url.ts` and `proxy.ts`, and is already written and
@@ -128,7 +132,17 @@ recruiter signing in at `agencies.gettailr.com` completes there and keeps the
 session; if that host is missing from the allow-list, Supabase refuses the
 redirect and B2B sign-in is broken while the consumer side looks fine.
 
-Magic-link emails use `emailRedirectTo` → `/auth/confirm` on the product origin (`NEXT_PUBLIC_APP_URL`). `/auth/confirm` is a **click-to-continue** page (does not verify on GET) so mobile email prefetchers cannot burn the one-time token. Failed verifies redirect to `/tailor?error=…` (where the toast lives) — never to `/`, which the domain proxy would strip into a silent www homepage.
+Magic-link emails are **minted and sent by Tailr, not by Supabase.**
+`app/api/auth/request-otp/route.ts` calls `admin.auth.admin.generateLink()` to
+get a `hashed_token`, builds the confirm URL itself, and sends it through
+Resend. The origin it uses is chosen **per door** — `getBusinessOrigin()` for a
+business host, `getAppOrigin()` otherwise — so each side's sign-in returns to
+its own domain with no template involved.
+
+That matters for the notes below: Supabase's own Magic Link template and its
+single `{{ .SiteURL }}` are **not in this path**, so they are not a constraint
+on having two domains. What Supabase still enforces is the **redirect
+allow-list** — `generateLink`'s `redirectTo` must be on it, or sign-in fails. `/auth/confirm` is a **click-to-continue** page (does not verify on GET) so mobile email prefetchers cannot burn the one-time token. Failed verifies redirect to `/tailor?error=…` (where the toast lives) — never to `/`, which the domain proxy would strip into a silent www homepage.
 
 **Magic Link email template** (Auth → Email Templates → Magic Link) — required for mobile:
 
@@ -184,21 +198,65 @@ DNS and Framer/Webflow accounts cannot be created from this repo — those steps
 
 ---
 
-## If you ever leave the subdomain
+## The B2B domain (separate, not a subdomain)
 
-Moving the B2B product to its own registrable domain (a distinct brand, which
-answers the "your vendor also runs a candidate platform" objection in a way a
-subdomain cannot) is a config + DNS change **in this repo** — but two things
-outside it break and must be solved first:
+**Decided 22 Aug 2026.** A distinct domain is the honest answer to the
+objection an agency actually raises — that their candidate data sits with a
+vendor who also runs a candidate platform. A subdomain does not answer it.
 
-1. **The session cookie cannot span two registrable domains.** `Domain=.gettailr.com`
-   will not be sent to another domain, so a single sign-in stops covering both
-   sides. That is arguably correct — the two sides are meant to stay separate —
-   but it is a product change, not a config one.
-2. **The Magic Link email template hardcodes one origin.** It uses
-   `{{ .SiteURL }}`, which is a single value per Supabase project. A recruiter
-   signing in on the B2B domain would receive a link pointing at the consumer
-   domain. Solving this means either a second Supabase project, or minting the
-   link ourselves rather than using `{{ .SiteURL }}`.
+**Almost none of this is a code change.** Two things were built in August that
+happen to make it cheap, both on purpose:
 
-Neither blocks the subdomain plan above. Both block the separate-domain one.
+1. **`getBusinessOrigin()` reads `NEXT_PUBLIC_BUSINESS_URL`** with no hardcoded
+   host constant, and `getBusinessHost()` derives from it. Every business rule
+   in `proxy.ts` and every business check in `cookie-options.ts` keys off that
+   derived host, so they work for any domain, not just a `gettailr.com` child.
+2. **Business hosts never get the shared cookie.** `authCookieOptions()`
+   returns host-only for any business host, checked *before* the
+   `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` override, precisely so the two products can
+   never share a login through a DNS coincidence. Two sessions above one auth
+   pool was the design from 14 Aug — a separate domain does not change it, it
+   just makes the reason obvious.
+
+So a person with both hats signs in to each side once. That was already true on
+the subdomain; it stays true here.
+
+### Checklist
+
+1. **Buy the domain.** Nothing in the repo cares what it is.
+2. **Vercel → Settings → Domains** → add it to this project. Same deployment,
+   one env-var set — a second deployment is not needed and would double the
+   surface for no gain. (If a separate deployment is ever wanted for isolation,
+   that is a bigger decision: see the note below.)
+3. **DNS** at the new domain's registrar: the record Vercel shows. Wait for
+   **Valid**.
+4. **Vercel env (Production, ticked explicitly):**
+   `NEXT_PUBLIC_BUSINESS_URL=https://<the new domain>`
+   Redeploy — `NEXT_PUBLIC_*` is baked in at build time.
+5. **Supabase → Authentication → URL configuration → Redirect URLs**, add:
+   - `https://<the new domain>/auth/confirm`
+   - `https://<the new domain>/auth/callback`
+
+   Required. `generateLink`'s `redirectTo` is checked against this list, so
+   without it B2B sign-in fails while the consumer side looks fine.
+6. **Do NOT set `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN`** to anything spanning both.
+   It cannot span two registrable domains anyway, and `authCookieOptions()`
+   ignores it for business hosts by design.
+
+### Smoke test
+
+- [ ] `https://<new domain>/` lands on the recruiter product
+- [ ] Sign-in on the new domain emails a link **pointing at the new domain**
+- [ ] That link completes and lands in the agency workspace
+- [ ] Signing in on the B2B domain does **not** sign you in on the consumer app,
+      and vice versa — two hats, two sessions, on purpose
+- [ ] A candidate doorway (`/rights/<token>`) still opens on the **app** host,
+      never the B2B one
+
+### Still shared, and worth stating to an agency
+
+One Supabase project, so agency data and consumer data sit in the same database
+behind schema separation and RLS. A separate domain answers the *branding* half
+of the objection, not the *data residency* half. If an agency's diligence asks
+the harder question, the answer is a second Supabase project — a much larger
+piece of work, and one to price rather than promise.
