@@ -37,6 +37,7 @@ import type {
   HiringLink,
   HiringRound,
   HiringSlot,
+  RoundDecision,
 } from "@/lib/agency/types"
 
 type Screen = "loading" | "unauthed" | "not_linked" | "error" | "ready"
@@ -68,6 +69,21 @@ interface RoleRow {
 }
 
 const STEP_LABELS = ["Brief", "Shortlist", "R1", "R2", "Decide"]
+
+/** Decisions are stored as machine values and were being rendered raw, so a
+ * client's own call came back to them as "advance". Both maps stay neutral in
+ * tone: a decline is a state for THE ROUND, never a verdict on the person. */
+const DECISION_LABEL: Record<RoundDecision, string> = {
+  advance: "Advancing",
+  hold: "On hold",
+  decline: "Not advancing",
+}
+
+const DECISION_SENTENCE: Record<RoundDecision, string> = {
+  advance: "chose to advance this candidate",
+  hold: "put this round on hold",
+  decline: "chose not to advance this round",
+}
 
 function fmtDate(iso: string): string {
   const d = new Date(iso)
@@ -335,12 +351,21 @@ function SlotChip({ slot, onWithdraw }: { slot: HiringSlot; onWithdraw: () => vo
 }
 
 /** Offer a window. Two datetime-local inputs rather than a calendar widget:
- * this is a client offering two or three times a fortnight, not a scheduler. */
-function OfferTimes({ contactId, onDone }: { contactId: string; onDone: (changed: boolean) => void }) {
+ * this is a client offering two or three times a fortnight, not a scheduler.
+ *
+ * Wearing the hat for more than one agency is legitimate (§5.4) and the
+ * breadcrumb already admits it, but this panel used to post silently to
+ * links[0] — so a person with two recruiters offered their diary to whichever
+ * happened to sort first, with nothing on screen saying so. It now names the
+ * recipient, and asks when there is a genuine choice. */
+function OfferTimes({ links, onDone }: { links: HiringLink[]; onDone: (changed: boolean) => void }) {
+  const [contactId, setContactId] = useState(links[0]?.contactId ?? "")
   const [startsAt, setStartsAt] = useState("")
   const [endsAt, setEndsAt] = useState("")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+
+  const recipient = links.find((l) => l.contactId === contactId) ?? links[0]
 
   async function offer() {
     setBusy(true)
@@ -375,6 +400,22 @@ function OfferTimes({ contactId, onDone }: { contactId: string; onDone: (changed
   return (
     <div className="agd-card hm-static hm-offer">
       <div className="hm-offer-row">
+        {links.length > 1 && (
+          <label className="hm-field">
+            <span className="ag-field-label">Offer to</span>
+            <select
+              className="ag-input"
+              value={contactId}
+              onChange={(e) => setContactId(e.target.value)}
+            >
+              {links.map((l) => (
+                <option key={l.contactId} value={l.contactId}>
+                  {l.company ? `${l.agencyName} · ${l.company}` : l.agencyName}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="hm-field">
           <span className="ag-field-label">From</span>
           <input
@@ -407,8 +448,8 @@ function OfferTimes({ contactId, onDone }: { contactId: string; onDone: (changed
         </p>
       )}
       <p className="agd-aside">
-        Your recruiter can book one candidate into this window. Nothing reaches your calendar
-        until you offer the time.
+        {recipient ? <b>{recipient.agencyName}</b> : "Your recruiter"} can book one candidate into
+        this window. Nothing reaches your calendar until you offer the time.
       </p>
     </div>
   )
@@ -418,7 +459,7 @@ export default function HiringDashboardPage() {
   const [screen, setScreen] = useState<Screen>("loading")
   const [data, setData] = useState<HiringDashboard | null>(null)
   const [email, setEmail] = useState("")
-  const [offeringFor, setOfferingFor] = useState<string | null>(null)
+  const [offering, setOffering] = useState(false)
   // Bumped after a write so the dashboard re-reads rather than guessing at the
   // new state locally: slots gain and lose their booked flag server-side.
   const [refresh, setRefresh] = useState(0)
@@ -470,12 +511,32 @@ export default function HiringDashboardPage() {
   const now = useMemo(() => Date.now(), [])
   const cards = useMemo(() => (data ? buildAttention(data, now) : []), [data, now])
   const roles = useMemo(() => (data ? buildRoles(data, now) : []), [data, now])
-  /** Rounds the client can still do something about: written up, decided, or
-   * both. Cancelled ones are history and stay out of the way. */
-  const actionable = useMemo(
-    () => (data?.rounds ?? []).filter((r) => r.status !== "cancelled"),
-    [data]
-  )
+  /**
+   * Rounds the client can still do something about. Cancelled ones are
+   * history and stay out of the way.
+   *
+   * RANKED, not chronological — the same move the recruiter side made in
+   * 655ad76. A flat list gives a decision that is holding up five people the
+   * same weight as one that happened and is finished. Order: what is owed,
+   * then what is coming, then what is done.
+   */
+  const actionable = useMemo(() => {
+    const rank = (r: HiringRound): number => {
+      if (r.latest_decision) return 3
+      if (r.status === "completed") return r.has_debrief ? 0 : 1
+      return 2
+    }
+    return (data?.rounds ?? [])
+      .filter((r) => r.status !== "cancelled")
+      .slice()
+      .sort((a, b) => {
+        const byRank = rank(a) - rank(b)
+        if (byRank !== 0) return byRank
+        const at = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0
+        const bt = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0
+        return at - bt
+      })
+  }, [data])
   const links = data?.links ?? []
   const slots = data?.slots ?? []
 
@@ -767,17 +828,17 @@ export default function HiringDashboardPage() {
                 <span className="agd-rule" />
                 <button
                   className="agd-tbtn primary"
-                  onClick={() => setOfferingFor(links[0]?.contactId ?? "")}
+                  onClick={() => setOffering(true)}
                   disabled={links.length === 0}
                 >
                   Offer times
                 </button>
               </div>
-              {offeringFor && (
+              {offering && (
                 <OfferTimes
-                  contactId={offeringFor}
+                  links={links}
                   onDone={(changed) => {
-                    setOfferingFor(null)
+                    setOffering(false)
                     if (changed) reload()
                   }}
                 />
@@ -830,12 +891,17 @@ export default function HiringDashboardPage() {
  */
 function RoundActions({ round, onDone }: { round: HiringRound; onDone: () => void }) {
   const [notes, setNotes] = useState("")
-  const [written, setWritten] = useState(false)
+  const [justWritten, setJustWritten] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const decided = round.latest_decision
   const canWrite = round.status === "completed"
+  // The gate reads from the SERVER's answer, falling back to what just
+  // happened in this tab. It used to be component state alone, which meant a
+  // client who wrote this up and reloaded got an empty box and no way to
+  // their decision without writing a second one. A reload is the test.
+  const written = round.has_debrief || justWritten
 
   async function saveDebrief() {
     if (!notes.trim()) return
@@ -852,7 +918,7 @@ function RoundActions({ round, onDone }: { round: HiringRound; onDone: () => voi
         setError(body.error || "That did not save.")
         return
       }
-      setWritten(true)
+      setJustWritten(true)
     } catch {
       setError("That did not save.")
     } finally {
@@ -895,9 +961,11 @@ function RoundActions({ round, onDone }: { round: HiringRound; onDone: () => voi
           </p>
         </div>
         {decided ? (
-          <span className="ag-pill">{decided}</span>
+          <span className="ag-pill">{DECISION_LABEL[decided]}</span>
         ) : (
-          <span className="ag-pill warn">{canWrite ? "Needs your write-up" : "Scheduled"}</span>
+          <span className="ag-pill warn">
+            {canWrite ? (written ? "Needs your decision" : "Needs your write-up") : "Scheduled"}
+          </span>
         )}
       </div>
 
@@ -949,6 +1017,28 @@ function RoundActions({ round, onDone }: { round: HiringRound; onDone: () => voi
       {!canWrite && !decided && (
         <p className="agd-aside">
           Nothing to do until this has happened. Your write-up and decision open here afterwards.
+        </p>
+      )}
+
+      {/*
+        A decided round used to collapse to a bare pill, so the record the
+        decision rested on disappeared from the client's own screen the moment
+        they made it. It says the decision in words, when it was made, and that
+        a write-up is on file.
+
+        It does NOT reproduce the write-up's text. A debrief can be written by
+        the recruiter as well as by the client (recordDebrief takes either
+        context), so rendering the body here would open a route for recruiter
+        working to cross the wall. Existence and date only.
+      */}
+      {decided && (
+        <p className="agd-aside">
+          You {DECISION_SENTENCE[decided]}
+          {round.latest_decision_at ? ` on ${fmtDate(round.latest_decision_at)}` : ""}.{" "}
+          {round.has_debrief
+            ? "The write-up it rests on is on file with your recruiter."
+            : "No write-up is on file for this round."}{" "}
+          Deciding again replaces this; nothing here removes anyone from the process.
         </p>
       )}
 

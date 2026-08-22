@@ -260,6 +260,20 @@ export interface HiringRound {
   duration_minutes: number
   meeting_url: string
   status: RoundStatus
+  /**
+   * Whether a WRITE-UP exists for this round — `round_artifacts.kind =
+   * 'debrief'` and nothing else.
+   *
+   * NEVER widen this to "has an artifact of any kind". The other kind is
+   * 'transcript', which exists only where the candidate consented to being
+   * recorded, so a general flag would tell the client what the candidate
+   * chose — the one thing the consent copy promises it never will ("the
+   * people interviewing you are not told what you chose", CONSENT-COPY-DRAFT
+   * §3). The cost of scoping it this narrowly is that a recorded round with
+   * no debrief still asks the client to write one up. That redundancy is the
+   * correct price.
+   */
+  has_debrief: boolean
   /** Latest append-only decision made by this client for this round. */
   latest_decision: RoundDecision | null
   latest_decision_at: string | null

@@ -310,6 +310,35 @@ describe("the client is never told what the candidate chose", () => {
       expect(s).not.toMatch(/consent_token_hash/)
     }
   })
+
+  /**
+   * The second door onto the same secret, opened when has_debrief was added.
+   *
+   * round_artifacts.kind is ('transcript','debrief'). A transcript exists only
+   * where the candidate consented to a recording, so reading that table
+   * WITHOUT pinning kind='debrief' would tell the client what the candidate
+   * chose just as surely as selecting the consent column would. The eq() is
+   * the whole guard, and it is one careless widening away from being gone.
+   */
+  it("reads round_artifacts only for debriefs, never transcripts", async () => {
+    const { readFileSync } = await import("fs")
+    const { resolve } = await import("path")
+    const source = readFileSync(resolve(__dirname, "../agency/client-auth.ts"), "utf8")
+
+    const start = source.indexOf("export async function getHiringDashboard")
+    const body = source.slice(start)
+    // Comments state the prohibition in prose; a scan for the word must not
+    // trip over the file documenting itself. Fifth time this has come up.
+    const code = body.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+
+    const idx = code.indexOf('.from("round_artifacts")')
+    expect(idx, "getHiringDashboard no longer reads round_artifacts").toBeGreaterThan(-1)
+
+    // The kind filter must sit in the same chained statement as the read.
+    const chain = code.slice(idx, idx + 400)
+    expect(chain).toMatch(/\.eq\(\s*["']kind["']\s*,\s*["']debrief["']\s*\)/)
+    expect(chain).not.toMatch(/transcript/)
+  })
 })
 
 /**

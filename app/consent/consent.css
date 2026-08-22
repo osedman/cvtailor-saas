@@ -56,6 +56,10 @@
   letter-spacing: -0.01em;
 }
 
+/* The saved heading takes focus programmatically so the change is announced.
+ * Nobody tabs to a heading, so the ring would only ever be confusing. */
+.cs-title:focus { outline: none; }
+
 .cs-body {
   margin: 0 0 16px;
   font-size: 16px;
@@ -67,6 +71,23 @@
 
 /* The two options are deliberately identical: same border, same background,
  * same weight. Styling one as primary would be answering for them. */
+/* The "you pressed X in the email" note. Tinted, not alarmed: it is
+ * reassurance that a click registered, plus the correction that it did not
+ * count. Sits immediately above the choice it refers to. */
+.cs-intent {
+  margin: 24px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--cs-line);
+  border-left: 3px solid var(--cs-coral);
+  border-radius: 8px;
+  background: var(--cs-tint);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--cs-ink-2);
+}
+
+.cs-intent b { color: var(--cs-ink); font-weight: 600; }
+
 .cs-choice {
   border: none;
   margin: 24px 0 20px;

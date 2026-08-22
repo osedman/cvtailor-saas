@@ -1968,4 +1968,67 @@ Fee defaults there would model a company on a person row. Needs a decision.
 
 759 tests, build clean.
 
-_Last updated: 20 August 2026_
+## 🔌 The interview tidy, client and candidate side (22 Aug 2026)
+
+The recruiter half landed in 655ad76. This is the other two.
+
+**The hiring manager's write-up gate did not survive a reload.** `RoundActions`
+held `written` in component state and `HiringRound` carried no artifact field,
+so a client who saved their write-up and came back later got an empty box —
+and no route to their decision without writing a second one. The gate that
+enforces "no artifact, no progression" only worked while the tab stayed open.
+
+The fix adds `has_debrief` to the payload, and the interesting part is how
+narrow it had to be. `round_artifacts.kind` is `('transcript','debrief')`, and
+a transcript exists **only where the candidate consented to a recording** — so
+a general `has_artifact` flag would have told the client what the candidate
+chose, which is precisely what the consent copy promises never happens. It is
+pinned to `kind = 'debrief'`, and a new guardrail scans `getHiringDashboard`
+for that `eq()`. The scan was **mutation-tested**: remove the filter and it
+fails. The cost is that a recorded round with no debrief still asks the client
+to write one up — the right price.
+
+Also on `/hiring`: decisions were rendering as raw machine values ("advance")
+in the client's own pill; a decided round collapsed to that pill and the record
+it rested on vanished; rounds rendered flat, giving a decision that is holding
+up five people the same weight as finished history; and **"Offer times" posted
+silently to `links[0]`**, so a person with two recruiters offered their diary to
+whichever sorted first. Ranked now, named now, and it asks when there is a real
+choice.
+
+**The consent email's buttons did nothing.** The ask sends `?a=yes` / `?a=no`
+and the page never read the parameter — while its own header comment claimed it
+did. Same class of defect as the amber note 655ad76 just corrected: code
+documenting behaviour it does not have. A candidate who pressed "Record it" in
+their inbox landed on an untouched screen with no sign the click registered.
+
+It is now acknowledged in words — *"You pressed record it. Nothing has been
+saved yet."* — and the choice is scrolled into view. It sets an `intent`, never
+the radio: a link in an email is followed by prefetchers, corporate scanners and
+spam filters, so `?a=yes` reaching the consent record would let a link scanner
+consent to recording someone's interview. `lib/agency/consent-intent.ts` keeps
+`Intent` and the decision vocabulary in separate types.
+
+**A guardrail that could not fail, caught.** The first version of that test
+asserted no `setChoice` call mentioned "intent" or "search". A deliberate
+mutation walked through it by naming the variable `i`. Rewritten structurally —
+`setChoice` exists exactly twice, takes a string **literal**, and each call is
+the whole body of a radio's `onChange` — and re-mutated twice to prove it fails.
+**A guard that only catches the careless version of a mistake is decoration.**
+
+**What was deliberately NOT done.** The plan called for moving the choice above
+the explanation, on the grounds that the decision sits below five paragraphs.
+`CONSENT-COPY-DRAFT.md` §3 fixes that order ("the four short paragraphs above,
+verbatim"), §2/§3 are awaiting legal review, and reading before choosing is what
+makes the consent informed. Dropped, and the reason is now in the file so the
+next person does not re-tidy it.
+
+Focus moves to the heading when an answer saves — across a full tree swap a live
+region is announced only as reliably as the browser feels like.
+
+768 tests, build clean. **Not browser-verified in its signed-in states**: the
+local service-role key is a placeholder, so `/hiring` and a live `/consent`
+token cannot be reached from this machine. Pages render, CSS confirmed in the
+served chunk by curl rather than by reading the file.
+
+_Last updated: 22 August 2026_

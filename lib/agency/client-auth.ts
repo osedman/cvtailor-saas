@@ -761,6 +761,27 @@ export async function getHiringDashboard(ctx: HiringContext): Promise<HiringDash
     for (const c of candidates ?? []) candidateRefs.set(c.id as string, (c.ref as string) ?? "")
   }
 
+  // Which rounds have been WRITTEN UP. `kind = 'debrief'` is load-bearing:
+  // the other kind is 'transcript', which exists only where the candidate
+  // consented to a recording, so reading artifacts without this filter would
+  // hand the client the candidate's consent decision by inference. The eq()
+  // is the guard, and a test pins it.
+  //
+  // This is also the fix for a real bug: the write-up gate on /hiring lived
+  // in component state, so a client who saved a write-up and reloaded got an
+  // empty box and could not reach their decision without writing a second one.
+  const debriefedRoundIds = new Set<string>()
+  const artifactRoundIds = roundRows.map((r) => r.id as string)
+  if (artifactRoundIds.length > 0) {
+    const { data: artifacts, error: artifactError } = await admin
+      .from("round_artifacts")
+      .select("round_id")
+      .eq("kind", "debrief")
+      .in("round_id", artifactRoundIds)
+    if (artifactError) throw artifactError
+    for (const a of artifacts ?? []) debriefedRoundIds.add(a.round_id as string)
+  }
+
   // The client's OWN decisions (round_decisions is append-only: latest wins).
   // Filtered by their contact ids so one client never sees another's call.
   const roundIds = roundRows.map((r) => r.id as string)
@@ -822,6 +843,7 @@ export async function getHiringDashboard(ctx: HiringContext): Promise<HiringDash
       duration_minutes: r.duration_minutes as number,
       meeting_url: (r.meeting_url as string) ?? "",
       status: r.status as RoundStatus,
+      has_debrief: debriefedRoundIds.has(r.id as string),
       latest_decision: decision?.decision ?? null,
       latest_decision_at: decision?.created_at ?? null,
     }

@@ -11,16 +11,23 @@
  *     primary/secondary styling, no "recommended". A default IS an answer, and
  *     it would not be theirs.
  *   - "Either answer is completely fine" is above the choice, not below it.
- *   - The email's yes/no buttons pre-select nothing; ?a= only scrolls intent
- *     into view, and the person still presses save. A click in an email client
- *     — which may be a prefetcher — must never be a consent record.
+ *   - The email's yes/no buttons pre-select nothing. `?a=` is acknowledged in
+ *     words and brings the choice into view; the person still presses save. A
+ *     click in an email client — which may be a prefetcher — must never be a
+ *     consent record, so the parameter never touches `choice`.
  *   - Changing your mind is on the same screen as giving it, with equal
  *     prominence, because withdrawal must be as easy as consent (UK GDPR Art 7).
+ *
+ * The order on this page — the four paragraphs, THEN the choice — is fixed by
+ * CONSENT-COPY-DRAFT §3 ("the four short paragraphs above, verbatim"). It is
+ * not a layout preference to be tidied: reading before choosing is what makes
+ * the consent informed, and §2/§3 are awaiting legal review.
  *
  * No account, ever. The token is the whole credential.
  */
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useRef, useState } from "react"
+import { intentPhrase, parseIntent, type Intent } from "@/lib/agency/consent-intent"
 
 interface ConsentView {
   agencyName: string
@@ -30,8 +37,10 @@ interface ConsentView {
   scheduledAt: string | null
   durationMinutes: number
   retentionDays: number
-  status: string
+  status: ConsentStatus
 }
+
+type ConsentStatus = "pending" | "granted" | "declined" | "withdrawn"
 
 type Screen = "loading" | "invalid" | "ready" | "saved"
 
@@ -42,6 +51,30 @@ export default function ConsentPage({ params }: { params: Promise<{ token: strin
   const [choice, setChoice] = useState<"granted" | "declined" | "">("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [intent, setIntent] = useState<Intent>(null)
+  const choiceRef = useRef<HTMLFieldSetElement>(null)
+  const savedTitleRef = useRef<HTMLHeadingElement>(null)
+  // Distinguishes "arrived at an already-answered link" from "just answered",
+  // so focus only moves on the second.
+  const justSaved = useRef(false)
+
+  /*
+   * The email sends `?a=yes` / `?a=no`. Until now nothing on this page read
+   * it, so someone who pressed "Record it" in their inbox landed on an
+   * untouched screen with no sign their click had registered — which reads
+   * as a broken link on the one page where trust matters most.
+   *
+   * Read in an effect off window.location rather than through
+   * useSearchParams, so the page needs no Suspense boundary and the server
+   * renders the same markup for every visitor.
+   *
+   * It sets `intent`, NEVER `choice`. Pre-selecting a radio from a URL would
+   * make a link prefetcher an author of somebody's consent, and a default is
+   * an answer that isn't theirs.
+   */
+  useEffect(() => {
+    setIntent(parseIntent(window.location.search))
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -60,6 +93,30 @@ export default function ConsentPage({ params }: { params: Promise<{ token: strin
     void load()
   }, [load])
 
+  /* Bring the choice into view for someone who arrived having already made up
+   * their mind in the email. The paragraphs stay above it and stay unread-past
+   * rather than skipped — scrolling is not the same as removing. */
+  useEffect(() => {
+    if (screen !== "ready" || !intent || !choiceRef.current) return
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    choiceRef.current.scrollIntoView({
+      behavior: reduced ? "auto" : "smooth",
+      block: "center",
+    })
+  }, [screen, intent])
+
+  /* The whole card is replaced when an answer saves, so an aria-live region
+   * would be announced only as reliably as the browser felt like. Moving focus
+   * to the new heading is the pattern that actually works, and it also puts a
+   * keyboard user next to the "change my answer" control rather than back at
+   * the top of the document. */
+  useEffect(() => {
+    if (screen === "saved" && justSaved.current) {
+      justSaved.current = false
+      savedTitleRef.current?.focus()
+    }
+  }, [screen])
+
   async function save(decision: "granted" | "declined" | "withdrawn") {
     setSaving(true)
     setError(null)
@@ -73,6 +130,7 @@ export default function ConsentPage({ params }: { params: Promise<{ token: strin
         setError("That did not save. Please try again.")
         return
       }
+      justSaved.current = true
       await load()
     } catch {
       setError("That did not save. Please try again.")
@@ -123,7 +181,7 @@ export default function ConsentPage({ params }: { params: Promise<{ token: strin
           <p className="cs-eyebrow">
             {view.agencyName} · interview with {view.company}
           </p>
-          <h1 className="cs-title">
+          <h1 className="cs-title" ref={savedTitleRef} tabIndex={-1}>
             Your answer: {recorded ? "record it" : "do not record it"}
           </h1>
 
@@ -200,7 +258,18 @@ export default function ConsentPage({ params }: { params: Promise<{ token: strin
           interviewing you are not told what you chose.
         </p>
 
-        <fieldset className="cs-choice">
+        {/* Says what they pressed and, more importantly, that it did not count.
+            Worded identically for both answers — neither is nudged, and the
+            sentence that matters is the same either way. */}
+        {intent && (
+          <p className="cs-intent" role="note">
+            You pressed <b>{intentPhrase(intent)}</b> in the email.{" "}
+            <b>Nothing has been saved yet.</b> Choose below and press save — and you can choose
+            either one, including the other.
+          </p>
+        )}
+
+        <fieldset className="cs-choice" ref={choiceRef}>
           <legend className="cs-legend">Your choice</legend>
           <label className="cs-option">
             <input
