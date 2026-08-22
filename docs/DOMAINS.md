@@ -9,6 +9,16 @@
 | `agencies.gettailr.com` | Tailr for Agencies + hiring managers | Engineering |
 | `gettailr.com` (apex) | Redirects only | DNS |
 
+> **OPEN (22 Aug 2026):** Ose has said B2B will have **its own production
+> domain**, and that nothing agency-related goes into consumer production —
+> staging is the home for it for now. That may mean this same deployment on a
+> different domain (what is written below), or a genuinely separate deployment
+> and domain. **The two are different plans**, and the difference is not
+> cosmetic: on a separate registrable domain the session cookie can no longer
+> span both sides and the Magic Link template's single `{{ .SiteURL }}` sends
+> B2B sign-ins to the consumer domain. See "If you ever leave the subdomain" at
+> the bottom. Everything below assumes the subdomain.
+
 All three are served by **one** Vercel deployment and one env-var set. Code
 support lives in `lib/site-url.ts` and `proxy.ts`, and is already written and
 tested (`lib/__tests__/proxy-routing.test.ts` covers the business host in both

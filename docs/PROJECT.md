@@ -2160,9 +2160,16 @@ success code.** A rolled-back probe inserted as each case: a `notification` row
 is accepted; a bogus entity_type is still REFUSED (which is what distinguishes
 a widened constraint from a dropped one — both would accept the first row); and
 `member` still validates, so the rebuild did not repeat migration 10's silent
-drop. Zero probe rows left behind, confirmed by count. **Production still needs
-it** whenever the agency port happens — prod has never had a line of agency
-code.
+drop. Zero probe rows left behind, confirmed by count.
+
+**There is no "port to production" for B2B** (clarified by Ose, 22 Aug). Tailr
+for Agencies is not going into the consumer production deployment at all — it
+gets its own production domain when it is ready. So **staging is the home for
+this product for now**, and every agency migration lands there and only there.
+Earlier entries in this file that say "run it in both environments" or "prod
+needs it at the port" were written on the wrong assumption; the rule for
+agency-schema migrations is: staging now, the B2B production environment when
+one exists.
 
 **Two things the tests caught that are worth keeping.** The full suite went red
 in eight places on files I had not touched logically — every one an audit-count
