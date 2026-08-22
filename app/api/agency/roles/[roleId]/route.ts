@@ -6,7 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { agencyAdmin, getJobRole, requireAgencyContext, writeAudit } from "@/lib/agency/db"
+import { AgencyAccessError, agencyAdmin, getJobRole, requireAgencyContext, writeAudit } from "@/lib/agency/db"
+import { setRoleOwner } from "@/lib/agency/role-owner"
 import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
@@ -95,6 +96,23 @@ export async function PATCH(
     }
 
     const body = await req.json()
+
+    // Ownership is not a field edit: it is commission attribution, validated
+    // against active membership and audit-coupled in lib/agency/db. Handled
+    // first and alone — mixing it into the RLS field patch would let it ride
+    // unaudited.
+    if (typeof body?.ownerId === "string" && body.ownerId) {
+      try {
+        await setRoleOwner(auth.ctx, roleId, body.ownerId)
+      } catch (e) {
+        if (e instanceof AgencyAccessError) {
+          return NextResponse.json({ error: e.message }, { status: 400 })
+        }
+        throw e
+      }
+      return NextResponse.json({ ok: true, ownerId: body.ownerId })
+    }
+
     const patch: Record<string, string> = {}
     for (const [field, limit] of Object.entries(FIELD_LIMITS)) {
       if (typeof body?.[field] === "string") patch[field] = body[field].slice(0, limit)

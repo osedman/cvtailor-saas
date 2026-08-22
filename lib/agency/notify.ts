@@ -195,11 +195,12 @@ async function clientRecipient(admin: AgencyClient, input: NotifyInput): Promise
 /**
  * Who on the agency side hears about this.
  *
- * Roles have no owner yet — that is a named gap — so provenance is the best
- * available proxy: whoever created the role, or invited the client contact,
- * is the person with the relationship. When that pointer is null (created_by
- * is set null on account deletion, deliberately) it falls back to the agency's
- * owners, because an unheard event is the bug this file exists to fix.
+ * The role's OWNER hears about role events (migration 32) — ownership is the
+ * relationship, and created_by is only the fallback it was before ownership
+ * existed. Contact events still resolve through who invited the contact. When
+ * every pointer is null (both null out on account deletion, deliberately) it
+ * falls back to the agency's owners, because an unheard event is the bug this
+ * file exists to fix.
  */
 async function agencyRecipients(admin: AgencyClient, input: NotifyInput): Promise<Recipient[]> {
   let preferred: string | null = null
@@ -207,11 +208,13 @@ async function agencyRecipients(admin: AgencyClient, input: NotifyInput): Promis
   if ("roleId" in input && input.roleId) {
     const { data } = await admin
       .from("job_roles")
-      .select("created_by")
+      .select("owner_id, created_by")
       .eq("id", input.roleId)
       .eq("agency_id", input.agencyId)
       .maybeSingle()
-    preferred = (data?.created_by as string | null) ?? null
+    // The owner runs this role (migration 32); created_by is provenance and
+    // only ever the fallback it was before ownership existed.
+    preferred = (data?.owner_id as string | null) ?? (data?.created_by as string | null) ?? null
   } else if ("contactId" in input && input.contactId) {
     const { data } = await admin
       .from("client_contacts")

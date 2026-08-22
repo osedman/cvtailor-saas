@@ -136,6 +136,22 @@ describe("which side of the wall", () => {
 })
 
 describe("recipients", () => {
+  it("the role's OWNER beats its creator — ownership is the relationship", async () => {
+    const admin = fakeAdmin({
+      job_roles: { data: { owner_id: "rec-1", created_by: "owner-1" } },
+      members: MEMBERS,
+    })
+    const out = await notify(admin, {
+      kind: "debrief_recorded",
+      agencyId: "a1",
+      actorId: "hm-1",
+      roleId: "role-1",
+      candidateRef: "CAN-02",
+    })
+    expect(out).toBe("sent")
+    expect(sendEmail.mock.calls.map((c) => (c[0] as SendArgs).to)).toEqual(["rec@agency.test"])
+  })
+
   it("prefers the role's creator over the rest of the agency", async () => {
     const admin = fakeAdmin({ job_roles: { data: { created_by: "rec-1" } }, members: MEMBERS })
     const out = await notify(admin, {

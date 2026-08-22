@@ -2041,6 +2041,41 @@ served chunk by curl rather than by reading the file.
 
 ---
 
+---
+
+## 👤 Roles get an owner (22 Aug 2026)
+
+The 20 Aug gap: "members exist, roles have no owner, and real desks are
+commission-driven." Migration 32 adds `job_roles.owner_id`, backfilled from
+`created_by` — the guess the product was already making, now explicit.
+Verified on staging: 11 of 13 roles backfilled, the 2 with null `created_by`
+correctly left to the owners fallback.
+
+**Reassignment is audit-coupled** (`owner_changed`, with the before value):
+moving a role between desks is a commission event someone will ask about
+later. The new owner must be an active, non-viewer member — a viewer-owned
+role is a desk nobody can work. `setRoleOwner` lives in its own module
+(`role-owner.ts`), because a function inside db.ts calls the module's own
+`agencyAdmin` binding and no test mock can reach it — the same reason consent
+and briefs are their own files.
+
+**Notifications now resolve to the owner first**, `created_by` dropping to the
+fallback it always was. The role screen's Active-role block gains an OWNER
+select (viewers see the name); Figma `AMENDMENT 22 Aug · Role owner` (208:2).
+
+Two things the tests caught: reading the before-value off the row object
+AFTER the update (a use-after-update the detached Supabase client happens to
+mask), and a fixture that forgot the agency owner is also a member. One noted
+follow-up: authenticated holds table-wide UPDATE on job_roles by design, so a
+crafted client could write owner_id unaudited — narrowing that means dropping
+the table-wide grant for an explicit column list (migration 15's lesson), not
+a column-level REVOKE, which is a silent no-op.
+
+851 tests. Mutations caught: membership check dropped, audit dropped.
+
+
+---
+
 ## 📎 The brief takes a JD file — and a silent truncation bug it uncovered (22 Aug 2026)
 
 Asked for by Ose: the hiring manager should be able to upload the job

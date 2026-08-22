@@ -21,7 +21,7 @@ type Step = "intake" | "parse" | "candidates" | "screening" | "compare" | "submi
 
 interface Requirement { id: string; ref: string; text: string; weight: "must" | "important" | "nice" }
 interface Constraint { id: string; ref: string; text: string; kind: string }
-interface Role { id: string; ref: string; title: string; company: string; company_context: string; salary_band: string; location: string; seniority: string; jd_raw: string; recruiter_notes: string; status: string }
+interface Role { id: string; ref: string; title: string; company: string; company_context: string; salary_band: string; location: string; seniority: string; jd_raw: string; recruiter_notes: string; status: string; owner_id: string | null }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; salary_text?: string; source?: string; source_detail?: string; cv_storage_path?: string | null; parse_status: string; duplicate_of: string | null }
 interface Score {
   candidate_id: string; overall: number; must_have_hit: number; must_have_total: number
@@ -110,6 +110,11 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [activeCandidate, setActiveCandidate] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Who can own this role: active, non-viewer members. Loaded once, lazily —
+  // the whole team list is small and the control renders from it.
+  const [team, setTeam] = useState<Array<{ user_id: string; role: string; status: string; name: string }>>([])
+  const [callerRole, setCallerRole] = useState<string>("viewer")
+  const [ownerBusy, setOwnerBusy] = useState(false)
   const [paste, setPaste] = useState("")
   const [jdUrl, setJdUrl] = useState("")
   const [extractResult, setExtractResult] = useState<{ requirements: number; constraints: number; filled: string[] } | null>(null)
@@ -172,6 +177,29 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     if (body.review) setReviews((prev) => ({ ...prev, [candidateId]: body.review }))
   }, [])
 
+  async function reassignOwner(userId: string) {
+    if (!role || userId === (role.owner_id ?? "")) return
+    setOwnerBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerId: userId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not reassign the role.")
+        return
+      }
+      setRole((r) => (r ? { ...r, owner_id: userId } : r))
+    } catch {
+      setError("Could not reassign the role.")
+    } finally {
+      setOwnerBusy(false)
+    }
+  }
+
   useEffect(() => {
     ;(async () => {
       const res = await fetch(`/api/agency/roles/${roleId}`)
@@ -186,6 +214,23 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       setConstraints(body.constraints ?? [])
       // Separate request, and a failure here must not take the role page with
       // it — matching is an adjunct, not part of the workflow's spine.
+      setCallerRole(body.caller_role ?? "viewer")
+      // Non-fatal like matching: the owner control simply does not render if
+      // this fails, and the role page must not die for it.
+      fetch(`/api/agency/team`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((t) => {
+          if (!t?.members) return
+          setTeam(
+            (t.members as Array<{ user_id: string; role: string; status: string; profile: { full_name?: string; email?: string } | null }>).map((m) => ({
+              user_id: m.user_id,
+              role: m.role,
+              status: m.status,
+              name: m.profile?.full_name || m.profile?.email || "Unnamed",
+            }))
+          )
+        })
+        .catch(() => {})
       fetch(`/api/agency/roles/${roleId}/matching`)
         .then((r) => (r.ok ? r.json() : null))
         .then((m) => {
@@ -693,6 +738,35 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             <div className="ag-rail-label" style={{ padding: 0 }}>Active role</div>
             <div style={{ fontWeight: 600, fontSize: 13 }}>{role.title}</div>
             <div className="ag-meta">{role.company || "No company"} · {role.ref}</div>
+            {team.length > 0 && (
+              <div className="ag-owner-row">
+                <label className="ag-rail-label" style={{ padding: 0, marginBottom: 0 }} htmlFor="role-owner">
+                  Owner
+                </label>
+                {callerRole === "viewer" ? (
+                  <span className="ag-meta">
+                    {team.find((m) => m.user_id === role.owner_id)?.name ?? "Unassigned"}
+                  </span>
+                ) : (
+                  <select
+                    id="role-owner"
+                    className="ag-owner-select"
+                    value={role.owner_id ?? ""}
+                    disabled={ownerBusy}
+                    onChange={(e) => void reassignOwner(e.target.value)}
+                  >
+                    {!role.owner_id && <option value="">Unassigned</option>}
+                    {team
+                      .filter((m) => m.status === "active" && m.role !== "viewer")
+                      .map((m) => (
+                        <option key={m.user_id} value={m.user_id}>
+                          {m.name}
+                        </option>
+                      ))}
+                  </select>
+                )}
+              </div>
+            )}
           </div>
         )}
         <div className="ag-sidebar-foot">
