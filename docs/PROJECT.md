@@ -2047,6 +2047,35 @@ served chunk by curl rather than by reading the file.
 
 ---
 
+---
+
+## ✅ 22 Aug wrap: the local production build passes, and everything is review-ready
+
+**`npm run build` succeeds on this machine for the first time** — 89/89 pages,
+production mode. The fix was the diagnosis from this morning applied: a
+`.env.production.local` symlink to `~/.config/tailr/tailr.env`, because
+`next build` never loads `.env.development.local`. Gitignored, reversible,
+and it means the whole day's work is verified to compile in production mode,
+not just dev.
+
+Housekeeping so nothing lies: every Figma frame built today now says BUILT in
+its eyebrow or name (booking 201:3, right-to-represent 209:2, JD upload 204:2,
+role owner 208:2, notification preferences 194:2, and RTW 181:2 marked signed
+off). The `tailr-b2b` skill's START HERE — the authoritative handoff — is
+rewritten from its stale 14 Aug state to today's, including the two standing
+decisions: B2B gets its own separate domain, and there is NO port into
+consumer production, ever.
+
+**The review queue for Ose, complete:** (1) two amber-badged email templates
+on the sign-off artifact — booking_answered and the closure notice; (2)
+`docs/NON-COMPETE-DRAFT.md` — copy, wants the consent-copy lawyer session;
+(3) the standing gates unchanged — lawyer + DPIA on capture, and the human
+walk-through that has still never happened. Signed-in browser states remain
+the one unverified surface: magic-link auth, which an agent cannot complete.
+
+
+---
+
 ## 🖊 Right-to-represent framed + the non-compete drafted (22 Aug 2026)
 
 The last two 20 Aug gaps, both sign-off-gated deliverables rather than code.

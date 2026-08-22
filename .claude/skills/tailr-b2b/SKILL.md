@@ -8,30 +8,48 @@ description: Tailr for Agencies (B2B recruiter product) — full context, agreed
 Read `tailr-playbook` first for repo-wide rules (staging-first, verified pushes,
 PII, tracking boards). This skill carries the agencies-specific state.
 
-## START HERE — where the build stopped (14 Aug 2026)
+## START HERE — state as of 22 Aug 2026 (evening)
 
-**Everything designed has been built. Nothing is half-finished.** The product
-runs end to end on staging: invite → brief → role → availability → booking →
-consent ask → write-up → decision → references → handover, with a dossier, a
-round delta, an audit log and settings over the top. 495 tests, build clean.
+**The 20 Aug gap list is closed and the day added seven migrations (28–34),
+all applied to tailr-staging and verified by effect.** Read docs/PROJECT.md's
+22 Aug entries for the full detail; the shape:
 
-**What is left is not a build list.** In priority order:
+- **Notifications** — every cross-wall event mails the answer leg (briefs,
+  write-ups, consent answers, references, bookings, invites). Preferences are
+  two-layer: agency default + personal override, `resolvePreference()` in
+  notify.ts is the ONE resolution rule. `facesClient()` is a whitelist of one.
+- **Candidate booking doorway** — /booking/[token]; confirm/decline + .ics
+  (lib/ics.ts, METHOD:PUBLISH on purpose). Declining releases the slot in the
+  same write and is never a withdrawal.
+- **Closing the loop** — closing a role emails the candidates the loop was
+  OPENED with (notice sent or interviewed); suppressed people are never
+  first-contacted by a closure. Idempotent via candidates.closure_notified_at.
+- **Role ownership** — job_roles.owner_id, audit-coupled reassignment,
+  notifications resolve owner-first.
+- **Right to represent** — the ask on the rights doorway; matched candidates
+  backfilled agreed (apply-manifest). The submission gate refuses answered-no
+  outright; unanswered needs a loud audited override. Never filters/ranks.
+- **JD upload on the HM brief** — and the 4,000-char silent truncation of
+  pasted JDs is fixed (shared lib/agency/brief-limits.ts).
+- **Domains decided:** B2B gets its OWN separate domain (not a subdomain),
+  bought when production is wanted; staging is the product's home until then.
+  There is NO port into consumer production, ever. See docs/DOMAINS.md ("The
+  B2B domain"). A guardrail forbids hardcoded origins in B2B links.
 
-1. **A lawyer reads `docs/CONSENT-COPY-DRAFT.md` §2 and §3, and the DPIA is
-   done.** This is the only real blocker. It unblocks capture → transcription
-   → enrichment, and enrichment is what turns both hero screens from two
-   layers deep into five. Nothing capture-related may point at a real
-   candidate first.
-2. **Ose walks the loop in a real session.** Never done end to end. Twice this
-   session, reading *real data* found bugs that the unit tests were happy
-   with. A human click-through is worth more than the next feature.
-3. **One-line migration** revoking authenticated UPDATE on `agency.agencies`,
-   so settings changes cannot skip their audit row (see Lessons, below).
-4. Then: bulk upload; quiet matching (needs its own DDL workshop — touches the
-   consumer schema and Art 13); production, which has **never seen a single
-   line of agency code** and needs Ose's explicit say-so.
+**Still gated / awaiting Ose:** the lawyer + DPIA gate on capture→
+transcription→enrichment (unchanged); two email templates (booking_answered,
+closure) amber-badged on the sign-off artifact; docs/NON-COMPETE-DRAFT.md
+(copy, wants the same lawyer session); the full human walk-through, still
+never done; the revoke of authenticated UPDATE on agency.agencies (and now
+job_roles.owner_id has the same table-wide-grant caveat, noted in migration
+32).
 
-**Do not start by building.** Ask which of 1–3 has happened.
+**Verification discipline that paid today, keep it:** verify grants by
+attempting the write as the role (service_role INSERT included — two shipped
+tables could never be written); mutation-test every guardrail (two shipped
+with blind spots: a filename-pinned constraint test and a `[^)]*` regex that
+an arrow parameter's paren defeats); and never trust a mock that does not
+implement the filter it is handed.
 
 ## What the product is
 
@@ -321,22 +339,12 @@ because it starts the retention clock.
 and getting it wrong means migrating money data later. Worth 20 minutes with
 a real agency owner before the first line of DDL.
 
-## Other gaps named 20 Aug (not queued, not built)
+## Other gaps named 20 Aug — ALL CLOSED 22 Aug
 
-Ordered as they were assessed: **notifications** (every cross-wall event
-requires the other side to poll the app — briefs sat invisible for days,
-which is an adoption risk more than a bug); **candidate-side booking** (no
-.ics, no confirm/decline link — the candidate is coordinated off-system);
-**right-to-represent** (uploaded candidates have an Art 14 notice but no
-consent-to-represent, which is the artifact that wins a contingent fee
-dispute — the quiet-matching apply path already does this correctly, so the
-pattern exists); **closing the loop on unsuccessful candidates** (nothing
-tells the other four people a role was filled — ghosting, which a product
-arguing for candidate dignity should not facilitate); **role ownership**
-(members exist, roles have no owner, and real desks are commission-driven);
-**a stated non-compete commitment** for agencies evaluating a product whose
-vendor also runs a candidate platform. Temp/contract recruitment is a
-different product and is out of scope until decided otherwise.
+Every item on this list was built (notifications, candidate-side booking,
+right-to-represent, closing the loop, role ownership) or delivered as a
+sign-off draft (the non-compete commitment, docs/NON-COMPETE-DRAFT.md).
+Temp/contract recruitment remains out of scope until decided otherwise.
 
 ## Open items
 
