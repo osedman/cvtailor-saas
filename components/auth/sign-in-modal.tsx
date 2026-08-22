@@ -82,13 +82,13 @@ export function SignInModal({ onClose, onSuccess, next }: SignInModalProps) {
               <h2 className="text-base font-semibold text-[#1e1813] mb-2">Check your email</h2>
               <p className="text-sm text-gray-500">
                 We sent a sign-in link to <strong>{email}</strong>. On your phone, open the link
-                and tap <strong>Continue</strong> — or enter the 6-digit code below.
+                and tap <strong>Continue</strong> — or enter the code from that email below.
               </p>
             </div>
 
             <form onSubmit={handleVerifyCode} className="mt-5 space-y-3">
               <label className="block text-xs font-medium text-gray-500" htmlFor="otp-code">
-                6-digit code
+                Code from the email
               </label>
               <input
                 id="otp-code"

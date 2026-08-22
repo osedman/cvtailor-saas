@@ -108,12 +108,12 @@ function SignInInner() {
                 </h1>
                 <p className="ag-note" style={{ marginTop: 10 }}>
                   We sent a sign-in link to <b style={{ color: "var(--ag-ink)" }}>{email}</b>. Open
-                  it on this device to come straight back here — or type the 6-digit code from the
+                  it on this device to come straight back here — or type the code from the
                   same email below.
                 </p>
                 <form onSubmit={verifyCode} style={{ marginTop: 14 }}>
                   <label className="ag-label" htmlFor="ag-otp">
-                    6-digit code
+                    Code from the email
                   </label>
                   <input
                     id="ag-otp"
