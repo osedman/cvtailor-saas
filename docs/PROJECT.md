@@ -2704,4 +2704,37 @@ NAME, per this file's PARKED/ARCHIVE convention — `FRAME` has no `description`
 property, that is components only. **Awaiting Ose's sign-off before further UI
 work.** The candidate-detail screen underneath it still has no frame.
 
+---
+
+## 📥 Briefs were landing and nobody could see them (22 Aug 2026)
+
+Reported as "when an HM posts a brief the recruiter should auto-see it in a
+table and click into role intake". The data said the HM→database path was
+never broken: **four briefs sat `submitted` in Halcyon Search — one posted
+that day with a 5,108-char JD** — and one accepted brief had already minted
+ROL-2401 with its JD carried into intake. Three stacked visibility failures:
+
+1. **The recruiter dashboard never mentioned briefs.** `needs_you` carried
+   client actions and rights requests but not the thing that starts the whole
+   workflow.
+2. **The inbox only shows the cookie's active agency.** A week of working RLS
+   Test Alpha made Halcyon's briefs invisible everywhere.
+3. **Accept threw away its own answer.** The route has always returned
+   `roleId`; the page reloaded the list and left the recruiter in the inbox.
+
+Fixes (commit 1bc303a), each pinned by `briefs-visibility.test.ts`: the
+dashboard queries submitted briefs **without an agency filter** (`role_briefs`'
+RLS already scopes to the caller's memberships, so one query yields the active
+agency's briefs in full AND counts for the others — an `.eq("agency_id")`
+there would silently reintroduce the blindness, so a test pins its absence);
+`jd_raw` reduces to `has_jd` before the response; other agencies appear as
+**name + count only** with a one-click switch through the validated session
+endpoint; a new "**Briefs from your clients**" band renders one card per
+waiting brief; and **accepting lands in the minted role** — intake, JD
+prefilled. Declining stays put.
+
+880 tests, build clean. Staging verification is Ose's walk: Halcyon shows
+four brief cards; the Alpha view says "Halcyon Search has 4 briefs waiting →
+Switch".
+
 _Last updated: 22 August 2026_
