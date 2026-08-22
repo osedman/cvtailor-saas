@@ -45,6 +45,7 @@
  */
 
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError, type AgencyClient } from "./db"
+import { notify } from "./notify"
 import type { AgencyContext, BriefStatus, HiringBrief, HiringContext, HiringLink } from "./types"
 
 /** Body fields. Generous enough for a real brief pasted from a doc, small
@@ -190,6 +191,16 @@ export async function submitBrief(
     entityRef: roleTitle,
     action: "created",
     toValue: { brief_id: briefId, contact_id: link.contactId },
+  })
+
+  // The event this whole file was failing at: a brief filed and unseen. The
+  // recruiter who invited this contact hears about it; nobody else does.
+  await notify(admin, {
+    kind: "brief_filed",
+    agencyId: link.agencyId,
+    actorId: ctx.userId,
+    contactId: link.contactId,
+    roleTitle,
   })
 
   return { briefId }
@@ -470,7 +481,7 @@ export async function declineBrief(
     .eq("id", briefId)
     .eq("agency_id", ctx.agencyId)
     .eq("status", "submitted")
-    .select("id, role_title")
+    .select("id, role_title, contact_id")
   if (error) throw error
 
   const decided = (data ?? [])[0]
@@ -490,6 +501,17 @@ export async function declineBrief(
     action: "declined",
     toValue: { brief_id: briefId },
     reason: declineReason || undefined,
+  })
+
+  // The hiring manager is told their brief was answered, never why — the
+  // reason is the recruiter's own note and stays in the app.
+  await notify(admin, {
+    kind: "brief_answered",
+    agencyId: ctx.agencyId,
+    actorId: ctx.userId,
+    contactId: (decided.contact_id as string) ?? "",
+    roleTitle: (decided.role_title as string) ?? "",
+    accepted: false,
   })
 }
 
@@ -627,6 +649,15 @@ export async function acceptBrief(
     entityRef: title,
     action: "accepted",
     toValue: { brief_id: briefId, role_id: roleId, ref: roleRef },
+  })
+
+  await notify(admin, {
+    kind: "brief_answered",
+    agencyId: ctx.agencyId,
+    actorId: ctx.userId,
+    contactId: (brief.contact_id as string) ?? "",
+    roleTitle: title,
+    accepted: true,
   })
 
   return { roleId, ref: roleRef }

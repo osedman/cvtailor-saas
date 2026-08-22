@@ -2033,6 +2033,92 @@ local service-role key is a placeholder, so `/hiring` and a live `/consent`
 token cannot be reached from this machine. Pages render, CSS confirmed in the
 served chunk by curl rather than by reading the file.
 
+---
+
+## 📬 Notifications: the silent return leg of every doorway (22 Aug 2026)
+
+**Status: on staging, awaiting migration 28 in both environments + template
+sign-off.** Branch `staging`. Named as the top gap on 20 Aug: "every cross-wall
+event requires the other side to poll the app — briefs sat invisible for days,
+which is an adoption risk more than a bug."
+
+**The shape of it, which was not what I assumed.** Briefs flow hiring manager →
+recruiter, not the other way, so "briefs sat invisible" means the RECRUITER
+never knew one arrived. Reading the routes turned a vague gap into a precise
+one: Tailr already mails four ASKS (consent, reference request, client invite,
+team invite) and mailed none of the ANSWERS. Every doorway had a mailed ask and
+a silent return. That is the whole diagnosis, and the fix is one file.
+
+`lib/agency/notify.ts` — seven events across six kinds:
+
+| Event | Faces | Was |
+|---|---|---|
+| `brief_filed` | recruiter | silent (the named pain) |
+| `brief_answered` accept/decline | hiring manager | silent |
+| `invite_accepted` | recruiter | silent |
+| `debrief_recorded` | recruiter | silent |
+| `consent_answered` | recruiter | silent |
+| `reference_submitted` | recruiter | silent |
+
+**Three rules, each one a test.**
+
+1. **A notification carries a pointer, never the payload.** No candidate names,
+   no brief bodies, no write-up text, no consent answers — only the refs and
+   titles the audit log already uses. Email is an insecure, un-revocable
+   channel that gets forwarded to people who were never on the thread, and
+   getting the reader into the app is the point of sending at all. This is the
+   audit log's own rule (counts, not content) applied to the outbox.
+2. **`facesClient()` is a whitelist of one.** Only `brief_answered` reaches a
+   hiring manager. Everything else defaults to the agency side, so a new event
+   cannot leak to the panel unless somebody edits that function deliberately.
+   The consent promise depends on it: the people interviewing someone are never
+   told what that person chose. `agency-notify.test.ts` parses the union out of
+   the source and fails until every new kind is classified — the same mechanism
+   as `audit-entity-types.test.ts`, for the same reason.
+3. **The actor is never told about their own action**, and nothing throws: a
+   failed notification must never fail the write it followed.
+
+**Where the calls live.** Beside `writeAudit` inside `lib/agency/*`, never in
+the route handlers — routes here are thin and the same lib function serves both
+the recruiter and the hiring manager, so hooking the lib layer is what stops a
+future caller silently skipping a notification.
+
+**Recipients, given roles still have no owner.** Provenance is the proxy:
+`job_roles.created_by`, or `client_contacts.created_by` for contact events.
+Both are nullable by design (set null on account deletion), so it falls back to
+the agency's owners — an unheard event is the bug this file exists to fix.
+Viewers are never mailed; they cannot act on it.
+
+**Migration 28** (`20260822110000_notification_audit.sql`) adds `notification`
+to `audit_log`'s entity_type check. Copied from the DEPLOYED constraint read
+out of staging, not from migration 1's list — which is exactly the slip
+migration 10 made and `audit-entity-types.test.ts` now guards. **Not yet
+applied:** the apply was blocked by the permission classifier, which matches
+this repo's rule that migrations run manually anyway. Until it runs, a
+notification sends its email and then fails at the audit step — degraded, not
+broken, because `notify()` swallows it.
+
+**Two things the tests caught that are worth keeping.** The full suite went red
+in eight places on files I had not touched logically — every one an audit-count
+assertion shifting because notifications now file their own row. Rather than
+loosening them, the trail assertions were scoped to a new `mutations()`
+accessor while the PII scans deliberately kept covering ALL rows, so
+`expect(log).not.toContain("@")` now proves the notification rows carry no
+address either. And the first version of `agency-notify.test.ts` passed while
+being wrong: the mocked `profiles` client ignored its own `.in(ids)` filter and
+returned every member for any query, so "only the role's creator is mailed"
+would have passed no matter what the code did. That is the third time on this
+project a mock has agreed with wrong code.
+
+**Not built, deliberately:** no in-app notification centre and no preferences
+UI — both are new surfaces and would need a Figma frame first. There is
+therefore no off switch yet, which is the obvious follow-up.
+
+**Templates await sign-off** before anything sends to a real address.
+
+
+---
+
 ## 🛂 Right to work is two questions — and two tables nobody could write (22 Aug 2026)
 
 Prompted by *Tailr-Right-to-Work-UX-Proposals.docx*. Most of that brief's

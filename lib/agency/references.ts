@@ -17,6 +17,7 @@
 
 import { createHash, randomBytes } from "crypto"
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
+import { notify } from "./notify"
 import type { AgencyContext } from "./types"
 
 export type ReferenceStatus = "drafted" | "requested" | "received" | "chasing" | "declined"
@@ -307,6 +308,21 @@ export async function recordReference(
     action: declined ? "reference_declined" : "reference_received",
     reason: "referee reply",
     toValue: { reference_id: ref.id as string, answered: answers.length },
+  })
+
+  // candidate_references carries no role, so the role comes off the candidate
+  // — it decides both who hears about this and where the link points.
+  const { data: refCandidate } = await admin
+    .from("candidates")
+    .select("role_id")
+    .eq("id", ref.candidate_id as string)
+    .maybeSingle()
+  await notify(admin, {
+    kind: "reference_submitted",
+    agencyId: ref.agency_id as string,
+    actorId: null,
+    roleId: (refCandidate?.role_id as string) ?? "",
+    candidateRef: (ref.candidate_ref as string) ?? "",
   })
 
   return { ok: true, declined }

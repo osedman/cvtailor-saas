@@ -17,6 +17,7 @@
  */
 
 import { agencyAdmin, writeAudit, AgencyAccessError } from "./db"
+import { notify } from "./notify"
 import type { AgencyContext, HiringContext } from "./types"
 
 /**
@@ -167,6 +168,18 @@ export async function recordDebrief(
       of: answers.length,
     },
   })
+
+  // Only on the first write-up. An edit is not news, and the recruiter who
+  // wrote it themselves is filtered out inside notify().
+  if (!existing) {
+    await notify(admin, {
+      kind: "debrief_recorded",
+      agencyId: round.agency_id as string,
+      actorId: ctx.userId,
+      roleId: round.role_id as string,
+      candidateRef: (candidate?.ref as string) ?? "",
+    })
+  }
 
   return { artifactId }
 }

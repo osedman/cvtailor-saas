@@ -101,6 +101,14 @@ class FakeDb {
     return this.rows("audit_log")
   }
 
+  /** The mutation trail: audit rows for the change itself, without the
+   * cross-wall notification rows that lib/agency/notify.ts files alongside
+   * them. Trail assertions use this; the PII scans keep using audit(), so a
+   * notification row that leaked a name would still fail them. */
+  mutations(): Row[] {
+    return this.rows("audit_log").filter((r) => r.entity_type !== "notification")
+  }
+
   /** Any destructive call, on any table. Should stay empty in this module. */
   deletes(): RecordedCall[] {
     return this.calls.filter((c) => c.method === "delete")
@@ -474,8 +482,8 @@ describe("submitBrief — a client-supplied contactId is never trusted", () => {
 
     // ...and the audit row is filed against the same agency, not the caller's
     // first link.
-    expect(store.audit()).toHaveLength(1)
-    expect(store.audit()[0]).toMatchObject({ agency_id: RIVAL, actor_id: HM })
+    expect(store.mutations()).toHaveLength(1)
+    expect(store.mutations()[0]).toMatchObject({ agency_id: RIVAL, actor_id: HM })
   })
 
   it("files against the one link when there is only one, as 'submitted'", async () => {
@@ -507,8 +515,8 @@ describe("submitBrief — the audit row, and what it must not carry", () => {
       ...BODY,
     })
 
-    expect(store.audit()).toHaveLength(1)
-    expect(store.audit()[0]).toMatchObject({
+    expect(store.mutations()).toHaveLength(1)
+    expect(store.mutations()[0]).toMatchObject({
       agency_id: AGENCY,
       actor_id: HM,
       entity_type: "brief",
@@ -540,8 +548,8 @@ describe("submitBrief — the audit row, and what it must not carry", () => {
     expect(log).not.toContain("@")
 
     // ...and the row is not empty, so this cannot pass vacuously.
-    expect(store.audit()).toHaveLength(1)
-    expect(store.audit()[0].entity_ref).toBe("Staff Platform Engineer")
+    expect(store.mutations()).toHaveLength(1)
+    expect(store.mutations()[0].entity_ref).toBe("Staff Platform Engineer")
 
     // The body DID reach the table it belongs in — otherwise the assertions
     // above would be proving only that nothing was stored anywhere.
@@ -657,8 +665,8 @@ describe("acceptBrief — the happy path", () => {
 
     const { roleId } = await acceptBrief(agencyCtx(), "brief-live")
 
-    expect(store.audit()).toHaveLength(2)
-    expect(store.audit()[0]).toMatchObject({
+    expect(store.mutations()).toHaveLength(2)
+    expect(store.mutations()[0]).toMatchObject({
       agency_id: AGENCY,
       role_id: roleId,
       actor_id: RECRUITER,
@@ -668,7 +676,7 @@ describe("acceptBrief — the happy path", () => {
       to_value: { title: "Staff Platform Engineer", brief_id: "brief-live" },
       reason: "brief_accepted",
     })
-    expect(store.audit()[1]).toMatchObject({
+    expect(store.mutations()[1]).toMatchObject({
       agency_id: AGENCY,
       role_id: roleId,
       actor_id: RECRUITER,
@@ -884,8 +892,8 @@ describe("declineBrief", () => {
 
     await declineBrief(agencyCtx(), "brief-live", "  Head count paused until Q4  ")
 
-    expect(store.audit()).toHaveLength(1)
-    expect(store.audit()[0]).toMatchObject({
+    expect(store.mutations()).toHaveLength(1)
+    expect(store.mutations()[0]).toMatchObject({
       agency_id: AGENCY,
       actor_id: RECRUITER,
       entity_type: "brief",
@@ -1019,13 +1027,17 @@ describe("a full brief lifecycle leaves no body text and no PII in the log", () 
     expect(log).not.toContain("@")
 
     // Not vacuous: the trail is complete, in order, and joins up.
-    expect(store.audit().map((a) => `${a.entity_type}:${a.action}`)).toEqual([
+    expect(store.mutations().map((a) => `${a.entity_type}:${a.action}`)).toEqual([
       "brief:created",
       "brief:created",
       "role:created",
       "brief:accepted",
       "brief:declined",
     ])
+    // And every one of those events tried to tell somebody. Without this the
+    // trail assertion above would pass just as happily with notifications
+    // deleted.
+    expect(store.audit().filter((a) => a.entity_type === "notification")).not.toHaveLength(0)
     expect(roleRows()).toHaveLength(1)
     expect(store.rows("role_briefs")).toHaveLength(2)
   })

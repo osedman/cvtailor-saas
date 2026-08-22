@@ -48,6 +48,7 @@ import { createHash, randomBytes } from "crypto"
 import { cookies } from "next/headers"
 import { createServerClient } from "@supabase/ssr"
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError, type AgencyClient } from "./db"
+import { notify } from "./notify"
 import type {
   AgencyContext,
   BriefStatus,
@@ -610,6 +611,13 @@ export async function acceptInvite(
     entityRef: (contact.company as string) ?? "",
     action: "accepted",
     toValue: { invite_id: invite.id as string, contact_id: contact.id as string },
+  })
+
+  await notify(admin, {
+    kind: "invite_accepted",
+    agencyId: invite.agency_id as string,
+    actorId: user.id,
+    contactId: contact.id as string,
   })
 
   const names = await agencyNames(admin, [invite.agency_id as string])

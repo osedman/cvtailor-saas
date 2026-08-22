@@ -24,6 +24,7 @@
 
 import { createHash, randomBytes } from "crypto"
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
+import { notify } from "./notify"
 import type { AgencyContext } from "./types"
 
 export type ConsentDecision = "granted" | "declined" | "withdrawn"
@@ -295,6 +296,16 @@ export async function recordDecision(
       evidence_removed: rescoreCandidateId !== null,
       recordings_removed: recordingPaths.length,
     },
+  })
+
+  // Agency-bound only. facesClient() keeps this off the hiring manager's
+  // desk: the panel interviewing someone is never told what they chose.
+  await notify(admin, {
+    kind: "consent_answered",
+    agencyId,
+    actorId: null,
+    roleId: round.role_id as string,
+    candidateRef: (candidate?.ref as string) ?? "",
   })
 
   return { ok: true, decision, recordingPaths, rescoreCandidateId }

@@ -151,6 +151,9 @@ export interface AuditEntry {
     // migration 8's value. audit-entity-types.test.ts now keeps the union and
     // the newest constraint migration in step mechanically.
     | "matching"
+    // Cross-wall notifications (lib/agency/notify.ts). Widened by
+    // 20260822110000_notification_audit.sql.
+    | "notification"
   entityRef: string
   action: string
   fromValue?: unknown

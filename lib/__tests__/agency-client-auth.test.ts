@@ -84,6 +84,14 @@ class FakeDb {
   audit(): Row[] {
     return this.rows("audit_log")
   }
+
+  /** The mutation trail, without the cross-wall notification rows that
+   * lib/agency/notify.ts files alongside them. The secret-and-address scans
+   * below deliberately keep using audit(), so they cover notification rows
+   * too. */
+  mutations(): Row[] {
+    return this.rows("audit_log").filter((r) => r.entity_type !== "notification")
+  }
 }
 
 class FakeQuery {
@@ -373,8 +381,8 @@ describe("acceptInvite — binding a hiring manager", () => {
 
     // The audit row: company as the ref, the acting user as the actor, uuids
     // only in the payload.
-    expect(store.audit()).toHaveLength(1)
-    expect(store.audit()[0]).toMatchObject({
+    expect(store.mutations()).toHaveLength(1)
+    expect(store.mutations()[0]).toMatchObject({
       agency_id: AGENCY,
       actor_id: HM,
       entity_type: "client_invite",
@@ -952,7 +960,7 @@ describe("the audit log never carries a secret or an address", () => {
     expect(log).not.toContain("@")
 
     // And the log is not empty — this test would otherwise pass vacuously.
-    expect(store.audit().map((a) => a.action)).toEqual([
+    expect(store.mutations().map((a) => a.action)).toEqual([
       "created",
       "revoked",
       "created",
@@ -960,5 +968,8 @@ describe("the audit log never carries a secret or an address", () => {
       "accepted",
       "unlinked",
     ])
+    // The accepted invite tried to tell the recruiter who invited them. The
+    // scans above already proved that row carries no address.
+    expect(store.audit().filter((a) => a.entity_type === "notification")).not.toHaveLength(0)
   })
 })
