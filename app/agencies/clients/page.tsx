@@ -17,7 +17,7 @@
  *
  * Every write here is audit-coupled server side, which is why the actions
  * carry the AUDIT LOGGED pill and why the destructive ones ask first — the
- * same breath the "Reset call" control takes on the role workflow.
+ * same breath the "Reset call" control takes on the shortlist workflow.
  *
  * Nothing on this page is mocked. Contacts come from the agency's own
  * address book; where there are none, the empty state says so and points at
@@ -137,7 +137,7 @@ export default function ClientAccessPage() {
   /**
    * Optimistic write, with the row restored if it did not land.
    *
-   * Same shape as the screening controls on the role workflow (7 Aug): the
+   * Same shape as the screening controls on the shortlist workflow (7 Aug): the
    * pill moves first so the click reads as having done something, and the
    * server is the reconciler. A failure puts the row back exactly as it was —
    * an access pill that says LINKED when the grant never happened is the one

@@ -140,7 +140,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
           </div>
         </button>
         <div>
-          <div className="ag-rail-label">Role workflow</div>
+          <div className="ag-rail-label">Shortlist workflow</div>
           {WORKFLOW_STEPS.map((st) => (
             <button
               key={st.key}
@@ -180,7 +180,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
               <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
               {" / "}
               <button className="ag-crumb-link" onClick={() => router.push(`/agencies/roles/${roleId}`)}>
-                {role ? `${role.company || "Role"} — ${role.title}` : "Role workflow"}
+                {role ? `${role.company || "Role"} — ${role.title}` : "Shortlist workflow"}
               </button>
               {" / "}
               <b>{stepNumber("detail")}. Candidate detail</b>

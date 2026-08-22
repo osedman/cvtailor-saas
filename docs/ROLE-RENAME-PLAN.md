@@ -1,51 +1,131 @@
 # Renaming the seven-step flow — survey and plan
 
-**Status: NAME NOT YET CHOSEN. Do not implement the name below as-is.**
+**Status: DECIDED 22 Aug 2026. The FLOW was named; the unit noun was NOT
+renamed.** Sections 3–6 are kept because they remain the correct inventory,
+locked list and verification recipe *if the unit noun is ever revisited* —
+they are not a description of what shipped.
 
-Produced 22 Aug 2026 by an 8-agent survey (889k tokens) so it is not worth
-regenerating. Everything in sections 3–6 — the rename inventory, the locked
-list, the verification recipe — is name-agnostic and still correct. Only the
-recommendation in sections 1–2 is superseded.
+## THE DECISION
 
-## What has been decided
+**The seven-step flow is "the shortlist workflow". The unit stays "role".**
 
-- The rail item **"Roles" → "Dashboard"** is DONE (commit `815a91b`): the nav
-  label plus thirteen back-links. There is no roles list page — the dashboard
-  band `#agd-roles` is the list.
-- **"Assignments" is RULED OUT.** The survey recommended it, and its own
+Ose proposed "shortlist flow" against the two candidates below. It splits into
+two readings, and only one of them survives:
+
+- **"Shortlist" as the unit noun — REJECTED.** `shortlist` is already
+  load-bearing and precise in this codebase: it is one of the three values of
+  the per-candidate decision enum (`["shortlist","hold","reject"]`,
+  `app/api/agency/candidates/[candidateId]/decision/route.ts:39`) and the
+  client-facing name of the deliverable (`app/portal/layout.tsx:15` titles the
+  page "Shortlist"). The container and the verb you press on a person would be
+  the same word — a worse collision than *Searches* vs the search box, because
+  it is inside the domain rather than in the UI chrome. It also fails the
+  minute-one test: the unit is created at step 01 with nobody on it, so "Live
+  shortlists" and "+ New shortlist" would name a thing that is not one yet.
+  The shortlist is the flow's OUTPUT, not its container.
+
+- **"Shortlist workflow" as the flow name — ADOPTED.** The decisive evidence
+  is that the product already named this exact span itself:
+  `app/api/agency/dashboard/route.ts:445` measures **`brief_to_shortlist`** —
+  *"Brief to first shortlist: role created -> first submission."* That is the
+  seven steps end to end, already called brief→shortlist in code. The rail now
+  surfaces a name the system was already using rather than coining one.
+
+### Why naming the FLOW beat renaming the UNIT
+
+The survey's premise was that the *unit* needed a new noun because "Roles" was
+ambiguous in the nav. Commit `815a91b` had already removed "Roles" from the
+nav rail. What was left ambiguous was the *process* — "Role workflow" reads as
+a workflow about roles rather than the work of filling one.
+
+Naming the flow dissolves the problem instead of trading it:
+
+- no new noun has to coexist with "role", so the recruiter and the hiring
+  manager never say two words for one object across the wall;
+- no `ROL-` seam to explain, ever;
+- the dashboard search-box collision that sank *Searches* never arises;
+- **6 strings instead of ~60**, with zero exposure to the three
+  silent-failure boundaries in §6 (the 56 ARIA `role="…"` attributes, the
+  frozen consent/notice/closure strings, and `roleId`/`role_id`/`job_roles`).
+
+### The honest argument against what shipped
+
+It does **not** fix "role" meaning two things in body copy. "No candidates on
+this role yet", "Held candidates stay in the role", "Close this role" all
+still use the job's word for the agency's piece of work on it. If that
+ambiguity is what actually bites, §3 below is the inventory that fixes it and
+the two live candidates are recorded under "What was considered".
+
+### What shipped
+
+| File:line | From | To |
+|---|---|---|
+| `app/agencies/roles/[roleId]/page.tsx:730` | `Role workflow` | `Shortlist workflow` |
+| `…/candidates/[candidateId]/page.tsx:143` | `Role workflow` | `Shortlist workflow` |
+| `…/candidates/[candidateId]/page.tsx:183` | crumb fallback `"Role workflow"` | `"Shortlist workflow"` |
+| `lib/agency/steps.ts:2` | comment "The role workflow rail" | "The shortlist workflow rail" |
+| `app/agencies/clients/page.tsx:20,140` | comments "the role workflow" | "the shortlist workflow" |
+| `app/agencies/roles/[roleId]/page.tsx:4` | comment "all six steps" listing six | "all seven steps", listing seven |
+
+Not touched, deliberately: `role.company || "Role"` on the same crumb line is
+a **company-name** fallback, not the flow; and `steps.ts`'s `"Role intake"`
+label stays, because that step really is intake of the role.
+
+**Also fixed in the same pass** (it was queued with the rename and is
+independent of the name): `app/agencies/roles/[roleId]/page.tsx:195,200`
+`"Could not reassign the role."` → **`"Could not change the owner."`** —
+"reassign" already means changing the role owner (`lib/agency/role-owner.ts`,
+`owner_changed` audit event), so the word was doing two jobs.
+
+### Verified
+
+Wall diff empty; `git diff -U0` over `app lib components` contains no line
+touching `roleId|role_id|job_roles|ROL-|StepKey|agd-roles|role="`; ARIA counts
+still **33** (agency surface) and **23** (frozen surfaces); 906 tests green;
+build clean. Rail fit measured rather than eyeballed against the real
+stylesheet: `SHORTLIST WORKFLOW` is 18 chars at `--t-micro` 10px mono with
+`--track-label` 0.08em ≈ **122px** inside a 232px sidebar's **184px** of
+available label width (~33% headroom), rendered on one line.
+
+## What was considered and NOT chosen
+
+- **"Assignments" — RULED OUT.** The survey recommended it, and its own
   honest-argument-against turned out to be decisive: Ose confirmed on 22 Aug
   that **Tailr is meant for contract roles too**. Under AWR 2010 "assignment"
-  is the statutory term for the *worker's* engagement — the 12-week clock and
-  the Key Information Document are written around it — so on a contract desk
-  the word belongs to the candidate, not to the agency's piece of work.
+  is the statutory term for the *worker's* engagement — the 12-week qualifying
+  clock and the Key Information Document are written around it — so on a
+  contract desk the word belongs to the candidate, not to the agency's piece
+  of work.
+- **"Searches"** — the strongest unit-noun candidate. No statutory meaning,
+  idiomatic on perm and contract desks, a genuinely different object from the
+  role, and "search ROL-2402" is literally correct. Sunk by the collision with
+  the universal UI verb sitting directly above the list: the dashboard box is
+  placeholder "Search roles" with a `/` keybind and `app/agencies/page.tsx:697`
+  reads "No role matches that search." Agency names in this trade also end in
+  the word — the staging fixture is literally "Halcyon Search", so the sidebar
+  would have read "Halcyon Search · 5 searches".
+- **"Vacancies"** — the survey's runner-up. Zero code collisions, but it is a
+  synonym for the role rather than a different object, "step 04 of the
+  vacancy" is not a sentence, it implies an advert register in a product that
+  says "There is no job board" on three surfaces, and it leaves a permanent
+  `VAC`-in-nav / `ROL-`-on-card seam.
+- **"Mandates"** — no statutory meaning and no collisions, but a *contingent*
+  agency has no mandate, only permission to compete, so it is semantically
+  wrong for most of the market.
 
-## What still needs deciding
+## The governing rule, unchanged and still in force
 
-A name for the unit the seven steps run on, that:
-
-1. is **not** a synonym for "role" — the whole inventory below depends on the
-   rule *"role" = the job (frozen, read by candidates and hiring managers);
-   the new noun = the agency's piece of work on it*;
-2. carries **no statutory meaning** in UK temp/contract staffing (this rules
-   out *assignment*, and makes *engagement* risky for the same reason);
-3. reads correctly against the frozen reference — "«noun» ROL-2402" must not
-   look like a bug, since `ROL-` cannot be re-minted;
-4. is true from minute one, when the unit has zero candidates and no
-   shortlist yet;
-5. does not collide with the dashboard's own **search box** (placeholder
-   "Search roles", `/` keybind) — this is the live objection to *Searches*,
-   the obvious next candidate: "Search searches" needs the placeholder
-   reworded to something like "Find a search".
-
-Leading candidates: **Searches** (no statutory meaning, idiomatic for perm
-and contract, needs the search-box reword) and **Vacancies** (the survey's
-runner-up; works for contract, but carries an advert register in a product
-that says "There is no job board" on three surfaces, and leaves a permanent
-`VAC`-in-nav / `ROL-`-on-card seam).
+**"role" = the job** — its title, its JD, its requirements: the thing the
+hiring manager, the candidate and the referee emails all name. It is frozen.
+Any future noun for **the agency's piece of work on that job** must be a
+different object, not a synonym. Sections 3–6 below are written to that rule.
 
 ---
 
-# ONE NAME: **Assignments** / singular **assignment**
+# SUPERSEDED — the survey's original recommendation: **Assignments**
+
+_Kept verbatim for the reasoning only. Ruled out; see "What was considered
+and NOT chosen" above. Do NOT implement._
 
 Nav rail item: **Dashboard** (Ose's instruction, `/agencies` unchanged). The unit the seven steps run on, and every list, crumb and empty state that names it: **assignment**. The flow itself: **the assignment workflow** (seven steps, 01–07).
 

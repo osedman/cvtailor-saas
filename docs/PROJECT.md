@@ -2871,4 +2871,94 @@ reddens it.
 
 901 tests, build clean.
 
+## 🏷 The seven steps get a name: the shortlist workflow (22 Aug 2026)
+
+The rename question that had been blocking the queue, closed. An 8-agent
+survey (889k tokens, `docs/ROLE-RENAME-PLAN.md`) had recommended renaming the
+**unit** the seven steps run on — "Assignments" — and that was ruled out when
+Ose confirmed Tailr serves **contract** desks too: under AWR 2010 "assignment"
+is the statutory word for the *worker's* engagement, so on a contract desk it
+belongs to the candidate, not to the agency's piece of work. The next-best
+unit nouns each carried their own tax: **Searches** collides with the universal
+UI verb sitting directly above the list (the dashboard box is placeholder
+"Search roles" on a `/` keybind, and agency names in this trade end in the word
+— the staging fixture is literally "Halcyon Search"); **Vacancies** is a
+synonym for the role rather than a different object, and leaves a permanent
+`VAC`-in-nav / `ROL-`-on-card seam.
+
+Ose's answer — *"what about shortlist flow"* — split into two readings, and
+only one survived.
+
+**Rejected: "shortlist" as the unit noun.** The word is already load-bearing
+and precise here: it is one of the three values of the per-candidate decision
+enum (`["shortlist","hold","reject"]`,
+[decision/route.ts:39](../app/api/agency/candidates/[candidateId]/decision/route.ts))
+and the client-facing name of the deliverable (`/portal` titles itself
+"Shortlist"). The container and the verb you press on a person would be the
+same word — worse than the Searches collision, because it is inside the domain
+rather than in the chrome. It also fails the minute-one test: the unit is
+created at step 01 with nobody on it. **The shortlist is the flow's output,
+not its container.**
+
+**Adopted: "the shortlist workflow" as the name of the flow.** The decisive
+evidence is that the product had already named this exact span itself —
+[dashboard/route.ts:445](../app/api/agency/dashboard/route.ts) measures
+**`brief_to_shortlist`**: *"Brief to first shortlist: role created → first
+submission."* That is the seven steps, end to end, already called
+brief→shortlist in code. The rail now surfaces a name the system was using
+rather than coining one.
+
+**Naming the flow dissolved the problem instead of trading it.** The survey's
+premise was that the unit needed a new noun because "Roles" was ambiguous in
+the nav — but `815a91b` had already taken "Roles" out of the nav rail. What
+was left ambiguous was the *process*: "Role workflow" reads as a workflow
+about roles, not the work of filling one. So: no new noun coexisting with
+"role" (the recruiter and the hiring manager never say two words for one
+object across the wall), no `ROL-` seam to explain, no search-box collision —
+and **6 strings instead of ~60**, with zero exposure to the three
+silent-failure boundaries the plan's §6 names (the 56 ARIA `role="…"`
+attributes, the frozen consent/notice/closure strings, and
+`roleId`/`role_id`/`job_roles`, where `typescript.ignoreBuildErrors` means the
+build would not have caught a break).
+
+`Role workflow` → **`Shortlist workflow`** on the workflow rail and the
+candidate-detail rail, plus the crumb fallback; the comment on
+`lib/agency/steps.ts` and two on the clients screen. The workflow page's header
+comment said **"all six steps" while listing six of seven** — fixed in the same
+edit, since step 06 living on its own route is exactly how it went missing for
+four days once before.
+
+Deliberately not touched: `role.company || "Role"` on the same crumb line is a
+**company-name** fallback, not the flow; and `steps.ts`'s `"Role intake"`
+stays, because that step really is intake of the role.
+
+**Also fixed here** — queued with the rename and independent of the name:
+`"Could not reassign the role."` → **`"Could not change the owner."`** (×2).
+"Reassign" already means changing the role owner (`lib/agency/role-owner.ts`,
+`owner_changed` audit event), so the word was doing two jobs.
+
+**Honest gap, recorded rather than papered over:** this does *not* fix "role"
+meaning two things in body copy — "No candidates on this role yet", "Held
+candidates stay in the role", "Close this role" still use the job's word for
+the agency's work on it. §3 of the plan remains the inventory that would fix
+it; the file is now headed with the decision and the rejected candidates so
+the reasoning is not re-litigated or the survey re-run.
+
+Verified per the plan's §6: **wall diff empty** (`/found`, `/settings`,
+`/rights`, `/consent`, `/reference`, `/portal`, `/hiring`, `notices.ts`,
+`closure.ts`, `notify.ts` all untouched); no changed line anywhere in
+`app lib components` matches `roleId|role_id|job_roles|ROL-|StepKey|agd-roles|role="`;
+ARIA counts still **33 / 23**. Rail fit measured, not eyeballed, against the
+real stylesheet: `SHORTLIST WORKFLOW` is 18 chars at `--t-micro` 10px mono with
+`--track-label` 0.08em ≈ **122px** inside the 232px sidebar's **184px** of
+available label width — ~33% headroom, one line, confirmed rendered.
+
+906 tests, build clean.
+
+Worth keeping: **`git ls-remote` succeeds on this network where `git fetch`
+hangs** — so the "re-read staging's head before committing" rule has a cheap
+way to run after all.
+
+---
+
 _Last updated: 22 August 2026_

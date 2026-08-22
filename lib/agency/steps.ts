@@ -1,5 +1,5 @@
 /**
- * The role workflow rail, exactly as the design handoff numbers it.
+ * The shortlist workflow rail, exactly as the design handoff numbers it.
  *
  * Seven steps, not six. Candidate detail is step 06 in the drawing and lives
  * on its own route here (it is per-candidate and deep linkable), which is why

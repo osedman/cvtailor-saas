@@ -1,8 +1,10 @@
 "use client"
 
 /**
- * The role workflow, all six steps live against the real APIs:
- * intake → parse review → candidates → screening calls → compare → submission.
+ * The shortlist workflow, all seven steps live against the real APIs:
+ * intake → parse review → candidates → screening calls → compare → candidate
+ * detail → submission. Step 06 is its own route; lib/agency/steps.ts is the
+ * single source of truth for the rail, and it has seven entries.
  * Every score on this page came from the server; the browser never computes
  * one. Overrides, decisions and submissions are audit coupled server side.
  */
@@ -192,12 +194,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(typeof body?.error === "string" ? body.error : "Could not reassign the role.")
+        setError(typeof body?.error === "string" ? body.error : "Could not change the owner.")
         return
       }
       setRole((r) => (r ? { ...r, owner_id: userId } : r))
     } catch {
-      setError("Could not reassign the role.")
+      setError("Could not change the owner.")
     } finally {
       setOwnerBusy(false)
     }
@@ -727,7 +729,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
           </div>
         </button>
         <div>
-          <div className="ag-rail-label">Role workflow</div>
+          <div className="ag-rail-label">Shortlist workflow</div>
           {WORKFLOW_STEPS.map((s) => {
             if (s.key === "detail") {
               return (
