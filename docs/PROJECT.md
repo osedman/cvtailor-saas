@@ -2035,6 +2035,66 @@ served chunk by curl rather than by reading the file.
 
 ---
 
+---
+
+## 🌐 The agencies host, documented and configured (22 Aug 2026)
+
+**Decision: stay on a subdomain — `agencies.gettailr.com`** — which is what
+`lib/site-url.ts` already defaulted to.
+
+**The code was already done.** `proxy.ts` routes all three hosts,
+`site-url.ts` has `getBusinessOrigin()` / `doorFromHost()` / the path-prefix
+lists, business paths are subtracted from app paths so `/api/agency` cannot be
+claimed by the `/api` rule, and `lib/__tests__/proxy-routing.test.ts` already
+covered the business host in both directions AND asserted the rules are inert
+while the split is off. Nothing in this change touched routing.
+
+**Two gaps, both outside the code:**
+
+1. `NEXT_PUBLIC_BUSINESS_URL` was missing from `.env.example` while the other
+   two origins were there — so the one variable a cutover needs was the one
+   nobody would find.
+2. `docs/DOMAINS.md` documented only www + app. The agencies host appeared
+   nowhere in it, **including in the Supabase auth section** — and its
+   redirect URLs are not optional. `/auth` is host-neutral so a recruiter
+   signing in at `agencies.gettailr.com` completes there; if that host is
+   missing from Supabase's allow-list, B2B sign-in breaks while the consumer
+   side looks perfectly fine. That is the kind of failure that gets diagnosed
+   as "the agency product is broken" rather than "a URL is missing from a
+   list".
+
+Both fixed. DOMAINS.md now carries the agencies DNS step, the full redirect
+map, the Supabase entries, and six added smoke-test lines including "one
+sign-in works across app and agencies without a second magic link".
+
+**Also recorded: `DOMAIN_SPLIT_ENABLED` is ONE flag for all three hosts.**
+There is no way to stage the agencies host separately — flipping it cuts
+marketing, app and agencies over together, so all three DNS records must be
+valid first.
+
+**Why a subdomain still separates the two sides properly:** the shared
+`.gettailr.com` cookie means one sign-in covers both, but separation happens at
+the product level, not the cookie level — `doorFromHost()` reads the Host
+header, never a query parameter (which would be a claim the visitor makes about
+themselves), and it grants nothing. Every hat is re-checked against the
+database.
+
+**And what a separate domain would cost, written down before it is needed.**
+Moving B2B to its own brand answers the "your vendor also runs a candidate
+platform" objection in a way a subdomain cannot, and is a config change in this
+repo — but two things outside it break: a session cookie cannot span two
+registrable domains, and the Magic Link template hardcodes `{{ .SiteURL }}`, a
+single value per Supabase project, so a recruiter signing in on the B2B domain
+would get a link pointing at the consumer domain. Neither blocks the subdomain
+plan; both block that one.
+
+**Nothing is live.** This is documentation and one env-example line. DNS,
+Vercel domains, the Supabase allow-list and `DOMAIN_SPLIT_ENABLED` are all
+Ose's to do, in that order.
+
+
+---
+
 ## 📬 Notifications: the silent return leg of every doorway (22 Aug 2026)
 
 **Status: on staging, migration 28 applied and verified there. Templates
