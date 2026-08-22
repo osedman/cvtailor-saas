@@ -181,6 +181,30 @@ race) + a linked Meridian Health contact. `rls-test-alpha` holds the real
 parsed data (ROL-2402, ROL-2403, 79 overrides, 15 scored candidates). Ose is in
 both — use the sidebar agency switcher.
 
+### THE FLOW IS CALLED **THE SHORTLIST WORKFLOW** (decided 22 Aug 2026)
+
+The rail says "Shortlist workflow". **The unit the steps run on stays "role" —
+there is no unit-noun rename, and the question is CLOSED.** Do not re-run the
+survey: `docs/ROLE-RENAME-PLAN.md` is headed with the decision, the four
+rejected candidates and the reasons.
+
+The short version. "Assignments" is out — Tailr serves contract desks, and AWR
+2010 makes "assignment" the *worker's* word. "Searches" collides with the
+dashboard's own search box (and with agency names: the fixture is "Halcyon
+Search"). "Vacancies" is a synonym for the role, not a different object.
+**"Shortlist" is reserved and must NOT become the unit noun** — it is a value
+of the per-candidate decision enum (`["shortlist","hold","reject"]`) and the
+client-facing name of the deliverable (`/portal`). The shortlist is the flow's
+OUTPUT, not its container, and the unit exists from step 01 with nobody on it.
+
+It won as the FLOW name because the product already named the span itself:
+`app/api/agency/dashboard/route.ts:445` measures `brief_to_shortlist` — "Brief
+to first shortlist: role created -> first submission."
+
+Still true and still unfixed: "role" means two things in recruiter body copy
+("Close this role", "No candidates on this role yet"). §3 of the plan is the
+inventory if that is ever worth paying for.
+
 ### THE WORKFLOW IS SEVEN STEPS, NOT SIX
 
 `lib/agency/steps.ts` is the single source of truth. Import it; never re-declare.
@@ -234,6 +258,13 @@ role rows. Interaction feedback is transform/opacity only.
 `prefers-reduced-motion` honoured in all three stylesheets.
 
 ## Lessons that cost something
+
+- **"shortlist" is a reserved noun, in two places at once.** It is a value of
+  the candidate decision enum AND the client-facing name of the deliverable
+  (`/portal` titles itself "Shortlist"). Do not reuse it for a container, a
+  status, or the unit the seven steps run on — the verb you press on a person
+  and the box they sit in must not be the same word. Same trap as `placement`,
+  which is the outcome.
 
 - **Mocked tests agree with wrong code.** Two real bugs this session were found
   by reading the deployed schema and by seeding real data, both while the unit
