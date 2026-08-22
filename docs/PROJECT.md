@@ -2033,4 +2033,102 @@ local service-role key is a placeholder, so `/hiring` and a live `/consent`
 token cannot be reached from this machine. Pages render, CSS confirmed in the
 served chunk by curl rather than by reading the file.
 
+## 🛂 Right to work is two questions — and two tables nobody could write (22 Aug 2026)
+
+Prompted by *Tailr-Right-to-Work-UX-Proposals.docx*. Most of that brief's
+safeguards were already held (RTW renders on one screen, a guardrail fails the
+build if it ever filters a list, `not_eligible` cannot exist, no documents are
+stored), and its candidate journey presumes an application flow this product
+does not have. Two things in it were worth taking, and looking for them turned
+up something worse.
+
+### 🚨 The service role could not write two tables (migration 26)
+
+`agency.candidate_compliance` (24) and `agency.placements` (25) are
+audit-coupled: no authenticated write grants, on purpose. **They had no
+service-role grants either** — so `setCandidateCompliance` and `setPlacement`
+failed `42501 permission denied` on deployed staging. Both features have been
+shipped and non-functional since the day they landed. Of the **32 tables in
+the agency schema, these two were the only ones** the service role could not
+touch.
+
+`20260805120000_agency_core.sql:425` says `grant all on all tables in schema
+agency to service_role`. That reads like a rule for the schema. It is a
+**point-in-time snapshot**, and `pg_default_acl` holds nothing for this schema,
+so a table created later inherits nothing. Nine later migrations re-granted
+explicitly. Two forgot.
+
+**Why every test was green.** `agency-compliance.test.ts` asserted the table
+grants `authenticated` SELECT and no authenticated writes. True, passing, and
+*half the invariant* — nothing asserted that the role which does write it can.
+The unit tests mock Supabase, so they agree with the code rather than with
+Postgres. "RLS policies are meaningless without GRANTS" was already in
+CLAUDE.md; this is the same mistake from the other direction.
+
+A new guardrail walks every migration, finds every `create table ... agency.X`
+postdating the blanket grant, and fails if it never got its own. Mutation-tested
+by adding a fresh ungranted table — it fails.
+
+### The model: two axes, not one (migration 27)
+
+`rtw_status in ('unverified','verified','needs_sponsorship')` forced two
+independent facts into one column, making them mutually exclusive. Someone on
+time-limited permission who **needs sponsorship to continue** and **whose
+current permission you checked this morning** could not be recorded truthfully.
+
+    rtw_evidence     not_checked | seen
+    rtw_expires_on   date, null = none recorded
+    rtw_sponsorship  not_asked | not_required | required | unsure
+
+**`verified` had to go, and that is the point, not cosmetics.** For permanent
+placement the agency is not the employer: the statutory excuse and the civil
+penalty belong to the client, and nothing recorded here confers it. The old
+label invited a recruiter to tell a client the check was done. `EMPLOYER_CHECK_
+NOTICE` now renders in the card — a test fails if it is moved into a `title=`.
+
+`rtw_expires_on` exists because the note could not be asked questions. A DB
+constraint refuses an expiry without evidence behind it; so does the writer.
+The audit row records `has_expiry`, never the date — an expiry IS somebody's
+immigration position, the same reasoning that keeps the note's text out.
+
+**The deadline is derived, not configured.** The brief wanted a "trigger stage"
+setting; we already have the event. A placement row is the offer and carries
+`start_date`, so `requiredBy` derives from it the way the rebate window does.
+Advisory only — a test asserts it cannot gate a save and never ranks anyone.
+
+**No data-migration clause, deliberately** — 0 rows and 0 `compliance_recorded`
+audit rows, both counted. A backfill would have passed vacuously anyway.
+
+### The drift that caused the drift
+
+The card re-declared `type RtwStatus` locally, because importing the real one
+from `compliance.ts` would drag `agencyAdmin` into the browser bundle and fail
+the build. So when the server vocabulary changed, the card kept sending the old
+value **and TypeScript said nothing** — two copies have no relationship to
+check. `lib/agency/compliance-vocab.ts` is now the single definition, server-
+import-free (the `settings-limits.ts` pattern), and a test forbids re-declaring
+either union anywhere.
+
+### Verified by effect, in a rolled-back probe
+
+Not by grant tables — by actually attempting the writes as each role, then
+rolling back (table still 0 rows afterwards):
+
+    [1 service_role INSERT = OK]                    ← the bug, fixed
+    [2 expiry-without-evidence = REFUSED]
+    [3 old word 'verified' = REFUSED]
+    [4 'not_eligible' = REFUSED]
+    [5 authenticated WRITE = DENIED]                ← audit coupling intact
+
+779 tests, build clean. Migrations 26 and 27 applied to tailr-staging.
+**Production still has zero agency code.**
+
+### Open
+
+No Figma frame exists for this card — or for the recruiter's candidate-detail
+screen at all, which now carries three cards and has never been designed. Swept
+every frame and text-layer name across all five pages for right-to-work,
+compliance, sponsorship, visa, eligibility, share code: zero hits. Frame to be
+drawn for sign-off before further UI work.
+
 _Last updated: 22 August 2026_
