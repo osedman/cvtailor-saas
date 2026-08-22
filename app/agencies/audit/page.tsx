@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
+import { SignOut } from "@/components/agency/sign-out"
 import type { AuditEntry } from "@/lib/agency/audit-view"
 
 const FILTERS: Array<{ key: string; label: string }> = [
@@ -108,6 +109,7 @@ export default function AuditPage() {
         </button>
         <AgencySwitcher />
         <AgencyNav current="audit" />
+        <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Append-only</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>

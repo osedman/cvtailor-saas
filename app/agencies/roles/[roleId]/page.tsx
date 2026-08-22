@@ -8,6 +8,7 @@
  */
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { SignOut } from "@/components/agency/sign-out"
 import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "@/lib/agency/probes"
 import { WORKFLOW_STEPS, stepNumber } from "@/lib/agency/steps"
@@ -791,6 +792,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             )}
           </div>
         )}
+        <SignOut />
         <div className="ag-sidebar-foot">
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>
             Decision support only. All shortlists are subject to recruiter judgment.

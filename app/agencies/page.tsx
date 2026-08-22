@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
+import { SignOut } from "@/components/agency/sign-out"
 
 type StageState = "here" | "blocked" | "waiting" | "done"
 interface RoleRow {
@@ -473,6 +474,7 @@ export default function AgencyHomePage() {
           </div>
         )}
 
+        <SignOut email={data?.caller_email} />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Decision support</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>

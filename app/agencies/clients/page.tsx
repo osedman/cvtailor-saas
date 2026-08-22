@@ -32,6 +32,7 @@ import { useRouter } from "next/navigation"
 import type { ClientAccessRow, ClientAccessState } from "@/lib/agency/client-auth"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
+import { SignOut } from "@/components/agency/sign-out"
 
 /** What each access state is called, and how it reads. */
 const STATE_PILL: Record<ClientAccessState, { label: string; style: CSSProperties }> = {
@@ -276,6 +277,7 @@ export default function ClientAccessPage() {
         </button>
         <AgencySwitcher />
         <AgencyNav current="clients" />
+        <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Invite only</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>

@@ -1257,3 +1257,41 @@
   padding-left: 10px;
   border-left: 1px solid var(--ag-border);
 }
+
+/* ============================================================
+   SIGN OUT
+   Missing from every agency screen until Ose's 22 Aug walk-through: the
+   session helper always cleared both the Supabase session and the agency
+   cookie, but nothing ever called it. Sits at the foot of the rail, quiet
+   until used — it is an exit, not an action anyone is looking for.
+   ============================================================ */
+
+.ag-signout { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.ag-signout-who {
+  font-size: 11px; color: var(--ag-ink-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ag-signout-trigger {
+  align-self: flex-start; padding: 4px 0;
+  font-size: 12px; color: var(--ag-ink-3);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.ag-signout-trigger:hover { color: var(--ag-ink); }
+.ag-signout-confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ag-signout-go { padding: 6px 12px; font-size: 12px; }
+.ag-signout-cancel {
+  padding: 6px 10px; font-size: 12px; color: var(--ag-ink-3);
+  border: 1px solid var(--ag-line-2); border-radius: var(--r-sm); background: var(--ag-paper);
+}
+.ag-signout-trigger:focus-visible, .ag-signout-cancel:focus-visible, .ag-signout-go:focus-visible {
+  outline: 2px solid var(--ag-coral); outline-offset: 2px;
+}
+
+/* In the hiring manager's top bar the control sits inline beside the avatar,
+   so it drops the stacked identity line and the underline. */
+.agd-top .ag-signout, .hm-top .ag-signout { flex-direction: row; align-items: center; margin-bottom: 0; }
+.agd-top .ag-signout-who, .hm-top .ag-signout-who { display: none; }
+.agd-top .ag-signout-trigger, .hm-top .ag-signout-trigger {
+  text-decoration: none; padding: 4px 10px;
+  border: 1px solid var(--ag-line-2); border-radius: var(--r-sm);
+}

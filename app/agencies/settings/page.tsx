@@ -23,6 +23,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
+import { SignOut } from "@/components/agency/sign-out"
 // Runtime values come from the server-import-free module; the shape is a
 // type-only import, which is erased at compile time. Importing the constants
 // from lib/agency/settings would drag agencyAdmin — and the service-role key —
@@ -165,6 +166,7 @@ export default function AgencySettingsPage() {
         </button>
         <AgencySwitcher />
         <AgencyNav current="settings" />
+        <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Applies everywhere</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>

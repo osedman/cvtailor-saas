@@ -30,6 +30,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react"
+import { SignOut } from "@/components/agency/sign-out"
 import Link from "next/link"
 import type {
   HiringBrief,
@@ -589,6 +590,10 @@ export default function HiringDashboardPage() {
               {initialsOf(links[0], email)}
             </div>
             <span className="sr-only">Signed in as {email || "your account"}</span>
+            {/* A hiring manager is often on a shared machine too, and this
+                surface had no way out either. Their door is the consumer
+                login, not the agency one — they are a client, not staff. */}
+            <SignOut door="consumer" />
           </>
         )}
       </div>

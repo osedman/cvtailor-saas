@@ -26,6 +26,7 @@ import { useRouter } from "next/navigation"
 import type { BriefStatus } from "@/lib/agency/types"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
+import { SignOut } from "@/components/agency/sign-out"
 
 interface BriefRow {
   id: string
@@ -148,6 +149,7 @@ export default function AgencyBriefsPage() {
         </button>
         <AgencySwitcher />
         <AgencyNav current="briefs" />
+        <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Their words</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>

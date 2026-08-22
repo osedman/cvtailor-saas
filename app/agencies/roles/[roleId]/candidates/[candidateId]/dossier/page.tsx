@@ -29,6 +29,7 @@
 import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { SignOut } from "@/components/agency/sign-out"
 import type { Dossier, Layer, RequirementStrata } from "@/lib/agency/dossier"
 // Pure function, no server imports — safe in the browser, and the reason the
 // delta logic is unit-tested without mocking a single query.
@@ -115,6 +116,7 @@ export default function DossierPage({
           <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}`)}>This role</button>
           <button className="ag-step on" aria-current="page">Dossier</button>
         </div>
+        <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Earned, not assumed</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>

@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation"
 import { use } from "react"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { InterviewCapture } from "@/components/agency/interview-capture"
+import { SignOut } from "@/components/agency/sign-out"
 
 interface Candidate {
   id: string
@@ -257,6 +258,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
             Close-out
           </button>
         </div>
+        <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Their diary</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>

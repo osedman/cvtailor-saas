@@ -24,6 +24,7 @@
 import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { SignOut } from "@/components/agency/sign-out"
 import type { HandoverSnapshot } from "@/lib/agency/handover"
 
 interface Candidate {
@@ -209,6 +210,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
           <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}/interviews`)}>Interviews</button>
           <button className="ag-step on" aria-current="page">Close-out</button>
         </div>
+        <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>When the hire is made</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>

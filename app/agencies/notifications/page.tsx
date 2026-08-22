@@ -22,6 +22,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
+import { SignOut } from "@/components/agency/sign-out"
 // Runtime values from the server-import-free module. Importing them from
 // lib/agency/notify would drag sendEmail and the service-role key into the
 // browser bundle, exactly as settings-limits.ts exists to prevent.
@@ -102,6 +103,7 @@ export default function NotificationPreferencesPage() {
         </button>
         <AgencySwitcher />
         <AgencyNav current="notifications" />
+        <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Yours alone</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>

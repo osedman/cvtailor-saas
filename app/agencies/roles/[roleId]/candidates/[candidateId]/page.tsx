@@ -14,6 +14,7 @@ import { resolveProbes } from "@/lib/agency/probes"
 import { WORKFLOW_STEPS, stepNumber } from "@/lib/agency/steps"
 import { CandidateCompliance } from "@/components/agency/candidate-compliance"
 import { CandidatePlacement } from "@/components/agency/candidate-placement"
+import { SignOut } from "@/components/agency/sign-out"
 
 interface Requirement { id: string; ref: string; text: string; weight: string; category?: string }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; salary_text?: string; redacted: boolean }
@@ -163,6 +164,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
             <div className="ag-meta">{role.company || "No company"} · {role.ref}</div>
           </div>
         )}
+        <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-eyebrow" style={{ marginBottom: 6 }}>Decision support only</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>
