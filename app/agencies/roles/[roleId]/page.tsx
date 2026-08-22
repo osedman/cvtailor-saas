@@ -116,6 +116,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [callerRole, setCallerRole] = useState<string>("viewer")
   const [ownerBusy, setOwnerBusy] = useState(false)
   const [closureNote, setClosureNote] = useState<string | null>(null)
+  const [representAsk, setRepresentAsk] = useState<{ refs: string[]; format: string } | null>(null)
   const [paste, setPaste] = useState("")
   const [jdUrl, setJdUrl] = useState("")
   const [extractResult, setExtractResult] = useState<{ requirements: number; constraints: number; filled: string[] } | null>(null)
@@ -563,12 +564,13 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     }
   }
 
-  async function generateSubmission(format: string) {
+  async function generateSubmission(format: string, representOverride = false) {
     if (format === "portal" && chosenContacts.length === 0) {
       return setError("Choose at least one recipient. Portal links are personal, one per named person.")
     }
     setBusy("submission")
     setError(null)
+    if (representOverride) setRepresentAsk(null)
     try {
       const res = await fetch(`/api/agency/roles/${roleId}/submission`, {
         method: "POST",
@@ -577,10 +579,18 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
           format,
           disclosure,
           intro,
+          ...(representOverride ? { representOverride: true } : {}),
           ...(format === "portal" ? { recipients: chosenContacts.map((id) => ({ contact_id: id })) } : {}),
         }),
       })
       const body = await res.json()
+      // 409: candidates who have not answered the ask to be put forward. Not
+      // an error to bury in the banner — the override must be a conscious,
+      // named act, and it is audited server-side.
+      if (res.status === 409 && Array.isArray(body.needsRepresentOverride)) {
+        setRepresentAsk({ refs: body.needsRepresentOverride as string[], format })
+        return
+      }
       if (!res.ok) throw new Error(body.error ?? "Generation failed")
       setSubmissionResult({
         format,
@@ -1859,6 +1869,34 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </button>
                   </div>
                 </div>
+
+                {representAsk && (
+                  <div className="ag-card" style={{ marginBottom: 16, borderColor: "var(--ag-warn)" }} role="alertdialog" aria-labelledby="rep-ask-title">
+                    <div className="ag-card-body" style={{ padding: 18 }}>
+                      <div id="rep-ask-title" style={{ fontWeight: 600, marginBottom: 6 }}>
+                        {representAsk.refs.join(", ")} {representAsk.refs.length === 1 ? "has" : "have"} not agreed to be put forward.
+                      </div>
+                      <p className="ag-note" style={{ margin: "0 0 6px" }}>
+                        The ask is on their rights page and they have not answered it. Unanswered is
+                        not yes. You can go ahead anyway — that is your call to make, it is recorded
+                        against your name in the audit log, and the candidate can still withdraw
+                        later, which stops future submissions.
+                      </p>
+                      <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+                        <button
+                          className="ag-btn ag-btn-primary"
+                          disabled={busy !== null}
+                          onClick={() => generateSubmission(representAsk.format, true)}
+                        >
+                          Send anyway — recorded against my name
+                        </button>
+                        <button className="ag-btn ag-btn-secondary" disabled={busy !== null} onClick={() => setRepresentAsk(null)}>
+                          Wait for their answer
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {shortlisted === 0 ? (
                   <div className="ag-card">

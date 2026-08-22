@@ -265,7 +265,10 @@ describe("compliance never filters a candidate", () => {
         }
       }
       for (const c of CAMEL) {
-        if (new RegExp(`\\.(filter|find|some|every|sort)\\([^)]*${c}`).test(text)) {
+        // [^\n]* not [^)]*: `.filter((r) => r.rtwEvidence...)` closes a [^)]*
+        // scan at the arrow parameter's paren, before the column name. Found
+        // via the represent guardrail's probe mutant, which shares this shape.
+        if (new RegExp(`\\.(filter|find|some|every|sort)\\([^\\n]*${c}`).test(text)) {
           offenders.push(`${rel}: list narrowed by ${c}`)
         }
       }

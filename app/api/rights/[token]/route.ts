@@ -18,6 +18,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { agencyAdmin, writeAudit } from "@/lib/agency/db"
+import { answerRepresent } from "@/lib/agency/represent"
 import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 15
@@ -29,7 +30,7 @@ async function resolve(token: string) {
   const admin = agencyAdmin()
   const { data } = await admin
     .from("candidates")
-    .select("id, agency_id, role_id, ref, full_name, ingested_at, retention_expires_at, source")
+    .select("id, agency_id, role_id, ref, full_name, ingested_at, retention_expires_at, source, represent_status, represent_answered_at")
     .eq("rights_token", token)
     .maybeSingle()
   if (!data) return null
@@ -71,6 +72,11 @@ export async function GET(
       retention_days: agency?.retention_days ?? 180,
       retention_expires_at: candidate.retention_expires_at,
       requests: pending ?? [],
+      // The right-to-represent ask. Applied candidates arrive 'agreed' — the
+      // manifest they confirmed is the record — so the doorway shows their
+      // standing answer rather than asking again.
+      represent_status: candidate.represent_status,
+      represent_answered_at: candidate.represent_answered_at,
     })
   } catch (error) {
     return NextResponse.json(
@@ -93,6 +99,18 @@ export async function POST(
     const { admin, candidate } = resolved
 
     const body = await req.json()
+
+    // The represent answer shares the doorway's credential but is not a
+    // rights request: it has its own states, its own audit actions, and no
+    // pending-cap — a person may always change this answer.
+    if (body?.represent === "agree" || body?.represent === "decline") {
+      const outcome = await answerRepresent(token, body.represent)
+      if (outcome === "not_found") {
+        return NextResponse.json({ error: "This link is no longer valid" }, { status: 404 })
+      }
+      return NextResponse.json({ ok: true, represent_status: outcome === "unchanged" ? candidate.represent_status : outcome })
+    }
+
     const kind = body?.kind
     if (!KINDS.includes(kind)) {
       return NextResponse.json({ error: "Unknown request type" }, { status: 400 })

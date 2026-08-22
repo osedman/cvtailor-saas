@@ -20,6 +20,8 @@ interface Held {
   retention_days: number
   retention_expires_at: string | null
   requests: Array<{ kind: string; status: string; requested_at: string }>
+  represent_status: "unanswered" | "agreed" | "declined" | "withdrawn"
+  represent_answered_at: string | null
 }
 
 const OPTIONS: Array<{ kind: string; label: string; blurb: string; strong?: boolean }> = [
@@ -37,6 +39,7 @@ export default function RightsPage({ params }: { params: Promise<{ token: string
   const [note, setNote] = useState("")
   const [filed, setFiled] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [representBusy, setRepresentBusy] = useState(false)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/rights/${token}`)
@@ -48,6 +51,23 @@ export default function RightsPage({ params }: { params: Promise<{ token: string
   useEffect(() => {
     load().catch(() => setState("invalid"))
   }, [load])
+
+  async function answerRepresent(answer: "agree" | "decline") {
+    setError(null)
+    setRepresentBusy(true)
+    try {
+      const res = await fetch(`/api/rights/${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ represent: answer }),
+      })
+      const body = await res.json()
+      if (!res.ok) return setError(body.error ?? "Could not save your answer")
+      setHeld((h) => (h ? { ...h, represent_status: body.represent_status, represent_answered_at: new Date().toISOString() } : h))
+    } finally {
+      setRepresentBusy(false)
+    }
+  }
 
   async function file(kind: string) {
     setError(null)
@@ -114,6 +134,69 @@ export default function RightsPage({ params }: { params: Promise<{ token: string
           </div>
         </div>
       </div>
+
+      {/* Right to represent — Figma "Candidate · Right to represent" (209:2).
+          Only while the role is open: a closed role has nothing to put anyone
+          forward FOR, and asking would be noise. Applied candidates arrive
+          agreed (the manifest is the record) and see their standing answer. */}
+      {held.role_open && (
+        <div className="ag-card" style={{ marginBottom: 20 }}>
+          <div className="ag-card-head">
+            <span className="ag-card-title">Being put forward</span>
+            <span className="ag-meta">Your call, for this role only</span>
+          </div>
+          <div className="ag-card-body" style={{ fontSize: 13, color: "var(--ag-ink-2)", lineHeight: 1.7 }}>
+            {held.represent_status === "unanswered" && (
+              <>
+                <div style={{ fontWeight: 600, fontSize: 14.5, color: "var(--ag-ink)", marginBottom: 6 }}>
+                  May {held.agency} put you forward for the {held.role_title} role?
+                </div>
+                Putting you forward means sharing your CV and their assessment of it with the hiring
+                company, as your representative for this role only. Saying no costs you nothing here:
+                your details stay exactly as they are, under the same deletion clock, and you can
+                still apply anywhere yourself.
+                <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+                  <button className="ag-btn ag-btn-primary" disabled={representBusy} onClick={() => void answerRepresent("agree")}>
+                    Yes, put me forward
+                  </button>
+                  <button className="ag-btn ag-btn-secondary" disabled={representBusy} onClick={() => void answerRepresent("decline")}>
+                    No — not for this role
+                  </button>
+                </div>
+              </>
+            )}
+            {held.represent_status === "agreed" && (
+              <>
+                <div style={{ fontWeight: 600, color: "var(--ag-ink)", marginBottom: 6 }}>
+                  You agreed to be put forward{held.represent_answered_at ? ` on ${new Date(held.represent_answered_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}.
+                </div>
+                You can withdraw that at any time. Withdrawing stops anything being sent from now on —
+                it does not unsend what the hiring company already received.
+                <div style={{ marginTop: 12 }}>
+                  <button className="ag-btn ag-btn-secondary" disabled={representBusy} onClick={() => void answerRepresent("decline")}>
+                    Withdraw my agreement
+                  </button>
+                </div>
+              </>
+            )}
+            {(held.represent_status === "declined" || held.represent_status === "withdrawn") && (
+              <>
+                <div style={{ fontWeight: 600, color: "var(--ag-ink)", marginBottom: 6 }}>
+                  You said no{held.represent_answered_at ? ` on ${new Date(held.represent_answered_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}. That stands.
+                </div>
+                {held.agency} cannot put you forward for this role. Nothing else changes — you are
+                still considered, your data keeps its deletion date, and you can change this answer
+                whenever you like.
+                <div style={{ marginTop: 12 }}>
+                  <button className="ag-btn ag-btn-secondary" disabled={representBusy} onClick={() => void answerRepresent("agree")}>
+                    Change my mind — put me forward
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="ag-card">
         <div className="ag-card-head"><span className="ag-card-title">What you can ask for</span><span className="ag-meta">One click, no account needed</span></div>

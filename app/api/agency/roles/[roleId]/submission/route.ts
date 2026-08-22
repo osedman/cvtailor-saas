@@ -21,6 +21,7 @@ import {
   requireAgencyContext,
   writeAudit,
 } from "@/lib/agency/db"
+import { checkRepresentGate } from "@/lib/agency/represent"
 import { getAppOrigin } from "@/lib/site-url"
 import { recomputeAndStore } from "@/lib/agency/rescore"
 import { probeAreasForClient } from "@/lib/agency/probes"
@@ -90,6 +91,36 @@ export async function POST(
     const shortlisted = (decisions ?? []).filter((d) => d.decision === "shortlist")
     if (shortlisted.length === 0) {
       return NextResponse.json({ error: "Nothing shortlisted yet" }, { status: 400 })
+    }
+
+    // Right to represent, checked BEFORE anything renders. Declined and
+    // withdrawn refuse outright — those candidates answered, and a recruiter
+    // cannot answer over them. Unanswered needs the loud per-submission
+    // override, which is audited in the gate so the trail shows who overrode
+    // for whom. The 409 carries the refs so the screen can name names.
+    const gate = await checkRepresentGate(admin, {
+      agencyId: auth.ctx.agencyId,
+      roleId,
+      actorId: auth.ctx.userId,
+      candidateIds: shortlisted.map((d) => d.candidate_id as string),
+      overrideUnanswered: body?.representOverride === true,
+    })
+    if (!gate.ok) {
+      return gate.kind === "answered_no"
+        ? NextResponse.json(
+            {
+              error: `Cannot submit ${gate.refused.join(", ")} — they declined or withdrew permission to be put forward. Their answer stands.`,
+              refused: gate.refused,
+            },
+            { status: 400 }
+          )
+        : NextResponse.json(
+            {
+              error: `${gate.refused.join(", ")} ${gate.refused.length === 1 ? "has" : "have"} not answered the ask to be put forward.`,
+              needsRepresentOverride: gate.refused,
+            },
+            { status: 409 }
+          )
     }
 
     const { data: requirements } = await admin

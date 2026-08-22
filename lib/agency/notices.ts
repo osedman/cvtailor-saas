@@ -164,7 +164,9 @@ export function noticeHtml(opts: {
   ${
     opts.rightsUrl
       ? `<p style="margin:0 0 16px;"><a href="${opts.rightsUrl}" style="display:inline-block;background:#1e1813;color:#fffdfa;border-radius:8px;padding:10px 16px;font-weight:600;text-decoration:none;">See what they hold, or ask them to delete it</a></p>
-  <p style="margin:0 0 16px;line-height:1.6;font-size:13px;color:#4e463d;">No account needed, and you can reply to this email instead if you prefer.</p>`
+  <p style="margin:0 0 16px;line-height:1.6;font-size:13px;color:#4e463d;">No account needed, and you can reply to this email instead if you prefer. That page is also where you decide whether ${escapeHtml(
+        opts.agencyName
+      )} may put you forward to the hiring company — nothing is sent to them until you say so, or your recruiter records why they went ahead.</p>`
       : ""
   }
   <p style="margin:0 0 16px;line-height:1.6;">If nothing comes of this role, your CV data is kept for ${

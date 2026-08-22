@@ -2077,9 +2077,43 @@ plainly: one database, schema-separated, and physically separate storage is a
 thing to price rather than promise. NOT PUBLISHED; it is a public promise, so
 it waits for Ose and ideally the same lawyer session as the consent copy.
 
-**That closes the 20 Aug gap list.** Notifications ✅ · candidate booking ✅ ·
-right-to-represent (framed, awaiting sign-off) · closing the loop ✅ · role
-ownership ✅ · non-compete (drafted, awaiting sign-off).
+**Right-to-represent: approved and BUILT (22 Aug, evening).** Migration 34 on
+staging, verified by effect: 3 matched candidates backfilled `agreed` with
+`apply-manifest` as the copy version — the manifest they confirmed IS their
+agreement, dated at application — 16 uploaded candidates stay `unanswered`,
+and the check constraint refuses anything off the list.
+
+The ask lives on the rights doorway, per the frame: unanswered gets the
+question, agreed shows the standing answer with withdrawal (which "stops
+future submissions and does not unsend past ones" — the page says exactly
+that), declined shows "that stands" with a change-my-mind. Only while the
+role is open. The Art 14 notice now points at it. `'withdrawn'` is distinct
+from `'declined'` in the schema on purpose: a revoked yes and a plain no are
+different facts, and the audit trail says which happened.
+
+**The submission gate** (`checkRepresentGate`, one place): declined/withdrawn
+REFUSE outright — the candidate answered and a recruiter cannot answer over
+them, there is no override. Unanswered returns a 409 naming refs; the screen
+renders a loud confirm ("Send anyway — recorded against my name") and the
+override is audited server-side with the refs. Answered-no wins over
+unanswered when both are present.
+
+**Two guardrails found wanting while building this.** The never-filters scan
+copied from compliance uses `[^)]*` after `.filter(` — and an arrow
+parameter's own closing paren (`.filter((r) => r.represent_status…)`) ends
+that scan before the column name is ever reached. The probe mutant sailed
+through. Fixed to `[^\n]*` in BOTH the new represent guardrail and the
+existing compliance one, each verified by a probe file that now reddens it —
+the compliance guardrail had been passing with the same blind spot since it
+was written.
+
+880 tests. Mutations caught: withdrawn collapsed into declined, override
+extended over an answered no, override audit dropped, and the guardrail
+probe.
+
+**The 20 Aug gap list, final:** notifications ✅ · candidate booking ✅ ·
+right-to-represent ✅ · closing the loop ✅ · role ownership ✅ · non-compete
+(drafted, awaiting sign-off — the one remaining item, and it is copy).
 
 
 ---
