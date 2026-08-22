@@ -2037,8 +2037,9 @@ served chunk by curl rather than by reading the file.
 
 ## 📬 Notifications: the silent return leg of every doorway (22 Aug 2026)
 
-**Status: on staging, awaiting migration 28 in both environments + template
-sign-off.** Branch `staging`. Named as the top gap on 20 Aug: "every cross-wall
+**Status: on staging, migration 28 applied and verified there. Awaiting
+template sign-off before anything sends to a real address.** Branch `staging`,
+commit `a442937`. Named as the top gap on 20 Aug: "every cross-wall
 event requires the other side to poll the app — briefs sat invisible for days,
 which is an adoption risk more than a bug."
 
@@ -2092,11 +2093,16 @@ Viewers are never mailed; they cannot act on it.
 **Migration 28** (`20260822110000_notification_audit.sql`) adds `notification`
 to `audit_log`'s entity_type check. Copied from the DEPLOYED constraint read
 out of staging, not from migration 1's list — which is exactly the slip
-migration 10 made and `audit-entity-types.test.ts` now guards. **Not yet
-applied:** the apply was blocked by the permission classifier, which matches
-this repo's rule that migrations run manually anyway. Until it runs, a
-notification sends its email and then fails at the audit step — degraded, not
-broken, because `notify()` swallows it.
+migration 10 made and `audit-entity-types.test.ts` now guards.
+
+**Applied to `tailr-staging` 22 Aug, and verified by effect rather than by a
+success code.** A rolled-back probe inserted as each case: a `notification` row
+is accepted; a bogus entity_type is still REFUSED (which is what distinguishes
+a widened constraint from a dropped one — both would accept the first row); and
+`member` still validates, so the rebuild did not repeat migration 10's silent
+drop. Zero probe rows left behind, confirmed by count. **Production still needs
+it** whenever the agency port happens — prod has never had a line of agency
+code.
 
 **Two things the tests caught that are worth keeping.** The full suite went red
 in eight places on files I had not touched logically — every one an audit-count
@@ -2115,6 +2121,17 @@ UI — both are new surfaces and would need a Figma frame first. There is
 therefore no off switch yet, which is the obvious follow-up.
 
 **Templates await sign-off** before anything sends to a real address.
+
+**Build:** compiles clean. `npm run build` does fail locally at prerendering
+`/auth/confirm`, but that is pre-existing and environmental, not this change —
+proven by building the parent commit `b362904` in the same tree and getting the
+identical failure. Cause: the Supabase keys live in `.env.development.local`
+(a symlink to `~/.config/tailr/tailr.env`), and **`next build` runs in
+production mode, where Next deliberately does not load
+`.env.development.local`** — the build's own banner says `Environments:
+.env.local`, and `.env.local` holds only `VERCEL_OIDC_TOKEN`. Vercel is
+unaffected because it injects real env vars. To build locally, those keys need
+to be in `.env.local` (or `.env.production.local`).
 
 
 ---
