@@ -2125,10 +2125,17 @@ rolling back (table still 0 rows afterwards):
 
 ### Open
 
-No Figma frame exists for this card — or for the recruiter's candidate-detail
+No Figma frame existed for this card — or for the recruiter's candidate-detail
 screen at all, which now carries three cards and has never been designed. Swept
 every frame and text-layer name across all five pages for right-to-work,
-compliance, sponsorship, visa, eligibility, share code: zero hits. Frame to be
-drawn for sign-off before further UI work.
+compliance, sponsorship, visa, eligibility, share code: zero hits.
+
+**Frame drawn 22 Aug** — [`Recruiter · Right to work — two questions`](https://www.figma.com/design/AWRRbEOX6rLsltutFDL3zs/Tailr-%E2%80%94-Hiring-Manager-Concept?node-id=181-2)
+on page `02 · Recruiter`, five states, built to the `Interview capture` frame's
+tokens exactly (Fraunces SemiBold 30 / Geist 12.5 / cards `#fffdfa` on
+`#eee6da` r14, amber callout `#fdf8ee` on `#a5560b`). Status is in the frame
+NAME, per this file's PARKED/ARCHIVE convention — `FRAME` has no `description`
+property, that is components only. **Awaiting Ose's sign-off before further UI
+work.** The candidate-detail screen underneath it still has no frame.
 
 _Last updated: 22 August 2026_
