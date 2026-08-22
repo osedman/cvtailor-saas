@@ -2804,4 +2804,43 @@ empty box so no recruiter edit could be overwritten. 5,108 chars restored.
 
 884 tests, build clean.
 
+---
+
+## 🧭 One nav, and briefs stop belonging to a cookie (22 Aug 2026)
+
+Ose, on seeing the briefs fix: *"we need a tab in the nav bar for the flow,
+not linked to both."* Investigating it found the deeper cause of the whole
+episode — **the sidebar nav was hand-rolled five times and had drifted**:
+
+| screen | offered |
+|---|---|
+| **Dashboard** | **no route nav at all** — its "Navigate" list was in-page scroll anchors |
+| Briefs | Roles · Client access · Audit log |
+| Clients | Roles · Client briefs · Audit log · Settings · Notifications |
+| Audit | Roles · Client access · Client briefs · Settings · Notifications |
+| Settings | Roles · Client access · Client briefs · Audit log · Notifications |
+
+So the screen you land on had no route to briefs, clients, audit or settings
+whatsoever. Knowing the URL was the only way in.
+
+**`components/agency/agency-nav.tsx`** is now the single definition, used by
+all six screens, with a cross-agency count badge on Briefs. The current item
+renders `aria-current` rather than being omitted, so the list is the same
+length everywhere — the omission is half of why the drift went unnoticed. The
+dashboard's anchor list is relabelled "On this page".
+
+**Briefs are no longer scoped to the active agency.** `contextForAgency()`
+re-scopes a context onto another agency the caller already belongs to
+(membership re-proven, never a silent fallback), so the inbox lists every
+membership's briefs in one view — foreign ones badged with the agency name —
+and **acting on a brief resolves the tenant from the BRIEF, not the cookie**.
+Accepting a Halcyon brief while standing in Alpha now works instead of
+throwing "not found in your agency". The viewer check moved after the resolve,
+because the role that matters is the one held in the brief's agency.
+
+Both guards probe-mutated: hand-rolling a nav button back reddens two tests;
+reverting accept to `auth.ctx` reddens the tenancy test.
+
+900 tests, build clean.
+
 _Last updated: 22 August 2026_

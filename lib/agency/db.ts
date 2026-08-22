@@ -140,6 +140,35 @@ export async function requireAgencyContext(): Promise<
   }
 }
 
+/**
+ * Re-scope a context onto another agency the caller ALREADY belongs to.
+ *
+ * The AGENCY_COOKIE picks which workspace the chrome shows; it was never
+ * meant to decide which work exists. Briefs made that distinction matter: a
+ * brief belongs to the agency it was sent to, so acting on one must resolve
+ * its agency from the BRIEF, not from whichever workspace the recruiter last
+ * clicked. Otherwise a brief in your other agency is unreachable without
+ * first switching — which is how four of them sat unseen for a week.
+ *
+ * Tenancy is unchanged and re-proven here: the target must appear in the
+ * caller's own memberships, resolved server-side by requireAgencyContext.
+ * Anything else throws rather than silently falling back to the active
+ * agency, because a silent fallback would act on the wrong tenant's data.
+ */
+export function contextForAgency(ctx: AgencyContext, agencyId: string): AgencyContext {
+  if (agencyId === ctx.agencyId) return ctx
+  const membership = (ctx.memberships ?? []).find((m) => m.agencyId === agencyId)
+  if (!membership) {
+    throw new AgencyAccessError("You are not a member of that agency")
+  }
+  return {
+    ...ctx,
+    agencyId: membership.agencyId,
+    agencyName: membership.agencyName,
+    role: membership.role,
+  }
+}
+
 /** Viewers read everything; only owners and recruiters change anything. */
 export function assertWriter(ctx: AgencyContext): void {
   if (ctx.role === "viewer") {

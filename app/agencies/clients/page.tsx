@@ -31,6 +31,7 @@ import { useRouter } from "next/navigation"
 // browser bundle. The shape is the contract; the runtime is the API route.
 import type { ClientAccessRow, ClientAccessState } from "@/lib/agency/client-auth"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { AgencyNav } from "@/components/agency/agency-nav"
 
 /** What each access state is called, and how it reads. */
 const STATE_PILL: Record<ClientAccessState, { label: string; style: CSSProperties }> = {
@@ -274,15 +275,7 @@ export default function ClientAccessPage() {
           </div>
         </button>
         <AgencySwitcher />
-        <div>
-          <div className="ag-rail-label">Navigate</div>
-          <button className="ag-step" onClick={() => router.push("/agencies")}>Roles</button>
-          <button className="ag-step on" aria-current="page">Client access</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/briefs")}>Client briefs</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/audit")}>Audit log</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/settings")}>Settings</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/notifications")}>Notifications</button>
-        </div>
+        <AgencyNav current="clients" />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Invite only</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>

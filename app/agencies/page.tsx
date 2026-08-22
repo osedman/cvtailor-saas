@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { AgencyNav } from "@/components/agency/agency-nav"
 
 type StageState = "here" | "blocked" | "waiting" | "done"
 interface RoleRow {
@@ -444,7 +445,7 @@ export default function AgencyHomePage() {
 
         <AgencySwitcher />
         <div>
-          <div className="ag-rail-label">Navigate</div>
+          <div className="ag-rail-label">On this page</div>
           <nav className="agd-nav">
             <button className="agd-nav-item on" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               <span className="agd-nav-dot" />Today
@@ -465,6 +466,15 @@ export default function AgencyHomePage() {
             </button>
           </nav>
         </div>
+
+        {/*
+          Route navigation, which this screen never had. Its "Navigate" list
+          was in-page anchors only, so the dashboard — the screen you land on
+          — offered no way to reach briefs, clients, audit or settings at all.
+          Shared component: the five sub-screens each hand-rolled this list
+          and had already drifted apart.
+        */}
+        <AgencyNav current="roles" />
 
         {data && (
           <div className="ag-active-role">

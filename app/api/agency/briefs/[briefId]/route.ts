@@ -24,7 +24,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
+import { AgencyAccessError, agencyAdmin, contextForAgency, requireAgencyContext } from "@/lib/agency/db"
 import { acceptBrief, declineBrief } from "@/lib/agency/briefs"
 import { errorMessage } from "@/lib/error-message"
 
@@ -59,11 +59,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bri
     const { briefId } = await params
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
-    if (auth.ctx.role === "viewer") {
-      return NextResponse.json({ error: "Viewers have read only access" }, { status: 403 })
-    }
     if (!UUID_RE.test(briefId)) {
       return NextResponse.json({ error: "Invalid brief" }, { status: 400 })
+    }
+
+    /**
+     * The brief names its own agency; the AGENCY_COOKIE does not get a vote.
+     *
+     * The inbox now lists briefs across every agency the caller belongs to,
+     * so acting on one must resolve the tenant from the BRIEF — otherwise
+     * accepting a Halcyon brief while standing in Alpha would throw "not
+     * found in your agency", which is both wrong and unexplainable.
+     *
+     * Tenancy is re-proven, not relaxed: this reads only the agency_id, and
+     * contextForAgency refuses any agency the caller is not a member of. An
+     * unknown brief id reads as not-found rather than confirming it exists.
+     */
+    const { data: owner } = await agencyAdmin()
+      .from("role_briefs")
+      .select("agency_id")
+      .eq("id", briefId)
+      .maybeSingle()
+    if (!owner) {
+      return NextResponse.json({ error: "brief not found in your agency" }, { status: 403 })
+    }
+    const ctx = contextForAgency(auth.ctx, owner.agency_id as string)
+
+    // Checked AFTER the tenant is resolved: the role that matters is the one
+    // held in the brief's agency, which may differ from the active one.
+    if (ctx.role === "viewer") {
+      return NextResponse.json({ error: "Viewers have read only access" }, { status: 403 })
     }
 
     const body = await readBody(req)
@@ -80,12 +105,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bri
         typeof body.reason === "string" ? body.reason.slice(0, MAX_REASON) : undefined
       // Throws AgencyAccessError for a brief outside the caller's agency, with
       // the same message it uses for one that has already been decided.
-      await declineBrief(auth.ctx, briefId, reason)
+      await declineBrief(ctx, briefId, reason)
       return NextResponse.json({ declined: true })
     }
 
-    const { roleId, ref } = await acceptBrief(auth.ctx, briefId)
-    return NextResponse.json({ accepted: true, roleId, ref })
+    const { roleId, ref } = await acceptBrief(ctx, briefId)
+    return NextResponse.json({ accepted: true, roleId, ref, agencyId: ctx.agencyId })
   } catch (error) {
     if (error instanceof AgencyAccessError) {
       return NextResponse.json({ error: error.message }, { status: 403 })

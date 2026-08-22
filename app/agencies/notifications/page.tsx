@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { AgencyNav } from "@/components/agency/agency-nav"
 // Runtime values from the server-import-free module. Importing them from
 // lib/agency/notify would drag sendEmail and the service-role key into the
 // browser bundle, exactly as settings-limits.ts exists to prevent.
@@ -100,15 +101,7 @@ export default function NotificationPreferencesPage() {
           </div>
         </button>
         <AgencySwitcher />
-        <div>
-          <div className="ag-rail-label">Navigate</div>
-          <button className="ag-step" onClick={() => router.push("/agencies")}>Roles</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/clients")}>Client access</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/briefs")}>Client briefs</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/audit")}>Audit log</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/settings")}>Settings</button>
-          <button className="ag-step on" aria-current="page">Notifications</button>
-        </div>
+        <AgencyNav current="notifications" />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Yours alone</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>

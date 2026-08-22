@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { AgencyNav } from "@/components/agency/agency-nav"
 // Runtime values come from the server-import-free module; the shape is a
 // type-only import, which is erased at compile time. Importing the constants
 // from lib/agency/settings would drag agencyAdmin — and the service-role key —
@@ -163,15 +164,7 @@ export default function AgencySettingsPage() {
           </div>
         </button>
         <AgencySwitcher />
-        <div>
-          <div className="ag-rail-label">Navigate</div>
-          <button className="ag-step" onClick={() => router.push("/agencies")}>Roles</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/clients")}>Client access</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/briefs")}>Client briefs</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/audit")}>Audit log</button>
-          <button className="ag-step on" aria-current="page">Settings</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/notifications")}>Notifications</button>
-        </div>
+        <AgencyNav current="settings" />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Applies everywhere</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>

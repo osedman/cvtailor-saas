@@ -25,6 +25,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import type { BriefStatus } from "@/lib/agency/types"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { AgencyNav } from "@/components/agency/agency-nav"
 
 interface BriefRow {
   id: string
@@ -37,6 +38,10 @@ interface BriefRow {
   roleId: string | null
   roleRef: string | null
   hasJd: boolean
+  /** Which agency this brief was sent to — the inbox spans all of yours. */
+  agencyId: string
+  agencyName: string
+  isActiveAgency: boolean
 }
 
 type Filter = "all" | "submitted" | "accepted" | "declined"
@@ -142,13 +147,7 @@ export default function AgencyBriefsPage() {
           </div>
         </button>
         <AgencySwitcher />
-        <div>
-          <div className="ag-rail-label">Navigate</div>
-          <button className="ag-step" onClick={() => router.push("/agencies")}>Roles</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/clients")}>Client access</button>
-          <button className="ag-step on" aria-current="page">Client briefs</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/audit")}>Audit log</button>
-        </div>
+        <AgencyNav current="briefs" />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Their words</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>
@@ -237,6 +236,17 @@ export default function AgencyBriefsPage() {
                 <div className="ag-brief-head">
                   <div className="ag-grow">
                     <p className="ag-brief-who">
+                      {/* Named only when it is NOT the workspace you are
+                          standing in: the common case stays uncluttered, and
+                          the exception — a brief waiting in your other agency
+                          — is exactly what used to be invisible. Acting on it
+                          needs no switch; the server resolves the tenant from
+                          the brief. */}
+                      {!row.isActiveAgency && (
+                        <span className="ag-pill" style={{ marginRight: 8 }}>
+                          {row.agencyName}
+                        </span>
+                      )}
                       {row.company} · {row.contactName} · {relative(row.createdAt)}
                       {row.hasJd && (
                         <span className="ag-meta" style={{ marginLeft: 8, color: "var(--ag-calm)" }}>

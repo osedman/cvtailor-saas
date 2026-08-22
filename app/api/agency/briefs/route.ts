@@ -16,7 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
+import { AgencyAccessError, contextForAgency, requireAgencyContext } from "@/lib/agency/db"
 import { listBriefsForAgency } from "@/lib/agency/briefs"
 import type { BriefStatus } from "@/lib/agency/types"
 import { errorMessage } from "@/lib/error-message"
@@ -55,9 +55,47 @@ export async function GET(req: NextRequest) {
       status = raw
     }
 
-    // A read: viewers see this like everything else.
-    const briefs = await listBriefsForAgency(auth.ctx, status ? { status } : undefined)
-    return NextResponse.json({ briefs })
+    /**
+     * ACROSS EVERY AGENCY THE CALLER BELONGS TO, not just the active one.
+     *
+     * A brief is the start of the whole workflow, and scoping the inbox to
+     * the AGENCY_COOKIE meant a brief was invisible unless you had already
+     * guessed which workspace to be standing in — four sat unseen for a week
+     * that way. The cookie decides what the chrome shows; it should not
+     * decide what work exists.
+     *
+     * Tenancy is unchanged: each list is fetched under a context re-scoped to
+     * a membership the caller already holds (contextForAgency re-proves it),
+     * so RLS applies exactly as before, once per agency.
+     */
+    const memberships = auth.ctx.memberships?.length
+      ? auth.ctx.memberships
+      : [{ agencyId: auth.ctx.agencyId, agencyName: auth.ctx.agencyName ?? "", role: auth.ctx.role }]
+
+    const perAgency = await Promise.all(
+      memberships.map(async (m) => {
+        const rows = await listBriefsForAgency(
+          contextForAgency(auth.ctx, m.agencyId),
+          status ? { status } : undefined
+        )
+        return rows.map((b) => ({
+          ...b,
+          agencyId: m.agencyId,
+          agencyName: m.agencyName,
+          // The active workspace renders first and without a switch prompt.
+          isActiveAgency: m.agencyId === auth.ctx.agencyId,
+        }))
+      })
+    )
+
+    const briefs = perAgency
+      .flat()
+      .sort(
+        (a, b) =>
+          Number(b.isActiveAgency) - Number(a.isActiveAgency) ||
+          String(b.createdAt).localeCompare(String(a.createdAt))
+      )
+    return NextResponse.json({ briefs, activeAgencyId: auth.ctx.agencyId })
   } catch (error) {
     if (error instanceof AgencyAccessError) {
       return NextResponse.json({ error: error.message }, { status: 403 })
