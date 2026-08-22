@@ -221,6 +221,29 @@ happen to make it cheap, both on purpose:
 So a person with both hats signs in to each side once. That was already true on
 the subdomain; it stays true here.
 
+### Timing: build now, buy later
+
+**The domain is deliberately deferred** (22 Aug 2026). The B2B build continues
+on staging under the current setup, and the domain is bought when production is
+actually wanted. This is safe because nothing in the product knows its own
+host: every B2B link — client invites, team sign-in, notification CTAs, the
+auth callback, the OTP redirect — is built from `getBusinessOrigin()`, which
+reads `NEXT_PUBLIC_BUSINESS_URL`.
+
+`lib/__tests__/business-origin-guardrail.test.ts` keeps it that way. It scans
+`lib/agency`, `app/agencies`, `app/hiring` and both API trees and fails on any
+hardcoded `https://host` in a link. That matters more than it sounds: a
+hardcoded origin still works on staging, still passes review, and points at the
+wrong domain the day the real one goes live. Sender addresses are exempt and
+are their own task below.
+
+**One thing that is NOT just config at domain time: email.** `notices.ts` sends
+as `notices@gettailr.com` and the mailer defaults to `hello@gettailr.com`,
+because gettailr.com is the only verified Resend sender. An agency-branded
+product emailing hiring managers from the consumer brand's domain partly undoes
+the separation the domain was bought for, so verifying the new domain in Resend
+and moving the B2B senders belongs in the same piece of work.
+
 ### Checklist
 
 1. **Buy the domain.** Nothing in the repo cares what it is.
@@ -233,13 +256,16 @@ the subdomain; it stays true here.
 4. **Vercel env (Production, ticked explicitly):**
    `NEXT_PUBLIC_BUSINESS_URL=https://<the new domain>`
    Redeploy — `NEXT_PUBLIC_*` is baked in at build time.
-5. **Supabase → Authentication → URL configuration → Redirect URLs**, add:
+5. **Resend → verify the new domain**, then point the B2B senders at it
+   (`lib/email.ts` default `from`, and `notices.ts`). Until this is done the
+   agency product emails from the consumer brand.
+6. **Supabase → Authentication → URL configuration → Redirect URLs**, add:
    - `https://<the new domain>/auth/confirm`
    - `https://<the new domain>/auth/callback`
 
    Required. `generateLink`'s `redirectTo` is checked against this list, so
    without it B2B sign-in fails while the consumer side looks fine.
-6. **Do NOT set `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN`** to anything spanning both.
+7. **Do NOT set `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN`** to anything spanning both.
    It cannot span two registrable domains anyway, and `authCookieOptions()`
    ignores it for business hosts by design.
 
