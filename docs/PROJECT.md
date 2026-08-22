@@ -2066,11 +2066,14 @@ rewritten from its stale 14 Aug state to today's, including the two standing
 decisions: B2B gets its own separate domain, and there is NO port into
 consumer production, ever.
 
-**The review queue for Ose, complete:** (1) two amber-badged email templates
-on the sign-off artifact — booking_answered and the closure notice; (2)
-`docs/NON-COMPETE-DRAFT.md` — copy, wants the consent-copy lawyer session;
-(3) the standing gates unchanged — lawyer + DPIA on capture, and the human
-walk-through that has still never happened. Signed-in browser states remain
+**The review queue — resolved same day:** the two amber templates
+(booking_answered, closure) and the non-compete were BOTH approved by Ose on
+22 Aug. The templates page is all-green and is now the reference for what
+sends; the draft became `docs/NON-COMPETE.md`, approved as written — where it
+lives publicly (marketing page / onboarding) stays Ose's call and is new UI
+when he wants it, and a lawyer pass before public web use remains advisable
+at his discretion. What remains is only the standing gates — lawyer + DPIA on
+capture, and the human walk-through that has still never happened. Signed-in browser states remain
 the one unverified surface: magic-link auth, which an agent cannot complete.
 
 

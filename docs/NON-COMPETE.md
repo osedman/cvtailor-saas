@@ -1,11 +1,13 @@
-# Draft: Tailr's commitment to agencies — DRAFT, NOT PUBLISHED
+# Tailr's commitment to agencies
 
-**Status: draft for Ose's sign-off, 22 Aug 2026.** This is a public promise,
-which makes it a legal-adjacent artifact: nothing here goes on a website or
-into a sales conversation until signed off, and ideally not before the lawyer
-who reads the consent copy reads this too. The 20 Aug gap it answers: "a
-stated non-compete commitment for agencies evaluating a product whose vendor
-also runs a candidate platform."
+**Status: APPROVED by Ose, 22 Aug 2026.** The copy below is signed off and may
+be used in sales conversations and diligence responses as written. Where it
+LIVES publicly (agencies marketing page, onboarding, or both) is still Ose's
+call — building that page is new UI and goes through Figma when he wants it.
+A lawyer pass alongside the consent copy remains worth doing before it goes on
+a public website, at his discretion. Answers the 20 Aug gap: "a stated
+non-compete commitment for agencies evaluating a product whose vendor also
+runs a candidate platform."
 
 The rule followed in drafting: **every sentence is checkable against the
 codebase today.** No aspiration, no "we would never" that is not also a
@@ -67,9 +69,9 @@ happens, not in a changelog after it.
 
 ---
 
-## Sign-off checklist
+## Sign-off record
 
-- [ ] Ose reads every claim against the codebase notes above
-- [ ] Claim 5's framing (one database, said plainly) — comfortable?
-- [ ] Lawyer pass alongside the consent copy (same session, cheaper)
-- [ ] Then: where it lives — agencies marketing page, onboarding, or both
+- [x] Ose approved the claims as written — 22 Aug 2026
+- [x] Claim 5's framing (one database, said plainly) — approved as-is
+- [ ] Lawyer pass alongside the consent copy — advisable before public web use
+- [ ] Where it lives — agencies marketing page, onboarding, or both (Ose's call; new UI → Figma first)
