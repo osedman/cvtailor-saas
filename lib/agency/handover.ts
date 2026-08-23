@@ -71,9 +71,37 @@ export interface HandoverSnapshot {
 export async function generateHandoverPack(
   ctx: AgencyContext,
   input: { roleId: string; candidateId: string; contactId?: string | null }
-): Promise<{ packId: string; snapshot: HandoverSnapshot }> {
+): Promise<{
+  packId: string
+  snapshot: HandoverSnapshot
+  deliveredToContactId?: string | null
+  deliveredAt?: string | null
+}> {
   assertWriter(ctx)
   const admin = agencyAdmin()
+
+  // Frozen means frozen. If a pack already exists for this candidate on this
+  // role, return THAT — never re-derive. Without this, reloading close-out
+  // (which holds the pack only in component state) and pressing generate again
+  // minted a second, later-dated "frozen" pack, which is two different
+  // versions of a thing whose whole promise is that there is exactly one.
+  const { data: existing } = await admin
+    .from("handover_packs")
+    .select("id, snapshot, delivered_to_contact_id, delivered_at")
+    .eq("agency_id", ctx.agencyId)
+    .eq("role_id", input.roleId)
+    .eq("candidate_id", input.candidateId)
+    .order("generated_at", { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (existing) {
+    return {
+      packId: existing.id as string,
+      snapshot: existing.snapshot as HandoverSnapshot,
+      deliveredToContactId: (existing.delivered_to_contact_id as string | null) ?? null,
+      deliveredAt: (existing.delivered_at as string | null) ?? null,
+    }
+  }
 
   const [{ data: role }, { data: candidate }, { data: agency }] = await Promise.all([
     admin
@@ -242,7 +270,7 @@ export async function generateHandoverPack(
     },
   })
 
-  return { packId: pack.id as string, snapshot }
+  return { packId: pack.id as string, snapshot, deliveredToContactId: null, deliveredAt: null }
 }
 
 /** Mark it handed over. From here the employer is the controller of the copy

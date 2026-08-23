@@ -152,6 +152,10 @@ describe("recordReference", () => {
 })
 
 describe("generateHandoverPack", () => {
+  let packCalls = 0
+  beforeEach(() => {
+    packCalls = 0
+  })
   function wire(evidence: unknown[]) {
     admin.from.mockImplementation((t: string) => {
       if (t === "job_roles")
@@ -170,10 +174,35 @@ describe("generateHandoverPack", () => {
       if (t === "candidate_evidence") return table({ data: evidence, error: null })
       if (t === "interview_rounds") return table({ data: [], error: null })
       if (t === "candidate_references") return table({ data: [], error: null })
-      if (t === "handover_packs") return table({ data: { id: "pack-1" }, error: null })
+      if (t === "handover_packs") {
+        // First touch is the frozen-means-frozen existence check (no pack
+        // yet); the second is the insert. Answering both with a row is the
+        // "mock that does not implement the filter" trap.
+        packCalls += 1
+        return packCalls === 1
+          ? table({ data: null, error: null })
+          : table({ data: { id: "pack-1" }, error: null })
+      }
       return table({ data: [], error: null })
     })
   }
+
+  it("returns the existing pack instead of minting a second — frozen means frozen", async () => {
+    const stored = { role: { ref: "ROL-2402" }, footer: "the footer", evidence: [], gaps: [] }
+    admin.from.mockImplementation((t: string) => {
+      if (t === "handover_packs")
+        return table({
+          data: { id: "pack-original", snapshot: stored, delivered_to_contact_id: "contact-9", delivered_at: "2026-08-23T22:00:00Z" },
+          error: null,
+        })
+      // Reaching any other table means it went on to re-derive — the failure.
+      throw new Error(`re-derived via ${t} despite an existing pack`)
+    })
+    const result = await generateHandoverPack(CTX, { roleId: "role-1", candidateId: "cand-1" })
+    expect(result.packId).toBe("pack-original")
+    expect(result.snapshot).toEqual(stored)
+    expect(result.deliveredToContactId).toBe("contact-9")
+  })
 
   it("states gaps plainly instead of omitting them", async () => {
     wire([

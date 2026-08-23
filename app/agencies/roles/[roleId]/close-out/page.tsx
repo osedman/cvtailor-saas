@@ -74,6 +74,9 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   const [refs, setRefs] = useState<ReferenceRow[] | null>(null)
   const [pack, setPack] = useState<HandoverSnapshot | null>(null)
   const [packId, setPackId] = useState<string | null>(null)
+  const [contacts, setContacts] = useState<Array<{ id: string; company: string; full_name: string }>>([])
+  const [deliverTo, setDeliverTo] = useState("")
+  const [deliveredTo, setDeliveredTo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [newRef, setNewRef] = useState({ refereeName: "", refereeEmail: "", relationship: "" })
@@ -98,6 +101,16 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
         const body = await candRes.json()
         setCandidates(Array.isArray(body?.candidates) ? body.candidates : [])
       }
+      // The deciding contact, for handing the pack over. Non-fatal: without
+      // contacts the pack still freezes; only the delivery control hides.
+      fetch("/api/agency/contacts")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((b) => {
+          const rows = Array.isArray(b?.contacts) ? b.contacts : []
+          setContacts(rows)
+          if (rows.length > 0) setDeliverTo((prev) => prev || rows[0].id)
+        })
+        .catch(() => {})
     } catch {
       setError("Could not load this role.")
     }
@@ -168,6 +181,28 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
     }
   }
 
+  /** Hand the frozen pack to the deciding contact. Idempotent server-side,
+   *  audited as handover/delivered — the act that ends Tailr's part. */
+  async function deliver() {
+    if (!packId || !deliverTo) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/handover`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packId, contactId: deliverTo }),
+      })
+      const body = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) throw new Error(body.error ?? "Delivery did not record")
+      setDeliveredTo(deliverTo)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delivery did not record")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function generate() {
     if (!chosenId) return
     setBusy(true)
@@ -185,6 +220,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
       }
       setPack(body.snapshot ?? null)
       setPackId(body.packId ?? null)
+      if (body.deliveredToContactId) setDeliveredTo(body.deliveredToContactId)
     } finally {
       setBusy(false)
     }
@@ -451,6 +487,68 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                     </PackSection>
 
                     <p className="ag-pack-foot">{pack.footer}</p>
+
+                    {/* Frozen is not finished. The pack exists to be handed
+                        over — this is the act that ends Tailr's part, so it
+                        lives on the pack rather than in a menu somewhere. */}
+                    {!deliveredTo ? (
+                      contacts.length > 0 && (
+                        <div className="ag-handoff" role="group" aria-label="Hand the pack over">
+                          <div className="ag-handoff-body">
+                            <p className="ag-handoff-title">Frozen — now hand it over.</p>
+                            <p className="ag-handoff-sub">
+                              Delivery is recorded against the contact and audited. From that moment
+                              the employer holds the record; Tailr&apos;s part is done.
+                            </p>
+                          </div>
+                          {contacts.length > 1 && (
+                            <select
+                              className="ag-input"
+                              style={{ maxWidth: 220 }}
+                              value={deliverTo}
+                              onChange={(e) => setDeliverTo(e.target.value)}
+                              aria-label="Deliver to"
+                            >
+                              {contacts.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.full_name} · {c.company}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          <button className="ag-btn ag-btn-primary" onClick={deliver} disabled={busy}>
+                            {busy ? "Recording…" : `Hand over to ${contacts.find((c) => c.id === deliverTo)?.company || "the client"}`}
+                          </button>
+                        </div>
+                      )
+                    ) : (
+                      <div className="ag-handoff" role="status">
+                        <div className="ag-handoff-body">
+                          <p className="ag-handoff-title">
+                            Delivered to {contacts.find((c) => c.id === deliveredTo)?.full_name || "the client"} — two acts finish the role.
+                          </p>
+                          <p className="ag-handoff-sub">
+                            Record the placement (the commercial fact: fee, start date, rebate
+                            window), then close the role — closing starts the retention clock on
+                            everyone who did not get the job and tells them the loop is closed.
+                            Closing stays your act; nothing here does it for you.
+                          </p>
+                        </div>
+                        <button
+                          className="ag-btn ag-btn-secondary"
+                          onClick={() => chosenId && router.push(`/agencies/roles/${roleId}/candidates/${chosenId}`)}
+                          disabled={!chosenId}
+                        >
+                          Record the placement
+                        </button>
+                        <button
+                          className="ag-btn ag-btn-primary"
+                          onClick={() => router.push(`/agencies/roles/${roleId}?flow=shortlist`)}
+                        >
+                          Close the role →
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </section>
