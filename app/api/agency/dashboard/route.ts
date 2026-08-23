@@ -76,6 +76,7 @@ export async function GET() {
       breakdownsRes,
       requirementsRes,
       submissionsRes,
+      handoversRes,
       contactsRes,
       briefsRes,
     ] = await Promise.all([
@@ -93,6 +94,7 @@ export async function GET() {
       db.from("score_breakdowns").select("candidate_id, overall, original_overall, effective, baselines").eq("agency_id", ctx.agencyId),
       db.from("requirements").select("id, ref, text, weight, role_id").eq("agency_id", ctx.agencyId),
       db.from("submissions").select("id, role_id, generated_at").eq("agency_id", ctx.agencyId),
+      db.from("handover_packs").select("role_id").eq("agency_id", ctx.agencyId),
       db.from("client_contacts").select("id, full_name, company").eq("agency_id", ctx.agencyId),
       // Deliberately NO agency filter: role_briefs' RLS policy already scopes
       // rows to the caller's memberships, so one query yields this agency's
@@ -120,7 +122,7 @@ export async function GET() {
       ["notices", noticesRes], ["rights", rightsRes], ["audit", auditRes],
       ["agency", agencyRes], ["breakdowns", breakdownsRes],
       ["requirements", requirementsRes], ["submissions", submissionsRes],
-      ["contacts", contactsRes], ["briefs", briefsRes],
+      ["handovers", handoversRes], ["contacts", contactsRes], ["briefs", briefsRes],
     ] as const).filter(([, r]) => r.error)
     if (failed.length > 0) {
       const detail = failed.map(([name, r]) => `${name}: ${r.error?.message}`).join("; ")
@@ -342,6 +344,7 @@ export async function GET() {
     // showed it, so a role's position was invisible until you opened it.
     // Derived from data this route already loads: no extra queries.
     const submissionRoleIds = new Set((submissionsRes.data ?? []).map((s) => s.role_id))
+    const handoverRoleIds = new Set((handoversRes.data ?? []).map((h) => h.role_id))
 
     // Latest audit row per role: the "last activity" line on role rows and
     // the raw material for the queue's Just happened view.
@@ -417,8 +420,17 @@ export async function GET() {
       }
 
       const lastAudit = lastAuditByRole.get(role.id)
+      // The role's phase, from the same two facts the role endpoint derives it
+      // from (lib/agency/phases.ts) — so the dashboard card and the screens it
+      // opens can never disagree about where a role is.
+      const phase = handoverRoleIds.has(role.id)
+        ? "handover"
+        : submissionRoleIds.has(role.id)
+          ? "interviews"
+          : "shortlist"
       return {
         id: role.id,
+        phase,
         ref: role.ref,
         title: role.title,
         company: role.company,

@@ -15,7 +15,7 @@ import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "@/lib/agency/probes"
 import { WORKFLOW_STEPS, stepNumber } from "@/lib/agency/steps"
 import { PhaseRail } from "@/components/agency/phase-rail"
-import { derivePhase, type PhaseKey } from "@/lib/agency/phases"
+import { roleLandingPath, type PhaseKey } from "@/lib/agency/phases"
 import {
   ArrowUpRight, Banknote, Briefcase, ChevronUp, FileText,
   Flame, Highlighter, MapPin, Tag, Target, Users,
@@ -236,6 +236,16 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       // it — matching is an adjunct, not part of the workflow's spine.
       setCallerRole(body.caller_role ?? "viewer")
       setPhase((body.phase as PhaseKey | null) ?? null)
+      // The shortlist flow is over once the submission has gone, so the bare
+      // role URL forwards to wherever the work now lives — interviews, then
+      // close-out. ?flow=shortlist is the deliberate way back in (the sidebar
+      // link on those screens carries it), and replace() keeps Back working.
+      const wantsWorkflow = new URLSearchParams(window.location.search).get("flow") === "shortlist"
+      const landing = roleLandingPath((body.phase as PhaseKey | null) ?? null, roleId)
+      if (!wantsWorkflow && landing !== `/agencies/roles/${roleId}`) {
+        router.replace(landing)
+        return
+      }
       // Non-fatal like matching: the owner control simply does not render if
       // this fails, and the role page must not die for it.
       fetch(`/api/agency/team`)

@@ -3221,4 +3221,79 @@ clips off-screen).
 
 ---
 
+## 🔀 23 Aug 2026 (late) — the flows separated: shortlist / selection / handover, plus the HM workspace and the staging wipe
+
+Ose's verdict on the deployed build: the pieces exist but the flows are not
+separated — the interview screen felt embedded in the shortlist flow, "This
+role" from interviews dumped you back into Add Candidates, the client did
+everything on one long dashboard, and there was no visible transition from
+round 1 to round 2 to completion. All of it built this session, from his notes,
+without further questions. Deployed to staging for his test tomorrow.
+
+**Recruiter side:**
+
+- **Opening a role now lands where the work is.** `roleLandingPath()` in
+  lib/agency/phases.ts: shortlist phase → the workflow, interviews → the
+  selection screen, handover → close-out. The dashboard card's six-step rail is
+  replaced by the phase strip once the shortlist flow is done (dashboard route
+  now serves per-role `phase`, derived from the same two facts as everywhere
+  else). The workflow stays one click away — `?flow=shortlist`, carried by the
+  interviews sidebar's "✓ Shortlist flow" — so review is never locked out and
+  the forward never loops.
+- **The interviews screen is the selection process now.** "The loop · candidate
+  by candidate": each candidate's rounds as lanes (R1 → R2 → outcome), the
+  client's decision and note inline (recruiter-visible per §5.5 —
+  `listRoundsForRole` now attaches latest decision + note + hasDebrief), a
+  one-sentence next action per candidate ("Advancing after round 1 — round 2 of
+  2 to book", "Client declined at round 1 — their signal, not a removal"), a
+  per-candidate "Book round N" that preselects them, and "Take to close-out"
+  when all planned rounds cleared. The plan count stays a plan, never a gate.
+- **Recording demoted from blocker to attachment.** The per-round consent/
+  capture material folds into a closed `<details>` ("Recording & capture — not
+  asked yet"). A wall of BLOCKED panels read as a broken flow when the truth
+  was only "nobody has agreed to a recording". Nothing consent-shaped changed:
+  the ask still reaches only the candidate, the answer still never shows.
+
+**Hiring-manager side:**
+
+- **A nav** (Dashboard · Interviews · Post a brief) on every workspace screen,
+  never on doorways.
+- **/hiring/interviews** — the client's selection screen: what you owe
+  (write-up/decision cards), the loop role by role (lanes per candidate ref),
+  coming up, and the diary (Offer times + slot chips) — availability moved
+  here off the dashboard.
+- **/hiring/roles/[roleId]** — role rows are doors now: the brief's facts, per-
+  candidate lanes, and the round cards inline. Brief-only rows (no accepted
+  role yet) stay rows — a door to nowhere is worse than no door.
+- **The dashboard slimmed to a dashboard:** needs-you, roles (clickable), an
+  interviews summary linking out. Round forms and availability left it.
+- All of it renders from the ONE disclosure-filtered payload
+  (`getHiringDashboard`) — no new API surface, refs never names, decisions
+  remove nobody. Shared components extracted to
+  components/agency/hm-shared.tsx (RoundActions, OfferTimes, SlotChip,
+  RoundProgress, HiringNav, EmptyBand) so the write-up-before-decision rule
+  cannot fork between screens.
+
+**Email guard hardened before it could hurt:** deploying it with
+EMAIL_ALLOWLIST unset in Vercel would have silently killed staging sign-in
+(the founder's own OTP is non-production mail). `lib/email.ts` now carries a
+default non-production allowlist (the two founder addresses + @lean-frame.com)
+that a populated variable REPLACES, and gmail plus-aliases fold
+(founder+can01@gmail.com works for test candidates). 10 guard tests.
+
+**Staging wiped for the fresh start, on Ose's order.** All roles, candidates,
+rounds, briefs, submissions, published roles, recommendations, notices and
+audit rows deleted (public.role_recommendations + published_roles included).
+KEPT: the 3 agencies, 4 memberships, both client contacts, notification prefs,
+and the 14-hash notice-suppression blacklist — so the restart is HM posts a
+brief → recruiter accepts, and no future fixture can email a real person.
+CV blobs in agency-cvs are orphaned (storage deletion is blocked from SQL and
+the environment refused the API path) — one click in the Supabase dashboard
+clears them, nothing references them.
+
+953 tests, production build clean (92 pages). Verified in the browser on both
+hats with the rich data before the wipe, and the empty states after it.
+
+---
+
 _Last updated: 23 August 2026_

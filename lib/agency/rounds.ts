@@ -247,6 +247,14 @@ export interface AgencyRoundRow {
   /** Always 'pending' today: nothing may assert consent on a candidate's
    * behalf, so the screen reports the real state rather than implying one. */
   captureConsentStatus: string
+  /** The client's latest call on this round, with their note. Recruiter-visible
+   * by design (§5.5: the HM writes notes the recruiter can see); append-only
+   * upstream, so "latest" is the live one and history stays on the dossier. */
+  clientDecision: { decision: string; note: string; decidedAt: string } | null
+  /** The client has written the round up. The content lives on the dossier;
+   * this is the flag the selection screen sequences on ("no artifact, no
+   * progression"). */
+  hasDebrief: boolean
 }
 
 /** Rounds already booked on this role, newest first. Recruiter-side, so the
@@ -290,6 +298,39 @@ export async function listRoundsForRole(
     (contacts ?? []).map((c) => [c.id as string, (c.company as string) ?? ""])
   )
 
+  // The client's side of each round, so the selection screen can show the
+  // whole loop in one place: their latest decision (append-only, newest wins)
+  // and whether the write-up exists. kind='debrief' is load-bearing — the
+  // other kind is 'transcript', which exists only where the candidate
+  // consented, so an unfiltered read would leak consent by inference.
+  const roundIds = rounds.map((r) => r.id as string)
+  const [{ data: decisionRows }, { data: debriefRows }] = await Promise.all([
+    admin
+      .from("round_decisions")
+      .select("round_id, decision, note, created_at")
+      .eq("agency_id", ctx.agencyId)
+      .in("round_id", roundIds)
+      .order("created_at", { ascending: false }),
+    admin
+      .from("round_artifacts")
+      .select("round_id")
+      .eq("agency_id", ctx.agencyId)
+      .eq("kind", "debrief")
+      .in("round_id", roundIds),
+  ])
+  const latestDecision = new Map<string, { decision: string; note: string; decidedAt: string }>()
+  for (const d of decisionRows ?? []) {
+    const key = d.round_id as string
+    if (!latestDecision.has(key)) {
+      latestDecision.set(key, {
+        decision: (d.decision as string) ?? "",
+        note: (d.note as string) ?? "",
+        decidedAt: (d.created_at as string) ?? "",
+      })
+    }
+  }
+  const debriefed = new Set((debriefRows ?? []).map((a) => a.round_id as string))
+
   return rounds.map((r) => ({
     id: r.id as string,
     candidateId: r.candidate_id as string,
@@ -302,6 +343,8 @@ export async function listRoundsForRole(
     status: r.status as RoundStatus,
     company: byContact.get(r.contact_id as string) ?? "",
     captureConsentStatus: (r.capture_consent_status as string) ?? "pending",
+    clientDecision: latestDecision.get(r.id as string) ?? null,
+    hasDebrief: debriefed.has(r.id as string),
   }))
 }
 

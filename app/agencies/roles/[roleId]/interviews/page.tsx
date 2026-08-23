@@ -62,6 +62,8 @@ interface RoundRow {
   status: "scheduled" | "completed" | "cancelled"
   company: string
   captureConsentStatus: string
+  clientDecision: { decision: string; note: string; decidedAt: string } | null
+  hasDebrief: boolean
 }
 
 function fmtDay(iso: string): string {
@@ -254,8 +256,10 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
         <div>
           <div className="ag-rail-label">Navigate</div>
           <button className="ag-step" onClick={() => router.push("/agencies")}>Dashboard</button>
-          <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}`)}>
-            This role
+          {/* ?flow=shortlist is the deliberate way back into the finished flow —
+              without it the bare role URL forwards straight back here. */}
+          <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}?flow=shortlist`)}>
+            <span className="ag-step-num done">✓</span> Shortlist flow
           </button>
           <button className="ag-step on" aria-current="page">Interviews</button>
           <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}/close-out`)}>
@@ -294,9 +298,9 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
             </button>
           </div>
 
-          <p className="ag-step-eyebrow">Book an interview</p>
+          <p className="ag-step-eyebrow">Interview loop · the selection process</p>
           <h1 className="ag-title">
-            {client?.contactName ? `Put someone in ${client.contactName.split(" ")[0]}’s diary` : "Book an interview"}
+            Rounds, write-ups, decisions —<br />the loop in one place.
           </h1>
           <p className="ag-sub">
             {slots === null
@@ -322,8 +326,117 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
             </p>
           )}
 
+          {/* ── The loop, candidate by candidate ─────────────────────────────
+              Round 1 → round 2 → outcome, readable at a glance. The planned
+              count is the client's stated expectation and renders as lanes;
+              extra rounds simply add a lane, because the plan is never a gate.
+              A decline is shown and the candidate stays — a signal, never a
+              removal. */}
+          {(() => {
+            const inLoop = candidates
+              .map((c) => ({ c, theirs: rounds.filter((r) => r.candidateId === c.id && r.status !== "cancelled").sort((a, b) => a.roundNumber - b.roundNumber) }))
+              .filter((x) => x.theirs.length > 0)
+            if (inLoop.length === 0) return null
+            const planned = role?.plannedRounds ?? 2
+            return (
+              <section style={{ marginTop: 24 }} aria-labelledby="loop">
+                <p className="ag-field-label" id="loop">The loop · candidate by candidate</p>
+                <div className="ag-stack" style={{ gap: 12 }}>
+                  {inLoop.map(({ c, theirs }) => {
+                    const lanes = Math.max(planned, theirs.length ? theirs[theirs.length - 1].roundNumber : 0)
+                    const byNumber = new Map(theirs.map((r) => [r.roundNumber, r]))
+                    const last = theirs[theirs.length - 1]
+                    const declined = theirs.find((r) => r.clientDecision?.decision === "decline")
+                    const lastDecided = last?.status === "completed" ? last.clientDecision : null
+                    // What happens next, in one honest sentence.
+                    let nextLine: string
+                    let done = false
+                    if (declined) {
+                      nextLine = `Client declined at round ${declined.roundNumber} — their signal, not a removal. ${c.full_name} stays on the role.`
+                      done = true
+                    } else if (last?.status === "scheduled") {
+                      nextLine = `Round ${last.roundNumber} is booked — nothing owed until it happens.`
+                    } else if (last && last.status === "completed" && !last.hasDebrief) {
+                      nextLine = `Round ${last.roundNumber} happened — waiting on the client's write-up.`
+                    } else if (last && last.status === "completed" && !lastDecided) {
+                      nextLine = `Write-up is in for round ${last.roundNumber} — waiting on the client's decision.`
+                    } else if (lastDecided && last.roundNumber >= planned) {
+                      nextLine = `Cleared all ${last.roundNumber} round${last.roundNumber === 1 ? "" : "s"} — advancing. Close-out is next.`
+                      done = true
+                    } else if (lastDecided) {
+                      nextLine = `Advancing after round ${last.roundNumber} — round ${last.roundNumber + 1} of ${planned} to book.`
+                    } else {
+                      nextLine = "Nothing outstanding."
+                    }
+                    return (
+                      <div key={c.id} className="ag-card ag-loop-card">
+                        <div className="ag-loop-head">
+                          <span className="ag-grow" style={{ minWidth: 0 }}>
+                            <span className="ag-meta">{c.ref}</span>
+                            <span className="ag-pick-name">{c.full_name}</span>
+                          </span>
+                          <span className="ag-loop-lanes" aria-label={`Rounds for ${c.full_name}`}>
+                            {Array.from({ length: lanes }, (_, i) => i + 1).map((n) => {
+                              const r = byNumber.get(n)
+                              const state = !r
+                                ? "todo"
+                                : r.status === "scheduled"
+                                  ? "booked"
+                                  : r.clientDecision
+                                    ? r.clientDecision.decision === "decline" ? "declined" : "advanced"
+                                    : "waiting"
+                              const label = !r
+                                ? `R${n}`
+                                : r.status === "scheduled"
+                                  ? `R${n} · ${fmtDay(r.scheduledAt ?? "")}`
+                                  : r.clientDecision
+                                    ? `R${n} ${r.clientDecision.decision === "decline" ? "· declined" : "✓"}`
+                                    : `R${n} · awaiting`
+                              return (
+                                <span key={n} className={`ag-loop-lane ${state}`}>{label}</span>
+                              )
+                            })}
+                            <span className={`ag-loop-lane outcome${done ? " on" : ""}`}>outcome</span>
+                          </span>
+                        </div>
+                        {last?.clientDecision?.note ? (
+                          <p className="ag-loop-note">
+                            Client, after round {last.roundNumber}: “{last.clientDecision.note}”
+                          </p>
+                        ) : null}
+                        <div className="ag-loop-foot">
+                          <p className="ag-note ag-grow" style={{ margin: 0 }}>{nextLine}</p>
+                          {!declined && lastDecided && last.roundNumber < planned && (slots ?? []).length > 0 && (
+                            <button
+                              className="ag-btn ag-btn-secondary"
+                              onClick={() => {
+                                setCandidateId(c.id)
+                                document.getElementById("book-area")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                              }}
+                            >
+                              Book round {last.roundNumber + 1}
+                            </button>
+                          )}
+                          {done && !declined && (
+                            <button
+                              className="ag-btn ag-btn-primary"
+                              onClick={() => router.push(`/agencies/roles/${roleId}/close-out`)}
+                            >
+                              Take to close-out →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            )
+          })()}
+
           {slots !== null && slots.length > 0 && (
             <>
+              <p className="ag-field-label" id="book-area" style={{ marginTop: 28 }}>Book the next round</p>
               <div className="ag-book-grid">
                 <section aria-labelledby="who-meets">
                   <p className="ag-field-label" id="who-meets">Who meets them</p>
@@ -479,18 +592,6 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                           Mark done
                         </button>
                         <button
-                          className="ag-btn ag-btn-secondary"
-                          onClick={() => askConsent(r.id)}
-                          disabled={busy || r.captureConsentStatus !== "pending"}
-                          title={
-                            r.captureConsentStatus === "pending"
-                              ? "Emails the candidate a link asking whether this call may be recorded. Their answer is theirs; you are not told what they chose."
-                              : "Already asked. Their answer is theirs, and this screen never shows it."
-                          }
-                        >
-                          {r.captureConsentStatus === "pending" ? "Ask about recording" : "Recording asked"}
-                        </button>
-                        <button
                           className="ag-btn"
                           onClick={() => setStatus(r.id, "cancelled")}
                           disabled={busy}
@@ -508,10 +609,39 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                       </p>
                     )}
                   </div>
-                  {/* Inside the round card, below a rule — a round is one
-                      object. Cancelled rounds have nothing to record. */}
+                  {/* Recording folded away: it is an attachment to the round,
+                      not a gate on reviewing it. Rendered as a wall of BLOCKED
+                      panels it read as the flow being broken, when the truth is
+                      just "nobody has agreed to a recording" — which is fine.
+                      Everything consent-shaped is unchanged inside: the ask
+                      still goes only to the candidate, and their answer still
+                      never shows here. Cancelled rounds have nothing to record. */}
                   {r.status !== "cancelled" && (
-                    <InterviewCapture roundId={r.id} candidateName={r.candidateName} />
+                    <details className="ag-rec-details">
+                      <summary className="ag-rec-summary">
+                        Recording &amp; capture
+                        <span className="ag-meta" style={{ marginLeft: 8 }}>
+                          {r.captureConsentStatus === "pending" ? "not asked yet" : "asked — their answer is theirs"}
+                        </span>
+                      </summary>
+                      {r.status === "scheduled" && (
+                        <div style={{ margin: "10px 0 4px" }}>
+                          <button
+                            className="ag-btn ag-btn-secondary"
+                            onClick={() => askConsent(r.id)}
+                            disabled={busy || r.captureConsentStatus !== "pending"}
+                            title={
+                              r.captureConsentStatus === "pending"
+                                ? "Emails the candidate a link asking whether this call may be recorded. Their answer is theirs; you are not told what they chose."
+                                : "Already asked. Their answer is theirs, and this screen never shows it."
+                            }
+                          >
+                            {r.captureConsentStatus === "pending" ? "Ask about recording" : "Recording asked"}
+                          </button>
+                        </div>
+                      )}
+                      <InterviewCapture roundId={r.id} candidateName={r.candidateName} />
+                    </details>
                   )}
                   </div>
                 ))}

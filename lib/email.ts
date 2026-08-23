@@ -21,14 +21,32 @@ import { appPath, getMarketingOrigin, marketingPath } from '@/lib/site-url'
  * environment itself is the guard. An entry beginning "@" matches a domain.
  * Production is unaffected.
  */
+/**
+ * When EMAIL_ALLOWLIST is unset, these still receive mail outside production.
+ * Without a default, deploying the guard before the Vercel variable exists
+ * silently kills staging sign-in — the founder's own OTP would be the first
+ * thing blocked. Strangers are refused either way; the variable EXTENDS this
+ * list, it does not replace the protection.
+ */
+const DEFAULT_NON_PROD_ALLOWLIST = ["o.oifoh@gmail.com", "ose@lean-frame.com", "@lean-frame.com"]
+
+/** Lowercase, and fold gmail plus-aliases (a+tag@gmail.com → a@gmail.com) so
+ * test candidates like founder+can01@gmail.com reach the founder's inbox. */
+function normalizeAddress(addr: string): string {
+  const a = addr.trim().toLowerCase()
+  const m = a.match(/^([^+@]+)\+[^@]*(@gmail\.com)$/)
+  return m ? m[1] + m[2] : a
+}
+
 function blockedByEnvironment(to: string): string | null {
   if (process.env.VERCEL_ENV === "production") return null
   const raw = (process.env.EMAIL_ALLOWLIST ?? "").trim()
-  if (!raw) return "non-production send with EMAIL_ALLOWLIST unset"
-  const target = to.trim().toLowerCase()
-  const allowed = raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+  const allowed = (raw ? raw.split(",") : DEFAULT_NON_PROD_ALLOWLIST)
+    .map(normalizeAddress)
+    .filter(Boolean)
+  const target = normalizeAddress(to)
   const ok = allowed.some((a) => (a.startsWith("@") ? target.endsWith(a) : a === target))
-  return ok ? null : "recipient not on EMAIL_ALLOWLIST"
+  return ok ? null : raw ? "recipient not on EMAIL_ALLOWLIST" : "recipient not on the default non-production allowlist (EMAIL_ALLOWLIST unset)"
 }
 
 export async function sendEmail(opts: {

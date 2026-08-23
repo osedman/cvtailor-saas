@@ -334,3 +334,38 @@
     padding: 10px 18px;
   }
 }
+
+/* ── The workspace nav (23 Aug 2026): three places and a primary act. ────── */
+.hm-nav {
+  display: flex; align-items: center; gap: 4px;
+  padding: 8px 28px; border-bottom: 1px solid var(--agd-line, rgba(255,255,255,0.08));
+}
+.hm-nav-item {
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; text-decoration: none; color: var(--ag-ink-3);
+  padding: 6px 12px; border-radius: var(--r-pill); border: 1px solid transparent;
+}
+.hm-nav-item:hover { color: var(--ag-ink); }
+.agd-main .hm-nav-item { color: rgba(253, 252, 249, 0.55); }
+.agd-main .hm-nav-item:hover { color: rgba(253, 252, 249, 0.9); }
+.hm-nav-item.on { border-color: var(--ag-coral); color: var(--ag-coral); }
+.agd-main .hm-nav-item.on { color: #ff8a70; border-color: rgba(220, 79, 51, 0.6); }
+.hm-nav-cta { text-decoration: none; }
+
+/* Role rows that are doors look like the button rows the recruiter side has. */
+.hm-role-door { text-decoration: none; cursor: pointer; }
+.hm-role-door:hover { border-color: rgba(220, 79, 51, 0.45); }
+
+/* Interviews summary rows on the dashboard. */
+.hm-round-line { display: flex; align-items: center; gap: 12px; padding: 12px 16px; text-decoration: none; }
+
+/* One candidate's lanes on the client side. */
+.hm-loop-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+
+/* The loop lanes render on the DARK client surface here; the light-side
+   palette in agencies.css inverts. Keep the states readable on ink. */
+.agd-main .ag-loop-lane { background: transparent; border-color: rgba(253,252,249,0.18); color: rgba(253,252,249,0.6); }
+.agd-main .ag-loop-lane.advanced { background: var(--ag-paper); border-color: var(--ag-paper); color: var(--ag-ink); }
+.agd-main .ag-loop-lane.booked { border-color: #ff8a70; color: #ff8a70; }
+.agd-main .ag-loop-lane.waiting { background: rgba(220,79,51,0.16); border-color: rgba(220,79,51,0.5); color: #ffb4a3; }
+.agd-main .ag-loop-lane.declined { background: rgba(253,252,249,0.06); border-color: rgba(253,252,249,0.14); color: rgba(253,252,249,0.45); }

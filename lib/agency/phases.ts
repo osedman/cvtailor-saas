@@ -93,3 +93,18 @@ export function phaseHref(key: PhaseKey, roleId: string): string {
   if (key === "handover") return `${base}/close-out`
   return base
 }
+
+/**
+ * Where opening a role should LAND, given its phase.
+ *
+ * The shortlist flow is finished the moment the submission goes — landing a
+ * recruiter back on "Add candidates" for a role that is mid-interviews is how
+ * the two flows blurred into one. The workflow stays one click away
+ * (?flow=shortlist), it just stops being the front door once its work is done.
+ */
+export function roleLandingPath(phase: PhaseKey | null, roleId: string): string {
+  const base = `/agencies/roles/${roleId}`
+  if (phase === "interviews") return `${base}/interviews`
+  if (phase === "handover") return `${base}/close-out`
+  return base
+}

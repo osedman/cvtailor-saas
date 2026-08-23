@@ -275,6 +275,34 @@
   .ag-phase-chip:active { transform: none; }
 }
 
+/* The selection process — one card per candidate in the loop, with the rounds
+   as lanes. Round 1 → round 2 → outcome, readable at a glance. */
+.ag-loop-card { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.ag-loop-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ag-loop-lanes { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ag-loop-lane {
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; border-radius: var(--r-pill); padding: 3px 10px;
+  border: 1px solid var(--ag-border); color: var(--ag-ink-3); background: var(--ag-paper);
+}
+.ag-loop-lane.advanced { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); }
+.ag-loop-lane.booked { border-color: var(--ag-coral-text); color: var(--ag-coral-text); }
+.ag-loop-lane.waiting { background: var(--ag-tint-1); border-color: var(--ag-tint-2); color: var(--ag-coral-deep); }
+.ag-loop-lane.declined { background: var(--ag-cream); border-color: var(--ag-line-2); color: var(--ag-ink-3); text-decoration: none; }
+.ag-loop-lane.todo { opacity: 0.55; border-style: dashed; }
+.ag-loop-lane.outcome { border-style: dashed; opacity: 0.55; }
+.ag-loop-lane.outcome.on { border-style: solid; opacity: 1; background: var(--ag-coral); border-color: var(--ag-coral); color: #fff; }
+.ag-loop-note { margin: 0; font-size: var(--t-caption); color: var(--ag-ink-2, var(--ag-ink)); border-left: 2px solid var(--ag-tint-2); padding-left: 10px; }
+.ag-loop-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* Recording folded into the round card: an attachment, not a blocker. */
+.ag-rec-details { border-top: 1px solid var(--ag-border); padding: 10px 16px 12px; }
+.ag-rec-summary {
+  cursor: pointer; font-family: var(--ag-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3);
+}
+.ag-rec-summary:hover { color: var(--ag-ink); }
+
 .ag-callscore-col .ag-field-label { margin-bottom: 2px; }
 .ag-delta-pill { display: inline-block; font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-coral-deep); background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); border-radius: var(--r-pill); padding: 2px 9px; align-self: flex-start; }
 .ag-callscore .ag-delta-pill { align-self: flex-end; }

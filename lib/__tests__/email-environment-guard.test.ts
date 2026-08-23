@@ -42,6 +42,29 @@ describe("non-production email guard", () => {
     expect(fetchCalls).toBe(0)
   })
 
+  it("still reaches the founder when the variable is unset — deploying the guard must not kill staging sign-in", async () => {
+    delete process.env.VERCEL_ENV
+    delete process.env.EMAIL_ALLOWLIST
+    expect((await send("o.oifoh@gmail.com")).fetchCalls).toBeGreaterThan(0)
+    expect((await send("ose@lean-frame.com")).fetchCalls).toBeGreaterThan(0)
+    expect((await send("anyone@lean-frame.com")).fetchCalls).toBeGreaterThan(0)
+  })
+
+  it("folds gmail plus-aliases so test candidates reach the founder's inbox", async () => {
+    delete process.env.VERCEL_ENV
+    delete process.env.EMAIL_ALLOWLIST
+    expect((await send("o.oifoh+can01@gmail.com")).fetchCalls).toBeGreaterThan(0)
+    // The fold is gmail-only: a plus-alias of a non-allowed gmail is still a stranger.
+    expect((await send("stranger+tag@gmail.com")).fetchCalls).toBe(0)
+  })
+
+  it("a populated variable replaces the default list rather than extending strangers in", async () => {
+    process.env.VERCEL_ENV = "preview"
+    process.env.EMAIL_ALLOWLIST = "only@example.com"
+    // The default entries are no longer implied once the operator has spoken.
+    expect((await send("ose@lean-frame.com")).fetchCalls).toBe(0)
+  })
+
   it("blocks a recipient who is not on a populated allowlist", async () => {
     process.env.VERCEL_ENV = "preview"
     process.env.EMAIL_ALLOWLIST = "allowed@example.com"

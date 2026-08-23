@@ -26,6 +26,7 @@ interface RoleRow {
   id: string; ref: string; title: string; company: string; salary_band: string; status: string
   mine: boolean; days_open: number; candidate_count: number
   stage: number; stage_state: StageState; needs: string; needs_action: boolean
+  phase?: "shortlist" | "interviews" | "handover"
   top_score: number | null; top_delta: number | null; top_original: number | null; top_name: string
   last_activity: { entity_ref: string; entity_type: string; action: string; created_at: string } | null
 }
@@ -730,6 +731,24 @@ export default function AgencyHomePage() {
                             </span>
                           </span>
                         </span>
+                        {role.phase && role.phase !== "shortlist" ? (
+                          /* The shortlist flow is finished for this role, so the
+                             six-step rail would be pointing backwards. Show the
+                             phase instead — opening the role lands there too. */
+                          <span className="ag-stage" aria-label={`Phase: ${role.phase}`}>
+                            {(["Shortlist", "Interviews", "Handover"] as const).map((name) => {
+                              const key = name.toLowerCase()
+                              const order = ["shortlist", "interviews", "handover"]
+                              const st = order.indexOf(key) < order.indexOf(role.phase!) ? "done" : key === role.phase ? "here" : "todo"
+                              return (
+                                <span className="ag-stage-seg" key={name} data-s={st === "todo" ? undefined : st} title={name}>
+                                  <span className="ag-stage-bar" />
+                                  <span className="ag-stage-label">{name}</span>
+                                </span>
+                              )
+                            })}
+                          </span>
+                        ) : (
                         <span className="ag-stage" aria-label={`Step ${role.stage} of 6: ${STAGES[role.stage - 1]}`}>
                           {STAGES.map((name, i) => {
                             const n = i + 1
@@ -742,6 +761,7 @@ export default function AgencyHomePage() {
                             )
                           })}
                         </span>
+                        )}
                         <span className="agd-role-score">
                           {role.top_score === null ? (
                             <span className="agd-noscore">no score yet</span>

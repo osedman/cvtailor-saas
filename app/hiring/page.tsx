@@ -31,6 +31,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { SignOut } from "@/components/agency/sign-out"
+import { DECISION_LABEL, EmptyBand, HiringNav, fmtWhen } from "@/components/agency/hm-shared"
 import Link from "next/link"
 import type {
   HiringBrief,
@@ -71,36 +72,6 @@ interface RoleRow {
 
 const STEP_LABELS = ["Brief", "Shortlist", "R1", "R2", "Decide"]
 
-/** Decisions are stored as machine values and were being rendered raw, so a
- * client's own call came back to them as "advance". Both maps stay neutral in
- * tone: a decline is a state for THE ROUND, never a verdict on the person. */
-const DECISION_LABEL: Record<RoundDecision, string> = {
-  advance: "Advancing",
-  hold: "On hold",
-  decline: "Not advancing",
-}
-
-const DECISION_SENTENCE: Record<RoundDecision, string> = {
-  advance: "chose to advance this candidate",
-  hold: "put this round on hold",
-  decline: "chose not to advance this round",
-}
-
-function fmtDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return "—"
-  return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })
-}
-
-function fmtTime(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return "—"
-  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
-}
-
-function fmtWhen(iso: string): string {
-  return `${fmtDate(iso)} · ${fmtTime(iso)}`
-}
 
 /** "in 3 hours" / "in 40 minutes" — only ever used inside 24 hours. */
 function fmtCountdown(at: number, now: number): string {
@@ -284,183 +255,11 @@ function buildRoles(d: HiringDashboard, now: number): RoleRow[] {
   return rows
 }
 
-/** The bordered, left-aligned empty state. Says what will appear here and,
- * where it matters, who puts it there — never "no data". */
-function EmptyBand({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="ag-card">
-      <div className="ag-card-body">
-        <p className="ag-card-title" style={{ margin: 0 }}>
-          {title}
-        </p>
-        <p className="ag-note" style={{ marginTop: 6, maxWidth: "62ch" }}>
-          {body}
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function SlotChip({ slot, onWithdraw }: { slot: HiringSlot; onWithdraw: () => void }) {
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  async function withdraw() {
-    setBusy(true)
-    setErr(null)
-    try {
-      const res = await fetch(`/api/hiring/availability?slotId=${encodeURIComponent(slot.id)}`, {
-        method: "DELETE",
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        setErr(body.error || "Could not withdraw that time.")
-        return
-      }
-      onWithdraw()
-    } catch {
-      setErr("Could not withdraw that time.")
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <span className="ag-chip hm-static hm-slot">
-      {fmtDate(slot.starts_at)}
-      <span className="id">
-        {fmtTime(slot.starts_at)}–{fmtTime(slot.ends_at)}
-      </span>
-      {slot.booked ? (
-        // Booked times are not withdrawable from here: somebody is expecting
-        // that call. Cancelling the interview is the decision that frees it.
-        <span className="ag-pill">Booked</span>
-      ) : (
-        <button
-          className="hm-slot-x"
-          onClick={withdraw}
-          disabled={busy}
-          title="Withdraw this time"
-          aria-label={`Withdraw ${fmtDate(slot.starts_at)} ${fmtTime(slot.starts_at)}`}
-        >
-          ×
-        </button>
-      )}
-      {err && <span className="hm-slot-err">{err}</span>}
-    </span>
-  )
-}
-
-/** Offer a window. Two datetime-local inputs rather than a calendar widget:
- * this is a client offering two or three times a fortnight, not a scheduler.
- *
- * Wearing the hat for more than one agency is legitimate (§5.4) and the
- * breadcrumb already admits it, but this panel used to post silently to
- * links[0] — so a person with two recruiters offered their diary to whichever
- * happened to sort first, with nothing on screen saying so. It now names the
- * recipient, and asks when there is a genuine choice. */
-function OfferTimes({ links, onDone }: { links: HiringLink[]; onDone: (changed: boolean) => void }) {
-  const [contactId, setContactId] = useState(links[0]?.contactId ?? "")
-  const [startsAt, setStartsAt] = useState("")
-  const [endsAt, setEndsAt] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  const recipient = links.find((l) => l.contactId === contactId) ?? links[0]
-
-  async function offer() {
-    setBusy(true)
-    setErr(null)
-    try {
-      const res = await fetch("/api/hiring/availability", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contactId,
-          // datetime-local has no zone; the browser's own offset is the one
-          // the person meant when they typed it.
-          startsAt: new Date(startsAt).toISOString(),
-          endsAt: new Date(endsAt).toISOString(),
-        }),
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        setErr(body.error || "Could not offer that time.")
-        return
-      }
-      onDone(true)
-    } catch {
-      setErr("Could not offer that time.")
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const ready = Boolean(startsAt && endsAt) && !busy
-
-  return (
-    <div className="agd-card hm-static hm-offer">
-      <div className="hm-offer-row">
-        {links.length > 1 && (
-          <label className="hm-field">
-            <span className="ag-field-label">Offer to</span>
-            <select
-              className="ag-input"
-              value={contactId}
-              onChange={(e) => setContactId(e.target.value)}
-            >
-              {links.map((l) => (
-                <option key={l.contactId} value={l.contactId}>
-                  {l.company ? `${l.agencyName} · ${l.company}` : l.agencyName}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <label className="hm-field">
-          <span className="ag-field-label">From</span>
-          <input
-            className="ag-input"
-            type="datetime-local"
-            value={startsAt}
-            onChange={(e) => setStartsAt(e.target.value)}
-            autoFocus
-          />
-        </label>
-        <label className="hm-field">
-          <span className="ag-field-label">Until</span>
-          <input
-            className="ag-input"
-            type="datetime-local"
-            value={endsAt}
-            onChange={(e) => setEndsAt(e.target.value)}
-          />
-        </label>
-        <button className="agd-tbtn primary" onClick={offer} disabled={!ready}>
-          {busy ? "Offering…" : "Offer this time"}
-        </button>
-        <button className="agd-tbtn" onClick={() => onDone(false)}>
-          Cancel
-        </button>
-      </div>
-      {err && (
-        <p className="hm-offer-err" role="alert">
-          {err}
-        </p>
-      )}
-      <p className="agd-aside">
-        {recipient ? <b>{recipient.agencyName}</b> : "Your recruiter"} can book one candidate into
-        this window. Nothing reaches your calendar until you offer the time.
-      </p>
-    </div>
-  )
-}
 
 export default function HiringDashboardPage() {
   const [screen, setScreen] = useState<Screen>("loading")
   const [data, setData] = useState<HiringDashboard | null>(null)
   const [email, setEmail] = useState("")
-  const [offering, setOffering] = useState(false)
   // Bumped after a write so the dashboard re-reads rather than guessing at the
   // new state locally: slots gain and lose their booked flag server-side.
   const [refresh, setRefresh] = useState(0)
@@ -636,6 +435,8 @@ export default function HiringDashboardPage() {
         {statusMessage}
       </p>
 
+      {screen === "ready" && <HiringNav />}
+
       <div className="agd-page" aria-busy={screen === "loading"}>
         {screen === "loading" && (
           <div className="ag-card">
@@ -769,6 +570,11 @@ export default function HiringDashboardPage() {
               {roles.length > 0 ? (
                 <div className="agd-roles">
                   {roles.map((role) => (
+                    /* A row with a role behind it opens that role's screen. A
+                       brief the recruiter has not accepted yet has no role to
+                       open — it stays a row, because a door to nowhere is
+                       worse than no door. */
+                    role.key.startsWith("brief:") ? (
                     <article key={role.key} className="agd-role hm-role">
                       <div className="agd-role-id">
                         <div className="ag-grow">
@@ -794,6 +600,33 @@ export default function HiringDashboardPage() {
                         ))}
                       </div>
                     </article>
+                    ) : (
+                    <Link key={role.key} href={`/hiring/roles/${role.key}`} className="agd-role hm-role hm-role-door">
+                      <div className="agd-role-id">
+                        <div className="ag-grow">
+                          <span className="agd-role-title">{role.title}</span>
+                          <span className="agd-role-sub">{role.sub}</span>
+                          {role.note && (
+                            <span className="agd-role-last" data-tone={role.noteTone}>
+                              {role.note}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="ag-stage hm-steps">
+                        {role.steps.map((step) => (
+                          <div
+                            key={step.label}
+                            className="ag-stage-seg"
+                            data-s={step.state === "none" ? undefined : step.state}
+                          >
+                            <span className="ag-stage-bar" />
+                            <span className="ag-stage-label">{step.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </Link>
+                    )
                   ))}
                 </div>
               ) : (
@@ -810,54 +643,46 @@ export default function HiringDashboardPage() {
                   Your interviews
                 </h2>
                 <span className="agd-rule" />
+                <Link className="agd-tbtn primary" href="/hiring/interviews">
+                  Open interviews →
+                </Link>
               </div>
+              {/* A summary, deliberately: the write-ups, decisions and your
+                  diary live on the Interviews screen now. Performing all of it
+                  on the dashboard is how this page became a corridor with the
+                  furniture of four rooms in it. */}
               {actionable.length > 0 ? (
-                <div className="ag-stack" style={{ gap: 12 }}>
-                  {actionable.map((r) => (
-                    <RoundActions key={r.id} round={r} onDone={reload} />
+                <div className="ag-stack" style={{ gap: 8 }}>
+                  {actionable.slice(0, 4).map((r) => (
+                    <Link key={r.id} href="/hiring/interviews" className="agd-card hm-static hm-round-line">
+                      <span className="ag-grow" style={{ minWidth: 0 }}>
+                        <span className="agd-eyebrow">
+                          {r.role_title} · round {r.round_number} · {r.candidate_ref}
+                        </span>
+                        <span className="hm-round-when">
+                          {r.scheduled_at ? fmtWhen(r.scheduled_at) : "No time set"}
+                        </span>
+                      </span>
+                      {r.latest_decision ? (
+                        <span className="ag-pill">{DECISION_LABEL[r.latest_decision]}</span>
+                      ) : r.status === "completed" ? (
+                        <span className="ag-pill warn">{r.has_debrief ? "Needs your decision" : "Needs your write-up"}</span>
+                      ) : (
+                        <span className="ag-pill">Scheduled</span>
+                      )}
+                    </Link>
                   ))}
+                  {(actionable.length > 4 || slots.length > 0) && (
+                    <p className="agd-aside">
+                      {actionable.length > 4 ? `${actionable.length - 4} more on the interviews screen. ` : ""}
+                      Your availability ({slots.length} window{slots.length === 1 ? "" : "s"} offered) is managed there too.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <EmptyBand
                   title="No interviews yet."
-                  body="Rounds your recruiter books appear here, with the write-up and your decision on the same card. Nothing moves on a candidate until you have had your say."
-                />
-              )}
-            </section>
-
-            <section className="agd-band" aria-labelledby="hm-avail">
-              <div className="agd-eyebrow-row">
-                <h2 className="agd-eyebrow" id="hm-avail">
-                  Your availability
-                </h2>
-                <span className="agd-rule" />
-                <button
-                  className="agd-tbtn primary"
-                  onClick={() => setOffering(true)}
-                  disabled={links.length === 0}
-                >
-                  Offer times
-                </button>
-              </div>
-              {offering && (
-                <OfferTimes
-                  links={links}
-                  onDone={(changed) => {
-                    setOffering(false)
-                    if (changed) reload()
-                  }}
-                />
-              )}
-              {slots.length > 0 ? (
-                <div className="hm-slots">
-                  {slots.map((slot) => (
-                    <SlotChip key={slot.id} slot={slot} onWithdraw={reload} />
-                  ))}
-                </div>
-              ) : (
-                <EmptyBand
-                  title="No times offered."
-                  body="Windows you say you are free in will appear here as chips, and drop out again once your recruiter books one against a candidate. Nothing is ever booked into your calendar without you offering the time first."
+                  body="Rounds your recruiter books appear on the Interviews screen, with the write-up and your decision on the same card — and that is where you offer the times you are free. Nothing moves on a candidate until you have had your say."
                 />
               )}
             </section>
@@ -877,181 +702,3 @@ export default function HiringDashboardPage() {
   )
 }
 
-/**
- * One round, with the two things a hiring manager owes it: the write-up, and
- * the decision.
- *
- * The order on the card is the order of the rule. AGENCIES_SCHEMA.md §5.5 says
- * "no artifact, no progression" — a decision should rest on a record of what
- * happened, not on memory. So the write-up sits above the decision, and the
- * decision buttons stay disabled until something has been written.
- *
- * That rule is what makes declining a recording free: a debrief is an artifact
- * of equal standing to a transcript, so the process can require a record
- * without ever requiring consent.
- *
- * Decline is offered at the same weight as advance, and says what it does. It
- * is a state for THE ROUND — it never removes the candidate, and the server has
- * no code path that would let it.
- */
-function RoundActions({ round, onDone }: { round: HiringRound; onDone: () => void }) {
-  const [notes, setNotes] = useState("")
-  const [justWritten, setJustWritten] = useState(false)
-  const [busy, setBusy] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  const decided = round.latest_decision
-  const canWrite = round.status === "completed"
-  // The gate reads from the SERVER's answer, falling back to what just
-  // happened in this tab. It used to be component state alone, which meant a
-  // client who wrote this up and reloaded got an empty box and no way to
-  // their decision without writing a second one. A reload is the test.
-  const written = round.has_debrief || justWritten
-
-  async function saveDebrief() {
-    if (!notes.trim()) return
-    setBusy("debrief")
-    setError(null)
-    try {
-      const res = await fetch("/api/hiring/debrief", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roundId: round.id, answers: [], notes }),
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        setError(body.error || "That did not save.")
-        return
-      }
-      setJustWritten(true)
-    } catch {
-      setError("That did not save.")
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  async function decide(decision: "advance" | "hold" | "decline") {
-    setBusy(decision)
-    setError(null)
-    try {
-      const res = await fetch("/api/hiring/rounds", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roundId: round.id, decision }),
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        setError(body.error || "That did not save.")
-        return
-      }
-      onDone()
-    } catch {
-      setError("That did not save.")
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  return (
-    <article className="agd-card hm-static hm-round">
-      <div className="hm-round-head">
-        <div className="ag-grow" style={{ minWidth: 0 }}>
-          <p className="agd-eyebrow">
-            {round.role_title} · round {round.round_number} · {round.candidate_ref}
-          </p>
-          <p className="hm-round-when">
-            {round.scheduled_at ? fmtWhen(round.scheduled_at) : "No time set"} ·{" "}
-            {round.duration_minutes} min
-          </p>
-        </div>
-        {decided ? (
-          <span className="ag-pill">{DECISION_LABEL[decided]}</span>
-        ) : (
-          <span className="ag-pill warn">
-            {canWrite ? (written ? "Needs your decision" : "Needs your write-up") : "Scheduled"}
-          </span>
-        )}
-      </div>
-
-      {canWrite && !decided && (
-        <>
-          <label className="hm-field" htmlFor={`notes-${round.id}`}>
-            <span className="ag-field-label">What happened</span>
-            <textarea
-              id={`notes-${round.id}`}
-              className="ag-textarea"
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value.slice(0, 8000))}
-              placeholder="What they said, in your words. This is the record your decision rests on."
-              disabled={written}
-            />
-          </label>
-          {!written ? (
-            <button
-              className="agd-tbtn primary"
-              onClick={saveDebrief}
-              disabled={!notes.trim() || busy === "debrief"}
-            >
-              {busy === "debrief" ? "Saving…" : "Save the write-up"}
-            </button>
-          ) : (
-            <>
-              <p className="agd-aside">Write-up saved. Now your decision.</p>
-              <div className="hm-decide">
-                <button className="agd-tbtn primary" onClick={() => decide("advance")} disabled={!!busy}>
-                  Advance
-                </button>
-                <button className="agd-tbtn" onClick={() => decide("hold")} disabled={!!busy}>
-                  Hold
-                </button>
-                <button className="agd-tbtn" onClick={() => decide("decline")} disabled={!!busy}>
-                  Decline
-                </button>
-              </div>
-              <p className="agd-aside">
-                Yours and reversible — deciding again replaces this one. Declining records your
-                view of this round; it never removes anyone from the process.
-              </p>
-            </>
-          )}
-        </>
-      )}
-
-      {!canWrite && !decided && (
-        <p className="agd-aside">
-          Nothing to do until this has happened. Your write-up and decision open here afterwards.
-        </p>
-      )}
-
-      {/*
-        A decided round used to collapse to a bare pill, so the record the
-        decision rested on disappeared from the client's own screen the moment
-        they made it. It says the decision in words, when it was made, and that
-        a write-up is on file.
-
-        It does NOT reproduce the write-up's text. A debrief can be written by
-        the recruiter as well as by the client (recordDebrief takes either
-        context), so rendering the body here would open a route for recruiter
-        working to cross the wall. Existence and date only.
-      */}
-      {decided && (
-        <p className="agd-aside">
-          You {DECISION_SENTENCE[decided]}
-          {round.latest_decision_at ? ` on ${fmtDate(round.latest_decision_at)}` : ""}.{" "}
-          {round.has_debrief
-            ? "The write-up it rests on is on file with your recruiter."
-            : "No write-up is on file for this round."}{" "}
-          Deciding again replaces this; nothing here removes anyone from the process.
-        </p>
-      )}
-
-      {error && (
-        <p className="hm-offer-err" role="alert">
-          {error}
-        </p>
-      )}
-    </article>
-  )
-}
