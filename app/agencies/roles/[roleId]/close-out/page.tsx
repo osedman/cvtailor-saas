@@ -64,6 +64,25 @@ const STATUS_LABEL: Record<ReferenceRow["status"], string> = {
   declined: "Declined",
 }
 
+/** The document's vocabulary — the same words the app uses everywhere else,
+ * because a pack that renames things at the door is a pack that needs a
+ * glossary. Machine values never print raw. */
+const STRENGTH_LABEL: Record<string, string> = {
+  strong: "strong evidence",
+  transferable: "transferable",
+  partial: "partial",
+}
+const PROVENANCE_LABEL: Record<string, string> = {
+  debrief: "written up by the interviewer",
+  transcript: "transcribed with the candidate\u2019s consent",
+  none: "no written record",
+}
+const DECISION_DOC_LABEL: Record<string, string> = {
+  advance: "advanced",
+  hold: "held",
+  decline: "not advanced",
+}
+
 export default function CloseOutPage({ params }: { params: Promise<{ roleId: string }> }) {
   const { roleId } = use(params)
   const router = useRouter()
@@ -294,7 +313,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
           {error && <p className="ag-banner" role="alert">{error}</p>}
 
           {/* 1. Who was chosen */}
-          <section className="ag-card" style={{ padding: "18px 22px", marginTop: 8 }}>
+          <section className="ag-card ag-print-hide" style={{ padding: "18px 22px", marginTop: 8 }}>
             <p className="ag-field-label">The hire</p>
             {candidates.length === 0 ? (
               <p className="ag-note">No candidates on this role yet.</p>
@@ -324,7 +343,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
           {chosen && (
             <div className="ag-close-grid">
               {/* 2. References */}
-              <section className="ag-card" style={{ padding: "18px 22px" }} aria-labelledby="refs">
+              <section className="ag-card ag-print-hide" style={{ padding: "18px 22px" }} aria-labelledby="refs">
                 <div className="ag-card-head" style={{ padding: 0, border: "none" }}>
                   <span className="ag-card-title" id="refs">
                     References
@@ -458,42 +477,127 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                   </>
                 ) : (
                   <div className="ag-pack">
-                    <p className="ag-pack-title">{pack.candidate.name}</p>
-                    <p className="ag-meta">
-                      {pack.role.title} · {pack.role.company} · prepared by {pack.agency}
-                    </p>
-                    <hr className="ag-pack-rule" />
+                    {/* The document itself, not a summary of it. This is what
+                        the employer's HR team receives; the numbered sections
+                        are its canonical reading order (evidence → how it was
+                        gathered → what others said → what was never shown),
+                        and printing it is the delivery format. */}
+                    <div className="ag-doc" id="handover-doc">
+                      <header className="ag-doc-head">
+                        <div className="ag-doc-headrow">
+                        <p className="ag-doc-eyebrow">
+                          Handover record · {pack.role.ref} · {pack.candidate.ref}
+                        </p>
+                        <span className="ag-doc-seal" title="Frozen at generation — this document cannot change">
+                          Frozen · {new Date(pack.generated_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+                        </span>
+                        </div>
+                        <h2 className="ag-doc-name">{pack.candidate.name}</h2>
+                        <p className="ag-doc-roleline">
+                          for {pack.role.title} at {pack.role.company}
+                          {pack.role.location ? ` · ${pack.role.location}` : ""}
+                        </p>
+                        <p className="ag-doc-prepared">
+                          Prepared by {pack.agency}. Every claim below carries its source; where
+                          there was no evidence, this document says so.
+                        </p>
+                      </header>
 
-                    <PackSection n="01" title="Evidence dossier">
-                      {pack.evidence.length} evidenced requirement
-                      {pack.evidence.length === 1 ? "" : "s"}, each with its quote and source.
-                    </PackSection>
-                    <PackSection n="02" title="Interview history">
-                      {pack.rounds.length} round{pack.rounds.length === 1 ? "" : "s"}
-                      {pack.rounds.some((r) => r.artifact)
-                        ? ", each with how it was recorded"
-                        : ", none written up yet"}
-                      .
-                    </PackSection>
-                    <PackSection n="03" title="References">
-                      {pack.references.filter((r) => r.status === "received").length} received,{" "}
-                      {pack.references.filter((r) => r.status !== "received").length} outstanding —
-                      listed as outstanding, not omitted.
-                    </PackSection>
-                    <PackSection n="04" title="Known gaps">
-                      {pack.gaps.length === 0
-                        ? "Nothing unevidenced."
-                        : `${pack.gaps.length} requirement${pack.gaps.length === 1 ? "" : "s"} never evidenced, stated plainly.`}
-                    </PackSection>
+                      <section className="ag-doc-sec" aria-label="Evidence dossier">
+                        <p className="ag-doc-sec-head"><span className="ag-doc-n">01</span> Evidence dossier</p>
+                        <p className="ag-doc-sec-note">Verbatim quotes, mapped to the role&apos;s requirements. Nothing paraphrased.</p>
+                        {pack.evidence.map((e, i) => (
+                          <div className="ag-doc-ev" key={i}>
+                            <p className="ag-doc-req">
+                              {e.requirement}
+                              <span className="ag-doc-chip">{e.weight}</span>
+                              <span className="ag-doc-chip strength">{STRENGTH_LABEL[e.strength] ?? e.strength}</span>
+                            </p>
+                            {e.quote && (
+                              <blockquote className="ag-doc-quote">
+                                {e.quote}
+                                {e.source && <cite>— {e.source}</cite>}
+                              </blockquote>
+                            )}
+                          </div>
+                        ))}
+                        {pack.evidence.length === 0 && (
+                          <p className="ag-doc-empty">No requirement was evidenced. Section 04 lists what was looked for.</p>
+                        )}
+                      </section>
 
-                    <p className="ag-pack-foot">{pack.footer}</p>
+                      <section className="ag-doc-sec" aria-label="Interview history">
+                        <p className="ag-doc-sec-head"><span className="ag-doc-n">02</span> Interview history</p>
+                        <p className="ag-doc-sec-note">How each round was recorded, so every quote above has provenance.</p>
+                        {pack.rounds.map((r) => (
+                          <p className="ag-doc-round" key={r.number}>
+                            <b>Round {r.number}</b>
+                            {r.when ? ` · ${new Date(r.when).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                            {" · "}
+                            {PROVENANCE_LABEL[r.artifact ?? "none"] ?? "no written record"}
+                            {r.decision ? ` · ${DECISION_DOC_LABEL[r.decision] ?? r.decision}` : ""}
+                          </p>
+                        ))}
+                        {pack.rounds.length === 0 && <p className="ag-doc-empty">No interviews were held through Tailr.</p>}
+                      </section>
+
+                      <section className="ag-doc-sec" aria-label="References">
+                        <p className="ag-doc-sec-head"><span className="ag-doc-n">03</span> References</p>
+                        <p className="ag-doc-sec-note">In the referee&apos;s words, attributed — never paraphrased.</p>
+                        {pack.references.map((ref, i) => (
+                          <div className="ag-doc-ref" key={i}>
+                            <p className="ag-doc-referee">
+                              {ref.referee}
+                              {ref.relationship ? ` — ${ref.relationship}` : ""}
+                              {ref.status !== "received" && (
+                                <span className="ag-doc-chip">{ref.status === "declined" ? "declined to comment" : "requested, not yet received"}</span>
+                              )}
+                            </p>
+                            {ref.status === "received" &&
+                              ref.answers.map((a, j) => (
+                                <div className="ag-doc-qa" key={j}>
+                                  <p className="ag-doc-q">{a.question}</p>
+                                  <p className="ag-doc-a">{a.answer}</p>
+                                </div>
+                              ))}
+                          </div>
+                        ))}
+                        {pack.references.length === 0 && <p className="ag-doc-empty">No referees were named.</p>}
+                      </section>
+
+                      <section className="ag-doc-sec" aria-label="Known gaps">
+                        <p className="ag-doc-sec-head"><span className="ag-doc-n">04</span> Known gaps, stated plainly</p>
+                        <p className="ag-doc-sec-note">
+                          Requirements never evidenced — in the CV, the calls or the interviews. The
+                          reader decides what they mean; omitting them would decide it for you.
+                        </p>
+                        {pack.gaps.length === 0 ? (
+                          <p className="ag-doc-empty">Nothing unevidenced.</p>
+                        ) : (
+                          pack.gaps.map((g, i) => (
+                            <p className="ag-doc-gap" key={i}>
+                              {g.requirement}
+                              <span className="ag-doc-chip">{g.weight}</span>
+                            </p>
+                          ))
+                        )}
+                      </section>
+
+                      <footer className="ag-doc-foot">{pack.footer}</footer>
+                    </div>
+
+                    <div className="ag-print-hide" style={{ marginTop: 14 }}>
+                      <button className="ag-btn ag-btn-secondary" onClick={() => window.print()}>
+                        Print or save as PDF
+                      </button>
+                    </div>
 
                     {/* Frozen is not finished. The pack exists to be handed
                         over — this is the act that ends Tailr's part, so it
                         lives on the pack rather than in a menu somewhere. */}
                     {!deliveredTo ? (
                       contacts.length > 0 && (
-                        <div className="ag-handoff" role="group" aria-label="Hand the pack over">
+                        <div className="ag-handoff ag-print-hide" role="group" aria-label="Hand the pack over">
                           <div className="ag-handoff-body">
                             <p className="ag-handoff-title">Frozen — now hand it over.</p>
                             <p className="ag-handoff-sub">
@@ -522,7 +626,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                         </div>
                       )
                     ) : (
-                      <div className="ag-handoff" role="status">
+                      <div className="ag-handoff ag-print-hide" role="status">
                         <div className="ag-handoff-body">
                           <p className="ag-handoff-title">
                             Delivered to {contacts.find((c) => c.id === deliveredTo)?.full_name || "the client"} — two acts finish the role.
@@ -562,17 +666,5 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
         </div>
       </main>
     </>
-  )
-}
-
-function PackSection({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
-  return (
-    <div className="ag-pack-sec">
-      <span className="ag-pack-n">{n}</span>
-      <div>
-        <p className="ag-pack-sec-title">{title}</p>
-        <p className="ag-note">{children}</p>
-      </div>
-    </div>
   )
 }
