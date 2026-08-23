@@ -3296,4 +3296,32 @@ hats with the rich data before the wipe, and the empty states after it.
 
 ---
 
+## 📦 23 Aug 2026 (night) — frozen was a dead end; the pack learns to be handed over
+
+Found live during Ose's test: the handover pack froze and the screen stopped —
+the PATCH deliver endpoint existed with **no UI calling it**. Built: the pack
+card now carries "Frozen — now hand it over" (deliver to the deciding contact,
+audited, idempotent), and once delivered offers the two finishing acts: record
+the placement, close the role (which starts the retention clock). Delivery
+state survives reload.
+
+Also fixed underneath: `generateHandoverPack` re-derived and inserted on every
+call, and close-out holds the pack only in component state — so reload +
+generate was minting duplicate "frozen" packs (staging had 4 for one
+candidate; pruned to the original). Generate now returns the existing pack,
+never re-derives. The mocked test answered the existence check and the insert
+identically — the never-trust-a-mock trap again — fixed, and idempotency
+pinned with a test that throws if any other table is touched when a pack
+exists.
+
+References for Ose's test candidate were pushed to `received` on his
+instruction (real doorway shape: content.answers Q1–Q4, token spent,
+reference_received audit rows) so the pack could be seen. The referee request
+emails to outside addresses had been correctly blocked by the
+only-Ose-gets-mail rule.
+
+954 tests. Pushed (`16f643e`).
+
+---
+
 _Last updated: 23 August 2026_
