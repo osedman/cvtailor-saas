@@ -8,48 +8,70 @@ description: Tailr for Agencies (B2B recruiter product) — full context, agreed
 Read `tailr-playbook` first for repo-wide rules (staging-first, verified pushes,
 PII, tracking boards). This skill carries the agencies-specific state.
 
-## START HERE — state as of 22 Aug 2026 (evening)
+## START HERE — state as of 22 Aug 2026 (end of day)
 
-**The 20 Aug gap list is closed and the day added seven migrations (28–34),
-all applied to tailr-staging and verified by effect.** Read docs/PROJECT.md's
-22 Aug entries for the full detail; the shape:
+**Staging sign-in was broken for four weeks and is now fixed.**
+`SUPABASE_SERVICE_ROLE_KEY` in `~/.config/tailr/tailr.env` was the literal
+string `SET_ME_…` since 25 Jul, so `generateLink` answered `Invalid API key`
+and nobody could sign in. That is why the "human walk-through" sat open since
+14 Aug — it was BLOCKED, not unscheduled. If a task has sat on the open list
+for weeks, check whether something mechanical is stopping it.
 
-- **Notifications** — every cross-wall event mails the answer leg (briefs,
-  write-ups, consent answers, references, bookings, invites). Preferences are
-  two-layer: agency default + personal override, `resolvePreference()` in
-  notify.ts is the ONE resolution rule. `facesClient()` is a whitelist of one.
-- **Candidate booking doorway** — /booking/[token]; confirm/decline + .ics
-  (lib/ics.ts, METHOD:PUBLISH on purpose). Declining releases the slot in the
-  same write and is never a withdrawal.
+**The 20 Aug gap list is closed.** Migrations 28–34 applied to tailr-staging
+and verified by effect. Read docs/PROJECT.md's 22 Aug entries for detail:
+
+- **Notifications** + two-layer preferences (agency default, personal
+  override). `resolvePreference()` is the ONE rule; `facesClient()` is a
+  whitelist of one.
+- **Candidate booking doorway** — /booking/[token], confirm/decline + .ics.
+  Declining releases the slot in the same write and is never a withdrawal.
 - **Closing the loop** — closing a role emails the candidates the loop was
-  OPENED with (notice sent or interviewed); suppressed people are never
-  first-contacted by a closure. Idempotent via candidates.closure_notified_at.
-- **Role ownership** — job_roles.owner_id, audit-coupled reassignment,
+  OPENED with. Batched at 50, paced; deferred people are never stamped.
+- **Role ownership** — job_roles.owner_id, audited reassignment,
   notifications resolve owner-first.
-- **Right to represent** — the ask on the rights doorway; matched candidates
-  backfilled agreed (apply-manifest). The submission gate refuses answered-no
-  outright; unanswered needs a loud audited override. Never filters/ranks.
-- **JD upload on the HM brief** — and the 4,000-char silent truncation of
-  pasted JDs is fixed (shared lib/agency/brief-limits.ts).
-- **Domains decided:** B2B gets its OWN separate domain (not a subdomain),
-  bought when production is wanted; staging is the product's home until then.
-  There is NO port into consumer production, ever. See docs/DOMAINS.md ("The
-  B2B domain"). A guardrail forbids hardcoded origins in B2B links.
+- **Right to represent** — the ask on the rights doorway; the submission gate
+  refuses answered-no outright and audits the unanswered override.
+- **Candidates screen** at /agencies/candidates, **sign out** on every screen,
+  **add-a-client** on the clients screen, **remove a candidate added in
+  error**, and JD upload on the HM brief.
+- **Domains: B2B gets its OWN separate domain** (not a subdomain), bought when
+  production is wanted. There is NO port into consumer production, ever —
+  agency migrations go to staging and, one day, a B2B production environment.
 
-**Still gated / awaiting Ose:** the lawyer + DPIA gate on capture→
-transcription→enrichment (unchanged); two email templates (booking_answered,
-closure) amber-badged on the sign-off artifact; docs/NON-COMPETE-DRAFT.md
-(copy, wants the same lawyer session); the full human walk-through, still
-never done; the revoke of authenticated UPDATE on agency.agencies (and now
-job_roles.owner_id has the same table-wide-grant caveat, noted in migration
-32).
+**Open, in priority order:**
 
-**Verification discipline that paid today, keep it:** verify grants by
-attempting the write as the role (service_role INSERT included — two shipped
-tables could never be written); mutation-test every guardrail (two shipped
-with blind spots: a filename-pinned constraint test and a `[^)]*` regex that
-an arrow parameter's paren defeats); and never trust a mock that does not
-implement the filter it is handed.
+1. **The apply path sends a stale CV** (consumer side, diagnosed not fixed).
+   Two mechanisms — a localStorage restore race in
+   `components/cv-tailor/resizable-panels.tsx`, and applying using
+   `role_recommendations.tailor_history_id` (the last TAILOR RUN) so swapping
+   the CV without re-tailoring sends the old document. **Ask Ose which repro
+   he hit before building** — the two need different fixes.
+2. **MAX_CANDIDATES_PER_ROLE is still 10.** Raising to 50 is safe from the
+   mail side now. The remaining risk is the submission route: a sequential
+   rescore loop, three queries per candidate, against `maxDuration = 60`.
+   Load-test a full shortlist first.
+3. **Finish the walk-through.** Sign-in works now and nothing else blocks it.
+   Everything built on 22 Aug is structurally verified but has never been
+   clicked by a person.
+4. Lawyer + DPIA on capture→transcription→enrichment (unchanged gate);
+   the revoke of authenticated UPDATE on `agency.agencies`, and the same
+   table-wide-grant caveat now applies to `job_roles.owner_id` (migration 32).
+
+**Signed off 22 Aug:** all email templates, and `docs/NON-COMPETE.md` (where
+it lives publicly is still Ose's call; a lawyer pass before public web use
+remains advisable).
+
+**Verification discipline — this is the part that pays:**
+
+- Verify grants by attempting the write AS THE ROLE, service_role included.
+  Two shipped tables could never be written by the role that writes them.
+- **Probe-mutate every guardrail before trusting it.** A guardrail counts only
+  once it has failed. Three shipped with blind spots: a filename-pinned
+  constraint test, a `[^)]*` regex an arrow parameter's paren defeats, and a
+  scan that matched its own documentation.
+- Strip comments before scanning source — use
+  `lib/__tests__/helpers/source-scan.ts`, do not copy it again.
+- Never trust a mock that does not implement the filter it is handed.
 
 ## What the product is
 
