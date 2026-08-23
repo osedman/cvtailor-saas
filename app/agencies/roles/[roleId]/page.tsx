@@ -119,6 +119,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [callerRole, setCallerRole] = useState<string>("viewer")
   const [ownerBusy, setOwnerBusy] = useState(false)
   const [closureNote, setClosureNote] = useState<string | null>(null)
+  // Removing a candidate added in error. Confirmed, because it is a real
+  // erasure and not a hide (22 Aug walk-through).
+  const [removing, setRemoving] = useState<string | null>(null)
+  const [removeBusy, setRemoveBusy] = useState(false)
   const [representAsk, setRepresentAsk] = useState<{ refs: string[]; format: string } | null>(null)
   const [paste, setPaste] = useState("")
   const [jdUrl, setJdUrl] = useState("")
@@ -334,6 +338,32 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, company, company_context, salary_band, location, seniority, jd_raw, recruiter_notes }),
     })
+  }
+
+  async function removeCandidate(candidateId: string) {
+    setRemoveBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/candidates`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // 409 is the notice-already-sent refusal, and its message explains
+        // what to do instead — surface it as written rather than flattening it.
+        setError(typeof body?.error === "string" ? body.error : "Could not remove that candidate.")
+        return
+      }
+      setRemoving(null)
+      setExpandedCandidate(null)
+      await loadCandidates()
+    } catch {
+      setError("Could not remove that candidate.")
+    } finally {
+      setRemoveBusy(false)
+    }
   }
 
   async function setRoleStatus(status: string) {
@@ -1184,6 +1214,31 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                               <button className="ag-btn ag-btn-secondary" onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
                                 Open the evidence map →
                               </button>
+                              {removing === c.id ? (
+                                <span className="ag-remove-confirm">
+                                  <span className="ag-note" style={{ margin: 0 }}>
+                                    Delete {c.ref} and their CV? This cannot be undone.
+                                  </span>
+                                  <button
+                                    className="ag-btn ag-btn-danger"
+                                    disabled={removeBusy}
+                                    onClick={() => void removeCandidate(c.id)}
+                                  >
+                                    {removeBusy ? "Removing…" : "Remove for good"}
+                                  </button>
+                                  <button className="ag-btn" disabled={removeBusy} onClick={() => setRemoving(null)}>
+                                    Keep
+                                  </button>
+                                </span>
+                              ) : (
+                                <button
+                                  className="ag-btn ag-remove-trigger"
+                                  onClick={() => setRemoving(c.id)}
+                                  title="Added in error? Remove them and their CV entirely."
+                                >
+                                  Remove
+                                </button>
+                              )}
                             </div>
                           </div>
                         )}

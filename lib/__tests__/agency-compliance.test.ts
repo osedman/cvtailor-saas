@@ -28,9 +28,9 @@ const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 // Scans read CODE, not the comments documenting the prohibitions — the
 // migration says "there is deliberately no not_eligible" in prose, and a
 // naive scan fails on its own documentation. Fifth time this trap has bitten.
-const sqlCode = (src: string) => src.replace(/^\s*--.*$/gm, "")
-const tsCode = (src: string) =>
-  src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+// Shared: this trap has bitten six times across three guards, so the helper
+// lives in ./helpers/source-scan rather than being copied again.
+import { tsCode, sqlCode } from "./helpers/source-scan"
 
 const lib = read("lib/agency/compliance.ts")
 const vocab = read("lib/agency/compliance-vocab.ts")

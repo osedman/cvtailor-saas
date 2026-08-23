@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
+import { AgencyAccessError, agencyAdmin, requireAgencyContext } from "@/lib/agency/db"
 import { CV_TEXT_LIMIT, extractFileText, ingestCandidate } from "@/lib/agency/ingest"
 import { errorMessage } from "@/lib/error-message"
 
@@ -149,5 +149,103 @@ export async function POST(
       { error: errorMessage(error) },
       { status: 500 }
     )
+  }
+}
+
+/**
+ * Remove a candidate added in error.
+ *
+ * Ose's walk-through, 22 Aug: a CV goes to the wrong role, or the wrong file
+ * is picked, and there was no way back — the person stayed on the role, in the
+ * count, and on their way to an Art 14 notice telling them they were being
+ * considered for something nobody meant to consider them for.
+ *
+ * THIS IS A REAL ERASURE, not a hide. It goes through agency.purge_candidate,
+ * the same single implementation the retention cron and the rights doorway
+ * use: the audit row is written BEFORE the delete (name, ref and score survive
+ * there and nowhere else), every derived row cascades, and the CV blob is
+ * removed from storage afterwards. A soft delete would leave a person's CV in
+ * an agency's database because somebody mis-clicked, which is the opposite of
+ * what this control is for.
+ *
+ * THE REASON MATTERS. 'erasure_request' and 'objection' also write a
+ * notice_suppression, which blocks that identity from ever being processed by
+ * this agency again — correct when the PERSON asked, wrong when the RECRUITER
+ * mis-clicked. This passes 'added_in_error', so a later legitimate upload of
+ * the same person still works. Getting that backwards would quietly blacklist
+ * people for somebody else's mistake.
+ *
+ * Refused once a notice has been sent: at that point the person has been told
+ * they are being considered, and the honest path is the decision trail, not a
+ * deletion that makes the message they already received unaccountable.
+ */
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  try {
+    const { roleId } = await params
+    const auth = await requireAgencyContext()
+    if (!auth.ok) {
+      return NextResponse.json(
+        { error: auth.failure === "unauthenticated" ? "Unauthorised" : "No agency membership" },
+        { status: auth.failure === "unauthenticated" ? 401 : 403 }
+      )
+    }
+    if (auth.ctx.role === "viewer") {
+      return NextResponse.json({ error: "Viewers have read only access" }, { status: 403 })
+    }
+
+    const body = (await req.json().catch(() => ({}))) as { candidateId?: unknown }
+    const candidateId = typeof body.candidateId === "string" ? body.candidateId : ""
+    if (!candidateId) {
+      return NextResponse.json({ error: "candidateId is required" }, { status: 400 })
+    }
+
+    const admin = agencyAdmin()
+    const { data: candidate } = await admin
+      .from("candidates")
+      .select("id, agency_id, role_id, ref")
+      .eq("id", candidateId)
+      .maybeSingle()
+    if (!candidate || candidate.agency_id !== auth.ctx.agencyId || candidate.role_id !== roleId) {
+      return NextResponse.json({ error: "Candidate not found on this role" }, { status: 404 })
+    }
+
+    // A sent notice is a message to a person that cannot be unsent.
+    const { data: notice } = await admin
+      .from("candidate_notices")
+      .select("status")
+      .eq("candidate_id", candidateId)
+      .maybeSingle()
+    if (notice?.status === "sent") {
+      return NextResponse.json(
+        {
+          error:
+            "This candidate has already been told they are being considered. Removing them now would erase the record of a message they have received — decline them on the role instead, which tells them properly when it closes.",
+        },
+        { status: 409 }
+      )
+    }
+
+    const { data: storagePath, error: purgeError } = await admin.rpc("purge_candidate", {
+      p_candidate: candidateId,
+      // NOT erasure_request: no suppression, because the person did not object.
+      p_reason: "added_in_error",
+    })
+    if (purgeError) throw purgeError
+
+    if (storagePath) {
+      const { error: removeError } = await admin.storage
+        .from("agency-cvs")
+        .remove([storagePath as string])
+      // Logged loudly rather than swallowed: a row gone with its blob left
+      // behind is a CV nobody can see and nobody will delete.
+      if (removeError) console.error("[candidates] storage removal failed:", removeError.message)
+    }
+
+    return NextResponse.json({ ok: true, ref: candidate.ref })
+  } catch (error) {
+    if (error instanceof AgencyAccessError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }

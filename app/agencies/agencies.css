@@ -1370,3 +1370,13 @@ table.ag-cand tbody tr:focus-visible { outline: 2px solid var(--ag-coral); outli
   letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3);
 }
 @media (max-width: 720px) { .ag-add-client-grid { grid-template-columns: 1fr; } }
+
+/* Remove a candidate added in error (22 Aug walk-through). Quiet until used —
+   it is a correction, not a step in the flow — and it confirms, because it
+   erases the person and their CV rather than hiding a row. */
+.ag-remove-trigger { margin-left: auto; color: var(--ag-ink-3); }
+.ag-remove-trigger:hover { color: var(--ag-coral-deep); }
+.ag-remove-confirm { margin-left: auto; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ag-btn-danger { background: var(--ag-coral-deep); color: var(--ag-paper); font-weight: 600; }
+.ag-btn-danger:hover { background: var(--ag-coral); }
+.ag-remove-trigger:focus-visible, .ag-btn-danger:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; }
