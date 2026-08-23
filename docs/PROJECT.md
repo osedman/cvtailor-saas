@@ -3037,4 +3037,188 @@ way to run after all.
 
 ---
 
-_Last updated: 22 August 2026_
+## 🚨 23 Aug 2026 — the walk-through, and the 23 notices it found queued against real people
+
+**Walked end to end as recruiter AND hiring manager on staging** (the walk that
+had never happened). Every mechanism worked first time — brief→accept minted
+ROL-2406 with its fields carried, the seven steps are coherent, HM availability
+crossed hats instantly, a round-2 booking derived its number and consumed the
+slot, close-out holds the no-auto-rejection line. **What is broken is the seams
+between them**, which is exactly what Ose reported from his own walk.
+
+### The urgent one: 23 candidate notices were queued against real addresses
+
+Not 4, as first reported — **23**, and **16 already overdue** (scheduled 12–21
+Aug). They had not fired only because the cron does not run on Preview. The
+cron is real (`vercel.json`, 03:30 UTC, batch 50), so this was one production
+promotion away from emailing two dozen friends and family a legal privacy
+notice from an agency they never applied to.
+
+Fixed in three layers, all verified by effect:
+
+1. **The queue** — all 23 set to `suppressed` / `suppression_list`. The cron
+   selects `status='scheduled'`, and `sendOneNotice` returns `not_sendable` for
+   anything else, so both entry points now refuse them. `still_scheduled: 0`.
+2. **The people** — every identity on staging (14 hashes, covering all 27
+   candidates, none missed) written to `agency.notice_suppressions`. This is
+   the durable half: the late-suppression check in `sendOneNotice` now kills
+   notices queued by *future* walk-throughs, not just today's queue.
+3. **The environment** — `lib/email.ts` gained `blockedByEnvironment()`. Outside
+   `VERCEL_ENV=production`, mail may only reach `EMAIL_ALLOWLIST` (a leading
+   `@` matches a domain), and the check runs **before** the fetch so a blocked
+   send costs nothing and cannot be half-performed. Fails closed when the var
+   is unset.
+
+**Probe-mutated, per the standing rule that a guardrail counts only once it has
+failed.** Two mutants: neutering the guard failed 4 of 7 tests; changing the
+domain rule from suffix to substring match failed the lookalike-domain test
+(`@tailr.com` must not match `nottailr.com`). Restored, 7/7 green.
+Verified live: a stranger address returns 500 with no send, an allowlisted one
+returns `{ok:true}`. `EMAIL_ALLOWLIST` is set in `~/.config/tailr/tailr.env`
+— **it still needs setting in Vercel, Preview scope**, or staging mail goes
+silent (which is the safe failure, but a surprising one).
+
+### The dashboard could not see a single submission
+
+`app/api/agency/dashboard/route.ts` selected `created_at` from
+`agency.submissions`. **That column does not exist** — the table has
+`generated_at`, which every other caller uses correctly. The query errored, all
+17 reads are `?? []`, and the dashboard rendered a calm empty desk: "No
+shortlist sent in the window yet" with five submissions in the database, and
+chase rows that could not name their role. Fixed, and **all 17 queries now
+surface their errors** rather than reading as empty — the `200 {enabled:false}`
+lesson, at scale, in the file that most needed it.
+
+Verified by effect: Desk Health went from "—" to **1.6 days brief-to-first-
+shortlist**, and the three anonymous "has not opened the shortlist" rows now
+name Senior Data Analyst and Business Analyst — Process Automation.
+
+### Designed, awaiting sign-off: one role, three phases
+
+Figma frame **`01 · Three phases`** (`AWRRbEOX6rLsltutFDL3zs`, node `222:2`),
+built to the concept map's own tokens. Ose's proposal, reconciled with what is
+already built:
+
+- **The seven steps already ARE the shortlist flow and already end at
+  submission.** Interviews and close-out are already adjuncts. The model is
+  right; the product just never says so.
+- **A phase is DERIVED, never stored** — no submission yet = Phase 1, a
+  submission exists = Phase 2, a handover pack exists = Phase 3. Nothing new to
+  write, nothing to drift.
+- The rail mirrors the one **hiring managers already see** (`BRIEF · SHORTLIST ·
+  R1 · R2 · DECIDE`), so this is porting a shipped pattern, not inventing one.
+- **The client's expected round count is already built and displayed** ("the
+  client expects 2 rounds · their plan, not a gate") — Ose had never seen it
+  because the silent seams never led him to that screen.
+- Four seams named: accept-a-brief, send-the-submission, last-round-decided,
+  handover. Each completes correctly and then abandons you on the screen you
+  were already on.
+
+**Not designed in, deliberately:** capture and transcription stay behind the
+DPIA gate, so Phase 2 ships notes-only and the amber "Tailr does not host or
+record this call" note stays.
+
+### Also found on the walk
+
+- **No Tailr email has ever reached `o.oifoh@gmail.com`.** All 12 gettailr.com
+  mails in that inbox went to `ose@lean-frame.com`; three sends to the gmail
+  address were accepted by Resend and vanished (not in spam). Check Resend →
+  Suppressions. This is why every cross-persona hand-off felt silent: the
+  seams are glued by notification email.
+- A booking invite has **no copy-the-link fallback**, so an undeliverable
+  invite leaves the round `pending` forever with nothing the recruiter can do.
+- The sign-in placeholder still renders six zeros for an 8-character code — the
+  22 Aug copy fix missed the `placeholder` attribute.
+- CAN-10 (applied-themselves consumer) renders as a raw email and "Unknown
+  role" rather than a name.
+- The Figma file now has **one page** (`00 · Concept map`); the ~12 frames the
+  `tailr-b2b` skill documents are not in it. Worth reconciling before anyone
+  trusts that list.
+
+937 tests, typecheck clean.
+
+**Left on staging by this session:** ROL-2406 (minted from the Meridian brief,
+intake empty), one availability window offered then consumed, and CAN-10 round
+2 booked for Fri 28 Aug with a pending invite. Cancel the round to free the
+slot.
+
+---
+
+## 🧭 23 Aug 2026 — the three phases, built
+
+Ose approved the frame, so `01 · Three phases` is now in the product. The
+shortlist workflow ends out loud at submission, the interview loop is a place
+you are handed to rather than a link you have to remember, and handover is
+named as the end.
+
+**`lib/agency/phases.ts` is the whole model, and it stores nothing.** A phase is
+derived from two facts that already existed — does a submission exist, does a
+handover pack exist. No column, no migration, nothing to drift out of sync, and
+precedence is most-advanced-first so a role in handover never reads as mid-loop.
+Server-import-free, like `settings-limits.ts` and `round-delta.ts`, because the
+rail renders in client components and a runtime import reaching `agencyAdmin`
+puts the service-role key in the browser bundle. **A test asserts the file has
+no imports at all**, and that test fails when one is added.
+
+**The rail** (`components/agency/phase-rail.tsx`) renders on the workflow,
+interviews and close-out — all three already called `/api/agency/roles/[roleId]`,
+so the phase ships from there and cannot disagree between screens. It renders
+**nothing** while `phase` is null: telling a recruiter in handover that they are
+at the start is worse than telling them nothing, and the API returns null rather
+than a guess if either read errors. `aria-current="step"` on the live chip.
+
+**The seams, and one that was never broken.** Accepting a brief already
+navigated into intake — the code has been there since "accept lands in intake".
+My walk-through report was wrong about it: I screenshotted before the client
+navigation finished and never re-checked. Re-tested properly, it lands in 300ms.
+**Three seams needed building, not four:**
+
+- **Submission** — a hand-off card closes phase one in words and offers
+  interviews. Shown from the derived phase as well as the current session's
+  send, so it survives a reload; a recruiter returning tomorrow still sees that
+  phase one closed rather than a bare "Send to client".
+- **Interviews** — when rounds have happened and none is still booked, a card
+  offers close-out. Deliberately **not** "the client has decided": that is their
+  word to say, and a decision is a signal, not a state change. It only observes
+  that nothing is outstanding. Verified both ways — hidden with a round booked,
+  shown the moment the last one was marked done.
+- **Handover** — named as the third phase, and the rail is the first header
+  route close-out has ever had.
+
+**The matching panel quiesces** past phase one rather than vanishing: sourcing
+is a phase-one question, but a rejected pool or a fall-off needs candidate
+eleven, so "Show sourcing controls" brings the full panel back in one click.
+
+**Removed:** the standalone "Interviews" button in the role header. The rail's
+own chip sat immediately beside it doing the same job.
+
+**A layout bug the rail exposed, fixed:** `.ag-crumbbar` is a nowrap flex row,
+so the long "Company — Title / 07. Client submission" crumb squeezed the rail
+until its three chips stacked vertically and the page scrolled sideways. The
+crumb now yields first and the bar wraps as whole blocks. Verified rendered at
+desktop and at 375px, where the rail wraps to its own line and stays on one row.
+
+**Measured, not eyeballed — with a caveat worth recording.** For a stretch the
+browser pane reported `clientWidth: 0`, and every JS layout measurement taken
+through it was garbage: it reported wrapping and horizontal overflow that were
+artifacts of a zero-width viewport, not the page. **Screenshots kept rendering
+correctly throughout, which is the tell.** If `document.documentElement.clientWidth`
+is 0, stop measuring and look at a screenshot.
+
+**Probe-mutated, both new guards.** Reversing phase precedence failed 2 tests;
+adding a real `./db` import failed the browser-safety scan. 950 tests, production
+build clean (89 pages).
+
+**Left on staging by the build:** ROL-2407 minted from the Senior Data Engineer
+brief while testing the accept seam (intake empty), and CAN-10's round 2 marked
+done while testing the interviews hand-off.
+
+**Still open, unchanged by this:** the `EMAIL_ALLOWLIST` Preview-scope variable
+in Vercel, the Resend suppression on Ose's gmail, and the DPIA gate on capture.
+Pre-existing and out of scope here: the recruiter workflow screens are
+desktop-first and overlap badly at 375px (candidate rows collide, primary button
+clips off-screen).
+
+---
+
+_Last updated: 23 August 2026_

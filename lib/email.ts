@@ -12,6 +12,25 @@ import { appPath, getMarketingOrigin, marketingPath } from '@/lib/site-url'
  * Returns { sent: boolean, skipped?, error? } and never throws, so callers can
  * fire-and-forget without risking the request they are attached to.
  */
+/**
+ * Outside production, email may only reach addresses on EMAIL_ALLOWLIST.
+ *
+ * Staging carries real people's CVs as fixtures, and the Art 14 candidate
+ * notice fires on a daily cron with no switch to skip a due one (by design).
+ * That combination means any stray staging cron run emails strangers, so the
+ * environment itself is the guard. An entry beginning "@" matches a domain.
+ * Production is unaffected.
+ */
+function blockedByEnvironment(to: string): string | null {
+  if (process.env.VERCEL_ENV === "production") return null
+  const raw = (process.env.EMAIL_ALLOWLIST ?? "").trim()
+  if (!raw) return "non-production send with EMAIL_ALLOWLIST unset"
+  const target = to.trim().toLowerCase()
+  const allowed = raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+  const ok = allowed.some((a) => (a.startsWith("@") ? target.endsWith(a) : a === target))
+  return ok ? null : "recipient not on EMAIL_ALLOWLIST"
+}
+
 export async function sendEmail(opts: {
   to: string
   subject: string
@@ -33,6 +52,11 @@ export async function sendEmail(opts: {
 }): Promise<{ sent: boolean; skipped?: string; error?: string }> {
   const key = process.env.RESEND_API_KEY
   if (!key) return { sent: false, skipped: "RESEND_API_KEY not set" }
+
+  // Environment guard BEFORE any network call, so a blocked send costs nothing
+  // and can never be half-performed.
+  const blocked = blockedByEnvironment(opts.to)
+  if (blocked) return { sent: false, skipped: blocked }
 
   const from = opts.from || process.env.WELCOME_FROM || "Tailr <hello@gettailr.com>"
 

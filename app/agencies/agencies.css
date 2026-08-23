@@ -235,6 +235,46 @@
 .ag-step.on .ag-step-num.done { border-color: var(--ag-coral-text); }
 .ag-field-label { display: block; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-text); margin-bottom: 5px; }
 
+/* Phase rail — where this role is, on every screen that belongs to it.
+   Mirrors the strip hiring managers already have. Interaction feedback stays
+   transform/opacity only, per the performance invariants. */
+.ag-phase-rail { display: flex; align-items: center; gap: 0; flex-wrap: nowrap; flex: none; }
+/* The crumbbar is a nowrap flex row, so without these the long
+   "Company — Title / 07. Client submission" crumb squeezed the rail until
+   its three chips stacked vertically and the page scrolled sideways. The
+   crumb yields first; the bar wraps as whole blocks when it truly cannot fit. */
+.ag-crumbbar { flex-wrap: wrap; }
+.ag-crumbbar .ag-crumb { min-width: 0; flex: 1 1 auto; }
+.ag-phase-item { display: inline-flex; align-items: center; gap: 0; }
+.ag-phase-link { width: 18px; height: 1px; background: var(--ag-border); margin: 0 6px; flex: none; }
+.ag-phase-chip {
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; border-radius: var(--r-pill); padding: 4px 11px;
+  border: 1px solid var(--ag-border); background: var(--ag-paper); color: var(--ag-ink-3);
+  cursor: pointer; transition: opacity 120ms ease, transform 120ms ease;
+}
+.ag-phase-chip:hover { opacity: 0.82; }
+.ag-phase-chip:active { transform: scale(0.97); }
+.ag-phase-chip.done { background: var(--ag-cream); border-color: var(--ag-line-2); color: var(--ag-ink-3); }
+.ag-phase-chip.now { background: var(--ag-coral); border-color: var(--ag-coral); color: #fff; }
+.ag-phase-chip.todo { color: var(--ag-ink-3); opacity: 0.72; }
+
+/* Phase hand-off: the card that closes one phase and offers the next. The
+   thing whose absence made finishing a phase feel like nothing happening. */
+.ag-handoff {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2);
+  border-radius: var(--r-md); padding: 16px 18px; margin-top: 18px;
+}
+.ag-handoff-body { flex: 1 1 320px; min-width: 0; }
+.ag-handoff-title { font-weight: 600; font-size: 14px; color: var(--ag-ink); margin: 0 0 3px; }
+.ag-handoff-sub { font-size: var(--t-caption); color: var(--ag-ink-3); margin: 0; line-height: 1.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-phase-chip { transition: none; }
+  .ag-phase-chip:active { transform: none; }
+}
+
 .ag-callscore-col .ag-field-label { margin-bottom: 2px; }
 .ag-delta-pill { display: inline-block; font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-coral-deep); background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); border-radius: var(--r-pill); padding: 2px 9px; align-self: flex-start; }
 .ag-callscore .ag-delta-pill { align-self: flex-end; }

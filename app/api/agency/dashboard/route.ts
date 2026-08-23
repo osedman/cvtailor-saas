@@ -92,7 +92,7 @@ export async function GET() {
       db.from("agencies").select("name, retention_days, notice_delay_days").eq("id", ctx.agencyId).maybeSingle(),
       db.from("score_breakdowns").select("candidate_id, overall, original_overall, effective, baselines").eq("agency_id", ctx.agencyId),
       db.from("requirements").select("id, ref, text, weight, role_id").eq("agency_id", ctx.agencyId),
-      db.from("submissions").select("id, role_id, created_at").eq("agency_id", ctx.agencyId),
+      db.from("submissions").select("id, role_id, generated_at").eq("agency_id", ctx.agencyId),
       db.from("client_contacts").select("id, full_name, company").eq("agency_id", ctx.agencyId),
       // Deliberately NO agency filter: role_briefs' RLS policy already scopes
       // rows to the caller's memberships, so one query yields this agency's
@@ -107,6 +107,26 @@ export async function GET() {
         .order("created_at", { ascending: false })
         .limit(50),
     ])
+
+    // A failed load must not read as an empty one. Every consumer below uses
+    // `?? []`, so before 23 Aug 2026 a query that errored rendered as a calm,
+    // empty desk: the submissions select asked for a column the table does not
+    // have (created_at, not generated_at) and the dashboard reported that no
+    // shortlist had ever been sent while five sat in the database.
+    const failed = ([
+      ["roles", rolesRes], ["candidates", candidatesRes], ["reviews", reviewsRes],
+      ["decisions", decisionsRes], ["actions", actionsRes],
+      ["action_recipients", allActionRecipientsRes], ["recipients", recipientsRes],
+      ["notices", noticesRes], ["rights", rightsRes], ["audit", auditRes],
+      ["agency", agencyRes], ["breakdowns", breakdownsRes],
+      ["requirements", requirementsRes], ["submissions", submissionsRes],
+      ["contacts", contactsRes], ["briefs", briefsRes],
+    ] as const).filter(([, r]) => r.error)
+    if (failed.length > 0) {
+      const detail = failed.map(([name, r]) => `${name}: ${r.error?.message}`).join("; ")
+      console.error("[agency/dashboard] load failed:", detail)
+      return NextResponse.json({ error: `Dashboard load failed — ${detail}` }, { status: 500 })
+    }
 
     // Briefs: full rows for the active agency, counts-only elsewhere. The
     // jd_raw text is reduced to a boolean immediately — the dashboard needs
@@ -445,7 +465,7 @@ export async function GET() {
     // Brief to first shortlist: role created -> first submission.
     const firstSubmissionByRole = new Map<string, number>()
     for (const s of submissionsRes.data ?? []) {
-      const t = new Date(s.created_at).getTime()
+      const t = new Date(s.generated_at).getTime()
       const prev = firstSubmissionByRole.get(s.role_id)
       if (prev === undefined || t < prev) firstSubmissionByRole.set(s.role_id, t)
     }

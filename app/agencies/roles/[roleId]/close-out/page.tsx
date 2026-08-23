@@ -25,6 +25,8 @@ import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { SignOut } from "@/components/agency/sign-out"
+import { PhaseRail } from "@/components/agency/phase-rail"
+import { type PhaseKey } from "@/lib/agency/phases"
 import type { HandoverSnapshot } from "@/lib/agency/handover"
 
 interface Candidate {
@@ -76,6 +78,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   const [error, setError] = useState<string | null>(null)
   const [newRef, setNewRef] = useState({ refereeName: "", refereeEmail: "", relationship: "" })
   const [askedLink, setAskedLink] = useState<{ id: string; url: string; emailed: boolean } | null>(null)
+  const [phase, setPhase] = useState<PhaseKey | null>(null)
 
   const loadRole = useCallback(async () => {
     try {
@@ -86,6 +89,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
       if (roleRes.status === 401) return router.push("/agencies")
       if (roleRes.ok) {
         const body = await roleRes.json()
+        setPhase((body?.phase as PhaseKey | null) ?? null)
         if (body?.role) {
           setRole({ ref: body.role.ref, title: body.role.title, company: body.role.company ?? "" })
         }
@@ -233,6 +237,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
               <b>Close-out</b>
             </span>
             <span className="ag-grow" />
+            <PhaseRail current={phase} roleId={roleId} />
             <button
               className="ag-btn ag-btn-secondary"
               onClick={() => router.push(`/agencies/roles/${roleId}/interviews`)}

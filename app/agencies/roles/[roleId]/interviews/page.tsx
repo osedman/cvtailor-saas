@@ -29,6 +29,8 @@ import { useRouter } from "next/navigation"
 import { use } from "react"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { InterviewCapture } from "@/components/agency/interview-capture"
+import { PhaseRail } from "@/components/agency/phase-rail"
+import { type PhaseKey } from "@/lib/agency/phases"
 import { SignOut } from "@/components/agency/sign-out"
 
 interface Candidate {
@@ -88,6 +90,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
   const [meetingUrl, setMeetingUrl] = useState("")
   const [duration, setDuration] = useState(45)
   const [busy, setBusy] = useState(false)
+  const [phase, setPhase] = useState<PhaseKey | null>(null)
   const [error, setError] = useState<string | null>(null)
   // The consent link, surfaced once. If the email fails the recruiter still
   // has something to send — the ask has to reach a real person either way.
@@ -103,6 +106,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
       if (roleRes.status === 401) return router.push("/agencies")
       if (roleRes.ok) {
         const body = await roleRes.json()
+        setPhase((body?.phase as PhaseKey | null) ?? null)
         if (body?.role)
           setRole({
             ref: body.role.ref,
@@ -281,6 +285,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
               <b>Interviews</b>
             </span>
             <span className="ag-grow" />
+            <PhaseRail current={phase} roleId={roleId} />
             <button
               className="ag-btn ag-btn-secondary"
               onClick={() => router.push(`/agencies/roles/${roleId}`)}
@@ -513,6 +518,37 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
               </div>
             </section>
           )}
+
+          {/* The loop is at rest: rounds have happened and none is still in the
+              diary. Deliberately NOT "the client has decided" — that is their
+              word to say, and a decision is a signal rather than a state change.
+              This only observes that nothing is outstanding, and offers the
+              door. Booking another round stays available above. */}
+          {(() => {
+            const live = rounds.filter((r) => r.status !== "cancelled")
+            const waiting = rounds.filter((r) => r.status === "scheduled")
+            if (live.length === 0 || waiting.length > 0) return null
+            return (
+              <div className="ag-handoff" role="status" style={{ marginTop: 24 }}>
+                <div className="ag-handoff-body">
+                  <p className="ag-handoff-title">
+                    Nothing outstanding in the loop — {live.length} round{live.length === 1 ? " has" : "s have"} happened and none is booked.
+                  </p>
+                  <p className="ag-handoff-sub">
+                    If the client has chosen someone, close-out collects references and builds the
+                    handover pack. If they have not, book another round above — the expected count
+                    is their plan, never a limit, and nothing here removes anyone.
+                  </p>
+                </div>
+                <button
+                  className="ag-btn ag-btn-primary"
+                  onClick={() => router.push(`/agencies/roles/${roleId}/close-out`)}
+                >
+                  Go to close-out →
+                </button>
+              </div>
+            )
+          })()}
 
           <p className="ag-note-quiet" style={{ marginTop: 28 }}>
             Booking takes the time off the client’s board · cancelling gives it back.

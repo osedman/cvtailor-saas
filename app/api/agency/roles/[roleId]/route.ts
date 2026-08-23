@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, agencyAdmin, getJobRole, requireAgencyContext, writeAudit } from "@/lib/agency/db"
 import { setRoleOwner } from "@/lib/agency/role-owner"
+import { derivePhase } from "@/lib/agency/phases"
 import { sendClosureNotices, type ClosureResult } from "@/lib/agency/closure"
 import { errorMessage } from "@/lib/error-message"
 
@@ -43,7 +44,7 @@ export async function GET(
     const role = await getJobRole(auth.db, auth.ctx, roleId)
     if (!role) return NextResponse.json({ error: "Role not found" }, { status: 404 })
 
-    const [requirements, constraints, agency, brief] = await Promise.all([
+    const [requirements, constraints, agency, brief, submission, handover] = await Promise.all([
       auth.db
         .from("requirements")
         .select("id, ref, text, weight, category, origin, sort_order")
@@ -66,6 +67,13 @@ export async function GET(
         .select("jd_raw, contact_id")
         .eq("role_id", roleId)
         .maybeSingle(),
+      // The two facts a phase is derived from (lib/agency/phases.ts). Existence
+      // only — no snapshot, no payload. Every screen that belongs to a role
+      // already calls this endpoint, so serving them here means the rail is
+      // consistent across the workflow, interviews and close-out without a
+      // second round trip or a second definition.
+      auth.db.from("submissions").select("id").eq("role_id", roleId).limit(1),
+      auth.db.from("handover_packs").select("id").eq("role_id", roleId).limit(1),
     ])
 
     return NextResponse.json({
@@ -75,6 +83,16 @@ export async function GET(
       agency: agency.data ?? null,
       brief_jd: ((brief.data?.jd_raw as string | undefined) ?? "").trim() || null,
       caller_role: auth.ctx.role,
+      // null rather than a guess when either read failed: the rail renders
+      // nothing on null, and telling a recruiter in handover that they are at
+      // the start of the shortlist is worse than telling them nothing.
+      phase:
+        submission.error || handover.error
+          ? null
+          : derivePhase({
+              hasSubmission: (submission.data ?? []).length > 0,
+              hasHandoverPack: (handover.data ?? []).length > 0,
+            }),
     })
   } catch (error) {
     return NextResponse.json(

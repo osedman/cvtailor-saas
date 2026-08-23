@@ -14,6 +14,8 @@ import { SignOut } from "@/components/agency/sign-out"
 import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "@/lib/agency/probes"
 import { WORKFLOW_STEPS, stepNumber } from "@/lib/agency/steps"
+import { PhaseRail } from "@/components/agency/phase-rail"
+import { derivePhase, type PhaseKey } from "@/lib/agency/phases"
 import {
   ArrowUpRight, Banknote, Briefcase, ChevronUp, FileText,
   Flame, Highlighter, MapPin, Tag, Target, Users,
@@ -117,6 +119,15 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // the whole team list is small and the control renders from it.
   const [team, setTeam] = useState<Array<{ user_id: string; role: string; status: string; name: string }>>([])
   const [callerRole, setCallerRole] = useState<string>("viewer")
+  /** Which of the three phases this role is in. null until loaded — the rail
+   *  renders nothing rather than guessing "Shortlist" mid-fetch. */
+  const [phase, setPhase] = useState<PhaseKey | null>(null)
+  /** Sourcing is a phase-one question. Once the shortlist has gone to the
+   *  client the card stops asking and folds away — but it never disappears,
+   *  because a rejected pool or a fall-off is exactly when you need an
+   *  eleventh candidate, and a locked door there would fight how recruiting
+   *  actually goes. Opening it again is one click and changes nothing else. */
+  const [sourcingOpen, setSourcingOpen] = useState(false)
   const [ownerBusy, setOwnerBusy] = useState(false)
   const [closureNote, setClosureNote] = useState<string | null>(null)
   // Removing a candidate added in error. Confirmed, because it is a real
@@ -224,6 +235,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       // Separate request, and a failure here must not take the role page with
       // it — matching is an adjunct, not part of the workflow's spine.
       setCallerRole(body.caller_role ?? "viewer")
+      setPhase((body.phase as PhaseKey | null) ?? null)
       // Non-fatal like matching: the owner control simply does not render if
       // this fails, and the role page must not die for it.
       fetch(`/api/agency/team`)
@@ -642,6 +654,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         snapshot: body.submission?.snapshot ?? null,
       })
       setPreviewFormat(format as "document" | "email" | "portal")
+      // Phase one is over at this exact moment. The server derives the same
+      // thing from the submission row on next load; this keeps the rail honest
+      // without a refetch. Never moves backwards for a role already further on.
+      setPhase((p) => (p === null || p === "shortlist" ? "interviews" : p))
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -852,14 +868,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 {`${stepNumber(steps[stepIndex]?.key ?? "intake")}. ${steps[stepIndex]?.label ?? ""}`}
               </span>
               <span className="ag-grow" />
-              {/* Interviews is an adjunct, not an eighth step: lib/agency/steps.ts
-                  stays the single source of truth for the seven. */}
-              <button
-                className="ag-btn ag-btn-secondary"
-                onClick={() => router.push(`/agencies/roles/${roleId}/interviews`)}
-              >
-                Interviews
-              </button>
+              {/* Which phase this role is in. Derived, never stored — see
+                  lib/agency/phases.ts. */}
+              {/* The rail replaced a standalone "Interviews" button that sat
+                  immediately beside it doing the same job. Interviews remains an
+                  adjunct, not an eighth step — lib/agency/steps.ts stays the
+                  single source of truth for the seven — and the rail now also
+                  reaches close-out, which had no header route at all. */}
+              <PhaseRail current={phase} roleId={roleId} />
               <button
                 className="ag-btn ag-btn-secondary"
                 disabled={stepIndex <= 0}
@@ -1937,6 +1953,32 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   </div>
                 </div>
 
+                {/* Shown from the derived phase as well as this session's send, so
+                    the completion survives a reload. A recruiter who comes back
+                    tomorrow should still be told phase one is closed rather than
+                    seeing a bare "Send to client" as though nothing happened. */}
+                {(snap || (phase !== null && phase !== "shortlist")) && (
+                  <div className="ag-handoff" role="status">
+                    <div className="ag-handoff-body">
+                      <p className="ag-handoff-title">
+                        Shortlist workflow complete — the client has the shortlist.
+                      </p>
+                      <p className="ag-handoff-sub">
+                        What they saw is frozen into the snapshot and cannot change now. The
+                        interview loop is next: they offer times from their own workspace, you book
+                        who meets them. Nothing here closes the role, and you can still add a
+                        candidate if this pool does not land.
+                      </p>
+                    </div>
+                    <button
+                      className="ag-btn ag-btn-primary"
+                      onClick={() => router.push(`/agencies/roles/${roleId}/interviews`)}
+                    >
+                      Go to interviews →
+                    </button>
+                  </div>
+                )}
+
                 {representAsk && (
                   <div className="ag-card" style={{ marginBottom: 16, borderColor: "var(--ag-warn)" }} role="alertdialog" aria-labelledby="rep-ask-title">
                     <div className="ag-card-body" style={{ padding: 18 }}>
@@ -2440,7 +2482,22 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               <span className="ag-pill">Audit logged</span>
             </div>
             <div className="ag-card-body">
-              {requirements.length === 0 ? (
+              {phase !== null && phase !== "shortlist" && !sourcingOpen ? (
+                <>
+                  <p className="ag-note" style={{ marginTop: 0 }}>
+                    Sourcing is done for now — the shortlist is with the client and this role has
+                    moved on to interviews. Anyone already matched keeps what they were shown and
+                    can still apply.
+                  </p>
+                  <button
+                    className="ag-btn ag-btn-secondary"
+                    style={{ marginTop: 12 }}
+                    onClick={() => setSourcingOpen(true)}
+                  >
+                    Show sourcing controls
+                  </button>
+                </>
+              ) : requirements.length === 0 ? (
                 <>
                   <p className="ag-note" style={{ marginTop: 0 }}>
                     Matching scores people against this role&apos;s requirements, so it needs
