@@ -541,6 +541,7 @@ _Last updated: 30 July 2026_
 
 | Item | Type | PR | Notes |
 |------|------|----|-------|
+| Social: "The resume arms race" — first Tailr social content | Design + Content | — | 22 Aug. Repurposes Theme 3 of [email/reddit-digest-2026-08-06.md](../email/reddit-digest-2026-08-06.md), unused in any send so not a repeat for subscribers. Copy for four surfaces in [Marketing/social/arms-race-2026-08-22.md](../Marketing/social/arms-race-2026-08-22.md): 8-slide carousel, 45s TikTok script with beat timings, Facebook long-form, IG caption. **New Figma file `Tailr — Social`** (`HCgBalqZ1wbKOzQ9ca1jiO`) — the three existing files are all product design, so marketing had no home. 8 frames at 1080x1350 on brand cream/ink/coral in Hanken Grotesk (note: its bold style is `ExtraBold`, no space, unlike Inter's `Extra Bold`); slide 8 inverts to ink with a coral CTA. Verified: no text overflow on any slide, screenshot-checked. **Deliberately NOT used: the original Reddit reply's best line** — it is another person's writing and lifting it into commercial marketing is not the same as quoting it in internal research; the argument is paraphrased throughout. **Blocked on:** Ose's sign-off on the frames, and confirmation of which account posts (no Tailr social handle recorded anywhere in the repo) |
 | Weekly digest 22 Aug — "The part of your CV you are afraid to write" | Content | — | Fresh Reddit pull recorded in [email/reddit-digest-2026-08-20.md](../email/reddit-digest-2026-08-20.md): 836 unique posts, 13–20 Aug, five subs, two passes each (`top/.rss?t=week` + `new/.rss`), deduped by post id. Seven of ten feeds 429'd on first request; ~40 min of escalating backoff for the set. Theme: the history people are afraid to list (61 posts, the only cluster spread across all five subs) — the mirror of the 13 Aug send about lines doing no work. Sensitive specifics (disability, sex work, immigration status) generalised out deliberately. Sent to 62 of 69 subscribed, 0 failures, all 62 confirmed `delivered` by Resend. CTA moved to `app.gettailr.com/tailor` (canonical — `www.gettailr.com/tailor` redirects there) from the `.vercel.app` link the previous four used |
 | Mailer credentials: prod list is in a different project than the env file points at | Bug | — | 21–22 Aug. `send-digest.mjs` could not read the list: `.env.development.local` points `NEXT_PUBLIC_SUPABASE_URL` at **staging** (`pwonuqkpumgejqmotkwh`, 3 subscribers) and its `SUPABASE_SERVICE_ROLE_KEY` has been a `SET_…` placeholder since 25 Jul. The 13 Aug send worked only because the session environment supplied production values, which the loader prefers over files — nothing was scrubbed. Real list is **`Cv-Tailor tool` (`wgpaaafseibcqagiiavt`), 69 subscribed**. Trap avoided: dropping a *staging* key into the env file authenticates fine and silently mails 3 people instead of 62. Fix: `scripts/lib/mail-env.mjs` now reads `.env.mail.local` **first** — mailer-only, gitignored, and NOT loaded by Next.js, so prod credentials there do not repoint the dev server at the live DB. Added a placeholder guard (`eyJ`/`sb_secret`/`sbp_` prefix check) that names the problem instead of dying on an opaque Supabase 401. Note: prod has legacy `anon`/`service_role` JWTs **disabled** — the key needed is an `sb_secret_…` under Settings → API Keys → Secret keys |
 | First human click-through of the agency product — 7 findings, 2 fixed | Bug + Chore | — | `staging` 14 Aug. **The standing gap is closed: the loop has now been walked by a person**, signed in, against real data (`hm-smoke-halcyon` booking→consent-ask→complete→write-up, and `rls-test-alpha` ROL-2402 submission→portal→revoke). **The revoked-token path is proven end to end** — the thing flagged as never driven by hand: minted a fresh portal link (portal format mints only, it sends no email — worth knowing, the button says "Send to client"), opened it, revoked it, re-opened and got the refusal, with **zero candidate data in the revoked response** and the other recipient untouched. Also verified by driving them, not by status code: non-shortlisted candidates never reach the portal payload; the **disclosure freeze works** (call notes toggled off did not render); **"Known gaps, stated plainly" survives** (it lives behind *See evidence*, which is why a flat text scan reports it missing); decline copy still says "never removes anyone"; portal carries `noindex` + `cache-control: private, no-store`. **Fixed here (2):** (1) **the dossier scrolled sideways by 358px** — `.ag-dossier-grid`'s stacked rule used a bare `1fr`, which floors the column at min-content, and the requirement names set `white-space: nowrap`, so the column grew past the viewport; the desktop rule already used `minmax(0, 1fr)` and the stacked one now does too. Dossier-only; the workflow screens do not overflow. (2) **sent links were indistinguishable and revocation cannot be undone** — two links to the same contact rendered as identical rows (`Test Hiring Manager · Meridian Test Ltd · opened`), so a recruiter killing a leaked link was picking blind; `listRecipientsForRole` already selected `created_at` but never returned it, so the row now carries `sentAt` and renders "Sent 14 Aug 2026 · expires/revoked/expired …", reusing the clients screen's date shape. **Still open (5), not fixed here:** the Supabase **magic-link email template is malformed** (`token_hash{…` — missing `=`), so the button cannot authenticate and only the code path works — **check production's template, this would break real sign-ins**; the sign-in modal says "6-digit code" but the mail sends 8; `saveNarrative` writes the client-facing write-up into `review.notes`, the same column the "From your screening call" callout reads, so the two collide and the text renders three times ([candidates/[candidateId]/page.tsx:86](../app/agencies/roles/[roleId]/candidates/[candidateId]/page.tsx)); **the portal has no confidentiality footer** — it exists only in the Document format ([roles/[roleId]/page.tsx:1846](../app/agencies/roles/[roleId]/page.tsx)), yet the portal is the artefact the client actually opens; and role deep links by ref 404 (`/agencies/roles/ROL-2402` → "Role not found in your agency") even though every breadcrumb and card shows the ref — routing is by uuid. Sidebar "Candidates *n*" is a counter, not a route: there is no candidates list, you reach a person only through a role. tsc clean, build clean (80/80), **495/495 tests**. **Test data left on staging:** one extra submission + recipient on ROL-2402, revoked, with its audit rows; the original fixture link is untouched. |
@@ -2046,6 +2047,81 @@ served chunk by curl rather than by reading the file.
 ---
 
 ---
+
+---
+
+---
+
+## 🚶 The walk-through, and the seven things it found (22 Aug 2026, evening)
+
+**The standing "human walk-through has never been done" gap had a MECHANICAL
+cause, not a scheduling one.** `SUPABASE_SERVICE_ROLE_KEY` in
+`~/.config/tailr/tailr.env` had been the literal string `SET_ME_…` since 25
+Jul, so `generateLink` answered `Invalid API key`, no magic link was ever
+minted, and **nobody could sign in to staging at all**. Four weeks of "we must
+do the walk-through" was four weeks of an unfillable placeholder. Ose pasted
+the real staging service_role key; `POST /api/auth/request-otp` now answers
+200 and a real email arrives.
+
+The lesson worth keeping: when a task sits on an open list for a month, check
+whether it is *blocked* before assuming it is *unscheduled*.
+
+**Found and fixed in the same session:**
+
+1. **No sign out, anywhere.** `signOut()` existed and was correct — it clears
+   the Supabase session AND the httpOnly agency cookie, with a comment
+   explaining the shared-desk reason — but nothing in `/agencies` or
+   `/hiring` ever called it. The only exit was clearing cookies by hand.
+   One control on all 11 agency screens and the HM dashboard; guarded so a
+   new screen with a rail fails until it has one.
+2. **No candidates screen.** The sidebar counted candidates from the first
+   build and the count was never a route, so a person was reachable only
+   through the role they were on. New table at `/agencies/candidates`:
+   rejected people are LISTED not hidden, decision is never a rank, and
+   compliance columns are deliberately absent (a compliance column in a
+   scannable list is one sort from being a filter on people).
+3. **"Dashboard" and "Today" were one destination named twice.** The nav item
+   routed to the dashboard; the section anchor scrolled to the top of the same
+   page. Today is gone, and the rule is documented in the nav component.
+4. **Add-a-client did not exist on the clients screen.** Contact creation
+   lived only inside a role's submission step, so a new agency could not add
+   its first client without opening a role. Added — and adding still does not
+   grant access; the invite stays a separate audited act.
+5. **No way to remove a candidate added in error.** Now a real erasure through
+   `purge_candidate` with reason `added_in_error` — NOT `erasure_request`,
+   which would also write a suppression and blacklist the person for the
+   recruiter's mistake. Refused once a notice has been sent.
+6. **The sign-in copy lied.** Both surfaces said "6-digit code" while the
+   input took 8 and the mail sent 8 — flagged on 14 Aug, still wrong. Copy now
+   names no number; a test fails if anyone reasserts one.
+7. **Two defects the candidate cap of 10 was HIDING**, found while costing a
+   raise to 50: closure mail had no batch, no spacing and no 429 handling
+   (the notice cron already batches at 50 for exactly this reason), and
+   `sendEmail` treated a rate-limit as a permanent failure. Both fixed —
+   closure batches at 50, paces, never stamps the deferred, and the close
+   screen says "N still to go" rather than quietly reporting a smaller number.
+
+**Raising MAX_CANDIDATES_PER_ROLE to 50 is now safe from the mail side.** Not
+yet done. The remaining risk is the submission route: a sequential rescore
+loop with three queries per candidate against `maxDuration = 60`. Load-test a
+full shortlist before raising it.
+
+**Open bug, diagnosed not fixed — the apply path uses a stale CV.** Two
+mechanisms, and Ose has not yet confirmed which he hit:
+(a) `resizable-panels.tsx` restores the CV from localStorage in an effect with
+empty deps, so its `!cvText` guard reads the first render's closure, while the
+persist is debounced 800ms — a remount inside that window restores the OLD CV
+under the NEW filename; and (b) applying uses
+`role_recommendations.tailor_history_id`, a pointer to the last TAILOR RUN, so
+swapping the CV without re-tailoring sends the old document while `/found`
+still shows the role as tailored. The fix for (b) is to drop the pointer when
+the CV in hand no longer matches what was tailored, so `/found` honestly
+reverts to "Tailor my CV".
+
+**Also:** `ose@lean-frame.com` added to staging `beta_access` — Career Path
+and Career Arc are gated by `isCareerPathBeta()` and that address was simply
+not on the list. Staging only; production has its own table.
+
 
 ---
 
