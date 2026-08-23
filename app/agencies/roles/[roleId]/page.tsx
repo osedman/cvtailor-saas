@@ -379,10 +379,18 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       // happened — a count the recruiter can repeat to the client, and the
       // absence of one when nobody was eligible.
       if (body.closure) {
-        const c = body.closure as { sent: number; suppressed: number; noContact: number; failed: number }
+        const c = body.closure as {
+          sent: number; suppressed: number; noContact: number; failed: number; deferred: number
+        }
+        const extra = [
+          c.failed > 0 ? `${c.failed} email${c.failed === 1 ? "" : "s"} failed` : "",
+          // Deferred is not a failure and must not read like one: those people
+          // keep their null stamp and the next close reaches them.
+          c.deferred > 0 ? `${c.deferred} still to go — close again to send the rest` : "",
+        ].filter(Boolean).join(" · ")
         setClosureNote(
           c.sent > 0
-            ? `${c.sent} candidate${c.sent === 1 ? " was" : "s were"} told the role has closed.${c.failed > 0 ? ` ${c.failed} email${c.failed === 1 ? "" : "s"} failed — check the audit log.` : ""}`
+            ? `${c.sent} candidate${c.sent === 1 ? " was" : "s were"} told the role has closed.${extra ? ` ${extra}.` : ""}`
             : "Nobody needed telling — everyone in the process had already been told, or was never contacted about this role."
         )
       }

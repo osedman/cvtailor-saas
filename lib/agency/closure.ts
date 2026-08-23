@@ -34,7 +34,28 @@ export interface ClosureResult {
   alreadyTold: number
   notEligible: number
   failed: number
+  /** Eligible people this run did not reach because it hit the batch ceiling.
+   * They keep their null stamp, so the next close picks them up. Surfaced so a
+   * recruiter is told "40 of 63" rather than quietly shown a smaller number. */
+  deferred: number
 }
+
+/**
+ * How many closure emails one call will send.
+ *
+ * The notice cron already batches at 50 for the same reason: a burst of
+ * transactional mail is what trips a provider's rate limit. Closure had no
+ * bound at all — a pool of 10 hid it, and raising the pool would have exposed
+ * it as "23 told" when the recruiter expected 50, with no explanation.
+ *
+ * Not-sent is not lost: closure_notified_at is only stamped on success, so
+ * anybody deferred or failed is picked up by the next close of the same role.
+ */
+const CLOSURE_BATCH = 50
+
+/** Space between sends. Small enough to be invisible on a normal close, big
+ * enough that fifty do not arrive as one burst. */
+const SEND_SPACING_MS = 120
 
 /**
  * Tell the unsuccessful candidates a role has ended. Idempotent per person:
@@ -42,9 +63,15 @@ export interface ClosureResult {
  */
 export async function sendClosureNotices(
   admin: AgencyClient,
-  roleId: string
+  roleId: string,
+  /** Spacing between sends. Injectable so tests do not wait on real seconds —
+   * fifty sends at the default is six of them. Production never passes it. */
+  opts: { spacingMs?: number } = {}
 ): Promise<ClosureResult> {
-  const result: ClosureResult = { sent: 0, suppressed: 0, noContact: 0, alreadyTold: 0, notEligible: 0, failed: 0 }
+  const spacingMs = opts.spacingMs ?? SEND_SPACING_MS
+  const result: ClosureResult = {
+    sent: 0, suppressed: 0, noContact: 0, alreadyTold: 0, notEligible: 0, failed: 0, deferred: 0,
+  }
 
   const { data: role } = await admin
     .from("job_roles")
@@ -99,6 +126,10 @@ export async function sendClosureNotices(
   const agencyName = (agency?.notice_from_name as string) || (agency?.name as string) || "A recruitment agency"
   const retentionDays = (agency?.retention_days as number) ?? 180
 
+  // Counts only the people this run actually tries to mail — the skips below
+  // (already told, not eligible) cost nothing and must not consume the budget.
+  let attempted = 0
+
   for (const candidate of pool) {
     const id = candidate.id as string
     const audit = (action: string, reason?: string) =>
@@ -131,6 +162,13 @@ export async function sendClosureNotices(
       continue
     }
 
+    // Ceiling reached: stop rather than firing the rest as a burst. Their
+    // stamp stays null, so re-closing the role reaches them.
+    if (attempted >= CLOSURE_BATCH) {
+      result.deferred += 1
+      continue
+    }
+
     // Late suppression check — an objection recorded after the interview wins.
     const { data: identities } = await admin
       .from("candidate_identities")
@@ -150,6 +188,10 @@ export async function sendClosureNotices(
         continue
       }
     }
+
+    // Paced from the second send onward.
+    if (attempted > 0 && spacingMs > 0) await new Promise((r) => setTimeout(r, spacingMs))
+    attempted += 1
 
     const send = await sendEmail({
       to: candidate.email as string,

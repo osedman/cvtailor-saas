@@ -36,6 +36,40 @@ export async function sendEmail(opts: {
 
   const from = opts.from || process.env.WELCOME_FROM || "Tailr <hello@gettailr.com>"
 
+  // Resend rate-limits, and a burst of transactional mail is exactly what
+  // trips it: closing a role tells every candidate at once, and a cron batch
+  // fires back to back. Without this a 429 read as a permanent failure and the
+  // person was recorded as not-told. Three attempts, backing off, and only on
+  // the errors that are actually worth retrying.
+  const MAX_ATTEMPTS = 3
+  let lastError = ""
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const outcome = await attemptSend(key, from, opts)
+    if (outcome.sent || !outcome.retryable) return outcome
+    lastError = outcome.error ?? "unknown"
+    if (attempt < MAX_ATTEMPTS) {
+      // Honour Retry-After when Resend sends one; otherwise 500ms, 1s.
+      const wait = outcome.retryAfterMs ?? attempt * 500
+      await new Promise((r) => setTimeout(r, wait))
+    }
+  }
+  return { sent: false, error: `${lastError} (after ${MAX_ATTEMPTS} attempts)` }
+}
+
+/** One HTTP attempt. Separated so the retry loop above stays readable and the
+ * decision of WHAT is retryable lives in exactly one place. */
+async function attemptSend(
+  key: string,
+  from: string,
+  opts: {
+    to: string
+    subject: string
+    html: string
+    replyTo?: string
+    attachments?: Array<{ filename: string; content: string | Buffer; contentType?: string }>
+  }
+): Promise<{ sent: boolean; error?: string; retryable?: boolean; retryAfterMs?: number }> {
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -63,11 +97,24 @@ export async function sendEmail(opts: {
     })
     if (!res.ok) {
       const body = await res.text()
-      return { sent: false, error: `Resend ${res.status}: ${body.slice(0, 200)}` }
+      // 429 is the one worth waiting for; 5xx is worth one more go. A 4xx is
+      // our own mistake (bad address, unverified sender) and retrying it just
+      // makes the same error three times more slowly.
+      const retryable = res.status === 429 || res.status >= 500
+      const header = res.headers.get("retry-after")
+      const retryAfterMs = header ? Number(header) * 1000 : undefined
+      return {
+        sent: false,
+        error: `Resend ${res.status}: ${body.slice(0, 200)}`,
+        retryable,
+        retryAfterMs: Number.isFinite(retryAfterMs) ? retryAfterMs : undefined,
+      }
     }
     return { sent: true }
   } catch (err) {
-    return { sent: false, error: err instanceof Error ? err.message : String(err) }
+    // A timeout or a dropped connection says nothing about whether the send
+    // was accepted, but not retrying guarantees it was not.
+    return { sent: false, error: err instanceof Error ? err.message : String(err), retryable: true }
   }
 }
 

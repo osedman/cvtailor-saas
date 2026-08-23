@@ -172,3 +172,65 @@ describe("what it says", () => {
     expect(html).toContain("&lt;Data&gt;")
   })
 })
+
+describe("volume", () => {
+  /** N eligible people: notice sent, no interview, never told. */
+  function seedMany(n: number) {
+    store.tables.candidates = Array.from({ length: n }, (_, i) => ({
+      id: `c${i}`, agency_id: "a1", role_id: "role-1", ref: `CAN-${i}`,
+      full_name: `Person ${i}`, email: `p${i}@x.test`, rights_token: null,
+      closure_notified_at: null,
+    }))
+    store.tables.candidate_notices = store.tables.candidates!.map((c) => ({
+      candidate_id: c.id, status: "sent",
+    }))
+    store.tables.interview_rounds = []
+    store.tables.placements = []
+  }
+
+  it("stops at the batch ceiling rather than firing a burst", async () => {
+    seedMany(63)
+    const result = await sendClosureNotices(admin as never, "role-1", { spacingMs: 0 })
+    // The notice cron batches at 50 for the same reason; closure had no bound
+    // at all, which a pool cap of 10 was hiding.
+    expect(result.sent).toBe(50)
+    expect(result.deferred).toBe(13)
+    expect(store.mail).toHaveLength(50)
+  })
+
+  it("the deferred are NOT stamped, so the next close reaches them", async () => {
+    seedMany(63)
+    await sendClosureNotices(admin as never, "role-1", { spacingMs: 0 })
+    const untold = store.tables.candidates!.filter((c) => !c.closure_notified_at)
+    expect(untold).toHaveLength(13)
+
+    // Closing again finishes the job and tells nobody twice.
+    store.mail = []
+    const second = await sendClosureNotices(admin as never, "role-1", { spacingMs: 0 })
+    expect(second.sent).toBe(13)
+    expect(second.alreadyTold).toBe(50)
+    expect(store.mail).toHaveLength(13)
+  })
+
+  it("skips do not consume the batch budget", async () => {
+    seedMany(60)
+    // Forty were told on an earlier close; they must not eat the ceiling.
+    for (const c of store.tables.candidates!.slice(0, 40)) {
+      c.closure_notified_at = "2026-08-22T10:00:00.000Z"
+    }
+    const result = await sendClosureNotices(admin as never, "role-1", { spacingMs: 0 })
+    expect(result.alreadyTold).toBe(40)
+    expect(result.sent).toBe(20)
+    expect(result.deferred).toBe(0)
+  })
+
+  it("paces by default — the burst is what trips a provider's rate limit", async () => {
+    seedMany(4)
+    const started = Date.now()
+    await sendClosureNotices(admin as never, "role-1")
+    const elapsed = Date.now() - started
+    // Four sends means three gaps. Asserting a floor, not a duration, so this
+    // does not become a flaky timing test.
+    expect(elapsed).toBeGreaterThanOrEqual(3 * 100)
+  })
+})
