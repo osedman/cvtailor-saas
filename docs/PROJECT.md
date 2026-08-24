@@ -3394,4 +3394,26 @@ act-don't-ask order; sign-off session when he's back.
 
 ---
 
+## 🎨 24 Aug 2026 — design pass: the candidate file reads as a file
+
+The file screen was four equal cards that never answered its one question —
+what still needs doing before this person can be handed over. Designed
+(`6e22118`):
+
+- **The folder tab** — the header is the file's edge: a lip carrying
+  CANDIDATE FILE · CAN-ref on tint, the body carrying the person. The one
+  paper allusion on the screen, spent there only.
+- **The readiness row** — TRAVELS INTO THE PACK: right to work / references /
+  placement, each *recorded* or *not yet*. Dots and words, deliberately no
+  bar and no percentage: paperwork has states, people do not have scores.
+- **Live without reload** — compliance and placement gained an `onSaved`
+  callback (fired after their audited writes), references already reported
+  rows; the row re-reads on any of them. Verified against Ose's real walk
+  state: references 2 of 2 in · placement recorded · RTW not yet.
+- Chanel pass: the ref appeared twice (tab + sub line); the tab owns it now.
+
+955 tests. On staging.
+
+---
+
 _Last updated: 24 August 2026_
