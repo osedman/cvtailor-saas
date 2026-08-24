@@ -8,70 +8,101 @@ description: Tailr for Agencies (B2B recruiter product) — full context, agreed
 Read `tailr-playbook` first for repo-wide rules (staging-first, verified pushes,
 PII, tracking boards). This skill carries the agencies-specific state.
 
-## START HERE — state as of 22 Aug 2026 (end of day)
+## START HERE — state as of 24 Aug 2026
 
-**Staging sign-in was broken for four weeks and is now fixed.**
-`SUPABASE_SERVICE_ROLE_KEY` in `~/.config/tailr/tailr.env` was the literal
-string `SET_ME_…` since 25 Jul, so `generateLink` answered `Invalid API key`
-and nobody could sign in. That is why the "human walk-through" sat open since
-14 Aug — it was BLOCKED, not unscheduled. If a task has sat on the open list
-for weeks, check whether something mechanical is stopping it.
+**Two sessions have worked this repo in parallel. Read `git log` before
+assuming anything below is the whole story**, and check the working tree for
+another session's uncommitted edits before you commit — twice on 22 Aug a
+foreign change sat in `docs/PROJECT.md` and was deliberately left out of a
+commit rather than swept in.
 
-**The 20 Aug gap list is closed.** Migrations 28–34 applied to tailr-staging
-and verified by effect. Read docs/PROJECT.md's 22 Aug entries for detail:
+Head `8cf1328`, 954 tests, staging in sync. Migrations 28–34 applied to
+tailr-staging and verified by effect.
+
+### The email guard — read this before sending anything
+
+`sendEmail` now REFUSES non-production mail to anyone off `EMAIL_ALLOWLIST`,
+checked before the network call. This exists because **23 Art 14 candidate
+notices were found queued against real strangers' addresses on staging** —
+staging carries real CVs as fixtures and the notice cron has no skip-a-due-one
+switch, by design. All 23 were suppressed in data and every staging identity
+blacklisted.
+
+Default non-prod allowlist when the env var is unset:
+`o.oifoh@gmail.com`, `ose@lean-frame.com`, `@lean-frame.com`. Gmail
+plus-aliases fold, so `o.oifoh+can01@gmail.com` reaches the founder. **Use
+aliases of those addresses for any walk-through**; anything else is refused
+and reported as skipped, not failed.
+
+### Built 22–24 Aug
 
 - **Notifications** + two-layer preferences (agency default, personal
-  override). `resolvePreference()` is the ONE rule; `facesClient()` is a
-  whitelist of one.
-- **Candidate booking doorway** — /booking/[token], confirm/decline + .ics.
-  Declining releases the slot in the same write and is never a withdrawal.
-- **Closing the loop** — closing a role emails the candidates the loop was
-  OPENED with. Batched at 50, paced; deferred people are never stamped.
-- **Role ownership** — job_roles.owner_id, audited reassignment,
-  notifications resolve owner-first.
-- **Right to represent** — the ask on the rights doorway; the submission gate
-  refuses answered-no outright and audits the unanswered override.
-- **Candidates screen** at /agencies/candidates, **sign out** on every screen,
-  **add-a-client** on the clients screen, **remove a candidate added in
-  error**, and JD upload on the HM brief.
-- **Domains: B2B gets its OWN separate domain** (not a subdomain), bought when
-  production is wanted. There is NO port into consumer production, ever —
-  agency migrations go to staging and, one day, a B2B production environment.
+  override). `resolvePreference()` is the ONE rule; `facesClient()` a
+  whitelist of one. Closure mail batches at 50, paces, never stamps the
+  deferred; `sendEmail` retries 429/5xx and refuses to retry a 4xx.
+- **Candidate booking doorway** (/booking/[token], confirm/decline + .ics),
+  **closing the loop** on unsuccessful candidates, **role ownership**,
+  **right to represent**, **JD upload** on the HM brief.
+- **Walk-through fixes:** sign out on every screen, a candidates table at
+  /agencies/candidates, add-a-client on the clients screen, remove a
+  candidate added in error, and the nav's duplicate "Today" removed.
+- **The three flows actually separate** (other session): opening a role lands
+  where the work is — shortlist → workflow, interviews → selection screen,
+  handover → close-out, with `?flow=shortlist` the deliberate way back. The
+  hiring manager gained a workspace: /hiring/interviews and
+  /hiring/roles/[id], from one disclosure-filtered payload.
+- **The handover pack** (other session): renders as the document it is —
+  sealed header, verbatim evidence with sources, interview provenance,
+  references in the referee's words, Known gaps first-class, printable under
+  `@media print`. The deliver PATCH now has a button; `generateHandoverPack`
+  returns the existing pack instead of minting twins.
 
-**Open, in priority order:**
+### Open, in priority order
 
-1. **The apply path sends a stale CV** (consumer side, diagnosed not fixed).
-   Two mechanisms — a localStorage restore race in
-   `components/cv-tailor/resizable-panels.tsx`, and applying using
-   `role_recommendations.tailor_history_id` (the last TAILOR RUN) so swapping
-   the CV without re-tailoring sends the old document. **Ask Ose which repro
-   he hit before building** — the two need different fixes.
-2. **MAX_CANDIDATES_PER_ROLE is still 10.** Raising to 50 is safe from the
-   mail side now. The remaining risk is the submission route: a sequential
-   rescore loop, three queries per candidate, against `maxDuration = 60`.
-   Load-test a full shortlist first.
-3. **Finish the walk-through.** Sign-in works now and nothing else blocks it.
-   Everything built on 22 Aug is structurally verified but has never been
-   clicked by a person.
-4. Lawyer + DPIA on capture→transcription→enrichment (unchanged gate);
-   the revoke of authenticated UPDATE on `agency.agencies`, and the same
-   table-wide-grant caveat now applies to `job_roles.owner_id` (migration 32).
+1. **The apply path sends a stale CV** (consumer side, diagnosed 22 Aug, NOT
+   fixed — both mechanisms verified still present on 24 Aug). Either the
+   localStorage restore race in `components/cv-tailor/resizable-panels.tsx`
+   (effect with empty deps, so its `!cvText` guard reads the first render's
+   closure, against an 800ms debounced persist), or applying using
+   `role_recommendations.tailor_history_id` — a pointer to the last TAILOR
+   RUN — so swapping the CV without re-tailoring sends the old document while
+   /found still shows the role as tailored. **Ask Ose which repro he hit
+   before building; they need different fixes.**
+2. **`MAX_CANDIDATES_PER_ROLE` is still 10.** Safe to raise to 50 from the
+   mail side now. Remaining risk: the submission route rescores shortlisted
+   candidates in a sequential loop, three queries each, against
+   `maxDuration = 60`. Load-test a full shortlist first.
+3. **Finish the walk-through.** Sign-in works (the four-week blocker was a
+   placeholder service-role key — see below). Everything built since 22 Aug is
+   structurally verified and has never been clicked by a person.
+4. Lawyer + DPIA on capture→transcription→enrichment (unchanged gate); revoke
+   authenticated UPDATE on `agency.agencies`, and the same table-wide-grant
+   caveat now applies to `job_roles.owner_id` (migration 32).
 
-**Signed off 22 Aug:** all email templates, and `docs/NON-COMPETE.md` (where
-it lives publicly is still Ose's call; a lawyer pass before public web use
-remains advisable).
+**Signed off:** all email templates, and `docs/NON-COMPETE.md` — where it
+lives publicly is still Ose's call, and a lawyer pass before public web use
+remains advisable.
 
-**Verification discipline — this is the part that pays:**
+**Standing decisions:** B2B gets its OWN separate domain (not a subdomain),
+bought when production is wanted. There is NO port into consumer production,
+ever — agency migrations go to staging and, one day, a B2B production
+environment.
 
+### Verification discipline — the part that pays
+
+- **A task open for weeks may be BLOCKED, not unscheduled.** The "human
+  walk-through" sat open from 14 Aug because `SUPABASE_SERVICE_ROLE_KEY` was
+  the literal string `SET_ME_…`, so nobody could sign in at all.
 - Verify grants by attempting the write AS THE ROLE, service_role included.
   Two shipped tables could never be written by the role that writes them.
-- **Probe-mutate every guardrail before trusting it.** A guardrail counts only
-  once it has failed. Three shipped with blind spots: a filename-pinned
-  constraint test, a `[^)]*` regex an arrow parameter's paren defeats, and a
-  scan that matched its own documentation.
+- **Probe-mutate every guardrail before trusting it.** Three shipped with
+  blind spots: a filename-pinned constraint test, a `[^)]*` regex an arrow
+  parameter's paren defeats, and a scan that matched its own documentation.
 - Strip comments before scanning source — use
   `lib/__tests__/helpers/source-scan.ts`, do not copy it again.
 - Never trust a mock that does not implement the filter it is handed.
+- **Never hand-maintain a SELECT list.** `BRIEF_CONVERSION_COLUMNS` omitted
+  `jd_raw` and accepted briefs minted roles with an empty intake box, silently.
 
 ## What the product is
 
