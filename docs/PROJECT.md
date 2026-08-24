@@ -3356,4 +3356,42 @@ back.
 
 ---
 
+## 🗂 24 Aug 2026 — the candidate file: paperwork gets its own screen, and the pack carries RTW
+
+Ose, mid-test: compliance and the other handover paperwork had no home outside
+the shortlist workflow — completing RTW meant re-entering a flow whose work
+was finished. Built `/agencies/candidates/[candidateId]`, **the candidate
+file**: the operational record (compliance, references, placement) with a
+cross-link to the evidence map, which stays the judgement side. New GET
+`/api/agency/candidates/[candidateId]` serves identity + role + derived phase.
+
+**References extracted to one shared component**
+(`components/agency/candidate-references.tsx`) — the file and close-out render
+the SAME control; close-out keeps its outstanding-count warning via
+`onRefsChange`. Two drifting copies avoided (the safeNextPath lesson).
+
+**Every surface routes to the file:** the agency-wide candidates list (rows
+now open the file, which links onward to the evidence map), candidate names on
+the selection screen's round rows, close-out, and step 06.
+
+**The pack carries the paperwork.** `HandoverSnapshot.compliance` freezes RTW
+AS WORDS — "Evidence seen" / "They say none needed", acts and reported
+answers, never machine values and never a ruling on a person — plus note,
+check date, expiry, notice period, and the employer-check notice, rendered as
+section 02 of the document (packs frozen before this have no key and skip the
+section; a frozen document renders what it froze). A test pins that machine
+values cannot leak into the frozen words.
+
+**Delivery is the real freeze line now.** A DELIVERED pack is immutable
+forever. An undelivered pack is a draft: re-generating re-derives it and
+UPDATES the same row (audit action `regenerated`), so RTW completed after the
+first freeze can join the pack — "Re-freeze with the latest record" button on
+the undelivered pack. Still exactly one pack per candidate per role.
+
+955 tests, build clean (`cfeb73c`). Figma mirrors owed for: the pack document,
+the candidate file, and the three-phase screens — all built under Ose's
+act-don't-ask order; sign-off session when he's back.
+
+---
+
 _Last updated: 24 August 2026_
