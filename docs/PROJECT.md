@@ -3416,4 +3416,32 @@ what still needs doing before this person can be handed over. Designed
 
 ---
 
+## 🔚 24 Aug 2026 — the loop ends, and the file appears where the work is
+
+Three walk complaints from Ose, all confirmed real (`730e672`):
+
+- **"Handover goes nowhere."** Close the role now happens ON close-out — one
+  act, in place, closure mail counts reported back — and a closed role renders
+  its terminal state: "{ref} is closed. This desk is done." with retention
+  running and a door back to the dashboard. No more routing to buried step 07.
+- **"Do I have to stare at it?"** No. Once delivered, the pack collapses to a
+  record line — "on record, frozen {date}, immutable since delivery" — and
+  opens on demand (View the pack / File the pack away). The hand-off cards
+  stay visible outside the collapse.
+- **"Does the candidate file appear somewhere?"** The dashboard queue now
+  surfaces **FILE** rows: any placement in flight (offered counts — the
+  employer's check precedes the start date regardless of the offer's
+  paperwork) whose candidate has no RTW recorded → "Record {name}'s right to
+  work — the employer's check comes before the start · starts {date} · open
+  the file". Verified live against Ose's real state (CAN-01, starts 25 Aug).
+  Candidates also joined the nav on the selection and close-out screens.
+
+A parallel session is reworking the dashboard simultaneously (handoversRes,
+roleLandingPath, phase chips on role cards) — anchors re-read before every
+edit, `git ls-remote` before every push, no clobbers.
+
+955 tests, build clean.
+
+---
+
 _Last updated: 24 August 2026_
