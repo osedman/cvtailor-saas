@@ -51,7 +51,14 @@ const fmtDay = (iso: string | null) =>
       })
     : "—"
 
-export function CandidatePlacement({ candidateId }: { candidateId: string }) {
+export function CandidatePlacement({
+  candidateId,
+  onSaved,
+}: {
+  candidateId: string
+  /** Fired after a successful write — see CandidateCompliance. */
+  onSaved?: () => void
+}) {
   const [placement, setPlacement] = useState<Placement | null>(null)
   const [open, setOpen] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -106,6 +113,7 @@ export function CandidatePlacement({ candidateId }: { candidateId: string }) {
       hydrate(body.placement)
       setOpen(false)
       toast.success("Recorded. The role stays open until you close it.")
+      onSaved?.()
     } catch (err) {
       toast.error(errorMessage(err))
     } finally {

@@ -71,7 +71,15 @@ function expiryLine(expiresOn: string): string {
   return `Permission expires ${fmtDay(expiresOn)} (${days} day${days === 1 ? "" : "s"}).`
 }
 
-export function CandidateCompliance({ candidateId }: { candidateId: string }) {
+export function CandidateCompliance({
+  candidateId,
+  onSaved,
+}: {
+  candidateId: string
+  /** Fired after a successful write — the candidate file's readiness row
+   *  re-reads then, so "recorded" flips without a reload. */
+  onSaved?: () => void
+}) {
   const [evidence, setEvidence] = useState<RtwEvidence>("not_checked")
   const [sponsorship, setSponsorship] = useState<RtwSponsorship>("not_asked")
   const [note, setNote] = useState("")
@@ -120,6 +128,7 @@ export function CandidateCompliance({ candidateId }: { candidateId: string }) {
       setCheckedAt(v.rtwCheckedAt ?? null)
       setRequiredBy(v.requiredBy ?? null)
       toast.success("Recorded, with your name on it.")
+      onSaved?.()
     } catch (err) {
       toast.error(errorMessage(err))
     } finally {

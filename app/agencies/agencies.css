@@ -1536,3 +1536,57 @@ table.ag-cand tbody tr:focus-visible { outline: 2px solid var(--ag-coral); outli
   .ag-doc-sec { break-inside: avoid-page; }
   .ag-doc-quote::before { color: #e8d5cc; }
 }
+
+/* ── The candidate file's tab (24 Aug 2026). The header is the folder's
+   edge: a lip with the file's label and ref, then the body holding the
+   person and the readiness row. One allusion to paper, spent here and
+   nowhere else on the screen. ─────────────────────────────────────────── */
+.ag-file-tab { margin: 2px 0 20px; }
+.ag-file-tab-lip {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--ag-tint-1);
+  border: 1px solid var(--ag-tint-2); border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  padding: 7px 16px 6px;
+  position: relative; top: 1px;
+}
+.ag-file-tab-label {
+  font-family: var(--ag-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--ag-coral-deep);
+}
+.ag-file-tab-ref {
+  font-family: var(--ag-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); color: var(--ag-ink-3);
+}
+.ag-file-tab-body {
+  background: var(--ag-paper);
+  border: 1px solid var(--ag-border);
+  border-radius: 0 12px 12px 12px;
+  padding: 20px 24px 16px;
+}
+
+/* Paperwork facts, not a score: three items, each recorded or not yet.
+   No bar, no percentage — a person is not a progress metric. */
+.ag-file-ready {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  border-top: 1px solid var(--ag-border);
+  margin-top: 14px; padding-top: 12px;
+}
+.ag-file-ready-label {
+  font-family: var(--ag-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--ag-ink-3);
+}
+.ag-file-ready-item {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: var(--t-caption); color: var(--ag-ink-3);
+}
+.ag-file-ready-item.done { color: var(--ag-ink); }
+.ag-file-ready-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  border: 1.5px solid var(--ag-ink-3); background: transparent; flex: none;
+}
+.ag-file-ready-item.done .ag-file-ready-dot {
+  background: var(--ag-coral); border-color: var(--ag-coral);
+}

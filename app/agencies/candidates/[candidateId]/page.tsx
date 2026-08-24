@@ -53,6 +53,40 @@ export default function CandidateFilePage({
   const [role, setRole] = useState<FileRole | null>(null)
   const [phase, setPhase] = useState<PhaseKey | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** What the pack will carry, as facts: recorded or not yet. Deliberately
+   *  never a percentage or a progress bar — that would score a person; this
+   *  describes paperwork. null until read. */
+  const [ready, setReady] = useState<{
+    rtw: boolean
+    refsIn: number
+    refsTotal: number
+    placement: boolean
+  } | null>(null)
+
+  const loadReadiness = useCallback(async () => {
+    try {
+      const [comp, refs, plc] = await Promise.all([
+        fetch(`/api/agency/candidates/${candidateId}/compliance`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`/api/agency/candidates/${candidateId}/references`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`/api/agency/candidates/${candidateId}/placement`).then((r) => (r.ok ? r.json() : null)),
+      ])
+      const rows = Array.isArray(refs?.references) ? refs.references : []
+      setReady({
+        rtw:
+          comp?.compliance?.rtwEvidence === "seen" ||
+          (comp?.compliance?.rtwSponsorship && comp.compliance.rtwSponsorship !== "not_asked"),
+        refsIn: rows.filter((r: { status: string }) => r.status === "received").length,
+        refsTotal: rows.length,
+        placement: Boolean(plc?.placement),
+      })
+    } catch {
+      setReady(null)
+    }
+  }, [candidateId])
+
+  useEffect(() => {
+    void loadReadiness()
+  }, [loadReadiness])
 
   const load = useCallback(async () => {
     try {
@@ -132,12 +166,16 @@ export default function CandidateFilePage({
             {role && <PhaseRail current={phase} roleId={role.id} />}
           </div>
 
-          <p className="ag-step-eyebrow">Candidate file · outside the workflow</p>
-          <h1 className="ag-title">{candidate ? candidate.fullName : "Loading…"}</h1>
+          <div className="ag-file-tab" role="group" aria-label="Candidate file">
+            <div className="ag-file-tab-lip">
+              <span className="ag-file-tab-label">Candidate file</span>
+              {candidate && <span className="ag-file-tab-ref">{candidate.ref}</span>}
+            </div>
+            <div className="ag-file-tab-body">
+          <h1 className="ag-title" style={{ marginTop: 0 }}>{candidate ? candidate.fullName : "Loading…"}</h1>
           {candidate && (
             <p className="ag-sub">
-              {candidate.ref}
-              {candidate.currentTitle ? ` · ${candidate.currentTitle}` : ""}
+              {candidate.currentTitle || "No current title on file"}
               {role ? (
                 <>
                   {" · on "}
@@ -154,16 +192,36 @@ export default function CandidateFilePage({
             </p>
           )}
 
+          {ready && candidate && !candidate.redacted && (
+            <div className="ag-file-ready" aria-label="What the pack will carry">
+              <span className="ag-file-ready-label">Travels into the pack</span>
+              <span className={`ag-file-ready-item ${ready.rtw ? "done" : ""}`}>
+                <span className="ag-file-ready-dot" aria-hidden />
+                Right to work · {ready.rtw ? "recorded" : "not yet"}
+              </span>
+              <span className={`ag-file-ready-item ${ready.refsTotal > 0 && ready.refsIn === ready.refsTotal ? "done" : ""}`}>
+                <span className="ag-file-ready-dot" aria-hidden />
+                References · {ready.refsTotal === 0 ? "none named" : `${ready.refsIn} of ${ready.refsTotal} in`}
+              </span>
+              <span className={`ag-file-ready-item ${ready.placement ? "done" : ""}`}>
+                <span className="ag-file-ready-dot" aria-hidden />
+                Placement · {ready.placement ? "recorded" : "not yet"}
+              </span>
+            </div>
+          )}
+            </div>
+          </div>
+
           {error && <p className="ag-banner" role="alert">{error}</p>}
 
           {candidate && !candidate.redacted && (
             <div className="ag-close-grid">
               <div className="ag-stack" style={{ gap: 20 }}>
-                <CandidateCompliance candidateId={candidateId} />
-                <CandidatePlacement candidateId={candidateId} />
+                <CandidateCompliance candidateId={candidateId} onSaved={loadReadiness} />
+                <CandidatePlacement candidateId={candidateId} onSaved={loadReadiness} />
               </div>
               <div className="ag-stack" style={{ gap: 20 }}>
-                <CandidateReferences candidateId={candidateId} />
+                <CandidateReferences candidateId={candidateId} onRefsChange={() => loadReadiness()} />
                 <section className="ag-card" style={{ padding: "18px 22px" }}>
                   <div className="ag-card-head" style={{ padding: 0, border: "none" }}>
                     <span className="ag-card-title">Evidence &amp; scoring</span>
