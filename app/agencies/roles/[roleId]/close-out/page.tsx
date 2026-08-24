@@ -26,6 +26,7 @@ import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { SignOut } from "@/components/agency/sign-out"
 import { PhaseRail } from "@/components/agency/phase-rail"
+import { CandidateReferences, type ReferenceListRow } from "@/components/agency/candidate-references"
 import { type PhaseKey } from "@/lib/agency/phases"
 import type { HandoverSnapshot } from "@/lib/agency/handover"
 
@@ -33,35 +34,6 @@ interface Candidate {
   id: string
   ref: string
   full_name: string
-}
-
-interface ReferenceRow {
-  id: string
-  refereeName: string
-  refereeEmail: string
-  relationship: string
-  status: "drafted" | "requested" | "received" | "chasing" | "declined"
-  noticeSentAt: string | null
-  receivedAt: string | null
-}
-
-const STATUS_TONE: Record<ReferenceRow["status"], string> = {
-  // --ag-sage has never existed (the token is --ag-calm), so this silently
-  // resolved to the hardcoded fallback every time — and that fallback is a
-  // light-ground green.
-  received: "var(--ag-calm)",
-  requested: "var(--ag-warn)",
-  chasing: "var(--ag-warn)",
-  drafted: "var(--ag-ink-3)",
-  declined: "var(--ag-ink-3)",
-}
-
-const STATUS_LABEL: Record<ReferenceRow["status"], string> = {
-  received: "Received",
-  requested: "Asked",
-  chasing: "Chasing",
-  drafted: "Not asked yet",
-  declined: "Declined",
 }
 
 /** The document's vocabulary — the same words the app uses everywhere else,
@@ -90,7 +62,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   const [role, setRole] = useState<{ ref: string; title: string; company: string } | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [chosenId, setChosenId] = useState("")
-  const [refs, setRefs] = useState<ReferenceRow[] | null>(null)
+  const [refs, setRefs] = useState<ReferenceListRow[] | null>(null)
   const [pack, setPack] = useState<HandoverSnapshot | null>(null)
   const [packId, setPackId] = useState<string | null>(null)
   const [contacts, setContacts] = useState<Array<{ id: string; company: string; full_name: string }>>([])
@@ -98,8 +70,6 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   const [deliveredTo, setDeliveredTo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [newRef, setNewRef] = useState({ refereeName: "", refereeEmail: "", relationship: "" })
-  const [askedLink, setAskedLink] = useState<{ id: string; url: string; emailed: boolean } | null>(null)
   const [phase, setPhase] = useState<PhaseKey | null>(null)
 
   const loadRole = useCallback(async () => {
@@ -135,70 +105,14 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
     }
   }, [roleId, router])
 
-  const loadRefs = useCallback(async (candidateId: string) => {
-    if (!candidateId) return setRefs(null)
-    try {
-      const res = await fetch(`/api/agency/candidates/${candidateId}/references`)
-      if (!res.ok) return setRefs([])
-      const body = await res.json()
-      setRefs(Array.isArray(body?.references) ? body.references : [])
-    } catch {
-      setRefs([])
-    }
-  }, [])
+
 
   useEffect(() => {
     void loadRole()
   }, [loadRole])
 
-  useEffect(() => {
-    void loadRefs(chosenId)
-  }, [chosenId, loadRefs])
 
   const chosen = candidates.find((c) => c.id === chosenId) ?? null
-
-  async function addReferee() {
-    if (!chosenId || !newRef.refereeName.trim() || !newRef.refereeEmail.trim()) return
-    setBusy(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/agency/candidates/${chosenId}/references`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newRef),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        setError(typeof body?.error === "string" ? body.error : "Could not add that referee.")
-        return
-      }
-      setNewRef({ refereeName: "", refereeEmail: "", relationship: "" })
-      await loadRefs(chosenId)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function ask(referenceId: string) {
-    setBusy(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/agency/candidates/${chosenId}/references`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ referenceId }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(typeof body?.error === "string" ? body.error : "Could not send that request.")
-        return
-      }
-      setAskedLink({ id: referenceId, url: String(body.url ?? ""), emailed: Boolean(body.emailed) })
-      await loadRefs(chosenId)
-    } finally {
-      setBusy(false)
-    }
-  }
 
   /** Hand the frozen pack to the deciding contact. Idempotent server-side,
    *  audited as handover/delivered — the act that ends Tailr's part. */
@@ -343,106 +257,25 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
           {chosen && (
             <div className="ag-close-grid">
               {/* 2. References */}
-              <section className="ag-card ag-print-hide" style={{ padding: "18px 22px" }} aria-labelledby="refs">
-                <div className="ag-card-head" style={{ padding: 0, border: "none" }}>
-                  <span className="ag-card-title" id="refs">
-                    References
-                    {refs ? ` — ${(refs.length - outstanding.length)} of ${refs.length} in` : ""}
-                  </span>
-                  <span className="ag-grow" />
-                  <span className="ag-pill">Audit logged</span>
-                </div>
-
-                <div className="ag-stack" style={{ gap: 10, marginTop: 12 }}>
-                  {(refs ?? []).map((r) => (
-                    <div key={r.id} className="ag-sentlink">
-                      <span
-                        className="ag-ref-dot"
-                        style={{ background: STATUS_TONE[r.status] }}
-                        aria-hidden
-                      />
-                      <span className="ag-grow" style={{ minWidth: 0 }}>
-                        <span style={{ fontSize: 13 }}>{r.refereeName}</span>
-                        <span className="ag-meta" style={{ display: "block" }}>
-                          {r.relationship || "Referee"}
-                          {r.noticeSentAt ? " · notice sent" : " · no notice yet"}
-                        </span>
-                      </span>
-                      <span className="ag-meta">{STATUS_LABEL[r.status]}</span>
-                      {r.status !== "received" && r.status !== "declined" && (
-                        <button
-                          className="ag-btn ag-btn-secondary"
-                          onClick={() => ask(r.id)}
-                          disabled={busy}
-                        >
-                          {r.status === "drafted" ? "Ask" : "Chase"}
-                        </button>
-                      )}
-                      {askedLink?.id === r.id && !askedLink.emailed && (
-                        <p className="ag-note ag-ask-result">
-                          We could not email them — send this link yourself:
-                          <code className="ag-ask-url">{askedLink.url}</code>
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                  {refs !== null && refs.length === 0 && (
-                    <p className="ag-note">No referees named yet.</p>
-                  )}
-                </div>
-
-                <div className="ag-stack" style={{ gap: 8, marginTop: 14, borderTop: "1px solid var(--ag-border)", paddingTop: 12 }}>
-                  <label className="ag-field-label" htmlFor="ref-name">
-                    Referee name
-                  </label>
-                  <input
-                    id="ref-name"
-                    className="ag-input"
-                    name="refereeName"
-                    autoComplete="off"
-                    placeholder="Dr Sarah Lindqvist"
-                    value={newRef.refereeName}
-                    onChange={(e) => setNewRef({ ...newRef, refereeName: e.target.value })}
-                  />
-                  <label className="ag-field-label" htmlFor="ref-email">
-                    Referee email
-                  </label>
-                  {/* type=email gets the right keyboard and validation;
-                      spellcheck off because an address is not prose. */}
-                  <input
-                    id="ref-email"
-                    className="ag-input"
-                    type="email"
-                    name="refereeEmail"
-                    autoComplete="off"
-                    spellCheck={false}
-                    placeholder="s.lindqvist@example.nhs.uk"
-                    value={newRef.refereeEmail}
-                    onChange={(e) => setNewRef({ ...newRef, refereeEmail: e.target.value })}
-                  />
-                  <label className="ag-field-label" htmlFor="ref-rel">
-                    Relationship
-                  </label>
-                  <input
-                    id="ref-rel"
-                    className="ag-input"
-                    name="relationship"
-                    autoComplete="off"
-                    placeholder="Manager, NHS Digital 2022–2025"
-                    value={newRef.relationship}
-                    onChange={(e) => setNewRef({ ...newRef, relationship: e.target.value })}
-                  />
-                  <button className="ag-btn ag-btn-secondary" onClick={addReferee} disabled={busy}>
-                    Add referee
+              {/* Shared with the candidate file (components/agency/
+                  candidate-references.tsx). onRefsChange feeds the pack's
+                  outstanding-references warning below. */}
+              <div className="ag-stack" style={{ gap: 20 }}>
+              <CandidateReferences candidateId={chosenId} onRefsChange={setRefs} />
+              <section className="ag-card ag-print-hide" style={{ padding: "14px 22px" }}>
+                <p className="ag-note" style={{ margin: 0 }}>
+                  Right to work and the placement live on the{" "}
+                  <button
+                    className="ag-crumb-link"
+                    style={{ font: "inherit", textDecoration: "underline" }}
+                    onClick={() => router.push(`/agencies/candidates/${chosenId}`)}
+                  >
+                    candidate file
                   </button>
-                </div>
-
-                <p className="ag-note" style={{ marginTop: 12 }}>
-                  Referees are data subjects too. The request and their fair-processing notice are
-                  the same email — they cannot be asked without being told what you hold — and their
-                  words join the pack attributed, never paraphrased.
+                  {" "}— completed there, they join the pack below.
                 </p>
               </section>
+              </div>
 
               {/* 3. The pack */}
               <section className="ag-card" style={{ padding: "18px 22px" }} aria-labelledby="pack">
@@ -526,8 +359,50 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                         )}
                       </section>
 
+                      {/* Packs frozen before 24 Aug 2026 have no compliance
+                          key at all: a frozen document renders what it froze,
+                          so the section simply is not there. From now on the
+                          key is always present — null means "never recorded",
+                          which the document says out loud. */}
+                      {pack.compliance !== undefined && (
+                        <section className="ag-doc-sec" aria-label="Right to work and logistics">
+                          <p className="ag-doc-sec-head"><span className="ag-doc-n">02</span> Right to work &amp; logistics</p>
+                          <p className="ag-doc-sec-note">
+                            What the agency saw and what the candidate said — acts and reported
+                            answers, never a ruling on anyone&apos;s status.
+                          </p>
+                          {pack.compliance === null ? (
+                            <p className="ag-doc-empty">Nothing recorded. The employer must run its own check before employment starts.</p>
+                          ) : (
+                            <>
+                              <p className="ag-doc-round">
+                                <b>Evidence</b> · {pack.compliance.evidence}
+                                {pack.compliance.checkedAt
+                                  ? ` · checked ${new Date(pack.compliance.checkedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`
+                                  : ""}
+                                {pack.compliance.note ? ` — ${pack.compliance.note}` : ""}
+                              </p>
+                              {pack.compliance.expiresOn && (
+                                <p className="ag-doc-round">
+                                  <b>Permission expires</b> · {new Date(`${pack.compliance.expiresOn}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}
+                                </p>
+                              )}
+                              <p className="ag-doc-round">
+                                <b>Sponsorship</b> · {pack.compliance.sponsorship}
+                              </p>
+                              {pack.compliance.noticePeriod && (
+                                <p className="ag-doc-round">
+                                  <b>Notice period</b> · {pack.compliance.noticePeriod}
+                                </p>
+                              )}
+                              <p className="ag-doc-empty">{pack.compliance.employerNotice}</p>
+                            </>
+                          )}
+                        </section>
+                      )}
+
                       <section className="ag-doc-sec" aria-label="Interview history">
-                        <p className="ag-doc-sec-head"><span className="ag-doc-n">02</span> Interview history</p>
+                        <p className="ag-doc-sec-head"><span className="ag-doc-n">{pack.compliance !== undefined ? "03" : "02"}</span> Interview history</p>
                         <p className="ag-doc-sec-note">How each round was recorded, so every quote above has provenance.</p>
                         {pack.rounds.map((r) => (
                           <p className="ag-doc-round" key={r.number}>
@@ -542,7 +417,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                       </section>
 
                       <section className="ag-doc-sec" aria-label="References">
-                        <p className="ag-doc-sec-head"><span className="ag-doc-n">03</span> References</p>
+                        <p className="ag-doc-sec-head"><span className="ag-doc-n">{pack.compliance !== undefined ? "04" : "03"}</span> References</p>
                         <p className="ag-doc-sec-note">In the referee&apos;s words, attributed — never paraphrased.</p>
                         {pack.references.map((ref, i) => (
                           <div className="ag-doc-ref" key={i}>
@@ -566,7 +441,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                       </section>
 
                       <section className="ag-doc-sec" aria-label="Known gaps">
-                        <p className="ag-doc-sec-head"><span className="ag-doc-n">04</span> Known gaps, stated plainly</p>
+                        <p className="ag-doc-sec-head"><span className="ag-doc-n">{pack.compliance !== undefined ? "05" : "04"}</span> Known gaps, stated plainly</p>
                         <p className="ag-doc-sec-note">
                           Requirements never evidenced — in the CV, the calls or the interviews. The
                           reader decides what they mean; omitting them would decide it for you.
@@ -586,10 +461,20 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                       <footer className="ag-doc-foot">{pack.footer}</footer>
                     </div>
 
-                    <div className="ag-print-hide" style={{ marginTop: 14 }}>
+                    <div className="ag-print-hide" style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
                       <button className="ag-btn ag-btn-secondary" onClick={() => window.print()}>
                         Print or save as PDF
                       </button>
+                      {!deliveredTo && (
+                        <button
+                          className="ag-btn ag-btn-secondary"
+                          onClick={generate}
+                          disabled={busy}
+                          title="Until it is handed over, the pack is a draft — re-freezing pulls in anything completed since (right to work, references, rounds)."
+                        >
+                          {busy ? "Re-freezing…" : "Re-freeze with the latest record"}
+                        </button>
+                      )}
                     </div>
 
                     {/* Frozen is not finished. The pack exists to be handed

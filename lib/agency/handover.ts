@@ -22,6 +22,12 @@
  */
 
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
+import { getCandidateCompliance } from "./compliance"
+import {
+  EMPLOYER_CHECK_NOTICE,
+  EVIDENCE_LABEL,
+  SPONSORSHIP_LABEL,
+} from "./compliance-vocab"
 import type { AgencyContext } from "./types"
 
 export const HANDOVER_ENGINE = "handover-1"
@@ -57,6 +63,20 @@ export interface HandoverSnapshot {
     answers: Array<{ question: string; answer: string }>
   }>
   gaps: Array<{ requirement: string; weight: string }>
+  /** Right-to-work and logistics, frozen AS WORDS, not machine values: the
+   * vocabulary is load-bearing (an act seen / an answer reported, never a
+   * status ruled on a person) and a frozen document must keep the words it
+   * was handed over with even if the live vocabulary later changes. Absent
+   * on packs frozen before 24 Aug 2026; the renderer skips it then. */
+  compliance?: {
+    evidence: string
+    note: string
+    checkedAt: string | null
+    expiresOn: string | null
+    sponsorship: string
+    noticePeriod: string
+    employerNotice: string
+  } | null
   generated_at: string
   footer: string
 }
@@ -80,11 +100,12 @@ export async function generateHandoverPack(
   assertWriter(ctx)
   const admin = agencyAdmin()
 
-  // Frozen means frozen. If a pack already exists for this candidate on this
-  // role, return THAT — never re-derive. Without this, reloading close-out
-  // (which holds the pack only in component state) and pressing generate again
-  // minted a second, later-dated "frozen" pack, which is two different
-  // versions of a thing whose whole promise is that there is exactly one.
+  // DELIVERED means frozen forever: a pack that changes after it was handed
+  // over is not a handover, so once delivered_at is set the stored snapshot
+  // is returned verbatim, always. Before delivery the pack is a DRAFT of the
+  // record — re-generating re-derives it (RTW completed on the candidate
+  // file after the first freeze must be able to join the pack) and UPDATES
+  // the same row, so there is still exactly one pack per candidate per role.
   const { data: existing } = await admin
     .from("handover_packs")
     .select("id, snapshot, delivered_to_contact_id, delivered_at")
@@ -94,7 +115,7 @@ export async function generateHandoverPack(
     .order("generated_at", { ascending: true })
     .limit(1)
     .maybeSingle()
-  if (existing) {
+  if (existing && existing.delivered_at) {
     return {
       packId: existing.id as string,
       snapshot: existing.snapshot as HandoverSnapshot,
@@ -102,6 +123,7 @@ export async function generateHandoverPack(
       deliveredAt: (existing.delivered_at as string | null) ?? null,
     }
   }
+  const draftId: string | null = existing ? (existing.id as string) : null
 
   const [{ data: role }, { data: candidate }, { data: agency }] = await Promise.all([
     admin
@@ -217,6 +239,23 @@ export async function generateHandoverPack(
     }
   })
 
+  // The file's paperwork joins the pack. Words, not machine values — see the
+  // interface note. null (never omitted) when nothing was ever recorded, so
+  // the renderer can say "not recorded" honestly rather than skipping.
+  const complianceView = await getCandidateCompliance(ctx, input.candidateId)
+  const complianceSnapshot = complianceView
+    ? {
+        evidence: EVIDENCE_LABEL[complianceView.rtwEvidence] ?? complianceView.rtwEvidence,
+        note: complianceView.rtwNote ?? "",
+        checkedAt: complianceView.rtwCheckedAt,
+        expiresOn: complianceView.rtwExpiresOn,
+        sponsorship:
+          SPONSORSHIP_LABEL[complianceView.rtwSponsorship] ?? complianceView.rtwSponsorship,
+        noticePeriod: complianceView.noticePeriod ?? "",
+        employerNotice: EMPLOYER_CHECK_NOTICE,
+      }
+    : null
+
   const snapshot: HandoverSnapshot = {
     role: {
       ref: (role.ref as string) ?? "",
@@ -229,6 +268,7 @@ export async function generateHandoverPack(
       name: (candidate.full_name as string) ?? "",
     },
     agency: (agency?.name as string) ?? "",
+    compliance: complianceSnapshot,
     evidence,
     rounds,
     references,
@@ -237,21 +277,38 @@ export async function generateHandoverPack(
     footer: HANDOVER_FOOTER,
   }
 
-  const { data: pack, error } = await admin
-    .from("handover_packs")
-    .insert({
-      agency_id: ctx.agencyId,
-      role_id: input.roleId,
-      candidate_id: input.candidateId,
-      candidate_ref: (candidate.ref as string) ?? "",
-      snapshot,
-      engine_version: HANDOVER_ENGINE,
-      generated_by: ctx.userId,
-      delivered_to_contact_id: input.contactId ?? null,
-    })
-    .select("id")
-    .single()
-  if (error) throw error
+  let packRowId: string
+  if (draftId) {
+    const { error } = await admin
+      .from("handover_packs")
+      .update({
+        snapshot,
+        engine_version: HANDOVER_ENGINE,
+        generated_by: ctx.userId,
+        generated_at: snapshot.generated_at,
+      })
+      .eq("id", draftId)
+      .eq("agency_id", ctx.agencyId)
+    if (error) throw error
+    packRowId = draftId
+  } else {
+    const { data: pack, error } = await admin
+      .from("handover_packs")
+      .insert({
+        agency_id: ctx.agencyId,
+        role_id: input.roleId,
+        candidate_id: input.candidateId,
+        candidate_ref: (candidate.ref as string) ?? "",
+        snapshot,
+        engine_version: HANDOVER_ENGINE,
+        generated_by: ctx.userId,
+        delivered_to_contact_id: input.contactId ?? null,
+      })
+      .select("id")
+      .single()
+    if (error) throw error
+    packRowId = pack.id as string
+  }
 
   await writeAudit(admin, {
     agencyId: ctx.agencyId,
@@ -260,9 +317,9 @@ export async function generateHandoverPack(
     actorId: ctx.userId,
     entityType: "handover",
     entityRef: (candidate.ref as string) ?? "",
-    action: "generated",
+    action: draftId ? "regenerated" : "generated",
     toValue: {
-      pack_id: pack.id as string,
+      pack_id: packRowId,
       evidence: evidence.length,
       gaps: gaps.length,
       rounds: rounds.length,
@@ -270,7 +327,7 @@ export async function generateHandoverPack(
     },
   })
 
-  return { packId: pack.id as string, snapshot, deliveredToContactId: null, deliveredAt: null }
+  return { packId: packRowId, snapshot, deliveredToContactId: null, deliveredAt: null }
 }
 
 /** Mark it handed over. From here the employer is the controller of the copy

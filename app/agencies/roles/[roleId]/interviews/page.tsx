@@ -571,7 +571,16 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                         {r.candidateRef} · round {r.roundNumber}
                         {r.status !== "scheduled" ? ` · ${r.status}` : ""}
                       </span>
-                      <span className="ag-pick-name">{r.candidateName}</span>
+                      {/* The name opens the candidate file — the paperwork
+                          (RTW, references, placement) that interviews feed. */}
+                      <button
+                        className="ag-crumb-link ag-pick-name"
+                        style={{ display: "block", textAlign: "left", font: "inherit", padding: 0 }}
+                        title="Open the candidate file — right to work, references, placement"
+                        onClick={() => router.push(`/agencies/candidates/${r.candidateId}`)}
+                      >
+                        {r.candidateName}
+                      </button>
                       <span className="ag-meta">
                         {r.scheduledAt ? `${fmtDay(r.scheduledAt)}, ${fmtTime(r.scheduledAt)}` : "No time"}
                         {` · ${r.durationMinutes} min`}

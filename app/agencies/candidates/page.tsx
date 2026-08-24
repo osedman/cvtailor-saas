@@ -207,11 +207,14 @@ export default function CandidatesPage() {
                         key={r.id}
                         tabIndex={0}
                         role="link"
-                        onClick={() => router.push(`/agencies/roles/${r.roleId}/candidates/${r.id}`)}
+                        // The file, not the workflow: from this agency-wide
+                        // list you are doing paperwork, not scoring. The file
+                        // links onward to the evidence map.
+                        onClick={() => router.push(`/agencies/candidates/${r.id}`)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault()
-                            router.push(`/agencies/roles/${r.roleId}/candidates/${r.id}`)
+                            router.push(`/agencies/candidates/${r.id}`)
                           }
                         }}
                       >

@@ -343,6 +343,14 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
                     </div>
                   </div>
 
+                  <p className="ag-note" style={{ marginBottom: 8 }}>
+                    Also on the{" "}
+                    <a className="ag-crumb-link" style={{ textDecoration: "underline" }} href={`/agencies/candidates/${candidateId}`}>
+                      candidate file
+                    </a>
+                    {" "}— the operational record outside the workflow, where these travel into the
+                    handover pack.
+                  </p>
                   <CandidateCompliance candidateId={candidateId} />
 
                   <CandidatePlacement candidateId={candidateId} />

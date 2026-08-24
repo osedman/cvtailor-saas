@@ -204,6 +204,48 @@ describe("generateHandoverPack", () => {
     expect(result.deliveredToContactId).toBe("contact-9")
   })
 
+  it("freezes right-to-work as words, with the employer notice", async () => {
+    // The vocabulary is load-bearing: the pack must carry "Evidence seen" and
+    // "They say none needed" — acts and reported answers — never the machine
+    // values, and never without the employer's own-check notice.
+    let packCallsLocal = 0
+    admin.from.mockImplementation((t: string) => {
+      if (t === "job_roles")
+        return table({ data: { id: "role-1", ref: "ROL-2402", title: "SDE", company: "Meridian", location: "Leeds" }, error: null })
+      if (t === "candidates")
+        return table({ data: { id: "cand-1", ref: "CAN-02", full_name: "Amara Okafor", role_id: "role-1", agency_id: "agency-1" }, error: null })
+      if (t === "agencies") return table({ data: { name: "Halcyon" }, error: null })
+      if (t === "candidate_compliance")
+        return table({
+          data: {
+            rtw_evidence: "seen",
+            rtw_note: "Passport seen on video call",
+            rtw_checked_at: "2026-08-24T09:00:00Z",
+            rtw_expires_on: null,
+            rtw_sponsorship: "not_required",
+            notice_period: "4 weeks",
+          },
+          error: null,
+        })
+      if (t === "handover_packs") {
+        packCallsLocal += 1
+        return packCallsLocal === 1
+          ? table({ data: null, error: null })
+          : table({ data: { id: "pack-1" }, error: null })
+      }
+      return table({ data: [], error: null })
+    })
+    const { snapshot } = await generateHandoverPack(CTX, { roleId: "role-1", candidateId: "cand-1" })
+    expect(snapshot.compliance).not.toBeNull()
+    expect(snapshot.compliance?.evidence).toBe("Evidence seen")
+    expect(snapshot.compliance?.sponsorship).toBe("They say none needed")
+    expect(snapshot.compliance?.note).toBe("Passport seen on video call")
+    expect(snapshot.compliance?.noticePeriod).toBe("4 weeks")
+    expect(snapshot.compliance?.employerNotice).toMatch(/employer must run its own check/)
+    // Machine values must not leak into the frozen words.
+    expect(JSON.stringify(snapshot.compliance)).not.toMatch(/"seen"|not_required/)
+  })
+
   it("states gaps plainly instead of omitting them", async () => {
     wire([
       { requirement_id: "r1", strength: "strong", quote: "Ran the bus", source_cite: "R1", origin: "interview" },
