@@ -256,6 +256,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
         <div>
           <div className="ag-rail-label">Navigate</div>
           <button className="ag-step" onClick={() => router.push("/agencies")}>Dashboard</button>
+          <button className="ag-step" onClick={() => router.push("/agencies/candidates")}>Candidates</button>
           {/* ?flow=shortlist is the deliberate way back into the finished flow —
               without it the bare role URL forwards straight back here. */}
           <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}?flow=shortlist`)}>

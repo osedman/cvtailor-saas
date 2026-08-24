@@ -38,6 +38,7 @@ interface NextCall { id: string; ref: string; full_name: string; role_id: string
 interface HeatRow { recipient_id: string; contact_name: string; company: string; role_title: string; sent_at: string; last_opened_at: string | null }
 interface Suggestion { candidate_id: string; candidate_ref: string; full_name: string; from_role_id: string; from_role_title: string; to_role_id: string; to_role_title: string; covered: number; total: number }
 interface NoticeDetail { candidate_id: string; ref: string; full_name: string; role_id: string; role_title: string; scheduled_for: string }
+interface PaperworkItem { candidate_id: string; ref: string; full_name: string; role_title: string; start_date: string | null }
 
 interface Dashboard {
   agency: { name: string; retention_days: number; notice_delay_days: number } | null
@@ -55,6 +56,7 @@ interface Dashboard {
     positive_response: { pct: number | null; n: number }
   }
   notices_detail: NoticeDetail[]
+  paperwork?: PaperworkItem[]
   next_calls: NextCall[]
   client_heat: { opened_silent: HeatRow[]; never_opened: HeatRow[] }
   worth_a_look: Suggestion[]
@@ -361,6 +363,15 @@ export default function AgencyHomePage() {
         title: `${h.contact_name}${h.company ? ` at ${h.company}` : ""} has not opened ${h.role_title || "the shortlist"}`,
         sub: `sent ${ago(h.sent_at)}`,
         right: "resend?",
+      })
+    }
+    for (const p of data.paperwork ?? []) {
+      rows.push({
+        key: `file:${p.candidate_id}`, tag: "File", tagClass: "call",
+        title: `Record ${p.full_name}'s right to work — the employer's check comes before the start`,
+        sub: `${p.ref} · ${p.role_title}${p.start_date ? ` · starts ${new Date(`${p.start_date}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}` : ""}`,
+        right: "open the file", hot: true,
+        onClick: () => router.push(`/agencies/candidates/${p.candidate_id}`),
       })
     }
     for (const n of data.notices_detail) {

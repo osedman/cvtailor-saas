@@ -59,7 +59,11 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   const { roleId } = use(params)
   const router = useRouter()
 
-  const [role, setRole] = useState<{ ref: string; title: string; company: string } | null>(null)
+  const [role, setRole] = useState<{ ref: string; title: string; company: string; status: string } | null>(null)
+  /** Delivered packs collapse to a record line — the work is done and the
+   *  screen should say so, not hold the full document open forever. */
+  const [packOpen, setPackOpen] = useState(false)
+  const [closure, setClosure] = useState<{ sent: number; deferred: number } | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [chosenId, setChosenId] = useState("")
   const [refs, setRefs] = useState<ReferenceListRow[] | null>(null)
@@ -83,7 +87,12 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
         const body = await roleRes.json()
         setPhase((body?.phase as PhaseKey | null) ?? null)
         if (body?.role) {
-          setRole({ ref: body.role.ref, title: body.role.title, company: body.role.company ?? "" })
+          setRole({
+            ref: body.role.ref,
+            title: body.role.title,
+            company: body.role.company ?? "",
+            status: body.role.status ?? "draft",
+          })
         }
       }
       if (candRes.ok) {
@@ -136,6 +145,31 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
     }
   }
 
+  /** The end. Closing starts the retention clock (DB trigger) and tells
+   *  everyone the loop was opened with — batched and paced server-side. */
+  async function closeRole() {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "closed" }),
+      })
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string
+        closure?: { sent?: number; deferred?: number } | null
+      }
+      if (!res.ok) throw new Error(body.error ?? "Could not close the role")
+      setRole((r) => (r ? { ...r, status: "closed" } : r))
+      if (body.closure) setClosure({ sent: body.closure.sent ?? 0, deferred: body.closure.deferred ?? 0 })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not close the role")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function generate() {
     if (!chosenId) return
     setBusy(true)
@@ -179,6 +213,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
         <div>
           <div className="ag-rail-label">Navigate</div>
           <button className="ag-step" onClick={() => router.push("/agencies")}>Dashboard</button>
+          <button className="ag-step" onClick={() => router.push("/agencies/candidates")}>Candidates</button>
           <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}`)}>This role</button>
           <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}/interviews`)}>Interviews</button>
           <button className="ag-step on" aria-current="page">Close-out</button>
@@ -310,6 +345,30 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                   </>
                 ) : (
                   <div className="ag-pack">
+                    {deliveredTo && !packOpen ? (
+                      <div className="ag-handoff ag-print-hide" role="group" aria-label="Delivered pack">
+                        <div className="ag-handoff-body">
+                          <p className="ag-handoff-title">
+                            The delivered pack is on record — frozen{" "}
+                            {new Date(pack.generated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.
+                          </p>
+                          <p className="ag-handoff-sub">
+                            {pack.candidate.name} · {pack.role.title} · immutable since delivery.
+                          </p>
+                        </div>
+                        <button className="ag-btn ag-btn-secondary" onClick={() => setPackOpen(true)}>
+                          View the pack
+                        </button>
+                      </div>
+                    ) : (
+                    <>
+                    {deliveredTo && (
+                      <div className="ag-print-hide" style={{ marginBottom: 10 }}>
+                        <button className="ag-btn ag-btn-secondary" onClick={() => setPackOpen(false)}>
+                          ← File the pack away
+                        </button>
+                      </div>
+                    )}
                     {/* The document itself, not a summary of it. This is what
                         the employer's HR team receives; the numbered sections
                         are its canonical reading order (evidence → how it was
@@ -477,6 +536,9 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                       )}
                     </div>
 
+                    </>
+                    )}
+
                     {/* Frozen is not finished. The pack exists to be handed
                         over — this is the act that ends Tailr's part, so it
                         lives on the pack rather than in a menu somewhere. */}
@@ -510,31 +572,45 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                           </button>
                         </div>
                       )
+                    ) : role?.status === "closed" ? (
+                      <div className="ag-handoff ag-print-hide" role="status">
+                        <div className="ag-handoff-body">
+                          <p className="ag-handoff-title">
+                            {role.ref} is closed. This desk is done.
+                          </p>
+                          <p className="ag-handoff-sub">
+                            The pack is with the client and stays on record here.
+                            {closure
+                              ? ` Everyone else was told — ${closure.sent} sent${closure.deferred ? `, ${closure.deferred} still to go` : ""}.`
+                              : " Everyone the loop was opened with is told."}
+                            {" "}The retention clock is running; when it lapses, Tailr forgets.
+                          </p>
+                        </div>
+                        <button className="ag-btn ag-btn-primary" onClick={() => router.push("/agencies")}>
+                          Back to the dashboard
+                        </button>
+                      </div>
                     ) : (
                       <div className="ag-handoff ag-print-hide" role="status">
                         <div className="ag-handoff-body">
                           <p className="ag-handoff-title">
-                            Delivered to {contacts.find((c) => c.id === deliveredTo)?.full_name || "the client"} — two acts finish the role.
+                            Delivered to {contacts.find((c) => c.id === deliveredTo)?.full_name || "the client"} — one act left.
                           </p>
                           <p className="ag-handoff-sub">
-                            Record the placement (the commercial fact: fee, start date, rebate
-                            window), then close the role — closing starts the retention clock on
-                            everyone who did not get the job and tells them the loop is closed.
-                            Closing stays your act; nothing here does it for you.
+                            Close the role: the retention clock starts on everyone who did not get
+                            the job, and they are told the loop is closed. Yours deliberately —
+                            nothing closes a role for you.
                           </p>
                         </div>
                         <button
                           className="ag-btn ag-btn-secondary"
-                          onClick={() => chosenId && router.push(`/agencies/roles/${roleId}/candidates/${chosenId}`)}
+                          onClick={() => chosenId && router.push(`/agencies/candidates/${chosenId}`)}
                           disabled={!chosenId}
                         >
-                          Record the placement
+                          Candidate file
                         </button>
-                        <button
-                          className="ag-btn ag-btn-primary"
-                          onClick={() => router.push(`/agencies/roles/${roleId}?flow=shortlist`)}
-                        >
-                          Close the role →
+                        <button className="ag-btn ag-btn-primary" onClick={closeRole} disabled={busy}>
+                          {busy ? "Closing…" : "Close the role"}
                         </button>
                       </div>
                     )}

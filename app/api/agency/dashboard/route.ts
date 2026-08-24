@@ -77,6 +77,8 @@ export async function GET() {
       requirementsRes,
       submissionsRes,
       handoversRes,
+      placementsRes,
+      complianceRes,
       contactsRes,
       briefsRes,
     ] = await Promise.all([
@@ -95,6 +97,8 @@ export async function GET() {
       db.from("requirements").select("id, ref, text, weight, role_id").eq("agency_id", ctx.agencyId),
       db.from("submissions").select("id, role_id, generated_at").eq("agency_id", ctx.agencyId),
       db.from("handover_packs").select("role_id").eq("agency_id", ctx.agencyId),
+      db.from("placements").select("candidate_id, role_id, status, start_date").eq("agency_id", ctx.agencyId),
+      db.from("candidate_compliance").select("candidate_id, rtw_evidence").eq("agency_id", ctx.agencyId),
       db.from("client_contacts").select("id, full_name, company").eq("agency_id", ctx.agencyId),
       // Deliberately NO agency filter: role_briefs' RLS policy already scopes
       // rows to the caller's memberships, so one query yields this agency's
@@ -123,6 +127,7 @@ export async function GET() {
       ["agency", agencyRes], ["breakdowns", breakdownsRes],
       ["requirements", requirementsRes], ["submissions", submissionsRes],
       ["handovers", handoversRes], ["contacts", contactsRes], ["briefs", briefsRes],
+      ["placements", placementsRes], ["compliance", complianceRes],
     ] as const).filter(([, r]) => r.error)
     if (failed.length > 0) {
       const detail = failed.map(([name, r]) => `${name}: ${r.error?.message}`).join("; ")
@@ -191,6 +196,33 @@ export async function GET() {
     const live = candidates.filter((c) => openRoleIds.has(c.role_id) && c.parse_status !== "failed")
     const awaitingScreening = live.filter((c) => (reviewByCand.get(c.id)?.status ?? "unreviewed") !== "reviewed")
     const awaitingDecision = live.filter((c) => reviewByCand.get(c.id)?.status === "reviewed" && !decisionFor.get(c.id))
+
+    // ---- Paperwork: the file has work the dashboard must surface ---------
+    // A placement in flight with no right-to-work recorded is the sharpest
+    // deadline on a desk: the employer's own check is needed before the start
+    // date. This is how the candidate file "appears" — the dashboard sends
+    // you there when it matters, rather than the screen hoping to be found.
+    const rtwByCand = new Map(
+      (complianceRes.data ?? []).map((c) => [c.candidate_id as string, c.rtw_evidence as string])
+    )
+    const candByIdAll = new Map(candidates.map((c) => [c.id, c]))
+    const paperwork = (placementsRes.data ?? [])
+      // Offered counts too: the employer's check is needed before the start
+      // date regardless of where the paperwork of the offer itself stands.
+      .filter((p) => p.status !== "declined" && p.status !== "fell_through")
+      .filter((p) => (rtwByCand.get(p.candidate_id as string) ?? "not_checked") !== "seen")
+      .flatMap((p) => {
+        const cand = candByIdAll.get(p.candidate_id as string)
+        if (!cand) return []
+        const role = roles.find((r) => r.id === p.role_id)
+        return [{
+          candidate_id: p.candidate_id as string,
+          ref: cand.ref,
+          full_name: cand.full_name,
+          role_title: role?.title ?? "",
+          start_date: (p.start_date as string | null) ?? null,
+        }]
+      })
 
     // ---- Judgment 1: which call moves the needle -------------
     const nextCalls = awaitingScreening
@@ -590,6 +622,7 @@ export async function GET() {
       },
       health,
       notices_detail: noticesDetail,
+      paperwork,
       next_calls: nextCalls,
       client_heat: { opened_silent: openedSilent, never_opened: neverOpened },
       worth_a_look: worthALook.slice(0, 3),
