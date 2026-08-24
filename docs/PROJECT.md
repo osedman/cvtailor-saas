@@ -3324,4 +3324,36 @@ only-Ose-gets-mail rule.
 
 ---
 
-_Last updated: 23 August 2026_
+## 📄 24 Aug 2026 (00:50) — the pack becomes the document it always was
+
+The pack card summarised itself ("8 evidenced requirements…") while the
+frozen snapshot held the entire dossier. Designed and built as the real
+artifact (`.ag-doc` in agencies.css, close-out page):
+
+- **Sealed header** — HANDOVER RECORD · role ref · candidate ref, the
+  FROZEN · date seal in flow (absolute positioning collided with the eyebrow
+  at column width; measured, fixed), name in Fraunces, prepared-by line.
+- **01 Evidence dossier** — verbatim quotes with hanging marks and sources,
+  weight + strength chips. **02 Interview history** — provenance per round
+  ("written up by the interviewer" / "transcribed with the candidate's
+  consent" / "no written record") + decision. **03 References** — the
+  referee's own words, Q by Q. **04 Known gaps, stated plainly** — same size
+  as evidence, the honesty thesis in print. Machine values never print raw.
+- **Paper in every theme** — local token override pins the sheet to light
+  paper inside the dark workspace; a document's colours are the sheet's.
+- **Print is the delivery format** — @media print strips chrome, pickers and
+  actions; "Print or save as PDF" button; sections avoid page breaks.
+- Pack section takes the full close-out row (was cramped in a half column).
+
+Also: Ose's delivered pack had frozen BEFORE his referee answers existed
+(generated 22:31, references pushed later) — honest behaviour, wrong demo
+artifact. Reset on his side of the walk; the re-freeze carries both
+references in full (verified: 9 quotes, 8 Q&As rendered).
+
+954 tests. Pushed (`191edc2`). Figma frame for the document still owed —
+built under Ose's direct act-don't-ask order; mirror + sign-off when he's
+back.
+
+---
+
+_Last updated: 24 August 2026_
