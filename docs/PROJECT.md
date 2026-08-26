@@ -3444,4 +3444,45 @@ edit, `git ls-remote` before every push, no clobbers.
 
 ---
 
-_Last updated: 24 August 2026_
+## 🌱 26 Aug 2026 — ROL-2409 seeded for the walk-through, and two blockers found
+
+Seeded a fresh demo role at Ose's request: **ROL-2409 · Business Analyst —
+Automation** (Meridian Health), 9 parsed requirements, 3 constraints, and
+**8 candidates ingested through the real path** (POST /candidates → parse →
+score), so evidence and scores are genuine, not fixtures. Deliberate fit
+spread for the compare matrix: 97 · 70 · 62 · 48 · 33 · 23 · 18 · 10. All
+eight use `@example.invalid` addresses.
+
+**Matching now knows the lean-frame account.** It was opted in but had
+**zero career_evidence rows**, so `runMatchScan` never saw it — the pool is
+built from evidence cards, and a user with none contributes nothing. Built
+its bank through the product's own path (`/api/career-profile`, mode=build,
+against the CV already in that account's tailor_history): **14 cards**
+(8 quant · 3 craft · 2 systems · 1 scope). ROL-2409 published for matching,
+min score 50.
+
+### Blocker 1: the Anthropic key on this machine is a placeholder
+
+`~/.config/tailr/tailr.env` holds the literal string `[SENSITIVE]` for
+`ANTHROPIC_API_KEY` (11 chars) — and so does `.env.development.local.bak`.
+Verified live: 401 `invalid x-api-key`. **Local dev cannot parse, score,
+tailor or scan.** Same failure class as the `SET_ME_…` service-role key that
+blocked sign-in for four weeks (see START HERE). Seeding was routed through
+deployed staging, which has a real key in Vercel.
+
+### Blocker 2: the Anthropic account is out of credit
+
+The match scan failed with `400 … "Your credit balance is too low to access
+the Anthropic API."` The eight candidate ingests spent what was left. So:
+role, candidates, evidence and publish are all in place, `role_matching` is
+enabled at min 50, and the scan job is `failed` awaiting credit. **Once Ose
+tops up, re-publishing (or the cron) re-queues it — no rebuild needed.**
+
+**Notice safety re-run.** A later walk-through had re-queued a notice against
+one REAL personal address, plus the eight new fixtures. Re-applied both
+layers: every staging identity blacklisted (23 rows) and the queue emptied.
+`still_scheduled: 0`, `candidates_not_covered: 0`.
+
+---
+
+_Last updated: 26 August 2026_
