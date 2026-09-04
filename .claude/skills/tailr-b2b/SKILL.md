@@ -368,8 +368,13 @@ role rows. Interaction feedback is transform/opacity only.
 - **HM-facing dossier** — needs a "was this candidate actually submitted to
   you" gate before it can exist; today the dossier is recruiter-side because it
   contains the recruiter's working.
-- **Quiet matching / applicant pool** — decided and designed (job board was
-  cut 13 Aug in favour of candidate-side recommendation), not built.
+- ~~Quiet matching / applicant pool~~ — **BUILT** (corrected 3 Sep 2026; this
+  line said "not built" for weeks and misled a planning pass). `lib/matching/**`,
+  six migrations, `/found`, tailor-first apply; walked by Ose on real data
+  (PROJECT.md 1414, 1600). Role-first only: recruiter publishes, the candidate
+  alone sees the match, applying is the consent. What is NOT built: a
+  consumer-initiated (person-scoped) scan, and any consumer-facing view of the
+  process after applying — see `docs/B2B-SMOOTH-FLOW-PLAN.md` Wave 5.
 
 
 ## BUILT 20 Aug: the placement record (migration 25)
@@ -435,7 +440,7 @@ Temp/contract recruitment remains out of scope until decided otherwise.
 - Lawyer review + DPIA + DPA (the gate). Consent copy is written and built.
 - The full human walk-through.
 - Revoke authenticated UPDATE on `agency.agencies` (settings audit bypass).
-- Bulk upload; quiet matching DDL workshop; production port.
+- Bulk upload; production port; the smooth-flow plan (`docs/B2B-SMOOTH-FLOW-PLAN.md`).
 - `web-design-guidelines` pass: **done 14 Aug** for the session's screens.
 
 ## Git: commit through the API, not local branches
