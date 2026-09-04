@@ -3575,6 +3575,55 @@ has no session; Ose's walk on staging is the click-through, per the plan's
 Wave 0 verify step (a role in each phase, every nav link, no bounce, reload
 holds).
 
+## 🧭 4 Sep 2026 — Wave 1, first half: the next-action ladder, the role facts, and the header frame for sign-off
+
+Second wave of `docs/B2B-SMOOTH-FLOW-PLAN.md`, on "start wave 1". Split in
+two because the header is UI and the Figma rule holds: the engine and the
+routes are built and tested; the component waits on Ose's sign-off of the
+frame.
+
+**The frame.** `02 · Role header · owner, waiting on, since, next action`
+(Figma `AWRRbEOX6rLsltutFDL3zs`, node `300:2`, beside `01 · Three phases`).
+The header as it renders on a recruiter role screen with five callouts, six
+worked moments across both hats, the full sub-state vocabulary (chip → the
+fact that produces it → who is waiting), and the five lines it holds.
+Corrected against the schema before anyone reads it: a round "happening" is
+a status flip with no end timestamp, and a pack is generated then handed
+over — there is no frozen state and no hire decision value.
+
+**The ladder.** `lib/agency/next-action.ts`: `deriveSubState(facts)` and
+`nextAction(facts, hat, roleId)`, pure, browser-safe (its only runtime
+import is phases.ts, and a test pins that). Nineteen sub-states ordered so
+the thing that unblocks the most wins: the recruiter's own acts, then the
+client's, then the candidate's, then the waits nobody can shorten. Per-
+candidate loop state from rounds alone; "take to close-out" is derived from
+the closest fact there is (last completed round decided advance at or past
+planned_rounds — a plan, never a gate). `since` is the timestamp of the fact
+that opened the wait, `ageLabel` turns it into "3 days", never a deadline.
+35 tests walk a role through every rung on both hats and pin the property
+that matters: exactly one party waits, and a hat acts iff it is that party.
+
+**The facts.** `lib/agency/role-facts.ts` assembles `RoleFacts` server-side
+from reads that already exist (`listRoundsForRole`, `listOpenSlots`, the
+dashboard's candidate/review/decision shape), plus a profiles lookup for the
+owner's *name* (never email — the value reaches the client's header).
+`listRoundsForRole` now carries `candidateResponse` and `createdAt`;
+`listOpenSlots` carries `offeredAt`. Both additive.
+
+**The routes.** `GET /api/agency/roles/:id/header` (recruiter) and
+`GET /api/hiring/roles/:id/header` (client). The client route ties the role
+to the caller's contact ids through four tables before reading anything,
+answers "not found" rather than "forbidden", never serialises the facts,
+and coarsens the shortlist phase to SHORTLIST IN PROGRESS so the recruiter's
+counts stay the agency's working. Source-scan tests pin all four.
+
+**Not built yet, by the rule:** `RoleHeader` itself, on the six recruiter
+screens and the client's role page. Next session starts there the moment
+the frame is approved.
+
+**Verified:** typecheck clean, 1,017 tests, the two new routes exercised by
+source scan only — a live call needs a session this machine does not have.
+
 ---
 
 _Last updated: 4 September 2026_

@@ -175,6 +175,8 @@ export interface OpenSlot {
   contactName: string
   startsAt: string
   endsAt: string
+  /** When the client offered it — the fact that opens "round N to book". */
+  offeredAt: string
 }
 
 /** Slots a recruiter can actually book: this agency's, live, still ahead, and
@@ -185,7 +187,7 @@ export async function listOpenSlots(ctx: AgencyContext, roleId?: string): Promis
 
   let query = admin
     .from("availability_slots")
-    .select("id, contact_id, role_id, starts_at, ends_at")
+    .select("id, contact_id, role_id, starts_at, ends_at, created_at")
     .eq("agency_id", ctx.agencyId)
     .is("revoked_at", null)
     .gt("ends_at", nowIso)
@@ -230,6 +232,7 @@ export async function listOpenSlots(ctx: AgencyContext, roleId?: string): Promis
     contactName: byId.get(s.contact_id as string)?.fullName ?? "",
     startsAt: s.starts_at as string,
     endsAt: s.ends_at as string,
+    offeredAt: (s.created_at as string) ?? (s.starts_at as string),
   }))
 }
 
@@ -255,6 +258,9 @@ export interface AgencyRoundRow {
    * this is the flag the selection screen sequences on ("no artifact, no
    * progression"). */
   hasDebrief: boolean
+  /** The candidate's answer to the booking invite; 'pending' until they act. */
+  candidateResponse: "pending" | "confirmed" | "declined"
+  createdAt: string
 }
 
 /** Rounds already booked on this role, newest first. Recruiter-side, so the
@@ -267,7 +273,7 @@ export async function listRoundsForRole(
   const { data: rounds, error } = await admin
     .from("interview_rounds")
     .select(
-      "id, candidate_id, contact_id, round_number, scheduled_at, duration_minutes, meeting_url, status, capture_consent_status"
+      "id, candidate_id, contact_id, round_number, scheduled_at, duration_minutes, meeting_url, status, capture_consent_status, candidate_response, created_at"
     )
     .eq("agency_id", ctx.agencyId)
     .eq("role_id", roleId)
@@ -345,6 +351,8 @@ export async function listRoundsForRole(
     captureConsentStatus: (r.capture_consent_status as string) ?? "pending",
     clientDecision: latestDecision.get(r.id as string) ?? null,
     hasDebrief: debriefed.has(r.id as string),
+    candidateResponse: ((r.candidate_response as string) ?? "pending") as "pending" | "confirmed" | "declined",
+    createdAt: (r.created_at as string) ?? "",
   }))
 }
 
