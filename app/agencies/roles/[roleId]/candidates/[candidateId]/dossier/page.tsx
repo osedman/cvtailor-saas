@@ -29,6 +29,10 @@
 import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { AgencyNav } from "@/components/agency/agency-nav"
+import { RoleRail } from "@/components/agency/role-rail"
+import { PhaseRail } from "@/components/agency/phase-rail"
+import { workflowHref, type PhaseKey } from "@/lib/agency/phases"
 import { SignOut } from "@/components/agency/sign-out"
 import type { Dossier, Layer, RequirementStrata } from "@/lib/agency/dossier"
 // Pure function, no server imports — safe in the browser, and the reason the
@@ -68,12 +72,21 @@ export default function DossierPage({
   const { roleId, candidateId } = use(params)
   const router = useRouter()
   const [dossier, setDossier] = useState<Dossier | null>(null)
+  // The phase comes from the role route, not the dossier's: a second small
+  // read so the rail here says the same thing as every other role screen.
+  const [phase, setPhase] = useState<PhaseKey | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** Which round's delta is on screen. Null = the whole dossier. */
   const [deltaRound, setDeltaRound] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     try {
+      // Best effort and separate: a failed phase read leaves the rail blank
+      // (it renders nothing on null) and must not take the dossier with it.
+      fetch(`/api/agency/roles/${roleId}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((b) => setPhase((b?.phase as PhaseKey | null) ?? null))
+        .catch(() => {})
       const res = await fetch(`/api/agency/roles/${roleId}/candidates/${candidateId}/dossier`)
       if (res.status === 401) return router.push("/agencies")
       if (!res.ok) {
@@ -110,12 +123,8 @@ export default function DossierPage({
           </div>
         </button>
         <AgencySwitcher />
-        <div>
-          <div className="ag-rail-label">Navigate</div>
-          <button className="ag-step" onClick={() => router.push("/agencies")}>Dashboard</button>
-          <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}`)}>This role</button>
-          <button className="ag-step on" aria-current="page">Dossier</button>
-        </div>
+        <AgencyNav />
+        <RoleRail roleId={roleId} phase={phase} current={null} leaf="Dossier" />
         <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Earned, not assumed</div>
@@ -132,12 +141,14 @@ export default function DossierPage({
             <span className="ag-crumb">
               <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
               {" / "}
-              <button className="ag-crumb-link" onClick={() => router.push(`/agencies/roles/${roleId}`)}>
+              <button className="ag-crumb-link" onClick={() => router.push(workflowHref(roleId))}>
                 {d?.role.ref || "Role"}
               </button>
               {" / "}
               <b>Dossier</b>
             </span>
+            <span className="ag-grow" />
+            <PhaseRail current={phase} roleId={roleId} />
           </div>
 
           {error && <p className="ag-banner" role="alert">{error}</p>}

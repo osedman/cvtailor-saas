@@ -27,11 +27,24 @@ export const WORKFLOW_STEPS: Array<{ key: StepKey; label: string }> = [
   { key: "submission", label: "Client submission" },
 ]
 
+/**
+ * The six steps the workflow page renders as panes. Candidate detail is the
+ * seventh and has its own route, so Back / Next skip it. Derived from the
+ * one list rather than declared beside it — the page kept its own filtered
+ * copy for a while, which is how a second step list starts.
+ */
+export type PaneStepKey = Exclude<StepKey, "detail">
+export const PANE_STEPS = WORKFLOW_STEPS.filter((s) => s.key !== "detail") as Array<{
+  key: PaneStepKey
+  label: string
+}>
+
 /** "06" for the rail badge and the "Step 06 · Candidate detail" eyebrow. */
 export function stepNumber(key: StepKey): string {
   return String(WORKFLOW_STEPS.findIndex((s) => s.key === key) + 1).padStart(2, "0")
 }
 
+/** "Candidate detail" for the eyebrow and the crumb. */
 export function stepLabel(key: StepKey): string {
   return WORKFLOW_STEPS.find((s) => s.key === key)?.label ?? ""
 }

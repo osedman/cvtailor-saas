@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
+import { workflowHref } from "@/lib/agency/phases"
 import { SignOut } from "@/components/agency/sign-out"
 
 type StageState = "here" | "blocked" | "waiting" | "done"
@@ -162,9 +163,12 @@ export default function AgencyHomePage() {
     }
   }
 
+  // With a step the intent is the workflow at that step, so the link says so
+  // (workflowHref); without one it is the role's front door, which lands
+  // wherever the work now lives.
   const openRole = useCallback(
     (roleId: string, step?: string) =>
-      router.push(step ? `/agencies/roles/${roleId}?step=${step}` : `/agencies/roles/${roleId}`),
+      router.push(step ? workflowHref(roleId, step) : `/agencies/roles/${roleId}`),
     [router]
   )
 

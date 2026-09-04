@@ -24,6 +24,9 @@
 import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { AgencyNav } from "@/components/agency/agency-nav"
+import { RoleRail } from "@/components/agency/role-rail"
+import { workflowHref } from "@/lib/agency/phases"
 import { SignOut } from "@/components/agency/sign-out"
 import { PhaseRail } from "@/components/agency/phase-rail"
 import { CandidateReferences, type ReferenceListRow } from "@/components/agency/candidate-references"
@@ -210,14 +213,8 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
           </div>
         </button>
         <AgencySwitcher />
-        <div>
-          <div className="ag-rail-label">Navigate</div>
-          <button className="ag-step" onClick={() => router.push("/agencies")}>Dashboard</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/candidates")}>Candidates</button>
-          <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}`)}>This role</button>
-          <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}/interviews`)}>Interviews</button>
-          <button className="ag-step on" aria-current="page">Close-out</button>
-        </div>
+        <AgencyNav />
+        <RoleRail roleId={roleId} phase={phase} current="close-out" />
         <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>When the hire is made</div>
@@ -234,7 +231,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
             <span className="ag-crumb">
               <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
               {" / "}
-              <button className="ag-crumb-link" onClick={() => router.push(`/agencies/roles/${roleId}`)}>
+              <button className="ag-crumb-link" onClick={() => router.push(workflowHref(roleId))}>
                 {role?.ref || "Role"}
               </button>
               {" / "}

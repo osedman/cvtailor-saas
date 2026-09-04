@@ -21,6 +21,22 @@ const SCREENS: Array<[string, string]> = [
   ["app/agencies/audit/page.tsx", "audit"],
   ["app/agencies/settings/page.tsx", "settings"],
   ["app/agencies/notifications/page.tsx", "notifications"],
+  ["app/agencies/candidates/page.tsx", "candidates"],
+  ["app/agencies/candidates/[candidateId]/page.tsx", "candidates"],
+]
+
+/**
+ * Screens INSIDE a role. They render the same global nav with no current
+ * item (nothing global is current inside a role) and the role's own rail
+ * underneath. Seven of these hand-rolled a "Navigate" list each until
+ * 3 Sep 2026, and two offered no route navigation at all.
+ */
+const ROLE_SCREENS = [
+  "app/agencies/roles/[roleId]/page.tsx",
+  "app/agencies/roles/[roleId]/candidates/[candidateId]/page.tsx",
+  "app/agencies/roles/[roleId]/interviews/page.tsx",
+  "app/agencies/roles/[roleId]/close-out/page.tsx",
+  "app/agencies/roles/[roleId]/candidates/[candidateId]/dossier/page.tsx",
 ]
 
 describe("every agency screen uses the shared nav", () => {
@@ -53,6 +69,33 @@ describe("every agency screen uses the shared nav", () => {
       const strayNav = /<nav className="agd-nav"/.test(s)
       expect(strayNav, `${path} still renders its own agd-nav list`).toBe(false)
     }
+  })
+
+  it.each(ROLE_SCREENS)("%s renders the global nav, with no current item", (path) => {
+    const s = read(path)
+    expect(s).toMatch(/<AgencyNav \/>/)
+    expect(s).toMatch(/<AgencySwitcher \/>/)
+    expect(s).toMatch(/<PhaseRail current=\{phase\}/)
+    expect(/ag-rail-label">Navigate</.test(s), `${path} still hand-rolls a Navigate rail`).toBe(false)
+    const rolled = /className="ag-step[^"]*"\s+onClick=\{\(\) => router\.push\("\/agencies/.test(s)
+    expect(rolled, `${path} still hand-rolls nav buttons`).toBe(false)
+  })
+
+  it.each(ROLE_SCREENS)("%s never links the role bare", (path) => {
+    // The bare role URL forwards past the workflow once a submission exists.
+    // A crumb, rail or button inside a role that links it bare bounces the
+    // reader straight back to where they clicked from — "This role" on
+    // close-out was inert for every role in close-out. workflowHref is the
+    // only way to link the workflow from inside a role.
+    const s = read(path)
+    const bare = [...s.matchAll(/`\/agencies\/roles\/\$\{roleId\}`/g)]
+    // The workflow page compares its own URL to the landing path; that is a
+    // comparison, not a link.
+    const isWorkflow = path === "app/agencies/roles/[roleId]/page.tsx"
+    expect(bare.length, `${path} links the role bare`).toBe(isWorkflow ? 1 : 0)
+    // The workflow page IS the destination; every other role screen links
+    // into it and must do so through the helper.
+    if (!isWorkflow) expect(s).toMatch(/workflowHref\(/)
   })
 
   it("the dashboard's sections are passed to the nav, not rendered beside it", () => {

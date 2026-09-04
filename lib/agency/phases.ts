@@ -91,7 +91,27 @@ export function phaseHref(key: PhaseKey, roleId: string): string {
   const base = `/agencies/roles/${roleId}`
   if (key === "interviews") return `${base}/interviews`
   if (key === "handover") return `${base}/close-out`
-  return base
+  // The shortlist chip means "take me to the shortlist workflow", so it must
+  // carry the flag that keeps roleLandingPath from forwarding straight back
+  // to interviews or close-out. Without it the chip was inert on every role
+  // past submission (found 3 Sep 2026).
+  return workflowHref(roleId)
+}
+
+/**
+ * A link INTO the shortlist workflow, always.
+ *
+ * The bare role URL is the role's front door and forwards to wherever the
+ * work now lives (roleLandingPath). Any link whose intent is "the workflow,
+ * at this step" has to say so, or a role past submission bounces the reader
+ * straight back to the screen they clicked from. Every crumb, rail and step
+ * link builds its href here; only the front door (dashboard "open role",
+ * email CTAs) links bare, on purpose.
+ */
+export function workflowHref(roleId: string, step?: string): string {
+  const q = new URLSearchParams({ flow: "shortlist" })
+  if (step) q.set("step", step)
+  return `/agencies/roles/${roleId}?${q.toString()}`
 }
 
 /**

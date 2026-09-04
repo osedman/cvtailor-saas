@@ -14,6 +14,8 @@ import {
   derivePhase,
   phaseHref,
   phaseState,
+  roleLandingPath,
+  workflowHref,
   type PhaseKey,
 } from "../agency/phases"
 
@@ -68,9 +70,32 @@ describe("phaseState", () => {
 
 describe("phaseHref", () => {
   it("routes each phase to the surface that owns it", () => {
-    expect(phaseHref("shortlist", "r1")).toBe("/agencies/roles/r1")
+    expect(phaseHref("shortlist", "r1")).toBe("/agencies/roles/r1?flow=shortlist")
     expect(phaseHref("interviews", "r1")).toBe("/agencies/roles/r1/interviews")
     expect(phaseHref("handover", "r1")).toBe("/agencies/roles/r1/close-out")
+  })
+
+  it("the shortlist chip never lands on the front door", () => {
+    // The bare role URL forwards past the workflow once a submission exists
+    // (roleLandingPath). A chip that said "Shortlist" and delivered you back
+    // to interviews was inert on every role past phase one.
+    for (const phase of ["interviews", "handover"] as const) {
+      expect(phaseHref("shortlist", "r1")).not.toBe(roleLandingPath(phase, "r1"))
+    }
+  })
+})
+
+describe("workflowHref", () => {
+  it("always carries the flag that keeps the workflow from forwarding away", () => {
+    expect(workflowHref("r1")).toBe("/agencies/roles/r1?flow=shortlist")
+  })
+
+  it("carries a step alongside the flag", () => {
+    const href = workflowHref("r1", "screening")
+    const q = new URLSearchParams(href.split("?")[1])
+    expect(href.startsWith("/agencies/roles/r1?")).toBe(true)
+    expect(q.get("flow")).toBe("shortlist")
+    expect(q.get("step")).toBe("screening")
   })
 })
 

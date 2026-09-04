@@ -28,6 +28,14 @@
  * The Briefs count is deliberately cross-agency: a brief waiting in another
  * of your agencies is still waiting on you, and the badge is the only thing
  * that says so before you have thought to switch.
+ *
+ * ROLE SCREENS RENDER IT WITH NO CURRENT ITEM (3 Sep 2026). The workflow,
+ * candidate detail, interviews, close-out and dossier pages are inside a
+ * role, which is not a global place — so nothing here is "current" there,
+ * and the role's own rail (RoleRail, or the seven steps) sits underneath.
+ * Before this, those pages hand-rolled a "Navigate" list each, and two of
+ * them offered no route navigation at all: Briefs, Clients, Audit and
+ * Settings were unreachable from the screen recruiters spend most time on.
  */
 
 import { useEffect, useState } from "react"
@@ -68,7 +76,8 @@ export function AgencyNav({
   onSection,
   activeSection,
 }: {
-  current: AgencyNavKey
+  /** Omit on role-scoped screens: nothing global is current inside a role. */
+  current?: AgencyNavKey
   /** Sections of this page, nested under its item. Omit for short screens. */
   sections?: AgencyNavSection[]
   onSection?: (id: string) => void

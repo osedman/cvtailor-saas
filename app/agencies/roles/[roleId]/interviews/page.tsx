@@ -28,6 +28,9 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { use } from "react"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { AgencyNav } from "@/components/agency/agency-nav"
+import { RoleRail } from "@/components/agency/role-rail"
+import { workflowHref } from "@/lib/agency/phases"
 import { InterviewCapture } from "@/components/agency/interview-capture"
 import { PhaseRail } from "@/components/agency/phase-rail"
 import { type PhaseKey } from "@/lib/agency/phases"
@@ -253,20 +256,8 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
           </div>
         </button>
         <AgencySwitcher />
-        <div>
-          <div className="ag-rail-label">Navigate</div>
-          <button className="ag-step" onClick={() => router.push("/agencies")}>Dashboard</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/candidates")}>Candidates</button>
-          {/* ?flow=shortlist is the deliberate way back into the finished flow —
-              without it the bare role URL forwards straight back here. */}
-          <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}?flow=shortlist`)}>
-            <span className="ag-step-num done">✓</span> Shortlist flow
-          </button>
-          <button className="ag-step on" aria-current="page">Interviews</button>
-          <button className="ag-step" onClick={() => router.push(`/agencies/roles/${roleId}/close-out`)}>
-            Close-out
-          </button>
-        </div>
+        <AgencyNav />
+        <RoleRail roleId={roleId} phase={phase} current="interviews" />
         <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Their diary</div>
@@ -283,7 +274,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
             <span className="ag-crumb">
               <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
               {" / "}
-              <button className="ag-crumb-link" onClick={() => router.push(`/agencies/roles/${roleId}`)}>
+              <button className="ag-crumb-link" onClick={() => router.push(workflowHref(roleId))}>
                 {role?.ref || "Role"}
               </button>
               {" / "}
@@ -293,9 +284,9 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
             <PhaseRail current={phase} roleId={roleId} />
             <button
               className="ag-btn ag-btn-secondary"
-              onClick={() => router.push(`/agencies/roles/${roleId}`)}
+              onClick={() => router.push(workflowHref(roleId))}
             >
-              ← Back to role
+              ← Shortlist flow
             </button>
           </div>
 

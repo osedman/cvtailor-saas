@@ -18,6 +18,8 @@
 import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { AgencyNav } from "@/components/agency/agency-nav"
+import { RoleRail } from "@/components/agency/role-rail"
 import { SignOut } from "@/components/agency/sign-out"
 import { CandidateCompliance } from "@/components/agency/candidate-compliance"
 import { CandidatePlacement } from "@/components/agency/candidate-placement"
@@ -124,22 +126,8 @@ export default function CandidateFilePage({
           </div>
         </button>
         <AgencySwitcher />
-        <div>
-          <div className="ag-rail-label">Navigate</div>
-          <button className="ag-step" onClick={() => router.push("/agencies")}>Dashboard</button>
-          <button className="ag-step" onClick={() => router.push("/agencies/candidates")}>Candidates</button>
-          {role && (
-            <>
-              <button className="ag-step" onClick={() => router.push(`/agencies/roles/${role.id}/interviews`)}>
-                Interviews
-              </button>
-              <button className="ag-step" onClick={() => router.push(`/agencies/roles/${role.id}/close-out`)}>
-                Close-out
-              </button>
-            </>
-          )}
-          <button className="ag-step on" aria-current="page">Candidate file</button>
-        </div>
+        <AgencyNav current="candidates" />
+        {role && <RoleRail roleId={role.id} phase={phase} current={null} />}
         <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>What this screen is</div>

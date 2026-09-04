@@ -351,6 +351,8 @@
 .hm-nav-item.on { border-color: var(--ag-coral); color: var(--ag-coral); }
 .agd-main .hm-nav-item.on { color: #ff8a70; border-color: rgba(220, 79, 51, 0.6); }
 .hm-nav-cta { text-decoration: none; }
+/* You are here: the act is the page you are on, so it stops inviting. */
+.hm-nav-cta.on { opacity: 0.6; pointer-events: none; }
 
 /* Role rows that are doors look like the button rows the recruiter side has. */
 .hm-role-door { text-decoration: none; cursor: pointer; }

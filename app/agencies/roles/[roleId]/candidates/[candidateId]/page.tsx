@@ -12,9 +12,13 @@ import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { resolveProbes } from "@/lib/agency/probes"
 import { WORKFLOW_STEPS, stepNumber } from "@/lib/agency/steps"
+import { workflowHref, type PhaseKey } from "@/lib/agency/phases"
+import { PhaseRail } from "@/components/agency/phase-rail"
 import { CandidateCompliance } from "@/components/agency/candidate-compliance"
 import { CandidatePlacement } from "@/components/agency/candidate-placement"
 import { SignOut } from "@/components/agency/sign-out"
+import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { AgencyNav } from "@/components/agency/agency-nav"
 
 interface Requirement { id: string; ref: string; text: string; weight: string; category?: string }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; salary_text?: string; redacted: boolean }
@@ -40,6 +44,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
   const { roleId, candidateId } = use(params)
   const router = useRouter()
   const [role, setRole] = useState<Role | null>(null)
+  const [phase, setPhase] = useState<PhaseKey | null>(null)
   const [narrative, setNarrative] = useState("")
   const [requirements, setRequirements] = useState<Requirement[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
@@ -63,6 +68,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
     const roleBody = await roleRes.json()
     const candBody = await candRes.json()
     setRole(roleBody.role ?? null)
+    setPhase((roleBody.phase as PhaseKey | null) ?? null)
     setRequirements(roleBody.requirements ?? [])
     setCandidates(candBody.candidates ?? [])
     const sMap: Record<string, Score> = {}
@@ -139,15 +145,18 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
             <div className="ag-brand-sub">For agencies</div>
           </div>
         </button>
+        <AgencySwitcher />
+        <AgencyNav />
         <div>
           <div className="ag-rail-label">Shortlist workflow</div>
           {WORKFLOW_STEPS.map((st) => (
             <button
               key={st.key}
               className={`ag-step${st.key === "detail" ? " on" : ""}`}
+              aria-current={st.key === "detail" ? "page" : undefined}
               onClick={() => {
                 if (st.key === "detail") return
-                router.push(`/agencies/roles/${roleId}?step=${st.key}`)
+                router.push(workflowHref(roleId, st.key))
               }}
             >
               <span className={`ag-step-num${st.key !== "detail" && st.key !== "submission" ? " done" : ""}`}>
@@ -179,12 +188,14 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
             <span className="ag-crumb">
               <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
               {" / "}
-              <button className="ag-crumb-link" onClick={() => router.push(`/agencies/roles/${roleId}`)}>
+              <button className="ag-crumb-link" onClick={() => router.push(workflowHref(roleId))}>
                 {role ? `${role.company || "Role"} — ${role.title}` : "Shortlist workflow"}
               </button>
               {" / "}
               <b>{stepNumber("detail")}. Candidate detail</b>
             </span>
+            <span className="ag-grow" />
+            <PhaseRail current={phase} roleId={roleId} />
           </div>
           <p className="ag-step-eyebrow">Step {stepNumber("detail")} · Candidate detail</p>
 

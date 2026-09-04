@@ -11,9 +11,11 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { SignOut } from "@/components/agency/sign-out"
+import { AgencySwitcher } from "@/components/agency/agency-switcher"
+import { AgencyNav } from "@/components/agency/agency-nav"
 import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "@/lib/agency/probes"
-import { WORKFLOW_STEPS, stepNumber } from "@/lib/agency/steps"
+import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey } from "@/lib/agency/steps"
 import { PhaseRail } from "@/components/agency/phase-rail"
 import { roleLandingPath, type PhaseKey } from "@/lib/agency/phases"
 import {
@@ -22,7 +24,7 @@ import {
 } from "lucide-react"
 import { errorMessage } from "@/lib/error-message"
 
-type Step = "intake" | "parse" | "candidates" | "screening" | "compare" | "submission"
+type Step = PaneStepKey
 
 interface Requirement { id: string; ref: string; text: string; weight: "must" | "important" | "nice" }
 interface Constraint { id: string; ref: string; text: string; kind: string }
@@ -240,7 +242,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       // role URL forwards to wherever the work now lives — interviews, then
       // close-out. ?flow=shortlist is the deliberate way back in (the sidebar
       // link on those screens carries it), and replace() keeps Back working.
-      const wantsWorkflow = new URLSearchParams(window.location.search).get("flow") === "shortlist"
+      // A ?step= deep link is a request for the workflow too — the dashboard's
+      // "Open the submission" card said step=submission and still bounced.
+      const params = new URLSearchParams(window.location.search)
+      const wantsWorkflow = params.get("flow") === "shortlist" || params.has("step")
       const landing = roleLandingPath((body.phase as PhaseKey | null) ?? null, roleId)
       if (!wantsWorkflow && landing !== `/agencies/roles/${roleId}`) {
         router.replace(landing)
@@ -275,8 +280,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       // Read it off the URL rather than useSearchParams so this page needs
       // no Suspense boundary. An unknown value falls back to the auto pick.
       const asked = new URLSearchParams(window.location.search).get("step")
-      const valid: Step[] = ["intake", "parse", "candidates", "screening", "compare", "submission"]
-      if (asked && (valid as string[]).includes(asked)) setStep(asked as Step)
+      const valid = PANE_STEPS.map((s) => s.key as string)
+      if (asked && valid.includes(asked)) setStep(asked as Step)
       else setStep(count > 0 ? "candidates" : (body.requirements ?? []).length > 0 ? "parse" : "intake")
     })()
   }, [roleId, router, loadCandidates])
@@ -725,7 +730,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
 
   // Six of the seven render here; Candidate detail is per-candidate and has
   // its own route, so the rail links out to it rather than switching a pane.
-  const steps = WORKFLOW_STEPS.filter((s) => s.key !== "detail") as Array<{ key: Step; label: string }>
+  // PANE_STEPS is that list, derived in lib/agency/steps.ts — not a second
+  // copy kept here.
   const detailTarget = activeCandidate ?? candidates[0]?.id ?? null
   const active = activeCandidate ? candidates.find((c) => c.id === activeCandidate) : null
   const activeScore = activeCandidate ? scores[activeCandidate] : null
@@ -772,7 +778,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
 
   // Handoff chrome: which steps are behind you (checkmark in the rail),
   // where you are (breadcrumb + eyebrow), and Back / Next at the top.
-  const stepIndex = steps.findIndex((s) => s.key === step)
+  const stepIndex = PANE_STEPS.findIndex((s) => s.key === step)
   const stepDone: Record<Step, boolean> = {
     intake: requirements.length > 0,
     parse: candidates.length > 0,
@@ -792,6 +798,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             <div className="ag-brand-sub">For agencies</div>
           </div>
         </button>
+        <AgencySwitcher />
+        <AgencyNav />
         <div>
           <div className="ag-rail-label">Shortlist workflow</div>
           {WORKFLOW_STEPS.map((s) => {
@@ -875,7 +883,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 {" / "}
                 <b>{role.company ? `${role.company} — ${role.title}` : role.title}</b>
                 {" / "}
-                {`${stepNumber(steps[stepIndex]?.key ?? "intake")}. ${steps[stepIndex]?.label ?? ""}`}
+                {`${stepNumber(step)}. ${stepLabel(step)}`}
               </span>
               <span className="ag-grow" />
               {/* Which phase this role is in. Derived, never stored — see
@@ -889,21 +897,21 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               <button
                 className="ag-btn ag-btn-secondary"
                 disabled={stepIndex <= 0}
-                onClick={() => setStep(steps[stepIndex - 1].key)}
+                onClick={() => setStep(PANE_STEPS[stepIndex - 1].key)}
               >
                 ← Back
               </button>
               <button
                 className="ag-btn ag-btn-secondary"
-                disabled={stepIndex >= steps.length - 1}
-                onClick={() => setStep(steps[stepIndex + 1].key)}
+                disabled={stepIndex >= PANE_STEPS.length - 1}
+                onClick={() => setStep(PANE_STEPS[stepIndex + 1].key)}
               >
                 Next →
               </button>
             </div>
           )}
           {role && (
-            <p className="ag-step-eyebrow">Step {stepNumber(steps[stepIndex]?.key ?? "intake")} · {steps[stepIndex]?.label}</p>
+            <p className="ag-step-eyebrow">Step {stepNumber(step)} · {stepLabel(step)}</p>
           )}
           {error && (
             <div className="ag-banner" style={{ marginBottom: 16 }}>

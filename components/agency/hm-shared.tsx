@@ -63,14 +63,21 @@ export const DECISION_SENTENCE: Record<RoundDecision, string> = {
  */
 export function HiringNav() {
   const pathname = usePathname() ?? ""
+  // A role page is a door opened from the dashboard's role rows, so the
+  // dashboard stays lit there; before this the nav highlighted nothing on
+  // /hiring/roles/:id or the brief form (found 3 Sep 2026).
   const items = [
-    { href: "/hiring", label: "Dashboard", exact: true },
-    { href: "/hiring/interviews", label: "Interviews", exact: false },
+    { href: "/hiring", label: "Dashboard", also: ["/hiring/roles"] },
+    { href: "/hiring/interviews", label: "Interviews", also: [] as string[] },
   ]
+  const briefOn = pathname.startsWith("/hiring/briefs")
   return (
     <nav className="hm-nav" aria-label="Hiring workspace">
       {items.map((it) => {
-        const on = it.exact ? pathname === it.href : pathname.startsWith(it.href)
+        const on =
+          pathname === it.href ||
+          pathname.startsWith(`${it.href}/`) ||
+          it.also.some((p) => pathname === p || pathname.startsWith(`${p}/`))
         return (
           <Link key={it.href} href={it.href} className={`hm-nav-item${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>
             {it.label}
@@ -78,7 +85,11 @@ export function HiringNav() {
         )
       })}
       <span className="ag-grow" />
-      <Link href="/hiring/briefs/new" className="agd-tbtn primary hm-nav-cta">
+      <Link
+        href="/hiring/briefs/new"
+        className={`agd-tbtn primary hm-nav-cta${briefOn ? " on" : ""}`}
+        aria-current={briefOn ? "page" : undefined}
+      >
         Post a brief
       </Link>
     </nav>

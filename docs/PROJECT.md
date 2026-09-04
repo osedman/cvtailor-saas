@@ -3484,6 +3484,97 @@ one REAL personal address, plus the eight new fixtures. Re-applied both
 layers: every staging identity blacklisted (23 rows) and the queue emptied.
 `still_scheduled: 0`, `candidates_not_covered: 0`.
 
+## 🗺 3 Sep 2026 — the smooth-flow plan: adopt the prototype's projection, keep the app
+
+Ose supplied a Claude prototype (`tailr-b2-b.zip`, one client-side store,
+four personas) and a consolidated product/UX review of it (1 Sep). His
+brief: do not rebuild; adopt how smoothly the prototype projects the flow,
+keep the main app, strip the AI-flavoured copy, solidify the processes.
+
+**Written:** `docs/B2B-SMOOTH-FLOW-PLAN.md`. Six patterns to port (role
+header + ownership strip, next-action engine, handoff receipt, Today queue
+grouped by who is blocking, HM home as "what needs you", sub-state vocabulary
+on the phase chips), the copy that goes, the navigation faults, five process
+seams to harden, and a consumer-side "your application" projection for quiet
+matching plus a recruiter-authored brief. Seven waves, each browser-verifiable
+on both hats.
+
+**Found on the way, not fixed (Wave 0 of the plan):**
+- The bare-role-URL bounce: `roleLandingPath` redirects `/agencies/roles/:id`
+  unless `?flow=shortlist` is set, and only the interviews sidebar sets it.
+  "This role" on close-out and the dossier, every crumb, the step-06 rail and
+  the dashboard's `openRole` all link bare, so on any role past submission
+  they bounce.
+- Seven recruiter pages bypass `AgencyNav` with five hand-rolled "Navigate"
+  lists; the two workflow pages have no route navigation at all.
+- `PhaseRail` and `AgencySwitcher` are missing on step-06 and the dossier.
+- `HiringNav` highlights nothing on `/hiring/roles/:id` and `/hiring/briefs/new`.
+- The workflow page keeps a second six-item step array beside
+  `WORKFLOW_STEPS`; `stepLabel()` is exported and unused.
+
+**Corrected:** the `tailr-b2b` skill said quiet matching was "decided and
+designed, not built". It is built (`lib/matching/**`, six migrations,
+`/found`, tailor-first apply) and was walked on real data; the skill now says
+so.
+
+**Ose's clarification, same day, and Wave 5 rewritten to it:** the brief is
+not a matching feature. It is the job description with all its details, and
+it is now the recruiter's to create (step 01 intake becomes the brief; the HM
+"Post a brief" becomes a secondary path that pre-fills it). And for consumer
+matching, the recruiter should see the list of Tailr users who meet the
+score. That reverses the settings screen's own promise ("the agency is told a
+rounded count, never who"), so the plan builds it behind a NEW third consumer
+opt-in, `discoverable`, off by default, audit-coupled through `setConsent()`,
+list derived live, one action (Invite to apply), CV and contact details still
+only on application. Needs its own DPIA line and a lawyer pass on the switch
+copy before a real user sees it. Ose has confirmed the direction.
+
+Nothing shipped. No code changed.
+
+## 🧹 4 Sep 2026 — Wave 0 of the smooth-flow plan: one nav on every role screen, and links that stop bouncing
+
+First wave of `docs/B2B-SMOOTH-FLOW-PLAN.md`, on Ose's "start wave 0".
+Navigation hygiene only: no design, no schema, no copy beyond labels.
+
+**The bounce, fixed at the source.** `roleLandingPath` forwards the bare
+role URL past the workflow once a submission exists, and only the interviews
+sidebar carried the `?flow=shortlist` way back. Every other link inside a
+role — "This role" on close-out and the dossier, every crumb, the step-06
+rail, the dashboard's "Open the submission" card — linked bare, so on any
+role past submission it delivered you back to the screen you clicked from.
+Now `workflowHref(roleId, step?)` in `lib/agency/phases.ts` is the only way
+to link the workflow from inside a role (always carries the flag), the
+shortlist chip on the phase rail uses it (it was inert on every role past
+phase one), and a `?step=` deep link counts as asking for the workflow. A
+test scans the five role screens and fails on any bare role link.
+
+**One nav, every screen.** `AgencyNav` now renders on all six role screens
+too, with no current item (nothing global is current inside a role), and a
+new `RoleRail` (Shortlist flow ✓ · Interviews · Close-out, plus a leaf such
+as Dossier) replaces the five hand-rolled "Navigate" lists. The workflow and
+step-06 pages, which had no route navigation at all, gain the switcher, the
+global nav and — on step-06 and the dossier — the phase rail they were
+missing. Briefs, Clients, Audit and Settings are reachable from the screen
+recruiters live on for the first time.
+
+**Small things from the inventory.** `PANE_STEPS` in `lib/agency/steps.ts`
+replaces the workflow page's own filtered copy of the steps; the eyebrow and
+crumb use `stepLabel()` (exported and unused until now). `HiringNav` keeps
+Dashboard lit on `/hiring/roles/:id`, marks "Post a brief" current on the
+form, and the form renders the nav at all. "← Back to role" on interviews,
+which forwarded to itself, is "← Shortlist flow" and goes there.
+
+**Deferred to Wave 3, deliberately:** `/agencies/roles` (a new screen, so
+Figma first) and the "Dashboard → Today" rename (the page is not a queue yet;
+renaming it early would mislabel it).
+
+**Verified:** typecheck clean, 982 tests (four new files/blocks: bare-link
+scan, pane steps, hiring nav, workflowHref), production build clean. **Not
+clicked by a person** — the role screens sit behind sign-in and this machine
+has no session; Ose's walk on staging is the click-through, per the plan's
+Wave 0 verify step (a role in each phase, every nav link, no bounce, reload
+holds).
+
 ---
 
-_Last updated: 26 August 2026_
+_Last updated: 4 September 2026_
