@@ -67,7 +67,7 @@ export function HiringNav() {
   // dashboard stays lit there; before this the nav highlighted nothing on
   // /hiring/roles/:id or the brief form (found 3 Sep 2026).
   const items = [
-    { href: "/hiring", label: "Dashboard", also: ["/hiring/roles"] },
+    { href: "/hiring", label: "Home", also: ["/hiring/roles"] },
     { href: "/hiring/interviews", label: "Interviews", also: [] as string[] },
   ]
   const briefOn = pathname.startsWith("/hiring/briefs")

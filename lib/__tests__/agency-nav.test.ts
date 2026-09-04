@@ -75,7 +75,9 @@ describe("every agency screen uses the shared nav", () => {
     const s = read(path)
     expect(s).toMatch(/<AgencyNav \/>/)
     expect(s).toMatch(/<AgencySwitcher \/>/)
-    expect(s).toMatch(/<PhaseRail current=\{phase\}/)
+    // The role header carries the phase rail, the owner and the next action.
+    expect(s).toMatch(/<RoleHeader roleId=\{roleId\} hat="recruiter" \/>/)
+    expect(s).not.toMatch(/<PhaseRail/)
     expect(/ag-rail-label">Navigate</.test(s), `${path} still hand-rolls a Navigate rail`).toBe(false)
     const rolled = /className="ag-step[^"]*"\s+onClick=\{\(\) => router\.push\("\/agencies/.test(s)
     expect(rolled, `${path} still hand-rolls nav buttons`).toBe(false)
@@ -93,9 +95,10 @@ describe("every agency screen uses the shared nav", () => {
     // comparison, not a link.
     const isWorkflow = path === "app/agencies/roles/[roleId]/page.tsx"
     expect(bare.length, `${path} links the role bare`).toBe(isWorkflow ? 1 : 0)
-    // The workflow page IS the destination; every other role screen links
-    // into it and must do so through the helper.
-    if (!isWorkflow) expect(s).toMatch(/workflowHref\(/)
+    // The workflow page IS the destination; every other role screen reaches
+    // it through the role rail (which builds its href with workflowHref) or
+    // through the helper directly.
+    if (!isWorkflow) expect(/workflowHref\(|<RoleRail /.test(s), `${path} has no way into the workflow`).toBe(true)
   })
 
   it("the dashboard's sections are passed to the nav, not rendered beside it", () => {

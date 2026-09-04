@@ -136,6 +136,12 @@ prototype. Three are already satisfied by architecture; five need work.
 
 ## Waves
 
+_4 Sep, Ose: "Fuck the phases, build a version of what the refinement should
+look like then come back to me." Waves 0–3 were built as one version on
+staging that day, without the per-wave sign-offs below. The wave text stays
+as the record of what each part is and how to verify it; Waves 4–6 remain
+open._
+
 Each wave ends with something Ose can click on staging, both hats, and a
 recorded row in `docs/PROJECT.md`. Figma first for anything a user looks at
 (CLAUDE.md rule); the prototype screens are the reference the frames are built

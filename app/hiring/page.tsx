@@ -41,6 +41,7 @@ import type {
   HiringSlot,
   RoundDecision,
 } from "@/lib/agency/types"
+import { ageLabel, type NextAction } from "@/lib/agency/next-action"
 
 type Screen = "loading" | "unauthed" | "not_linked" | "error" | "ready"
 
@@ -256,8 +257,18 @@ function buildRoles(d: HiringDashboard, now: number): RoleRow[] {
 }
 
 
+/** One row of what needs the client, from /api/hiring/today — the same ladder
+ * as their role header, so the two never disagree. */
+interface ClientTodayRow {
+  role: { id: string; ref: string; title: string; company: string; recruiterName: string | null }
+  subState: { key: string; chip: string }
+  next: NextAction
+}
+
 export default function HiringDashboardPage() {
   const [screen, setScreen] = useState<Screen>("loading")
+  const [today, setToday] = useState<ClientTodayRow[] | null>(null)
+  const [todayNow, setTodayNow] = useState<string>(() => new Date().toISOString())
   const [data, setData] = useState<HiringDashboard | null>(null)
   const [email, setEmail] = useState("")
   // Bumped after a write so the dashboard re-reads rather than guessing at the
@@ -320,6 +331,22 @@ export default function HiringDashboardPage() {
    * same weight as one that happened and is finished. Order: what is owed,
    * then what is coming, then what is done.
    */
+  useEffect(() => {
+    if (screen !== "ready") return
+    let live = true
+    fetch("/api/hiring/today")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!live || !Array.isArray(d?.roles)) return
+        setToday(d.roles as ClientTodayRow[])
+        if (typeof d.now === "string") setTodayNow(d.now)
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [screen, data])
+
   const actionable = useMemo(() => {
     const rank = (r: HiringRound): number => {
       if (r.latest_decision) return 3
@@ -353,12 +380,15 @@ export default function HiringDashboardPage() {
   const agencyName = links[0]?.agencyName ?? "your agency"
   const company = links[0]?.company ?? ""
 
+  const acts = (today ?? []).filter((r) => r.next.mode === "act")
   const headline =
-    cards.length === 0
-      ? "Nothing is waiting on you."
-      : cards.length === 1
-        ? "One thing needs you."
-        : `${cards.length} things need you.`
+    today === null
+      ? "Working out what needs you…"
+      : acts.length === 0
+        ? "Nothing needs you today."
+        : acts.length === 1
+          ? `One thing needs you: ${acts[0].next.title.toLowerCase()}.`
+          : `${acts.length} things need you.`
 
   const statusMessage =
     screen === "loading"
@@ -534,26 +564,45 @@ export default function HiringDashboardPage() {
                 </h2>
                 <span className="agd-rule" />
                 {/* An empty band is not "sorted by" anything. */}
-                {cards.length > 0 && <span className="agd-aside">sorted by what breaks first</span>}
+                {acts.length > 0 && <span className="agd-aside">what only you can do, first</span>}
               </div>
-              {cards.length > 0 ? (
-                <div className="agd-attn">
-                  {cards.map((c) => (
-                    <article key={c.key} className={`agd-card ${c.sev}`}>
-                      <span className="agd-when">{c.when}</span>
-                      <h3 className="agd-card-title">{c.title}</h3>
-                      <p className="agd-card-body">{c.body}</p>
-                      <div className="agd-card-meta">
-                        <span>{c.meta}</span>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : (
+              {today === null ? (
+                <div className="ag-quiet" aria-live="polite">Working out what needs you…</div>
+              ) : today.length === 0 ? (
                 <EmptyBand
                   title="Nothing needs you today."
-                  body="Interviews about to start, decisions your recruiter is waiting on, and briefs that have come back to you all appear here first — the most urgent on the left."
+                  body="Shortlists to decide on, rounds to write up and decisions your recruiter is waiting on all appear here first."
                 />
+              ) : (
+                <div className="agd-today">
+                  <div className="agd-today-group">
+                    {today.map((r) => (
+                      <Link
+                        key={r.role.id}
+                        className={`agd-today-row ${r.next.mode}`}
+                        href={r.next.cta?.href ?? `/hiring/roles/${r.role.id}`}
+                      >
+                        <span className="agd-today-role">
+                          <span className="agd-today-role-title">{r.role.title}</span>
+                          <span className="agd-today-role-meta">
+                            {r.role.ref}
+                            {r.role.recruiterName ? ` · ${r.role.recruiterName}` : ""}
+                          </span>
+                        </span>
+                        <span className="agd-today-state">
+                          <span className="agd-today-chip">
+                            {r.next.mode === "act" ? "Needs you" : r.next.mode === "done" ? "Done" : "Waiting"} · {r.subState.chip}
+                          </span>
+                          <span className="agd-today-next">{r.next.title}</span>
+                        </span>
+                        <span className="agd-today-since">
+                          {r.next.waitingOn.label}
+                          {r.next.since ? ` · ${ageLabel(r.next.since, todayNow)}` : ""}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               )}
             </section>
 

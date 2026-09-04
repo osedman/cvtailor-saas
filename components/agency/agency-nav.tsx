@@ -58,7 +58,7 @@ export interface AgencyNavSection {
 }
 
 const ITEMS: Array<{ key: AgencyNavKey; label: string; href: string }> = [
-  { key: "roles", label: "Dashboard", href: "/agencies" },
+  { key: "roles", label: "Today", href: "/agencies" },
   // Candidates was a COUNT in the dashboard's section list and never a route,
   // so a person was reachable only through the role they were on. It is a
   // destination now — the count always implied one (22 Aug walk-through).

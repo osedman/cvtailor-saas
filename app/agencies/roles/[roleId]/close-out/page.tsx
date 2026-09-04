@@ -26,9 +26,8 @@ import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
 import { RoleRail } from "@/components/agency/role-rail"
-import { workflowHref } from "@/lib/agency/phases"
 import { SignOut } from "@/components/agency/sign-out"
-import { PhaseRail } from "@/components/agency/phase-rail"
+import { RoleHeader } from "@/components/agency/role-header"
 import { CandidateReferences, type ReferenceListRow } from "@/components/agency/candidate-references"
 import { type PhaseKey } from "@/lib/agency/phases"
 import type { HandoverSnapshot } from "@/lib/agency/handover"
@@ -227,25 +226,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
 
       <main className="ag-main">
         <div className="ag-screen">
-          <div className="ag-crumbbar">
-            <span className="ag-crumb">
-              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
-              {" / "}
-              <button className="ag-crumb-link" onClick={() => router.push(workflowHref(roleId))}>
-                {role?.ref || "Role"}
-              </button>
-              {" / "}
-              <b>Close-out</b>
-            </span>
-            <span className="ag-grow" />
-            <PhaseRail current={phase} roleId={roleId} />
-            <button
-              className="ag-btn ag-btn-secondary"
-              onClick={() => router.push(`/agencies/roles/${roleId}/interviews`)}
-            >
-              ← Interviews
-            </button>
-          </div>
+          <RoleHeader roleId={roleId} hat="recruiter" />
 
           <p className="ag-step-eyebrow">Close-out · after client selection</p>
           <h1 className="ag-title">

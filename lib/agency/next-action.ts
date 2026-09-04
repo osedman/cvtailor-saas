@@ -374,6 +374,61 @@ function clientWaiting(base: Pick<NextAction, "key" | "chip" | "waitingOn" | "si
   return { ...base, mode: "wait", title: `${f.ownerName ?? "Your recruiter"} is building the shortlist`, detail: "You will be told when it is ready for your decisions.", cta: null }
 }
 
+// ── The handoff receipt ─────────────────────────────────────────────────────
+
+export interface Handoff {
+  /** The event that completed, named as an event and not a button. */
+  confirmed: string
+  /** Who holds the role now. */
+  owner: string
+  /** Their next task, in their words. */
+  nextTask: string
+  /** What that unlocks for the rest of the loop. */
+  then: string
+}
+
+/**
+ * The receipt after a seam: what completed, who owns it now, their next
+ * task, and what follows. Derived from the same facts, so it survives a
+ * reload and never says "sent" when nothing was. Null while the role sits
+ * mid-step, where there is no event to confirm.
+ */
+export function handoffFor(f: RoleFacts, hat: Hat, roleId: string): Handoff | null {
+  const sub = deriveSubState(f)
+  const next = nextAction(f, hat, roleId)
+  const other = nextAction(f, hat === "recruiter" ? "client" : "recruiter", roleId)
+  const client = f.clientName ?? "the client"
+  const recruiter = f.ownerName ?? "your recruiter"
+  const owner = next.mode === "act" ? "You" : next.waitingOn.label
+  const task = next.mode === "act" ? next.title : other.mode === "act" ? other.title : next.title
+  switch (sub.key) {
+    case "with-the-client":
+      return { confirmed: `Shortlist of ${f.submission?.submitted ?? 0} sent to ${client}.`, owner, nextTask: task, then: "Advanced candidates are invited to round 1." }
+    case "windows-to-offer":
+      return { confirmed: `${client} advanced ${plural(sub.n ?? 1, "candidate")}.`, owner, nextTask: task, then: `${recruiter === "your recruiter" ? "Your recruiter" : recruiter} books round ${sub.roundNumber ?? 1} once times are offered.` }
+    case "round-to-book":
+      return { confirmed: sub.roundNumber && sub.roundNumber > 1 ? `Round ${sub.roundNumber - 1} decided: advance.` : `${client} offered interview times.`, owner, nextTask: task, then: "The candidate confirms; the round runs; the client writes it up." }
+    case "invited":
+      return { confirmed: `Round ${sub.roundNumber ?? 1} booked for ${sub.candidateRef ?? "the candidate"}.`, owner, nextTask: task, then: "Once confirmed it sits in the client's diary." }
+    case "booked":
+      return { confirmed: `${sub.candidateRef ?? "The candidate"} confirmed round ${sub.roundNumber ?? 1}.`, owner, nextTask: task, then: "After the round, the client writes it up before deciding." }
+    case "write-up-due":
+      return { confirmed: `Round ${sub.roundNumber ?? 1} with ${sub.candidateRef ?? "the candidate"} has happened.`, owner, nextTask: task, then: "The write-up unlocks the round decision." }
+    case "decision-due":
+      return { confirmed: `Round ${sub.roundNumber ?? 1} written up.`, owner, nextTask: task, then: "Advance books the next round; the last advance goes to close-out." }
+    case "take-to-close-out":
+      return { confirmed: `${sub.candidateRef ?? "The candidate"} advanced after the final planned round.`, owner, nextTask: task, then: "References and the handover pack; then the role closes." }
+    case "pack-generated":
+      return { confirmed: "Handover pack generated.", owner, nextTask: task, then: "Handing over ends Tailr's part; closing starts the retention clock." }
+    case "handed-over":
+      return { confirmed: `Pack handed over to ${client}.`, owner, nextTask: task, then: "Closing tells everyone not hired and starts the retention clock." }
+    case "closed":
+      return { confirmed: "Role closed.", owner: "Nobody", nextTask: "Nothing. The record is complete.", then: "Tailr forgets on schedule." }
+    default:
+      return null
+  }
+}
+
 // ── Age ─────────────────────────────────────────────────────────────────────
 
 /** "today", "1 day", "3 days", "2 weeks" — honest age, never a deadline. */

@@ -17,34 +17,19 @@ const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 describe("the client's header route", () => {
   const src = stripComments(read("app/api/hiring/roles/[roleId]/header/route.ts"))
 
-  it("checks the role is the contact's before reading anything about it", () => {
-    for (const table of ["role_briefs", "submission_recipients", "interview_rounds", "availability_slots"]) {
-      expect(src, `${table} tie missing`).toMatch(new RegExp(`from\\("${table}"\\)[\\s\\S]{0,200}\\.in\\("contact_id", contactIds\\)`))
-    }
-    expect(src).toMatch(/if \(!tie\) return NextResponse\.json\(\{ error: "Role not found" \}, \{ status: 404 \}\)/)
+  it("goes through the shared projection: tie check first, then the header", () => {
+    // The four-table tie and the shortlist coarsening live in
+    // lib/agency/client-header.ts (pinned in agency-today-routes.test.ts) so
+    // the header and Today cannot fork. The route must not reach the facts
+    // any other way.
+    expect(src).toMatch(/listClientRoles\(auth\.ctx\)/)
+    expect(src).toMatch(/getClientRoleHeader\(auth\.ctx, tie\)/)
+    expect(src).not.toMatch(/getRoleFacts\(/)
   })
 
   it("answers 'not found', never 'forbidden', for a role that is not theirs", () => {
     expect(src).not.toMatch(/status: 403[^\n]*Role/)
-    expect((src.match(/"Role not found"/g) ?? []).length).toBeGreaterThanOrEqual(3)
-  })
-
-  it("never serialises the facts, only the projection", () => {
-    // Only the response literal matters: `facts.x` reads are fine inside it,
-    // `facts,` or `facts }` (the whole object) are not.
-    const response = src.slice(src.lastIndexOf("return NextResponse.json({"))
-    expect(response).not.toMatch(/\bfacts\s*[,}]/)
-    for (const field of ["candidates", "reviewed", "undecided", "failures", "ownerId"]) {
-      expect(src, `${field} would reach the client`).not.toMatch(new RegExp(`\\b${field}:`))
-    }
-  })
-
-  it("coarsens the shortlist phase to SHORTLIST IN PROGRESS", () => {
-    expect(src).toMatch(/inShortlist \? \{ key: "shortlist-in-progress", chip: "SHORTLIST IN PROGRESS" \}/)
-  })
-
-  it("projects for the client hat", () => {
-    expect(src).toMatch(/nextAction\(facts, "client", roleId\)/)
+    expect((src.match(/"Role not found"/g) ?? []).length).toBeGreaterThanOrEqual(2)
   })
 })
 

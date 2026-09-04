@@ -30,9 +30,8 @@ import { use } from "react"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
 import { RoleRail } from "@/components/agency/role-rail"
-import { workflowHref } from "@/lib/agency/phases"
 import { InterviewCapture } from "@/components/agency/interview-capture"
-import { PhaseRail } from "@/components/agency/phase-rail"
+import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
 import { type PhaseKey } from "@/lib/agency/phases"
 import { SignOut } from "@/components/agency/sign-out"
 
@@ -102,6 +101,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
   const [askResult, setAskResult] = useState<{ roundId: string; url: string; emailed: boolean } | null>(null)
 
   const load = useCallback(async () => {
+    announceRoleChanged()
     try {
       const [roleRes, candRes, roundsRes] = await Promise.all([
         fetch(`/api/agency/roles/${roleId}`),
@@ -270,25 +270,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
 
       <main className="ag-main">
         <div className="ag-screen">
-          <div className="ag-crumbbar">
-            <span className="ag-crumb">
-              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
-              {" / "}
-              <button className="ag-crumb-link" onClick={() => router.push(workflowHref(roleId))}>
-                {role?.ref || "Role"}
-              </button>
-              {" / "}
-              <b>Interviews</b>
-            </span>
-            <span className="ag-grow" />
-            <PhaseRail current={phase} roleId={roleId} />
-            <button
-              className="ag-btn ag-btn-secondary"
-              onClick={() => router.push(workflowHref(roleId))}
-            >
-              ← Shortlist flow
-            </button>
-          </div>
+          <RoleHeader roleId={roleId} hat="recruiter" />
 
           <p className="ag-step-eyebrow">Interview loop · the selection process</p>
           <h1 className="ag-title">

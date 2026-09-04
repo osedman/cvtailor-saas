@@ -19,10 +19,32 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
-import { workflowHref } from "@/lib/agency/phases"
+import { PHASES, workflowHref, type PhaseKey } from "@/lib/agency/phases"
+import { ageLabel, type NextAction } from "@/lib/agency/next-action"
 import { SignOut } from "@/components/agency/sign-out"
 
 type StageState = "here" | "blocked" | "waiting" | "done"
+
+/** One row of Today: a role and its next action, from /api/agency/today. */
+interface TodayRow {
+  role: { id: string; ref: string; title: string; company: string; ownerId: string | null; ownerName: string | null }
+  phase: PhaseKey
+  subState: { key: string; chip: string }
+  next: NextAction
+}
+
+/** Today groups by who is blocking — the prototype's one real idea about a
+ * dashboard, and it needs nothing stored. The first two always render, so
+ * an empty group says "nothing" out loud rather than vanishing. */
+const TODAY_GROUPS: Array<{ key: string; title: string; empty: string; always: boolean; pick: (r: TodayRow) => boolean }> = [
+  { key: "you", title: "Needs my decision", empty: "Nothing is waiting on you.", always: true, pick: (r) => r.next.mode === "act" },
+  { key: "client", title: "Waiting on clients", empty: "No client reviews outstanding.", always: true, pick: (r) => r.next.mode === "wait" && r.next.waitingOn.party === "client" },
+  { key: "candidate", title: "Waiting on candidates", empty: "", always: false, pick: (r) => r.next.mode === "wait" && r.next.waitingOn.party === "candidate" },
+  { key: "colleague", title: "Waiting on a colleague", empty: "", always: false, pick: (r) => r.next.mode === "wait" && r.next.waitingOn.party === "recruiter" },
+  { key: "booked", title: "Booked · nothing to do until it happens", empty: "", always: false, pick: (r) => r.next.mode === "wait" && r.next.waitingOn.party === "nobody" },
+  { key: "done", title: "Done", empty: "", always: false, pick: (r) => r.next.mode === "done" },
+]
+const phaseLabel = (p: PhaseKey) => PHASES.find((x) => x.key === p)?.label ?? p
 interface RoleRow {
   id: string; ref: string; title: string; company: string; salary_band: string; status: string
   mine: boolean; days_open: number; candidate_count: number
@@ -131,6 +153,23 @@ export default function AgencyHomePage() {
   const [actioning, setActioning] = useState<string | null>(null)
   const [roleFilter, setRoleFilter] = useState<"all" | "mine" | "urgent" | "closed">("all")
   const [queueView, setQueueView] = useState<"todo" | "done">("todo")
+  const [today, setToday] = useState<TodayRow[] | null>(null)
+  const [todayNow, setTodayNow] = useState<string>(() => new Date().toISOString())
+  useEffect(() => {
+    if (state !== "ready") return
+    let live = true
+    fetch("/api/agency/today")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!live || !Array.isArray(d?.roles)) return
+        setToday(d.roles as TodayRow[])
+        if (typeof d.now === "string") setTodayNow(d.now)
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [state, data])
   const [q, setQ] = useState("")
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -328,7 +367,11 @@ export default function AgencyHomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
 
-  const topCards = cards.slice(0, 3)
+  // Screening, calls and silent clients are Today's rows now; the cards keep
+
+  // what the ladder does not see — rights requests, client signals, parse failures.
+
+  const topCards = cards.filter((c) => !/^(screening|call:|silent:)/.test(c.key)).slice(0, 3)
 
   // ---- Queue: still to do -------------------------------------------------
   interface QueueRow { key: string; tag: string; tagClass: string; title: string; sub: string; right: string; hot?: boolean; onClick?: () => void }
@@ -435,7 +478,7 @@ export default function AgencyHomePage() {
 
   const hour = new Date().getHours()
   const tail = hour >= 17 ? "before you log off" : hour >= 12 ? "this afternoon" : "this morning"
-  const nCards = cards.length
+  const nCards = topCards.length + (today ?? []).filter((r) => r.next.mode === "act").length
   const headline =
     nCards > 0
       ? `${COUNT_WORDS[Math.min(nCards, 5)] ?? `${nCards} things`} need${nCards === 1 ? "s" : ""} you ${tail}.`
@@ -567,10 +610,63 @@ export default function AgencyHomePage() {
                 <p className="agd-sub">{subline}</p>
               </section>
 
+              <section className="agd-band" aria-labelledby="agd-today-h">
+                <div className="agd-eyebrow-row">
+                  <h2 className="agd-eyebrow" id="agd-today-h">Today</h2>
+                  <span className="agd-rule" />
+                  <span className="agd-aside">one line per role, grouped by who is blocking</span>
+                </div>
+                {today === null ? (
+                  <div className="ag-quiet" aria-live="polite">Working out where each role stands…</div>
+                ) : (
+                  <div className="agd-today">
+                    {TODAY_GROUPS.map((g) => {
+                      const rows = today.filter(g.pick)
+                      if (rows.length === 0 && !g.always) return null
+                      return (
+                        <div key={g.key} className="agd-today-group">
+                          <div className="agd-today-head">
+                            <span className="agd-today-title">{g.title}</span>
+                            <span className="agd-today-count">{rows.length}</span>
+                          </div>
+                          {rows.length === 0 && <div className="agd-today-empty">{g.empty}</div>}
+                          {rows.map((r) => (
+                            <Link
+                              key={r.role.id}
+                              className={`agd-today-row ${r.next.mode}`}
+                              href={r.next.cta?.href ?? `/agencies/roles/${r.role.id}`}
+                            >
+                              <span className="agd-today-role">
+                                <span className="agd-today-role-title">{r.role.title}</span>
+                                <span className="agd-today-role-meta">
+                                  {r.role.company ? `${r.role.company} · ` : ""}
+                                  {r.role.ref}
+                                  {r.role.ownerName ? ` · ${r.role.ownerName}` : ""}
+                                </span>
+                              </span>
+                              <span className="agd-today-state">
+                                <span className="agd-today-chip">
+                                  {phaseLabel(r.phase)} · {r.subState.chip}
+                                </span>
+                                <span className="agd-today-next">{r.next.title}</span>
+                              </span>
+                              <span className="agd-today-since">
+                                {r.next.waitingOn.label}
+                                {r.next.since ? ` · ${ageLabel(r.next.since, todayNow)}` : ""}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+
               {topCards.length > 0 && (
                 <section className="agd-band">
                   <div className="agd-eyebrow-row">
-                    <h2 className="agd-eyebrow">Needs you now</h2>
+                    <h2 className="agd-eyebrow">Also needs you</h2>
                     <span className="agd-rule" />
                     <span className="agd-aside">sorted by what breaks first</span>
                   </div>

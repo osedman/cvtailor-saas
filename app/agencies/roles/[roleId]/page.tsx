@@ -16,7 +16,7 @@ import { AgencyNav } from "@/components/agency/agency-nav"
 import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "@/lib/agency/probes"
 import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey } from "@/lib/agency/steps"
-import { PhaseRail } from "@/components/agency/phase-rail"
+import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
 import { roleLandingPath, type PhaseKey } from "@/lib/agency/phases"
 import {
   ArrowUpRight, Banknote, Briefcase, ChevronUp, FileText,
@@ -119,7 +119,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [error, setError] = useState<string | null>(null)
   // Who can own this role: active, non-viewer members. Loaded once, lazily —
   // the whole team list is small and the control renders from it.
-  const [team, setTeam] = useState<Array<{ user_id: string; role: string; status: string; name: string }>>([])
   const [callerRole, setCallerRole] = useState<string>("viewer")
   /** Which of the three phases this role is in. null until loaded — the rail
    *  renders nothing rather than guessing "Shortlist" mid-fetch. */
@@ -130,7 +129,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
    *  eleventh candidate, and a locked door there would fight how recruiting
    *  actually goes. Opening it again is one click and changes nothing else. */
   const [sourcingOpen, setSourcingOpen] = useState(false)
-  const [ownerBusy, setOwnerBusy] = useState(false)
   const [closureNote, setClosureNote] = useState<string | null>(null)
   // Removing a candidate added in error. Confirmed, because it is a real
   // erasure and not a hide (22 Aug walk-through).
@@ -199,28 +197,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     if (body.review) setReviews((prev) => ({ ...prev, [candidateId]: body.review }))
   }, [])
 
-  async function reassignOwner(userId: string) {
-    if (!role || userId === (role.owner_id ?? "")) return
-    setOwnerBusy(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/agency/roles/${roleId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ownerId: userId }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(typeof body?.error === "string" ? body.error : "Could not change the owner.")
-        return
-      }
-      setRole((r) => (r ? { ...r, owner_id: userId } : r))
-    } catch {
-      setError("Could not change the owner.")
-    } finally {
-      setOwnerBusy(false)
-    }
-  }
 
   useEffect(() => {
     ;(async () => {
@@ -251,22 +227,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         router.replace(landing)
         return
       }
-      // Non-fatal like matching: the owner control simply does not render if
-      // this fails, and the role page must not die for it.
-      fetch(`/api/agency/team`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((t) => {
-          if (!t?.members) return
-          setTeam(
-            (t.members as Array<{ user_id: string; role: string; status: string; profile: { full_name?: string; email?: string } | null }>).map((m) => ({
-              user_id: m.user_id,
-              role: m.role,
-              status: m.status,
-              name: m.profile?.full_name || m.profile?.email || "Unnamed",
-            }))
-          )
-        })
-        .catch(() => {})
       fetch(`/api/agency/roles/${roleId}/matching`)
         .then((r) => (r.ok ? r.json() : null))
         .then((m) => {
@@ -617,6 +577,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     const rollback = decisions[candidateId] ?? null
     const next = decisions[candidateId] === decision ? null : decision
     setDecisions((prev) => ({ ...prev, [candidateId]: next }))
+    announceRoleChanged()
     try {
       const res = await fetch(`/api/agency/candidates/${candidateId}/decision`, {
         method: "PATCH",
@@ -660,6 +621,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         return
       }
       if (!res.ok) throw new Error(body.error ?? "Generation failed")
+      announceRoleChanged()
       setSubmissionResult({
         format,
         entries: body.submission?.snapshot?.shortlisted?.length ?? 0,
@@ -830,42 +792,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             )
           })}
         </div>
-        {role && (
-          <div className="ag-active-role">
-            <div className="ag-rail-label" style={{ padding: 0 }}>Active role</div>
-            <div style={{ fontWeight: 600, fontSize: 13 }}>{role.title}</div>
-            <div className="ag-meta">{role.company || "No company"} · {role.ref}</div>
-            {team.length > 0 && (
-              <div className="ag-owner-row">
-                <label className="ag-rail-label" style={{ padding: 0, marginBottom: 0 }} htmlFor="role-owner">
-                  Owner
-                </label>
-                {callerRole === "viewer" ? (
-                  <span className="ag-meta">
-                    {team.find((m) => m.user_id === role.owner_id)?.name ?? "Unassigned"}
-                  </span>
-                ) : (
-                  <select
-                    id="role-owner"
-                    className="ag-owner-select"
-                    value={role.owner_id ?? ""}
-                    disabled={ownerBusy}
-                    onChange={(e) => void reassignOwner(e.target.value)}
-                  >
-                    {!role.owner_id && <option value="">Unassigned</option>}
-                    {team
-                      .filter((m) => m.status === "active" && m.role !== "viewer")
-                      .map((m) => (
-                        <option key={m.user_id} value={m.user_id}>
-                          {m.name}
-                        </option>
-                      ))}
-                  </select>
-                )}
-              </div>
-            )}
-          </div>
-        )}
         <SignOut />
         <div className="ag-sidebar-foot">
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>
@@ -876,24 +802,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
 
       <main className="ag-main">
         <div className="ag-screen">
+          {role && <RoleHeader roleId={roleId} hat="recruiter" />}
           {role && (
-            <div className="ag-crumbbar">
-              <span className="ag-crumb">
-                <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
-                {" / "}
-                <b>{role.company ? `${role.company} — ${role.title}` : role.title}</b>
-                {" / "}
-                {`${stepNumber(step)}. ${stepLabel(step)}`}
-              </span>
+            <div className="ag-crumbbar" style={{ marginTop: -8 }}>
               <span className="ag-grow" />
-              {/* Which phase this role is in. Derived, never stored — see
-                  lib/agency/phases.ts. */}
-              {/* The rail replaced a standalone "Interviews" button that sat
-                  immediately beside it doing the same job. Interviews remains an
-                  adjunct, not an eighth step — lib/agency/steps.ts stays the
-                  single source of truth for the seven — and the rail now also
-                  reaches close-out, which had no header route at all. */}
-              <PhaseRail current={phase} roleId={roleId} />
               <button
                 className="ag-btn ag-btn-secondary"
                 disabled={stepIndex <= 0}

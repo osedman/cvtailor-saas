@@ -31,8 +31,8 @@ import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
 import { RoleRail } from "@/components/agency/role-rail"
-import { PhaseRail } from "@/components/agency/phase-rail"
-import { workflowHref, type PhaseKey } from "@/lib/agency/phases"
+import { RoleHeader } from "@/components/agency/role-header"
+import type { PhaseKey } from "@/lib/agency/phases"
 import { SignOut } from "@/components/agency/sign-out"
 import type { Dossier, Layer, RequirementStrata } from "@/lib/agency/dossier"
 // Pure function, no server imports — safe in the browser, and the reason the
@@ -137,19 +137,7 @@ export default function DossierPage({
 
       <main className="ag-main">
         <div className="ag-screen">
-          <div className="ag-crumbbar">
-            <span className="ag-crumb">
-              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
-              {" / "}
-              <button className="ag-crumb-link" onClick={() => router.push(workflowHref(roleId))}>
-                {d?.role.ref || "Role"}
-              </button>
-              {" / "}
-              <b>Dossier</b>
-            </span>
-            <span className="ag-grow" />
-            <PhaseRail current={phase} roleId={roleId} />
-          </div>
+          <RoleHeader roleId={roleId} hat="recruiter" />
 
           {error && <p className="ag-banner" role="alert">{error}</p>}
           {!d && !error && <p className="ag-quiet" aria-live="polite">Loading…</p>}

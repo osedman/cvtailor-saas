@@ -1590,3 +1590,62 @@ table.ag-cand tbody tr:focus-visible { outline: 2px solid var(--ag-coral); outli
 .ag-file-ready-item.done .ag-file-ready-dot {
   background: var(--ag-coral); border-color: var(--ag-coral);
 }
+
+/* ── The role header (3 Sep 2026, smooth-flow plan Wave 1) ─────────────────
+ * One header, every role screen: context line, phase rail with the
+ * sub-state, title, and the ownership strip — owner · waiting on · since —
+ * with the next action as a chip. Everything reads tokens, so the client's
+ * dark surface and the recruiter's cream get the same header. */
+.ag-rh { display: flex; flex-direction: column; gap: 10px; margin: -6px 0 22px; padding-bottom: 16px; border-bottom: 1px solid var(--ag-border); }
+.ag-rh-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ag-rh-title { font-family: var(--ag-display); font-size: 26px; font-weight: 600; letter-spacing: var(--track-tight); line-height: 1.15; margin: 0; text-wrap: balance; }
+.ag-rh-strip { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; row-gap: 12px; }
+.ag-rh-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ag-rh-label { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+.ag-rh-value { font-size: var(--t-body); font-weight: 500; color: var(--ag-ink); }
+.ag-rh-detail { font-weight: 400; color: var(--ag-ink-2); }
+.ag-rh-owner { margin-top: -2px; }
+.ag-rh-next { display: inline-flex; align-items: center; gap: 8px; border-radius: var(--r-pill); padding: 8px 14px; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; text-decoration: none; border: 1px solid transparent; white-space: nowrap; max-width: 100%; }
+.ag-rh-next .ag-rh-next-title { white-space: normal; text-align: left; }
+.ag-rh-next.act { background: var(--ag-ink); color: var(--ag-paper); border-color: var(--ag-ink); }
+.ag-rh-next.wait { background: var(--ag-tint-1); color: var(--ag-coral-deep); border-color: var(--ag-tint-2); }
+.ag-rh-next.done { background: var(--ag-cream); color: var(--ag-ink-3); border-color: var(--ag-line-2); }
+a.ag-rh-next:hover { opacity: 0.86; }
+.ag-rh-next-word { font-weight: 700; }
+.ag-rh-next-sep { opacity: 0.6; }
+.ag-rh-error { margin: 0; font-size: var(--t-small); color: var(--ag-coral-text); }
+.ag-phase-sub { font-weight: 500; opacity: 0.92; }
+
+/* The handoff receipt: Confirmed · Now owned by · Their next task · Then. */
+.ag-receipt { margin-top: 6px; border: 1px solid var(--ag-tint-2); background: var(--ag-tint-1); border-radius: var(--r-md); padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+.ag-receipt-head { display: flex; align-items: center; gap: 10px; }
+.ag-receipt-eyebrow { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-text); }
+.ag-receipt-confirmed { font-size: var(--t-body); font-weight: 600; color: var(--ag-ink); }
+.ag-receipt-x { border: none; background: transparent; color: var(--ag-ink-3); font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: var(--r-sm); }
+.ag-receipt-x:hover { color: var(--ag-ink); background: var(--ag-paper); }
+.ag-receipt-cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.ag-receipt-cell { display: flex; flex-direction: column; gap: 3px; background: var(--ag-paper); border-radius: var(--r-sm); padding: 8px 10px; }
+.ag-receipt-label { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+.ag-receipt-value { font-size: var(--t-small); color: var(--ag-ink-2); line-height: 1.45; }
+@media (max-width: 760px) { .ag-receipt-cells { grid-template-columns: 1fr; } }
+
+/* Today: the queue grouped by who is blocking. One row per role, from the
+ * same next action as the role header. */
+.agd-today { display: flex; flex-direction: column; gap: 18px; }
+.agd-today-group { border: 1px solid var(--ag-border); border-radius: var(--r-md); background: var(--ag-paper); overflow: hidden; }
+.agd-today-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--ag-border); }
+.agd-today-title { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+.agd-today-count { font-family: var(--ag-mono); font-size: var(--t-micro); color: var(--ag-ink-3); }
+.agd-today-empty { padding: 12px 14px; font-size: var(--t-small); color: var(--ag-ink-3); }
+.agd-today-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 16px; align-items: center; width: 100%; text-align: left; background: none; border: none; border-top: 1px solid var(--ag-border); padding: 12px 14px; cursor: pointer; font-family: var(--ag-sans); color: inherit; text-decoration: none; }
+.agd-today-row:first-of-type { border-top: none; }
+.agd-today-row:hover { background: var(--ag-tint-1); }
+.agd-today-role { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.agd-today-role-title { font-weight: 600; font-size: var(--t-body); color: var(--ag-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agd-today-role-meta { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); }
+.agd-today-state { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.agd-today-chip { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-text); }
+.agd-today-next { font-size: var(--t-small); color: var(--ag-ink-2); }
+.agd-today-since { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); white-space: nowrap; text-align: right; }
+.agd-today-row.act .agd-today-chip { color: var(--ag-ink); }
+@media (max-width: 760px) { .agd-today-row { grid-template-columns: 1fr; } .agd-today-since { text-align: left; } }

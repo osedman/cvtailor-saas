@@ -12,8 +12,8 @@ import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { resolveProbes } from "@/lib/agency/probes"
 import { WORKFLOW_STEPS, stepNumber } from "@/lib/agency/steps"
-import { workflowHref, type PhaseKey } from "@/lib/agency/phases"
-import { PhaseRail } from "@/components/agency/phase-rail"
+import { workflowHref } from "@/lib/agency/phases"
+import { RoleHeader } from "@/components/agency/role-header"
 import { CandidateCompliance } from "@/components/agency/candidate-compliance"
 import { CandidatePlacement } from "@/components/agency/candidate-placement"
 import { SignOut } from "@/components/agency/sign-out"
@@ -44,7 +44,6 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
   const { roleId, candidateId } = use(params)
   const router = useRouter()
   const [role, setRole] = useState<Role | null>(null)
-  const [phase, setPhase] = useState<PhaseKey | null>(null)
   const [narrative, setNarrative] = useState("")
   const [requirements, setRequirements] = useState<Requirement[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
@@ -68,7 +67,6 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
     const roleBody = await roleRes.json()
     const candBody = await candRes.json()
     setRole(roleBody.role ?? null)
-    setPhase((roleBody.phase as PhaseKey | null) ?? null)
     setRequirements(roleBody.requirements ?? [])
     setCandidates(candBody.candidates ?? [])
     const sMap: Record<string, Score> = {}
@@ -166,13 +164,6 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
             </button>
           ))}
         </div>
-        {role && (
-          <div className="ag-active-role">
-            <div className="ag-rail-label" style={{ padding: 0 }}>Active role</div>
-            <div style={{ fontWeight: 600, fontSize: 13 }}>{role.title}</div>
-            <div className="ag-meta">{role.company || "No company"} · {role.ref}</div>
-          </div>
-        )}
         <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-eyebrow" style={{ marginBottom: 6 }}>Decision support only</div>
@@ -184,19 +175,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
 
       <main className="ag-main">
         <div className="ag-screen">
-          <div className="ag-crumbbar">
-            <span className="ag-crumb">
-              <button className="ag-crumb-link" onClick={() => router.push("/agencies")}>Dashboard</button>
-              {" / "}
-              <button className="ag-crumb-link" onClick={() => router.push(workflowHref(roleId))}>
-                {role ? `${role.company || "Role"} — ${role.title}` : "Shortlist workflow"}
-              </button>
-              {" / "}
-              <b>{stepNumber("detail")}. Candidate detail</b>
-            </span>
-            <span className="ag-grow" />
-            <PhaseRail current={phase} roleId={roleId} />
-          </div>
+          <RoleHeader roleId={roleId} hat="recruiter" />
           <p className="ag-step-eyebrow">Step {stepNumber("detail")} · Candidate detail</p>
 
           {error && <div className="ag-banner"><span style={{ color: "var(--ag-coral-deep)", fontSize: 12.5 }}>{error}</span></div>}

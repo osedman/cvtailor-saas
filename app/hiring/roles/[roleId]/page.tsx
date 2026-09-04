@@ -24,6 +24,7 @@ import {
   RoundActions,
   RoundProgress,
 } from "@/components/agency/hm-shared"
+import { RoleHeader } from "@/components/agency/role-header"
 import type { HiringBrief, HiringDashboard, HiringRound } from "@/lib/agency/types"
 
 type Screen = "loading" | "unauthed" | "not_linked" | "error" | "ready"
@@ -138,6 +139,7 @@ export default function HiringRolePage({ params }: { params: Promise<{ roleId: s
           />
         )}
 
+        {screen === "ready" && data && known && <RoleHeader roleId={roleId} hat="client" />}
         {screen === "ready" && data && known && (
           <>
             <section className="agd-hero">

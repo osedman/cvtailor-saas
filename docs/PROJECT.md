@@ -3624,6 +3624,56 @@ the frame is approved.
 **Verified:** typecheck clean, 1,017 tests, the two new routes exercised by
 source scan only — a live call needs a session this machine does not have.
 
+## 🚀 4 Sep 2026 — the refinement, built as one version: the header everywhere, the receipt, Today, and the client's home
+
+Ose, on the sign-off ask: "Fuck the phases, build a version of what the
+refinement should look like then come back to me." So the gates came off
+and the visible refinement shipped as one build on staging. The Figma frame
+`02 · Role header` (300:2) stands as the reference it was built to; it was
+not signed off first, on his instruction.
+
+**The role header** (`components/agency/role-header.tsx`) renders on all
+five recruiter role screens and the client's role page, in place of the
+crumb bar, the phase rail in it, and the sidebar's Active role box (the
+owner select moved into the header — it is the one stored fact, and this
+is now the one place it is set). Context line · phase rail carrying the
+sub-state · title · owner · waiting on · since · next-action chip. It reads
+`/api/agency/roles/:id/header` or `/api/hiring/roles/:id/header`, renders
+nothing until loaded, and refreshes on focus and on the `ag:role-changed`
+event the workflow (decisions, submission) and interviews (every reload)
+pages dispatch.
+
+**The handoff receipt** (`components/agency/handoff-receipt.tsx`) sits
+under the header after a seam: Confirmed · Now owned by · Their next task ·
+Then, from `handoffFor()` in next-action.ts — derived on render, so it
+survives a reload and cannot say "sent" when nothing was. Dismissal is per
+session and per event.
+
+**Today** (`/api/agency/today` + the top of `/agencies`): one row per open
+role from the same ladder, grouped by who is blocking — Needs my decision ·
+Waiting on clients · candidates · a colleague · Booked · Done. The first
+two always render so an empty group says so. The old "Needs you now" cards
+stay as "Also needs you" for what the ladder does not see (rights requests,
+client signals, parse failures); screening, calls and silent clients left
+them because Today covers those. The nav item is **Today** now.
+
+**The client's home** (`/api/hiring/today` + the top of `/hiring`): what
+needs them, acts first, then waits, each row a door to their role page.
+Headline from the acts. The nav item is **Home**. `lib/agency/client-header.ts`
+carries the four-table tie check and the shortlist coarsening for both
+client routes, so the header and Today cannot fork.
+
+**Not in this build:** Wave 4 (decisions-complete action, handover
+checklist, proxy-hire rule) and Wave 5 (recruiter-authored brief, the
+discoverable list) — those are schema and product changes, not the look of
+the refinement. `/agencies/roles` list also still to come.
+
+**Verified:** typecheck clean, production build clean (all four routes
+present), 1,041 tests green. **Not clicked by a person** — every
+screen here sits behind sign-in and this machine has no session. Ose's
+walk is the verification: open a role in each phase on both hats, watch the
+header's sentence, dismiss a receipt, and read Today.
+
 ---
 
 _Last updated: 4 September 2026_
