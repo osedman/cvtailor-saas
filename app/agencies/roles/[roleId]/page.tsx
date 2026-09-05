@@ -30,6 +30,7 @@ interface Requirement { id: string; ref: string; text: string; weight: "must" | 
 interface Constraint { id: string; ref: string; text: string; kind: string }
 interface Role { id: string; ref: string; title: string; company: string; company_context: string; salary_band: string; location: string; seniority: string; jd_raw: string; recruiter_notes: string; status: string; owner_id: string | null; planned_rounds?: number | null; start_target?: string; contact_id?: string | null }
 interface ClientOption { contactId: string; company: string; fullName: string }
+interface MatchedPerson { recommendationId: string; name: string; headline: string; band: string; evidence: Array<{ requirement_ref: string; strength: string; quote: string | null }>; state: string; invitedAt: string | null; appliedAt: string | null }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; salary_text?: string; source?: string; source_detail?: string; cv_storage_path?: string | null; parse_status: string; duplicate_of: string | null }
 interface Score {
   candidate_id: string; overall: number; must_have_hit: number; must_have_total: number
@@ -165,6 +166,44 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     scanQueued: boolean
   } | null>(null)
   const [minScoreDraft, setMinScoreDraft] = useState(70)
+  // The matched list (5 Sep 2026): people who match this role AND chose to
+  // be seen, from one service-role RPC. Nothing here is a count of anyone
+  // who did not choose that; they stay in the bucket.
+  const [matched, setMatched] = useState<{ people: MatchedPerson[]; bucket: string } | null>(null)
+  const [inviting, setInviting] = useState<string | null>(null)
+  const loadMatched = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/matching/people`)
+      if (!res.ok) return
+      setMatched((await res.json()) as { people: MatchedPerson[]; bucket: string })
+    } catch {
+      /* the panel shows nothing rather than a guess */
+    }
+  }, [roleId])
+  useEffect(() => {
+    if (step === "candidates" && matching?.enabled) void loadMatched()
+  }, [step, matching?.enabled, loadMatched])
+  async function invite(recommendationId: string) {
+    setInviting(recommendationId)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/matching/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendationId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not send the invitation.")
+        return
+      }
+      await loadMatched()
+    } catch {
+      setError("Could not send the invitation.")
+    } finally {
+      setInviting(null)
+    }
+  }
   const [probePicker, setProbePicker] = useState(false)
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
   const [disclosure, setDisclosure] = useState<Disclosure>({ scores: true, evidence: true, probes: true, notes: false, logistics: true })
@@ -1088,6 +1127,53 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   <button className="ag-btn ag-btn-primary" onClick={() => setStep("screening")} disabled={candidates.length === 0}>Continue to screening</button>
                 </div>
               </div>
+              {matching?.enabled && (
+                <div className="ag-card" style={{ marginBottom: 16 }}>
+                  <div className="ag-card-head">
+                    <span className="ag-card-title">Matched on Tailr</span>
+                    <span className="ag-pill">
+                      {matching.scanQueued ? "Scan queued" : matching.lastScanAt ? `Checked ${new Date(matching.lastScanAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : "Not scanned yet"}
+                    </span>
+                  </div>
+                  <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
+                    <p className="ag-note" style={{ margin: 0 }}>
+                      People whose evidence bank matches this role at or above your minimum score <b>and who chose to be seen by recruiters</b>. A row is what they consented to show: name, headline, band, the matched evidence. Their CV and contact details arrive only when they apply. Bands, never a ranking.
+                    </p>
+                    {matched === null && <p className="ag-quiet">Loading…</p>}
+                    {matched && matched.people.length === 0 && (
+                      <p className="ag-quiet">Nobody who chose to be seen matches yet{matched.bucket !== "none" ? " — people who match but have not chosen to be seen stay in the rounded count on the matching card below." : "."}</p>
+                    )}
+                    {matched?.people.map((p) => (
+                      <div key={p.recommendationId} className="ag-check-row" style={{ alignItems: "flex-start" }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                            <span style={{ fontWeight: 600 }}>{p.name}</span>
+                            <span className="ag-pill">{p.band} match</span>
+                            {p.state === "invited" && <span className="ag-pill">Invited{p.invitedAt ? ` · ${new Date(p.invitedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</span>}
+                            {p.state === "applied" && <span className="ag-pill">Applied · in your pool</span>}
+                          </div>
+                          {p.headline && <div className="ag-meta" style={{ marginTop: 2 }}>{p.headline}</div>}
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                            {p.evidence.map((e) => (
+                              <span key={e.requirement_ref} className="ag-pill" title={e.quote ?? "MISSING — no evidence for this requirement"} style={e.strength === "missing" ? { opacity: 0.55 } : undefined}>
+                                {e.requirement_ref} · {e.strength}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        {p.state !== "applied" && p.state !== "invited" && (
+                          <button className="ag-btn ag-btn-primary" disabled={inviting === p.recommendationId || callerRole === "viewer"} onClick={() => void invite(p.recommendationId)}>
+                            {inviting === p.recommendationId ? "Inviting…" : "Invite to apply"}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {matched && matched.people.length > 0 && matched.bucket !== "none" && (
+                      <p className="ag-note" style={{ margin: 0 }}>The scan also matched people who have not chosen to be seen; they stay in the rounded count and are never listed.</p>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="ag-grid-2">
                 <div className="ag-card">
                   <div className="ag-card-head">

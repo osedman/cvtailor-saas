@@ -30,6 +30,7 @@ import { SignOut } from "@/components/agency/sign-out"
 import { RoleHeader } from "@/components/agency/role-header"
 import { CandidateReferences, type ReferenceListRow } from "@/components/agency/candidate-references"
 import { type PhaseKey } from "@/lib/agency/phases"
+import type { ChecklistItem } from "@/lib/agency/handover-checklist"
 import type { HandoverSnapshot } from "@/lib/agency/handover"
 
 interface Candidate {
@@ -77,6 +78,55 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [phase, setPhase] = useState<PhaseKey | null>(null)
+  // The handover checklist for the chosen candidate. The server refuses
+  // delivery while anything is open; this is the same list, shown.
+  const [checklist, setChecklist] = useState<ChecklistItem[] | null>(null)
+  const [checklistBusy, setChecklistBusy] = useState<string | null>(null)
+  const loadChecklist = useCallback(async () => {
+    if (!chosenId) return setChecklist(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/handover/checklist?candidateId=${encodeURIComponent(chosenId)}`)
+      if (!res.ok) return
+      const body = await res.json()
+      if (Array.isArray(body?.items)) setChecklist(body.items as ChecklistItem[])
+    } catch {
+      /* the card shows nothing rather than a guess */
+    }
+  }, [roleId, chosenId])
+  useEffect(() => {
+    void loadChecklist()
+  }, [loadChecklist])
+  async function resolveItem(item: string, state: "done" | "waived" | "not_applicable") {
+    if (!chosenId) return
+    let reason = ""
+    if (state !== "done") {
+      const typed = window.prompt(state === "waived" ? "Why is this being waived? (recorded and audited)" : "Why does this not apply? (recorded and audited)")
+      if (typed === null) return
+      reason = typed.trim()
+      if (!reason) return
+    }
+    setChecklistBusy(item)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/handover/checklist`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateId: chosenId, item, state, reason }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not record that.")
+        return
+      }
+      if (Array.isArray(body?.items)) setChecklist(body.items as ChecklistItem[])
+    } catch {
+      setError("Could not record that.")
+    } finally {
+      setChecklistBusy(null)
+    }
+  }
+  const checklistComplete = checklist !== null && checklist.every((i) => i.resolved)
+  const checklistOutstanding = (checklist ?? []).filter((i) => !i.resolved)
 
   const loadRole = useCallback(async () => {
     try {
@@ -520,6 +570,46 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                     {/* Frozen is not finished. The pack exists to be handed
                         over — this is the act that ends Tailr's part, so it
                         lives on the pack rather than in a menu somewhere. */}
+                    {!deliveredTo && checklist && (
+                      <div className="ag-card ag-print-hide" style={{ marginBottom: 12 }}>
+                        <div className="ag-card-head">
+                          <span className="ag-card-title">Handover checklist</span>
+                          <span className={`ag-pill${checklistComplete ? "" : " warn"}`}>
+                            {checklistComplete ? "Complete" : `${checklistOutstanding.length} outstanding`}
+                          </span>
+                        </div>
+                        <div className="ag-card-body ag-stack" style={{ gap: 8 }}>
+                          {checklist.map((i) => (
+                            <div key={i.key} className="ag-check-row">
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontWeight: 600 }}>{i.label}</div>
+                                <div className="ag-meta">
+                                  {i.derived
+                                    ? `Settled by the record: ${i.derivedFrom}.`
+                                    : i.resolution
+                                      ? `${i.resolution.state === "done" ? "Confirmed" : i.resolution.state === "waived" ? "Waived" : "Not applicable"}${i.resolution.reason ? ` — ${i.resolution.reason}` : ""}`
+                                      : `Not yet: ${i.derivedFrom}.`}
+                                </div>
+                              </div>
+                              {i.resolved ? (
+                                <span className="ag-pill">{i.derived ? "Done" : i.resolution?.state === "done" ? "Done" : i.resolution?.state === "waived" ? "Waived" : "N/A"}</span>
+                              ) : (
+                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                  {i.key === "terms" && (
+                                    <button className="ag-btn ag-btn-secondary" disabled={checklistBusy === i.key} onClick={() => void resolveItem(i.key, "done")}>Confirm</button>
+                                  )}
+                                  <button className="ag-btn" disabled={checklistBusy === i.key} onClick={() => void resolveItem(i.key, "waived")}>Waive…</button>
+                                  <button className="ag-btn" disabled={checklistBusy === i.key} onClick={() => void resolveItem(i.key, "not_applicable")}>Not applicable…</button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          <p className="ag-note" style={{ marginTop: 4 }}>
+                            Four items are settled by the record itself; only terms are your word. A waiver is recorded with its reason and audited. Nothing here is ticked for you on delivery.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     {!deliveredTo ? (
                       contacts.length > 0 && (
                         <div className="ag-handoff ag-print-hide" role="group" aria-label="Hand the pack over">
@@ -545,7 +635,12 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                               ))}
                             </select>
                           )}
-                          <button className="ag-btn ag-btn-primary" onClick={deliver} disabled={busy}>
+                          <button
+                            className="ag-btn ag-btn-primary"
+                            onClick={deliver}
+                            disabled={busy || !checklistComplete}
+                            title={checklistComplete ? undefined : `Outstanding: ${checklistOutstanding.map((i) => i.label.toLowerCase()).join(", ")}`}
+                          >
                             {busy ? "Recording…" : `Hand over to ${contacts.find((c) => c.id === deliverTo)?.company || "the client"}`}
                           </button>
                         </div>

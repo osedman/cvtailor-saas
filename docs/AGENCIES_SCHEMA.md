@@ -717,6 +717,38 @@ submission or a round tied them. `acceptBrief` copies the brief's contact
 here so both paths converge. The PATCH route checks the contact belongs to
 the caller's agency before writing it.
 
+#### 4.1.z — 5 Sep 2026: `agency.handover_items` (migration `20260905110000`)
+
+The handover checklist (Wave 4). One row per (role, candidate, item) for
+`item in (references, right_to_work, placement, start_date, terms)` with
+`state in (done, waived, not_applicable)`, `reason` (a check makes it
+mandatory for the two non-done states), `resolved_by`, `resolved_at`. Four
+items are DERIVED from facts the record already holds (a received
+reference, `rtw_evidence = 'seen'`, a live placement, its start date) and
+cannot be resolved by hand; terms is the recruiter's word. Audit-coupled
+(select to authenticated, all writes service-role, explicit grant), audit
+`toValue` records `has_reason` not the reason. **`deliverHandoverPack`
+refuses while any item is unresolved** — the gate is the server's; the
+close-out button is the courtesy. Nothing is auto-completed on delivery.
+
+#### 4.1.aa — 5 Sep 2026: discoverable (migration `20260905120000`)
+
+Ose's call (4 Sep): the recruiter sees the people who match a published
+role. Lawful only because of a THIRD consumer switch,
+`public.match_preferences.discoverable` (+ `discoverable_at`), off by default,
+written only by `setConsent()` with its consent event (subject check gains
+`'discoverable'`; `CONSENT_COPY_VERSION` bumped to `matching-2026-09-05`
+because the settings promise "a rounded count, never who" became
+conditional). `role_recommendations.state` gains `'invited'` (+ `invited_at`),
+settable only by the service role via the guard trigger, same rule as
+`applied`. **`agency.matched_people(role_id)`** is the one read of the list:
+security definer, joins the recommendation to the opt-in in the database,
+execute to service_role only — a person with the switch off is never in the
+result. Projection: name, headline (career_profiles.sections), score,
+frozen evidence map, state. No email, no CV, no other roles. The bucket
+(`matched_bucket`) still covers everyone else. Lawyer pass on the switch copy
+before a real user sees it, as with the capture consent.
+
 ## 5. Decisions (5 Aug 2026)
 
 | # | Question | Decision |

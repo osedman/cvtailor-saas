@@ -22,6 +22,7 @@
  */
 
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
+import { assertChecklistComplete } from "./handover-checklist"
 import { getCandidateCompliance } from "./compliance"
 import {
   EMPLOYER_CHECK_NOTICE,
@@ -342,12 +343,17 @@ export async function deliverHandoverPack(
 
   const { data: pack } = await admin
     .from("handover_packs")
-    .select("id, agency_id, role_id, candidate_ref, delivered_at")
+    .select("id, agency_id, role_id, candidate_id, candidate_ref, delivered_at")
     .eq("id", packId)
     .eq("agency_id", ctx.agencyId)
     .maybeSingle()
   if (!pack) throw new AgencyAccessError("pack not found in your agency")
   if (pack.delivered_at) return
+
+  // The gate is here, not on the button: every mandatory item is settled by
+  // the record or resolved by a recruiter with a reason, or the pack does
+  // not move. The message names what is outstanding.
+  await assertChecklistComplete(ctx, pack.role_id as string, pack.candidate_id as string)
 
   const { data: contact } = await admin
     .from("client_contacts")

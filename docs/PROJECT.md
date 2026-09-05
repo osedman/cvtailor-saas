@@ -3737,6 +3737,65 @@ production build clean with the eight new routes. Not clicked by a person;
 no calendar has been connected anywhere yet — the OAuth exchange is
 verified by reading, not by a live round trip.
 
+## 🧱 5 Sep 2026 — the rest of the plan: the recruiter's brief, the roles list, the handover checklist, the discoverable list
+
+Ose parked the calendar connections and said continue. Four pieces, one
+build.
+
+**The brief is the recruiter's (Wave 5a).** Intake names the hiring
+manager (`job_roles.contact_id`, migration `20260905100000`, checked against
+the caller's agency before it is written), the planned rounds (1–6, a plan
+never a gate) and the start target. Naming the contact puts the role in
+their workspace (`listClientRoles` ties on it) and their name on the header
+(`getRoleFacts` reads the role's contact first, then a brief's).
+`acceptBrief` copies a client-written brief's contact onto the minted role so
+both paths converge. The client's nav demotes "Post a brief" to "Send a
+brief" — still there, no longer the primary act.
+
+**Roles (`/agencies/roles`).** The map to Today's queue: every role, where
+it is, who holds it, who it waits on, what happens next, from the same
+ladder (open rows from `/api/agency/today`, closed from the dashboard).
+Open · Mine · Waiting on others · Closed, plus search. New nav item; the
+dashboard's own section is "Open roles" so one rail never says Roles twice.
+
+**The handover checklist (Wave 4).** `agency.handover_items` (migration
+`20260905110000`): five items — references received, right to work seen,
+placement recorded, start date agreed, terms confirmed. Four are DERIVED
+from facts the record holds and cannot be ticked by hand; terms is the
+recruiter's word. Anything the facts do not settle is resolved as done,
+waived with a reason, or not applicable — the reason is mandatory in code
+and in a check constraint, audited as `has_reason` not content.
+**`deliverHandoverPack` refuses while any item is open** and names what is
+outstanding; the close-out button is disabled with the same list as its
+title. Nothing is auto-completed on delivery.
+
+**The discoverable list (Wave 5b).** Migration `20260905120000`:
+`match_preferences.discoverable` (off by default, written only by
+`setConsent()` with its event; subject check and `CONSENT_COPY_VERSION`
+moved — the settings promise "a rounded count, never who" is now "unless
+you turn on the third switch", so anyone on the old wording is asked again),
+`role_recommendations.state` gains `invited` (service-role only via the
+guard trigger), and **`agency.matched_people(role_id)`** — the one read of
+the list, joining the recommendation to the opt-in inside the database,
+execute to service_role only. Step 03 gains a "Matched on Tailr" card:
+the scan's liveness, then a row per person who chose to be seen — name,
+headline, band (fit · strong · very strong, never a rank), the frozen
+evidence map with MISSING as MISSING — and one action, **Invite to apply**,
+which marks the recommendation and shows on their /found card. People who
+match but did not opt in stay in the bucket, never listed. The settings
+page has the third switch with the plain sentence about what it discloses.
+
+**Ose has to run three migrations in tailr-staging, in this order:**
+`20260905100000_role_contact.sql`, `20260905110000_handover_checklist.sql`,
+`20260905120000_discoverable.sql`. (And `20260905090000_calendar_connections.sql`
+is already run.)
+
+**Still standing:** a lawyer pass on the discoverable switch copy before a
+real user sees it, the same gate as the capture consent.
+
+**Verified:** typecheck clean, 1,090 tests green, production build
+clean. Not clicked by a person.
+
 ---
 
 _Last updated: 5 September 2026_

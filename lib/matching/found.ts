@@ -34,10 +34,12 @@ export interface FoundRequirement {
 export interface FoundRole {
   /** role_recommendations.id — what the PATCH route addresses. */
   id: string
-  state: "new" | "seen" | "dismissed" | "applied"
+  state: "new" | "seen" | "dismissed" | "applied" | "invited"
   /** 0–100, as scored on arrival. The UI rounds for display. */
   score: number
   foundAt: string
+  /** A recruiter at the agency invited them to apply (discoverable users only). */
+  invitedAt: string | null
   role: {
     title: string
     company: string
@@ -67,6 +69,7 @@ interface RecRow {
   evidence: Array<{ requirement_ref: string; strength: string; quote: string | null }>
   tailor_history_id?: string | null
   tailored_against_hash?: string | null
+  invited_at?: string | null
 }
 
 interface RoleRow {
@@ -137,6 +140,7 @@ export function joinFound(
       state: rec.state as FoundRole["state"],
       score: typeof rec.score === "string" ? parseFloat(rec.score) : rec.score,
       foundAt: rec.created_at,
+      invitedAt: rec.invited_at ?? null,
       tailored,
       role: {
         title: role.title,
@@ -169,7 +173,7 @@ export async function listFound(
     db
       .from("role_recommendations")
       .select(
-        "id, published_role_id, state, score, created_at, evidence, tailor_history_id, tailored_against_hash"
+        "id, published_role_id, state, score, created_at, evidence, tailor_history_id, tailored_against_hash, invited_at"
       ),
     db.from("match_preferences").select("matching_opt_in").maybeSingle(),
   ])

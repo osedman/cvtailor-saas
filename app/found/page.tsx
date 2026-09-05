@@ -592,6 +592,9 @@ export default function FoundPage() {
                     {active.state === "applied" && (
                       <span className="ns-chip ns-chip-missing">APPLIED</span>
                     )}
+                    {active.state === "invited" && (
+                      <span className="ns-chip ns-chip-have">A recruiter at {active.role.agencyName} invited you to apply</span>
+                    )}
                   </div>
                   <p className="t-small mt-4 max-w-[70ch]">
                     {!isLive ? (

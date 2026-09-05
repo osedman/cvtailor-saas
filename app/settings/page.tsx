@@ -42,14 +42,16 @@ interface ConsentEvent {
 interface ConsentState {
   matching: boolean
   enrichment: boolean
+  discoverable: boolean
   matchingSince: string | null
   enrichmentSince: string | null
+  discoverableSince: string | null
   history: ConsentEvent[]
 }
 
 const PROMISES = [
   "The scan runs on your side. Agencies never browse or search Tailr users.",
-  "A role that matches you is shown only to you. The agency is told a rounded count, never who.",
+  "A role that matches you is shown only to you. The agency is told a rounded count, never who — unless you turn on the third switch below.",
   "Applying is the moment anything is shared — for that one role, and you can withdraw it.",
 ]
 
@@ -294,6 +296,37 @@ export default function SettingsPage() {
               </p>
             </section>
 
+            {/* ── Discoverable ───────────────────────────────────── */}
+            <section
+              className="mt-6 rounded-2xl border p-6"
+              style={{ background: "#fff", borderColor: "var(--ns-border)" }}
+            >
+              <div className="flex items-start justify-between gap-6">
+                <div className="min-w-0">
+                  <p className="t-eyebrow t-eyebrow-quiet">Before you apply</p>
+                  <h2 className="t-title mt-1.5 text-xl">Let recruiters see me when a role matches</h2>
+                  <p className="t-body mt-2 max-w-[64ch]" style={{ color: "var(--ns-ink-70)" }}>
+                    With this on, a recruiter whose role matches you sees your name, your headline
+                    and the evidence that matched — and can invite you to apply. Your CV and your
+                    contact details still reach them only when you apply. Turn it off and you drop
+                    off every recruiter&apos;s list at once; nothing is kept.
+                  </p>
+                </div>
+                <Switch
+                  checked={state.discoverable}
+                  busy={busy === "discoverable"}
+                  label="Let recruiters see me when a role matches"
+                  onChange={(next) => void change("discoverable", next)}
+                />
+              </div>
+              <p className="t-small mt-4">
+                Needs the first switch on to mean anything: no matching, nothing to be seen for.
+                {state.discoverable && state.discoverableSince && (
+                  <> On since {formatDay(state.discoverableSince)}.</>
+                )}
+              </p>
+            </section>
+
             {/* ── The record ─────────────────────────────────────── */}
             <section
               className="mt-6 rounded-xl border p-5"
@@ -312,7 +345,7 @@ export default function SettingsPage() {
                   {state.history.map((e, i) => (
                     <li key={`${e.createdAt}-${i}`} className="t-mono break-words">
                       {formatMoment(e.createdAt)} ·{" "}
-                      {e.subject === "matching" ? "matching" : "enrichment"} · {e.action} ·{" "}
+                      {e.subject === "matching" ? "matching" : e.subject === "discoverable" ? "discoverable" : "enrichment"} · {e.action} ·{" "}
                       {e.copyVersion}
                     </li>
                   ))}

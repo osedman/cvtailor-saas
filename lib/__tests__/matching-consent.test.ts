@@ -18,8 +18,10 @@ import {
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 
 describe("the two opt-ins are separate", () => {
-  it("names both, and only these two", () => {
-    expect([...CONSENT_SUBJECTS].sort()).toEqual(["enrichment", "matching"])
+  it("names the three, and only these three", () => {
+    // Two on 16 Aug; discoverable joined on 5 Sep 2026 — the consent for the
+    // LISTING alone, off by default. See supabase/migrations/20260905120000.
+    expect([...CONSENT_SUBJECTS].sort()).toEqual(["discoverable", "enrichment", "matching"])
   })
 
   it("carries a copy version, so 'agreed to what?' has an answer", () => {
@@ -27,9 +29,12 @@ describe("the two opt-ins are separate", () => {
   })
 
   it("matches the values the database check constraint allows", () => {
-    const sql = read("supabase/migrations/20260815160000_consent_subject_and_lock.sql")
+    // The constraint was re-declared when the third subject arrived; the
+    // latest declaration is the one Postgres holds.
+    const sql = read("supabase/migrations/20260905120000_discoverable.sql")
+    const decl = sql.slice(sql.indexOf("add constraint matching_consent_events_subject_check"))
     for (const subject of CONSENT_SUBJECTS) {
-      expect(sql).toContain(`'${subject}'`)
+      expect(decl).toContain(`'${subject}'`)
     }
   })
 })

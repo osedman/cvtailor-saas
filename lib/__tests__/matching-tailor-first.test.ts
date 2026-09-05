@@ -136,6 +136,9 @@ describe("what tailor-first must never do", () => {
     // The sheet now names the tailored CV as what crosses; that is a change
     // in what is being agreed to. Reverting the version without reverting
     // the copy would misdate every new consent event.
-    expect(CONSENT_COPY_VERSION).toBe("matching-2026-08-16")
+    // Moved again on 5 Sep 2026 for the third switch; what this pins is
+    // that it never goes back before the tailor-first wording.
+    expect(CONSENT_COPY_VERSION >= "matching-2026-08-16").toBe(true)
+    expect(CONSENT_COPY_VERSION).toMatch(/^matching-\d{4}-\d{2}-\d{2}$/)
   })
 })

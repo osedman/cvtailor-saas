@@ -71,10 +71,15 @@ export function bucketOf(count: number): MatchBucket {
 // 2026-08-16: the apply sheet now names the tailored CV as what crosses when
 // one exists ("exactly as you last saved it"), replacing the evidence-bank
 // line — a change in what is being agreed to, hence the bump.
-export const CONSENT_COPY_VERSION = "matching-2026-08-16"
+/**
+ * Bumped 5 Sep 2026: the second promise ("the agency is told a rounded
+ * count, never who") became conditional on a third switch, discoverable,
+ * so anyone who agreed to the old wording is asked again.
+ */
+export const CONSENT_COPY_VERSION = "matching-2026-09-05"
 
 /** The two opt-ins. Separate purposes; they revoke independently. */
-export const CONSENT_SUBJECTS = ["matching", "enrichment"] as const
+export const CONSENT_SUBJECTS = ["matching", "enrichment", "discoverable"] as const
 export type ConsentSubject = (typeof CONSENT_SUBJECTS)[number]
 
 /** Score bounds a recruiter may set. Mirrors the DB check constraint. */

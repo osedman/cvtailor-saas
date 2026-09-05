@@ -1649,3 +1649,7 @@ a.ag-rh-next:hover { opacity: 0.86; }
 .agd-today-since { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); white-space: nowrap; text-align: right; }
 .agd-today-row.act .agd-today-chip { color: var(--ag-ink); }
 @media (max-width: 760px) { .agd-today-row { grid-template-columns: 1fr; } .agd-today-since { text-align: left; } }
+
+/* Handover checklist rows (close-out). */
+.ag-check-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px; border: 1px solid var(--ag-border); border-radius: var(--r-sm); background: var(--ag-paper); }
+.ag-pill.warn { border-color: var(--ag-warn-mark); color: var(--ag-warn); }

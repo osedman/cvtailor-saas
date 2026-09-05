@@ -4,6 +4,10 @@
  * `matching` — "let roles find me". Quiet matching scans your evidence bank
  * against live roles and tells you when one fits.
  * `enrichment` — "show my evidence to a recruiter who already has my CV".
+ * `discoverable` — "let recruiters see me when a role matches" (5 Sep 2026).
+ *   Off by default. It is the consent for the LISTING only: a recruiter
+ *   sees the person on the roles they match, and can invite them to apply;
+ *   the CV and contact details still arrive only when the person applies.
  *
  * They are separate purposes and revoke independently. Consent to the first
  * does not contain the second: someone job-hunting quietly would accept
@@ -35,9 +39,11 @@ import { CONSENT_COPY_VERSION, type ConsentSubject } from "./limits"
 export interface ConsentState {
   matching: boolean
   enrichment: boolean
+  discoverable: boolean
   /** When each was last turned on, null if never or currently off. */
   matchingSince: string | null
   enrichmentSince: string | null
+  discoverableSince: string | null
   copyVersion: string
   /** True when the wording has moved on since they last agreed. */
   needsReconsent: boolean
@@ -57,7 +63,7 @@ export async function getConsentState(userId: string): Promise<ConsentState> {
   const [{ data: prefs }, { data: profile }] = await Promise.all([
     admin
       .from("match_preferences")
-      .select("matching_opt_in, opted_in_at, copy_version")
+      .select("matching_opt_in, opted_in_at, copy_version, discoverable, discoverable_at")
       .eq("user_id", userId)
       .maybeSingle(),
     admin
@@ -69,11 +75,14 @@ export async function getConsentState(userId: string): Promise<ConsentState> {
 
   const matching = Boolean(prefs?.matching_opt_in)
   const enrichment = Boolean(profile?.recruiter_visibility)
+  const discoverable = Boolean(prefs?.discoverable)
 
   return {
     matching,
     enrichment,
     matchingSince: matching ? (prefs?.opted_in_at as string | null) ?? null : null,
+    discoverable,
+    discoverableSince: discoverable ? (prefs?.discoverable_at as string | null) ?? null : null,
     enrichmentSince: enrichment
       ? (profile?.recruiter_visibility_updated_at as string | null) ?? null
       : null,
@@ -140,6 +149,20 @@ export async function setConsent(
         // Both stamps are kept: "on since" needs the grant, and an erasure
         // request needs to show when it stopped.
         ...(granted ? { opted_in_at: now } : { opted_out_at: now }),
+        updated_at: now,
+      },
+      { onConflict: "user_id" }
+    )
+    if (error) throw error
+  } else if (subject === "discoverable") {
+    // The listing consent. Kept on match_preferences beside the matching
+    // switch it depends on; revoking is immediate because every recruiter
+    // list is derived live from this flag, never snapshotted.
+    const { error } = await admin.from("match_preferences").upsert(
+      {
+        user_id: userId,
+        discoverable: granted,
+        discoverable_at: granted ? now : null,
         updated_at: now,
       },
       { onConflict: "user_id" }
