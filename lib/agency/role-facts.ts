@@ -44,7 +44,7 @@ export async function getRoleFacts(
 
   const { data: role, error: roleErr } = await admin
     .from("job_roles")
-    .select("id, ref, title, company, status, closed_at, created_at, owner_id, planned_rounds")
+    .select("id, ref, title, company, status, closed_at, created_at, owner_id, planned_rounds, contact_id")
     .eq("agency_id", ctx.agencyId)
     .eq("id", roleId)
     .maybeSingle()
@@ -164,7 +164,9 @@ export async function getRoleFacts(
     ownerName = (profile?.full_name as string) || null
   }
   let clientName: string | null = null
-  const contactId = (brief.data?.contact_id as string | null) ?? null
+  // The contact set at intake first (the brief is the recruiter's now), then
+  // the one on a client-written brief.
+  const contactId = (role.contact_id as string | null) ?? (brief.data?.contact_id as string | null) ?? null
   if (contactId) {
     const { data: contact } = await admin.from("client_contacts").select("full_name").eq("agency_id", ctx.agencyId).eq("id", contactId).maybeSingle()
     clientName = (contact?.full_name as string) || null

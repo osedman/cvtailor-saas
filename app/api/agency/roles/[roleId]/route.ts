@@ -136,6 +136,26 @@ export async function PATCH(
     for (const [field, limit] of Object.entries(FIELD_LIMITS)) {
       if (typeof body?.[field] === "string") patch[field] = body[field].slice(0, limit)
     }
+    // The brief's own facts (Wave 5a): the planned round count is a plan,
+    // never a gate; the start target is free text; the contact is this
+    // agency's own row, checked before it is written so a role can never
+    // point at another agency's client.
+    const typed: Record<string, unknown> = {}
+    if (body?.planned_rounds === null || (Number.isInteger(body?.planned_rounds) && body.planned_rounds >= 1 && body.planned_rounds <= 6)) {
+      typed.planned_rounds = body.planned_rounds
+    }
+    if (typeof body?.start_target === "string") typed.start_target = body.start_target.slice(0, 200)
+    if (body?.contact_id === null) typed.contact_id = null
+    else if (typeof body?.contact_id === "string" && body.contact_id) {
+      const { data: contact } = await auth.db
+        .from("client_contacts")
+        .select("id")
+        .eq("agency_id", auth.ctx.agencyId)
+        .eq("id", body.contact_id)
+        .maybeSingle()
+      if (!contact) return NextResponse.json({ error: "That contact is not in your agency" }, { status: 400 })
+      typed.contact_id = body.contact_id
+    }
 
     // Status is not a plain field edit. Closing a role starts the retention
     // clock on every candidate attached to it (DB trigger), so the change is
@@ -149,13 +169,13 @@ export async function PATCH(
     }
     if (nextStatus) patch.status = nextStatus
 
-    if (Object.keys(patch).length === 0) {
+    if (Object.keys(patch).length === 0 && Object.keys(typed).length === 0) {
       return NextResponse.json({ error: "Nothing to update" }, { status: 400 })
     }
 
     const { data, error } = await auth.db
       .from("job_roles")
-      .update(patch)
+      .update({ ...patch, ...typed })
       .eq("id", roleId)
       .eq("agency_id", auth.ctx.agencyId)
       .select("id, ref, title, status, closed_at, updated_at")

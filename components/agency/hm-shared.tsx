@@ -85,12 +85,15 @@ export function HiringNav() {
         )
       })}
       <span className="ag-grow" />
+      {/* The brief is the recruiter's job description now (Wave 5a). Sending
+          one from here stays possible — it lands in the recruiter's inbox and
+          pre-fills their intake — but it is no longer the primary act. */}
       <Link
         href="/hiring/briefs/new"
-        className={`agd-tbtn primary hm-nav-cta${briefOn ? " on" : ""}`}
+        className={`hm-nav-item${briefOn ? " on" : ""}`}
         aria-current={briefOn ? "page" : undefined}
       >
-        Post a brief
+        Send a brief
       </Link>
     </nav>
   )

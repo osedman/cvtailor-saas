@@ -31,7 +31,8 @@ export async function listClientRoles(ctx: HiringContext): Promise<ClientRoleTie
   const contactIds = ctx.links.map((l) => l.contactId)
   if (contactIds.length === 0) return []
   const admin = agencyAdmin()
-  const [briefs, recipients, rounds, slots] = await Promise.all([
+  const [roles, briefs, recipients, rounds, slots] = await Promise.all([
+    admin.from("job_roles").select("id, agency_id, contact_id").in("contact_id", contactIds),
     admin.from("role_briefs").select("role_id, agency_id, contact_id").in("contact_id", contactIds).not("role_id", "is", null),
     admin.from("submission_recipients").select("agency_id, contact_id, submissions!inner(role_id)").in("contact_id", contactIds),
     admin.from("interview_rounds").select("role_id, agency_id, contact_id").in("contact_id", contactIds),
@@ -44,6 +45,7 @@ export async function listClientRoles(ctx: HiringContext): Promise<ClientRoleTie
     if (!link || ties.has(roleId)) return
     ties.set(roleId, { roleId, agencyId, contactId })
   }
+  for (const r of roles.data ?? []) add(r.id, r.agency_id, r.contact_id)
   for (const r of briefs.data ?? []) add(r.role_id, r.agency_id, r.contact_id)
   for (const r of recipients.data ?? []) {
     const sub = (r as { submissions?: { role_id?: string } | { role_id?: string }[] }).submissions

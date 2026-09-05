@@ -43,6 +43,7 @@ import { useRouter } from "next/navigation"
 
 export type AgencyNavKey =
   | "roles"
+  | "list"
   | "candidates"
   | "briefs"
   | "clients"
@@ -59,6 +60,9 @@ export interface AgencyNavSection {
 
 const ITEMS: Array<{ key: AgencyNavKey; label: string; href: string }> = [
   { key: "roles", label: "Today", href: "/agencies" },
+  // Today is the queue; Roles is the map. The dashboard's cards were the
+  // only way to reach a role until 5 Sep 2026.
+  { key: "list", label: "Roles", href: "/agencies/roles" },
   // Candidates was a COUNT in the dashboard's section list and never a route,
   // so a person was reachable only through the role they were on. It is a
   // destination now — the count always implied one (22 Aug walk-through).

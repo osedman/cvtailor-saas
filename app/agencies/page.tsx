@@ -521,7 +521,7 @@ export default function AgencyHomePage() {
             // Dashboard item already routes to — one destination, two names,
             // and the second led nowhere new. Candidates is gone from here
             // too; it is a real screen now rather than a scroll anchor.
-            { id: "agd-roles", label: "Roles", count: liveRoles.length },
+            { id: "agd-roles", label: "Open roles", count: liveRoles.length },
             { id: "agd-queue", label: "In flight", count: inFlight },
             { id: "agd-clients", label: "Clients" },
             { id: "agd-health", label: "Reports" },

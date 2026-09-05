@@ -28,7 +28,8 @@ type Step = PaneStepKey
 
 interface Requirement { id: string; ref: string; text: string; weight: "must" | "important" | "nice" }
 interface Constraint { id: string; ref: string; text: string; kind: string }
-interface Role { id: string; ref: string; title: string; company: string; company_context: string; salary_band: string; location: string; seniority: string; jd_raw: string; recruiter_notes: string; status: string; owner_id: string | null }
+interface Role { id: string; ref: string; title: string; company: string; company_context: string; salary_band: string; location: string; seniority: string; jd_raw: string; recruiter_notes: string; status: string; owner_id: string | null; planned_rounds?: number | null; start_target?: string; contact_id?: string | null }
+interface ClientOption { contactId: string; company: string; fullName: string }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; salary_text?: string; source?: string; source_detail?: string; cv_storage_path?: string | null; parse_status: string; duplicate_of: string | null }
 interface Score {
   candidate_id: string; overall: number; must_have_hit: number; must_have_total: number
@@ -120,6 +121,16 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // Who can own this role: active, non-viewer members. Loaded once, lazily —
   // the whole team list is small and the control renders from it.
   const [callerRole, setCallerRole] = useState<string>("viewer")
+  // The client contacts this role can be for: the brief is the recruiter's
+  // job description now, and naming the hiring manager at intake is what
+  // puts the role in their workspace and their name on the header.
+  const [clients, setClients] = useState<ClientOption[]>([])
+  useEffect(() => {
+    fetch("/api/agency/clients")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => Array.isArray(b?.clients) && setClients(b.clients as ClientOption[]))
+      .catch(() => {})
+  }, [])
   /** Which of the three phases this role is in. null until loaded — the rail
    *  renders nothing rather than guessing "Shortlist" mid-fetch. */
   const [phase, setPhase] = useState<PhaseKey | null>(null)
@@ -319,12 +330,18 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     // `override` exists for saves fired in the same tick as a patchRole —
     // React state has not settled yet, and saving the stale closure would
     // show one JD and store another.
-    const { title, company, company_context, salary_band, location, seniority, jd_raw, recruiter_notes } = { ...role, ...override }
+    const { title, company, company_context, salary_band, location, seniority, jd_raw, recruiter_notes, planned_rounds, start_target, contact_id } = { ...role, ...override }
     await fetch(`/api/agency/roles/${roleId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, company, company_context, salary_band, location, seniority, jd_raw, recruiter_notes }),
+      body: JSON.stringify({
+        title, company, company_context, salary_band, location, seniority, jd_raw, recruiter_notes,
+        planned_rounds: planned_rounds ?? null,
+        start_target: start_target ?? "",
+        contact_id: contact_id ?? null,
+      }),
     })
+    announceRoleChanged()
   }
 
   async function removeCandidate(candidateId: string) {
@@ -929,6 +946,39 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                         <div><label className="ag-label">Comp band</label><input className="ag-input" value={role.salary_band} onChange={(e) => patchRole({ salary_band: e.target.value })} onBlur={() => void saveIntake()} /></div>
                         <div><label className="ag-label">Location</label><input className="ag-input" value={role.location} onChange={(e) => patchRole({ location: e.target.value })} onBlur={() => void saveIntake()} /></div>
+                      </div>
+                      <div>
+                        <label className="ag-label" htmlFor="role-contact">Hiring manager</label>
+                        <select
+                          id="role-contact"
+                          className="ag-input"
+                          value={role.contact_id ?? ""}
+                          onChange={(e) => { const v = e.target.value || null; patchRole({ contact_id: v }); void saveIntake({ contact_id: v }) }}
+                        >
+                          <option value="">Not named yet</option>
+                          {clients.map((c) => (
+                            <option key={c.contactId} value={c.contactId}>
+                              {c.fullName || c.company}{c.fullName && c.company ? ` · ${c.company}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="ag-note" style={{ marginTop: 6 }}>Naming them puts this role in their workspace and their name on the header. Add contacts under Client access.</p>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        <div>
+                          <label className="ag-label" htmlFor="role-rounds">Planned rounds</label>
+                          <select
+                            id="role-rounds"
+                            className="ag-input"
+                            value={role.planned_rounds ?? ""}
+                            onChange={(e) => { const v = e.target.value ? Number(e.target.value) : null; patchRole({ planned_rounds: v }); void saveIntake({ planned_rounds: v }) }}
+                          >
+                            <option value="">Not agreed</option>
+                            {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                          <p className="ag-note" style={{ marginTop: 6 }}>A plan, never a gate.</p>
+                        </div>
+                        <div><label className="ag-label">Start target</label><input className="ag-input" placeholder="e.g. early November" value={role.start_target ?? ""} onChange={(e) => patchRole({ start_target: e.target.value })} onBlur={() => void saveIntake()} /></div>
                       </div>
                     </div>
                   </div>

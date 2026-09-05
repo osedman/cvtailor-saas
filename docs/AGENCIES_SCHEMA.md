@@ -705,6 +705,18 @@ the times are proposed from a calendar scan sized to the candidates chosen
 the portal writes them, and windows land in `availability_slots` through
 `offerSlot`, one audit row each.
 
+#### 4.1.y — 5 Sep 2026: `agency.job_roles.contact_id` (migration `20260905100000`)
+
+Nullable, `references client_contacts on delete set null`, partial index.
+The brief is the recruiter's job description now (Wave 5a): intake names the
+hiring manager, the planned rounds and the start target. Until this, the
+only role↔contact tie was `role_briefs.contact_id`, which exists only when
+the client wrote the brief; a recruiter-authored role had no client name on
+its header and did not appear in the hiring manager's workspace until a
+submission or a round tied them. `acceptBrief` copies the brief's contact
+here so both paths converge. The PATCH route checks the contact belongs to
+the caller's agency before writing it.
+
 ## 5. Decisions (5 Aug 2026)
 
 | # | Question | Decision |

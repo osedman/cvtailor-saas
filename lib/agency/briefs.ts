@@ -621,6 +621,8 @@ export async function acceptBrief(
       jd_raw: composeJdRaw(brief),
       planned_rounds: (brief.interview_rounds as number | null) ?? null,
       start_target: capText(brief.start_target as string | null | undefined, MAX_TITLE),
+      // The same tie a recruiter sets at intake, so both paths converge.
+      contact_id: (brief.contact_id as string | null) ?? null,
       recruiter_notes: "",
       status: "draft",
       created_by: ctx.userId,

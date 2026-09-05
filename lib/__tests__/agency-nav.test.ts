@@ -22,6 +22,7 @@ const SCREENS: Array<[string, string]> = [
   ["app/agencies/settings/page.tsx", "settings"],
   ["app/agencies/notifications/page.tsx", "notifications"],
   ["app/agencies/candidates/page.tsx", "candidates"],
+  ["app/agencies/roles/page.tsx", "list"],
   ["app/agencies/candidates/[candidateId]/page.tsx", "candidates"],
 ]
 
