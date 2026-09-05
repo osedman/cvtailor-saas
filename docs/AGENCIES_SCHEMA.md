@@ -686,6 +686,25 @@ Sequencing rules, per the project's usual practice:
 
 ---
 
+#### 4.1.x — 5 Sep 2026: `public.calendar_connections` (migration `20260905090000`)
+
+One row per auth user: `provider` ('google' | 'microsoft'), sealed
+`access_token` / `refresh_token` (AES-256-GCM under `CALENDAR_TOKEN_KEY`,
+lib/calendar/tokens.ts), `expires_at`. **Public schema, not agency** — a diary
+belongs to the person, and a hiring manager linked to two agencies has one
+calendar. RLS on, `revoke all` from anon and authenticated, service-role
+grants only; every read and write goes through lib/calendar/connections.ts.
+Busy intervals are read live and never stored; no event content is ever
+requested (Google freeBusy; Graph calendarView selected to start/end/showAs).
+
+Why it exists: submission starts the interview workflow. The client's one task
+after a shortlist arrives is to choose who to interview and offer times, and
+the times are proposed from a calendar scan sized to the candidates chosen
+(lib/calendar/windows.ts). No new agency tables: decisions land in
+`client_actions` against the contact's `submission_recipients` row exactly as
+the portal writes them, and windows land in `availability_slots` through
+`offerSlot`, one audit row each.
+
 ## 5. Decisions (5 Aug 2026)
 
 | # | Question | Decision |

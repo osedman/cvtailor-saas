@@ -141,6 +141,18 @@ export default function HiringRolePage({ params }: { params: Promise<{ roleId: s
 
         {screen === "ready" && data && known && <RoleHeader roleId={roleId} hat="client" />}
         {screen === "ready" && data && known && (
+          <section className="agd-band" aria-labelledby="hm-role-setup">
+            <div className="agd-eyebrow-row">
+              <h2 className="agd-eyebrow" id="hm-role-setup">Interviews</h2>
+              <span className="agd-rule" />
+            </div>
+            <p className="agd-sub" style={{ marginBottom: 10 }}>
+              When your recruiter sends a shortlist, you choose who to interview and offer times here. We scan the calendar of your choice and propose windows sized to the candidates you pick.
+            </p>
+            <Link className="agd-tbtn primary" href={`/hiring/roles/${roleId}/interviews`}>Set up interviews →</Link>
+          </section>
+        )}
+        {screen === "ready" && data && known && (
           <>
             <section className="agd-hero">
               <p className="agd-date">{brief ? [brief.team, brief.location].filter(Boolean).join(" · ") || "Your role" : "Opened by your recruiter"}</p>

@@ -3674,6 +3674,69 @@ screen here sits behind sign-in and this machine has no session. Ose's
 walk is the verification: open a role in each phase on both hats, watch the
 header's sentence, dismiss a receipt, and read Today.
 
+## 📅 5 Sep 2026 — submission starts the interview workflow: the client chooses who, and the calendar proposes when
+
+Ose: after the recruiter submits, the role "sits somewhere"; submission
+should trigger the interview workflow, the hiring manager should get one
+clear task to offer times, and instead of picking times by hand it should
+scan the calendar of their choice and propose a range sized to the
+candidates chosen. Built as one piece.
+
+**The seam.** The inventory found the hole precisely: decisions existed
+only behind the portal token, one candidate at a time, and the client's
+workspace could not see the shortlist at all — the ladder's CTA "Open the
+shortlist" pointed at a page that could not render one. The recruiter's
+submission to a contact is already their deliberate disclosure
+(`submission_recipients.contact_id`, switches frozen into the snapshot), so
+the workspace now reads that same snapshot for the recipient contact
+(`lib/agency/client-shortlist.ts`). Nothing widened.
+
+**The task.** `/hiring/roles/:id/interviews` — "Set up interviews", two
+steps on one screen. 1 · Who: each shortlisted candidate is Interview or
+Not for this role (a signal, never a removal; a decision already taken in
+the portal is shown locked, never overwritten). 2 · When: interview length,
+a date range, then either *Scan my calendar* (busy intervals only, nothing
+stored) or *Propose windows across these days*; `proposeWindows()` in
+`lib/calendar/windows.ts` returns one window per candidate plus half again,
+never fewer than two, inside working hours, clear of busy time, spread
+across at least two working days, capped per day, and says plainly when the
+range cannot fit them. Untick, confirm. Decisions land in `client_actions`
+against the recipient row as the portal writes them; windows land in
+`availability_slots` through `offerSlot`, one audit row each. Receipt on
+confirm; the recruiter's next action becomes "Book round 1".
+
+**The ladder.** After submission the client's sentence is "Choose who to
+interview from N candidates" with the CTA on the setup screen; the
+recruiter's chip reads READY FOR INTERVIEWS · WITH THE CLIENT and their
+sentence "<client> is choosing who to interview"; the receipt says the
+interview workflow has started.
+
+**Calendars.** Google Calendar and Microsoft 365 behind one interface
+(`lib/calendar/providers.ts`): OAuth with a nonce cookie and the signed-in
+user checked before the code is exchanged, busy time only (freeBusy;
+calendarView selected to start/end/showAs), tokens sealed with
+AES-256-GCM under `CALENDAR_TOKEN_KEY` and stored in
+`public.calendar_connections` (migration `20260905090000`, service-role
+only). A provider whose credentials are not in the environment shows
+"not set up yet" rather than a button that does nothing; the manual range
+works today with none of them.
+
+**Ose has to do two things before the calendar scan works on staging:**
+1. Run `supabase/migrations/20260905090000_calendar_connections.sql` in the
+   tailr-staging SQL editor.
+2. Set env in Vercel, **Preview scope**: `CALENDAR_TOKEN_KEY`
+   (`openssl rand -base64 32`), and for each provider wanted
+   `GOOGLE_CALENDAR_CLIENT_ID/SECRET` (Google Cloud → OAuth client, redirect
+   `<business origin>/api/hiring/calendar/callback/google`, scope
+   calendar.readonly) and/or `MICROSOFT_CALENDAR_CLIENT_ID/SECRET` (Entra
+   app, redirect `.../callback/microsoft`, Calendars.Read + offline_access).
+
+**Verified:** typecheck clean, 1,063 tests (window maths, the disclosure and
+attribution lines, the callback's check order, the migration's grants),
+production build clean with the eight new routes. Not clicked by a person;
+no calendar has been connected anywhere yet — the OAuth exchange is
+verified by reading, not by a live round trip.
+
 ---
 
-_Last updated: 4 September 2026_
+_Last updated: 5 September 2026_

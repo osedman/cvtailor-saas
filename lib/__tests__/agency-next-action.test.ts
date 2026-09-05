@@ -108,13 +108,13 @@ describe("with the client", () => {
     const a = nextAction(f, "recruiter", "r1")
     expect(a.mode).toBe("wait")
     expect(a.waitingOn).toEqual({ party: "client", label: "Owen Castellano" })
-    expect(a.detail).toContain("2 decisions outstanding")
+    expect(a.detail).toContain("2 candidates of 3 still to decide")
   })
   it("the client acts, and is told it is them", () => {
     const a = nextAction(f, "client", "r1")
     expect(a.mode).toBe("act")
     expect(a.waitingOn.party).toBe("you")
-    expect(a.cta?.href).toBe("/hiring/roles/r1")
+    expect(a.cta?.href).toBe("/hiring/roles/r1/interviews")
   })
 })
 
@@ -255,7 +255,7 @@ describe("names fall back honestly", () => {
   it("an unassigned role and an unnamed client still read", () => {
     const f = facts({ phase: "interviews", ownerName: null, clientName: null, submission: sent({ decided: 1 }) })
     expect(nextAction(f, "recruiter", "r1").waitingOn.label).toBe("The client")
-    expect(nextAction(f, "client", "r1").title).toContain("Decide on")
+    expect(nextAction(f, "client", "r1").title).toContain("Choose who to interview")
     expect(nextAction(facts({ ownerName: null }), "client", "r1").title).toBe("Your recruiter is building the shortlist")
   })
 })

@@ -253,7 +253,7 @@ export function deriveSubState(f: RoleFacts): SubState {
   if (byCandidate.size === 0) {
     // The client has the shortlist and nobody is in a loop yet.
     const outstanding = f.submission.submitted - f.submission.decided
-    return { key: "with-the-client", chip: "WITH THE CLIENT", party: "client", since: f.submission.lastActionAt ?? f.submission.generatedAt, n: Math.max(0, outstanding), m: f.submission.submitted }
+    return { key: "with-the-client", chip: "READY FOR INTERVIEWS · WITH THE CLIENT", party: "client", since: f.submission.lastActionAt ?? f.submission.generatedAt, n: Math.max(0, outstanding), m: f.submission.submitted }
   }
 
   // Every loop ended in a decline and nothing is owed: the recruiter decides
@@ -287,8 +287,8 @@ export function nextAction(f: RoleFacts, hat: Hat, roleId: string): NextAction {
   const wf = (step?: string) => workflowHref(roleId, step)
   const interviews = phaseHref("interviews", roleId)
   const closeOut = phaseHref("handover", roleId)
-  const clientRole = `/hiring/roles/${roleId}`
   const clientLoop = "/hiring/interviews"
+  const clientSetup = `/hiring/roles/${roleId}/interviews`
   const R = hat === "recruiter"
   const ref = sub.candidateRef ?? "the candidate"
   const rn = sub.roundNumber ?? 1
@@ -330,13 +330,16 @@ export function nextAction(f: RoleFacts, hat: Hat, roleId: string): NextAction {
         ? { ...base, mode: "act", title: "Send the shortlist", detail: `Every candidate is decided. Generate the submission for ${client}.`, cta: { label: "Open submission", href: wf("submission") } }
         : clientWaiting(base, f)
     case "with-the-client":
+      // Submission starts the interview workflow. The client's one task is
+      // to choose who to interview and offer times, on one screen; the
+      // recruiter sees the role as ready for interviews and waits.
       return R
-        ? { ...base, mode: "wait", title: `${who.label} is reviewing the shortlist`, detail: sub.n ? `${plural(sub.n, "decision")} outstanding of ${sub.m}.` : "Every candidate has a signal; nobody has been advanced yet.", cta: { label: "Open the submission", href: wf("submission") } }
-        : { ...base, mode: "act", title: sub.n ? `Decide on ${plural(sub.n, "candidate")}` : "Advance a candidate to interview", detail: "Ask to interview, approve, decline or question each one.", cta: { label: "Open the shortlist", href: clientRole } }
+        ? { ...base, mode: "wait", title: `${who.label} is choosing who to interview`, detail: sub.n ? `${plural(sub.n, "candidate")} of ${sub.m} still to decide; then they offer times.` : "Every candidate has a signal; nobody has been chosen for interview yet.", cta: { label: "Open interviews", href: interviews } }
+        : { ...base, mode: "act", title: sub.n ? `Choose who to interview from ${plural(sub.m ?? sub.n, "candidate")}` : "Choose who to interview", detail: "Then offer times — we scan your calendar and propose them.", cta: { label: "Set up interviews", href: clientSetup } }
     case "windows-to-offer":
       return R
-        ? { ...base, mode: "wait", title: `${who.label} has no interview windows open`, detail: `${plural(sub.n ?? 1, "round")} to book once they offer times.`, cta: { label: "Open interviews", href: interviews } }
-        : { ...base, mode: "act", title: "Offer interview windows", detail: `Your recruiter has ${plural(sub.n ?? 1, "candidate")} to book and no open times.`, cta: { label: "Offer times", href: clientLoop } }
+        ? { ...base, mode: "wait", title: `${who.label} is offering interview times`, detail: `${plural(sub.n ?? 1, "round")} to book once their windows land.`, cta: { label: "Open interviews", href: interviews } }
+        : { ...base, mode: "act", title: `Offer interview times for ${plural(sub.n ?? 1, "candidate")}`, detail: "We scan your calendar and propose windows sized to the candidates you chose.", cta: { label: "Offer times", href: clientSetup } }
     case "round-to-book":
       return R
         ? { ...base, mode: "act", title: `Book round ${rn} for ${ref}`, detail: sub.n && sub.n > 1 ? `${sub.n} rounds to book. ${f.openWindows} open windows.` : `${f.openWindows} open windows.`, cta: { label: "Book the round", href: interviews } }
@@ -403,7 +406,7 @@ export function handoffFor(f: RoleFacts, hat: Hat, roleId: string): Handoff | nu
   const task = next.mode === "act" ? next.title : other.mode === "act" ? other.title : next.title
   switch (sub.key) {
     case "with-the-client":
-      return { confirmed: `Shortlist of ${f.submission?.submitted ?? 0} sent to ${client}.`, owner, nextTask: task, then: "Advanced candidates are invited to round 1." }
+      return { confirmed: `Shortlist of ${f.submission?.submitted ?? 0} sent to ${client}. The interview workflow has started.`, owner, nextTask: task, then: `${client === "the client" ? "The client" : client} chooses who to interview and offers times; the recruiter books round 1.` }
     case "windows-to-offer":
       return { confirmed: `${client} advanced ${plural(sub.n ?? 1, "candidate")}.`, owner, nextTask: task, then: `${recruiter === "your recruiter" ? "Your recruiter" : recruiter} books round ${sub.roundNumber ?? 1} once times are offered.` }
     case "round-to-book":

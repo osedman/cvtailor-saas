@@ -371,3 +371,20 @@
 .agd-main .ag-loop-lane.booked { border-color: #ff8a70; color: #ff8a70; }
 .agd-main .ag-loop-lane.waiting { background: rgba(220,79,51,0.16); border-color: rgba(220,79,51,0.5); color: #ffb4a3; }
 .agd-main .ag-loop-lane.declined { background: rgba(253,252,249,0.06); border-color: rgba(253,252,249,0.14); color: rgba(253,252,249,0.45); }
+
+/* ---- Set up interviews (5 Sep 2026) --------------------------------------
+ * The client's one task after a submission: who to interview, then when.
+ * Tokens only, so it holds on the dark ground like everything else here. */
+.hm-setup-list { display: flex; flex-direction: column; gap: 8px; }
+.hm-setup-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border: 1px solid var(--ag-border); border-radius: var(--r-md); background: var(--ag-paper); }
+.hm-setup-row.chosen { border-color: var(--ag-coral); }
+.hm-setup-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hm-setup-name { font-weight: 600; font-size: var(--t-lead); color: var(--ag-ink); }
+.hm-setup-controls { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
+.hm-setup-controls .hm-field { min-width: 160px; }
+.hm-setup-source { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.hm-setup-windows { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 12px; }
+.hm-setup-window { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--ag-border); border-radius: var(--r-sm); background: var(--ag-paper); cursor: pointer; color: var(--ag-ink-2); }
+.hm-setup-window.on { border-color: var(--ag-coral); color: var(--ag-ink); }
+.hm-setup-window-day { font-weight: 600; }
+.hm-setup-window-time { font-family: var(--ag-mono); font-size: var(--t-small); color: var(--ag-ink-3); margin-left: auto; }
