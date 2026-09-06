@@ -3790,6 +3790,16 @@ page has the third switch with the plain sentence about what it discloses.
 `20260905120000_discoverable.sql`. (And `20260905090000_calendar_connections.sql`
 is already run.)
 
+**6 Sep: all of it verified on staging by effect** (a read of the catalogue,
+not the SQL editor's "success"): the subject constraint holds four values,
+the state constraint holds `invited`, `invited_at` and `discoverable` exist,
+`agency.matched_people` exists, and `handover_items`, `job_roles.contact_id`
+and `calendar_connections` are all present. The third migration had failed
+part-way the first time — it re-declared the subject constraint without
+`application`, which the apply RPC writes — and `20260906090000_consent_subject_repair.sql`
+put it right; the original is corrected for fresh environments and a test
+pins the set.
+
 **Still standing:** a lawyer pass on the discoverable switch copy before a
 real user sees it, the same gate as the capture consent.
 
