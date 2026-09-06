@@ -19,6 +19,14 @@ describe("the switch", () => {
     expect([...CONSENT_SUBJECTS]).toEqual(["matching", "enrichment", "discoverable"])
     expect(CONSENT_COPY_VERSION).toBe("matching-2026-09-05")
   })
+  it("keeps 'application' in the subject set — the apply RPC writes it, and dropping it broke staging on 6 Sep 2026", () => {
+    for (const file of ["supabase/migrations/20260905120000_discoverable.sql", "supabase/migrations/20260906090000_consent_subject_repair.sql"]) {
+      const text = sqlCode(readFileSync(join(process.cwd(), file), "utf8"))
+      const decl = text.slice(text.indexOf("add constraint matching_consent_events_subject_check"))
+      expect(decl, file).toMatch(/check \(subject in \('matching', 'enrichment', 'application', 'discoverable'\)\)/)
+    }
+  })
+
   it("is off by default and written only through setConsent", () => {
     expect(sql).toMatch(/discoverable\s+boolean not null default false/)
     expect(read("lib/matching/preferences.ts")).toMatch(/subject === "discoverable"/)

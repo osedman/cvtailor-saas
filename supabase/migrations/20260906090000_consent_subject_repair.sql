@@ -1,41 +1,28 @@
--- Discoverable: the third consumer switch, and the recruiter's matched list.
+-- Repair for 20260905120000_discoverable.sql, which failed part-way on
+-- staging (6 Sep 2026).
 --
--- Until now the recruiter saw a rounded bucket and nobody (matched_bucket),
--- and the settings copy promised exactly that. Ose's call (4 Sep 2026): show
--- the recruiter the people who match a published role. It is lawful only
--- because of a THIRD switch, off by default, that is the consent for the
--- listing alone: `match_preferences.discoverable`. The CV and contact
--- details still arrive only when the person applies.
+-- What happened: part 1 dropped matching_consent_events_subject_check and
+-- tried to re-add it with three values — but 20260816120000 had already
+-- widened the set to include 'application', which apply_matched_recommendation
+-- writes for every apply. Nine such rows existed, the ADD failed, and the
+-- statements after it never ran. So at this moment the table has NO subject
+-- constraint, and neither `invited` nor agency.matched_people exists.
 --
--- Three parts:
---   1. The switch, beside the matching switch it depends on. No authenticated
---      write path (match_preferences has none); setConsent() writes it with
---      its consent event, as the other two are written.
---   2. `invited` as a recommendation state, settable only by the service
---      role (the guard trigger, same rule as `applied`), so a recruiter's
---      invitation shows on the person's /found card.
---   3. agency.matched_people(role_id): the ONE read of the list, joining the
---      recommendation to the opt-in inside the database. Execute is granted
---      to service_role only, so the wall is structural, not a route filter.
---      A person with the switch off is never in the result.
---
--- Run in tailr-staging first. Idempotent.
-
--- 1. The switch
-alter table public.match_preferences
-  add column if not exists discoverable    boolean not null default false,
-  add column if not exists discoverable_at timestamptz;
-
-comment on column public.match_preferences.discoverable is
-  'Consent for the LISTING: recruiters whose roles match may see name, headline, band and the matched evidence, and invite. Off by default. CV and contact details still only on application.';
+-- This file restores the constraint with the full set and then runs parts
+-- 2 and 3 exactly as the original has them (both idempotent). The original
+-- file is corrected too, so a fresh environment runs it cleanly; on
+-- staging, run only this one.
 
 alter table public.matching_consent_events
   drop constraint if exists matching_consent_events_subject_check;
 alter table public.matching_consent_events
   add constraint matching_consent_events_subject_check
-  -- 'application' is written by apply_matched_recommendation (20260816120000);
-  -- dropping it from the set breaks the re-add against every existing apply.
   check (subject in ('matching', 'enrichment', 'application', 'discoverable'));
+
+-- The columns part 1 added before the failure; harmless if present.
+alter table public.match_preferences
+  add column if not exists discoverable    boolean not null default false,
+  add column if not exists discoverable_at timestamptz;
 
 -- 2. invited
 alter table public.role_recommendations
