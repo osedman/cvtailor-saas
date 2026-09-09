@@ -1,0 +1,1428 @@
+<title>Tailr for Employers</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap">
+<style>
+:root{
+  --ground:#f9f6f0;
+  --surface:#fdfcf9;
+  --surface-raised:#ffffff;
+  --sys-fill:#f4efe6;
+  --band-a:rgba(30,24,19,.028);
+  --band-b:rgba(30,24,19,.058);
+  --ink:#1e1813;
+  --ink-70:rgba(30,24,19,.70);
+  --ink-55:rgba(30,24,19,.55);
+  --ink-40:rgba(30,24,19,.40);
+  --ink-15:rgba(30,24,19,.15);
+  --border:#eee6da;
+  --border-strong:#d9d1bf;
+  --accent:#dc4f33;
+  --accent-deep:#b3341b;
+  --tint-1:#fff7f4;
+  --tint-2:#f5d9d0;
+  --ev-strong:#2f6b57;
+  --ev-mid:#5b8f7d;
+  --ev-weak:#9db3a8;
+  --loop:#2f6b57;
+  --friction-bg:rgba(160,106,8,.075);
+  --friction-ink:#8a5c0a;
+  --move-bg:rgba(47,107,87,.07);
+  --warn:#a06a08;
+  --shadow:0 1px 2px rgba(30,24,19,.05), 0 10px 28px -20px rgba(30,24,19,.35);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#16120f; --surface:#1d1815; --surface-raised:#241d19; --sys-fill:#2b231c;
+    --band-a:rgba(242,235,225,.035); --band-b:rgba(242,235,225,.07);
+    --ink:#f2ebe1; --ink-70:rgba(242,235,225,.72); --ink-55:rgba(242,235,225,.56);
+    --ink-40:rgba(242,235,225,.40); --ink-15:rgba(242,235,225,.16);
+    --border:#372f28; --border-strong:#4c4239;
+    --accent:#f0715a; --accent-deep:#ff9481; --tint-1:rgba(240,113,90,.10); --tint-2:rgba(240,113,90,.20);
+    --ev-strong:#68b394; --ev-mid:#4f8d76; --ev-weak:#3e6a5b; --loop:#68b394;
+    --friction-bg:rgba(214,154,58,.10); --friction-ink:#e0a94f;
+    --move-bg:rgba(104,179,148,.09);
+    --warn:#d69a3a;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 12px 30px -20px rgba(0,0,0,.85);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#16120f; --surface:#1d1815; --surface-raised:#241d19; --sys-fill:#2b231c;
+  --band-a:rgba(242,235,225,.035); --band-b:rgba(242,235,225,.07);
+  --ink:#f2ebe1; --ink-70:rgba(242,235,225,.72); --ink-55:rgba(242,235,225,.56);
+  --ink-40:rgba(242,235,225,.40); --ink-15:rgba(242,235,225,.16);
+  --border:#372f28; --border-strong:#4c4239;
+  --accent:#f0715a; --accent-deep:#ff9481; --tint-1:rgba(240,113,90,.10); --tint-2:rgba(240,113,90,.20);
+  --ev-strong:#68b394; --ev-mid:#4f8d76; --ev-weak:#3e6a5b; --loop:#68b394;
+  --friction-bg:rgba(214,154,58,.10); --friction-ink:#e0a94f;
+  --move-bg:rgba(104,179,148,.09);
+  --warn:#d69a3a;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 12px 30px -20px rgba(0,0,0,.85);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--ground);
+  color:var(--ink);
+  font-family:'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size:15px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px 96px}
+p{margin:0 0 14px}
+.prose{max-width:66ch}
+a{color:var(--accent-deep);text-decoration:none;border-bottom:1px solid var(--tint-2)}
+a:hover{border-bottom-color:var(--accent)}
+/* Never mono — brand rule. An identifier is marked by weight and ground, not by face. */
+code{
+  font-family:inherit;font-weight:600;font-size:.94em;letter-spacing:-.005em;
+  background:var(--band-b);border:1px solid var(--border);
+  padding:1px 5px;border-radius:5px;white-space:nowrap
+}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:3px}
+
+/* ── header ─────────────────────────────────────────── */
+.masthead{padding:52px 0 30px;border-bottom:1px solid var(--border)}
+.eyebrow{
+  font-size:11px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--accent-deep);margin:0 0 14px
+}
+h1{
+  font-size:clamp(34px,5.2vw,52px);line-height:1.04;letter-spacing:-.028em;
+  font-weight:600;margin:0 0 16px;text-wrap:balance
+}
+.thesis{font-size:18px;line-height:1.5;color:var(--ink-70);max-width:60ch;margin:0 0 26px}
+.thesis strong{color:var(--ink);font-weight:600}
+.meta{display:flex;flex-wrap:wrap;gap:8px}
+.chip{
+  font-size:11.5px;font-weight:500;letter-spacing:.02em;
+  padding:5px 11px;border-radius:999px;border:1px solid var(--border-strong);
+  color:var(--ink-55);background:var(--surface)
+}
+.chip-live{border-color:var(--accent);color:var(--accent-deep);background:var(--tint-1)}
+
+/* ── nav ────────────────────────────────────────────── */
+nav.jump{
+  position:sticky;top:0;z-index:20;
+  display:flex;gap:2px;flex-wrap:wrap;
+  padding:10px 0;margin-bottom:8px;
+  background:color-mix(in srgb, var(--ground) 88%, transparent);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border)
+}
+nav.jump a{
+  font-size:12.5px;font-weight:500;color:var(--ink-55);
+  padding:5px 10px;border-radius:7px;border-bottom:none
+}
+nav.jump a:hover{color:var(--ink);background:var(--tint-1)}
+
+/* ── sections ───────────────────────────────────────── */
+section{padding:52px 0 8px;scroll-margin-top:64px}
+.sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:8px}
+.sec-num{
+  font-size:11px;font-weight:600;letter-spacing:.1em;color:var(--ink-40);
+  padding-top:6px;flex:none
+}
+h2{
+  font-size:clamp(23px,3vw,30px);line-height:1.15;letter-spacing:-.02em;
+  font-weight:600;margin:0;text-wrap:balance
+}
+h3{
+  font-size:17px;font-weight:600;letter-spacing:-.01em;margin:34px 0 10px
+}
+.lede{font-size:16px;color:var(--ink-70);max-width:66ch;margin:0 0 26px}
+
+/* ── law callouts ───────────────────────────────────── */
+.laws{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin:26px 0 8px}
+.law{
+  padding:20px 22px;border-radius:12px;background:var(--surface);
+  border:1px solid var(--border);border-left:3px solid var(--accent)
+}
+.law .tag{
+  font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--accent-deep);display:block;margin-bottom:8px
+}
+.law .rule{font-size:16px;font-weight:600;line-height:1.35;margin:0 0 10px;letter-spacing:-.01em}
+.law p{font-size:13.5px;color:var(--ink-70);margin:0}
+.law.proposed{border-left-color:var(--warn)}
+.law.proposed .tag{color:var(--warn)}
+
+/* ── figures ────────────────────────────────────────── */
+figure{margin:30px 0 8px}
+.scroller{
+  overflow-x:auto;border:1px solid var(--border);border-radius:12px;
+  background:var(--surface);padding:18px;box-shadow:var(--shadow)
+}
+.scroller-inner{min-width:900px}
+svg.dg{display:block;width:100%;height:auto;color:var(--ink-40)}
+figcaption{font-size:13px;color:var(--ink-55);margin-top:12px;max-width:72ch}
+
+/* svg primitives */
+.dg .band-a{fill:var(--band-a)}
+.dg .band-b{fill:var(--band-b)}
+.dg .box{fill:var(--surface-raised);stroke:var(--border-strong);stroke-width:1}
+.dg .box-sys{fill:var(--sys-fill);stroke:var(--border-strong);stroke-width:1}
+.dg .box-gate{fill:var(--tint-1);stroke:var(--accent);stroke-width:2}
+.dg .box-quiet{fill:none;stroke:var(--border-strong);stroke-width:1;stroke-dasharray:4 4}
+.dg .lbl{fill:var(--ink);font-size:11px;font-weight:450}
+.dg .lbl-b{fill:var(--ink);font-size:12px;font-weight:600}
+.dg .lbl-sm{fill:var(--ink-55);font-size:10px}
+.dg .lane{fill:var(--ink-55);font-size:10.5px;font-weight:600;letter-spacing:.07em}
+.dg .num{fill:var(--ink-40);font-size:10.5px;font-weight:600;letter-spacing:.04em}
+.dg .gate-n{fill:var(--accent);font-size:11px;font-weight:700}
+.dg .conn{fill:none;stroke:var(--ink-40);stroke-width:1.4}
+.dg .tick{fill:none;stroke:var(--ink-15);stroke-width:1}
+.dg .loop{fill:none;stroke:var(--loop);stroke-width:1.4;stroke-dasharray:5 4}
+.dg .loop-t{fill:var(--ev-strong);font-size:10.5px;font-weight:500}
+.dg .mk{fill:var(--ink-40)}
+.dg .mk-loop{fill:var(--loop)}
+.dg .gate-fill{fill:var(--accent)}
+.dg .gate-stroke{fill:var(--tint-1);stroke:var(--accent);stroke-width:2}
+.dg .curve-line{fill:none;stroke:var(--ink-40);stroke-width:2}
+.dg .curve-dot{fill:var(--surface-raised);stroke:var(--ink-40);stroke-width:2}
+.dg .curve-dot-key{fill:var(--accent);stroke:var(--accent);stroke-width:2}
+.dg .curve-base{fill:none;stroke:var(--ink-15);stroke-width:1;stroke-dasharray:3 4}
+
+/* ── legend ─────────────────────────────────────────── */
+.legend{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px}
+.legend span{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-55)}
+.sw{width:24px;height:14px;border-radius:4px;flex:none}
+.sw-gate{background:var(--tint-1);border:2px solid var(--accent)}
+.sw-sys{background:var(--sys-fill);border:1px solid var(--border-strong)}
+.sw-human{background:var(--surface-raised);border:1px solid var(--border-strong)}
+.sw-loop{height:0;border-top:2px dashed var(--loop);border-radius:0}
+
+/* ── gate table ─────────────────────────────────────── */
+.gates{display:grid;gap:0;margin:26px 0 8px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.gate-row{
+  display:grid;grid-template-columns:46px 1fr 1.25fr;gap:0;
+  border-bottom:1px solid var(--border);background:var(--surface)
+}
+.gate-row:last-child{border-bottom:none}
+.gate-row > div{padding:15px 16px}
+.gate-row .g-n{
+  color:var(--accent-deep);font-weight:700;font-size:13px;
+  background:var(--tint-1);display:flex;justify-content:center
+}
+.gate-row .g-q{font-weight:600;font-size:14px;border-right:1px solid var(--border);border-left:1px solid var(--border)}
+.gate-row .g-a{font-size:13.5px;color:var(--ink-70)}
+.gate-row .g-a em{color:var(--friction-ink);font-style:normal;font-weight:600}
+
+/* ── persona ────────────────────────────────────────── */
+.persona{
+  margin:44px 0 0;padding:26px;border-radius:14px;
+  background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow)
+}
+.p-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:6px}
+.p-key{
+  font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--accent-deep);
+  background:var(--tint-1);border:1px solid var(--tint-2);
+  padding:3px 8px;border-radius:6px;flex:none
+}
+.p-name{font-size:21px;font-weight:600;letter-spacing:-.015em}
+.p-role{font-size:14px;color:var(--ink-55)}
+.p-facts{
+  display:grid;gap:0;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  margin:18px 0 8px;border-top:1px solid var(--border)
+}
+.p-fact{padding:13px 16px 13px 0;border-right:1px solid var(--border)}
+.p-fact:last-child{border-right:none}
+.p-fact dt{
+  font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-40);margin-bottom:5px
+}
+.p-fact dd{margin:0;font-size:13.5px;line-height:1.45;color:var(--ink)}
+
+/* ── journey grid ───────────────────────────────────── */
+.jm-scroll{overflow-x:auto;margin-top:22px;border:1px solid var(--border);border-radius:11px;background:var(--surface-raised)}
+.jm{display:grid;grid-template-columns:126px repeat(5,minmax(0,1fr));min-width:880px}
+.jm-curve{grid-column:2 / -1;padding:12px 0 0;border-bottom:1px solid var(--border)}
+.jm-corner{border-bottom:1px solid var(--border);border-right:1px solid var(--border)}
+.jm-rl{
+  font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--ink-40);padding:12px 12px;border-right:1px solid var(--border);
+  border-bottom:1px solid var(--border);display:flex;align-items:flex-start
+}
+.jm-c{
+  padding:12px 13px;font-size:12.5px;line-height:1.45;
+  border-right:1px solid var(--border);border-bottom:1px solid var(--border);color:var(--ink-70)
+}
+.jm-ph{
+  font-size:13px;font-weight:600;color:var(--ink);letter-spacing:-.005em;
+  background:var(--band-a)
+}
+.jm-r-friction .jm-c,.jm-c.friction{background:var(--friction-bg);color:var(--friction-ink)}
+.jm-c.move{background:var(--move-bg);color:var(--ink)}
+.jm-c.metric{font-size:11.5px;color:var(--ink-55)}
+.jm-rl.friction{background:var(--friction-bg);color:var(--friction-ink)}
+.jm-rl.move{background:var(--move-bg)}
+/* Six children per row (label + 5 phases); the last of each row drops its rule. */
+.jm > *:nth-child(6n+2){border-right:none}
+
+/* ── build table ────────────────────────────────────── */
+.build{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin:26px 0 8px}
+.build-col{border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden}
+.build-col h4{
+  margin:0;padding:14px 18px;font-size:12px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--border)
+}
+.build-col.have h4{color:var(--ev-strong);background:var(--move-bg)}
+.build-col.new h4{color:var(--friction-ink);background:var(--friction-bg)}
+.build-col ul{margin:0;padding:12px 18px 16px;list-style:none}
+.build-col li{
+  font-size:13.5px;line-height:1.5;padding:7px 0 7px 16px;position:relative;color:var(--ink-70)
+}
+.build-col li::before{
+  content:"";position:absolute;left:0;top:14px;width:6px;height:6px;border-radius:2px
+}
+.build-col.have li::before{background:var(--ev-strong)}
+.build-col.new li::before{background:var(--warn)}
+.build-col li b{color:var(--ink);font-weight:600}
+
+/* ── decisions ──────────────────────────────────────── */
+.decisions{display:grid;gap:14px;margin:26px 0 8px}
+.dec{
+  border:1px solid var(--border);border-left:3px solid var(--warn);
+  border-radius:11px;background:var(--surface);padding:19px 22px
+}
+.dec .q{font-size:15.5px;font-weight:600;letter-spacing:-.01em;margin:0 0 9px}
+.dec .why{font-size:13.5px;color:var(--ink-70);margin:0 0 12px}
+.dec .rec{
+  font-size:13.5px;line-height:1.5;color:var(--ink);
+  padding-top:11px;border-top:1px dashed var(--border-strong)
+}
+.dec .rec b{
+  color:var(--accent-deep);font-weight:600;
+  font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  display:block;margin-bottom:4px
+}
+
+.note{
+  margin:38px 0 0;padding:18px 22px;border-radius:11px;
+  background:var(--tint-1);border:1px solid var(--tint-2);
+  font-size:13.5px;line-height:1.55;color:var(--ink-70)
+}
+.note b{color:var(--ink)}
+
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:640px){
+  .wrap{padding:0 16px 72px}
+  .masthead{padding:34px 0 24px}
+  .p-facts{grid-template-columns:1fr}
+  .p-fact{border-right:none;border-bottom:1px solid var(--border)}
+  .persona{padding:18px}
+  .gate-row{grid-template-columns:38px 1fr}
+  .gate-row .g-a{grid-column:2;border-top:1px solid var(--border)}
+}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Tailr B2B · draft for review · 9 September 2026</p>
+  <h1>Tailr for Employers</h1>
+  <p class="thesis">Two process maps, five personas, and the flow each one actually walks — for the employer side of Tailr. The whole thing rests on one asset we already have: <strong>a score that can show its receipts</strong>.</p>
+  <div class="meta">
+    <span class="chip chip-live">Status: draft, nothing built</span>
+    <span class="chip">Segment: employers &amp; recruiters</span>
+    <span class="chip">Branch: claude/tailr-b2b-process-journeys-r2zww1</span>
+    <span class="chip">Needs: 6 decisions from Ose</span>
+  </div>
+</header>
+
+<nav class="jump" aria-label="Sections">
+  <a href="#premise">Premise</a>
+  <a href="#loop">Operating loop</a>
+  <a href="#lifecycle">Commercial lifecycle</a>
+  <a href="#personas">Personas</a>
+  <a href="#ta">TA lead</a>
+  <a href="#recruiter">Recruiter</a>
+  <a href="#hm">Hiring manager</a>
+  <a href="#dpo">People Ops</a>
+  <a href="#candidate">Candidate</a>
+  <a href="#build">Have / build</a>
+  <a href="#decisions">Decisions</a>
+</nav>
+
+<!-- ══════════════════════════════════════════════════ -->
+<section id="premise">
+  <div class="sec-head"><span class="sec-num">01</span><h2>The premise everything else hangs off</h2></div>
+  <div class="prose">
+    <p class="lede">Every CV screener on the market ranks candidates. Almost none of them can tell a hiring manager <em>why</em>, in the candidate's own words, and almost none of them survive a data protection officer reading the model card. Tailr can do both today — not as a roadmap item, but as code that already runs in production.</p>
+    <p>The tailor pipeline already produces, for any CV against any job description, a list of 6–12 typed requirements — each marked <em>must</em> or <em>nice</em>, each graded <em>strong / transferable / partial / none</em>, each carrying a quoted line from the CV as its evidence. <code>computeMatchScore</code> then turns that into a number with plain arithmetic: musts weigh double, and the four strengths are worth 1, 0.6, 0.25 and 0. No model is asked for a score. The same inputs give the same number every time, and every point of it traces back to a sentence a person wrote about themselves.</p>
+    <p>That is the product. The recruiter side is not a new AI — it is the existing assessment, pointed at many candidates instead of one, and wrapped in the governance an employer needs before they are allowed to use it.</p>
+  </div>
+
+  <div class="laws">
+    <div class="law">
+      <span class="tag">Law 1 · already ours</span>
+      <p class="rule">Tailr reframes evidence; it never manufactures it. Empty beats invented.</p>
+      <p>Decided 28 July, enforced in the tailor prompts, Career Arc extraction and <code>loadProvenSkills</code>. It exists because we cannot sell recruiters a tool for spotting inflated CVs while selling candidates a tool that inflates them. On the employer side it becomes the sales pitch: a score you can put in front of a rejected candidate.</p>
+    </div>
+    <div class="law proposed">
+      <span class="tag">Law 2 · proposed here</span>
+      <p class="rule">Tailr ranks and evidences. A person decides. Nothing is ever auto-rejected.</p>
+      <p>Not a setting, not a plan tier — a property of the product, like Law 1. It is what gets us past a DPO in week two rather than week ten, it is what keeps us out of the worst of the EU AI Act's Annex III employment obligations, and it is the reason a hiring manager can defend the shortlist in a debrief. <b>This is decision 1 for you.</b></p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ -->
+<section id="loop">
+  <div class="sec-head"><span class="sec-num">02</span><h2>Process map A — the operating loop</h2></div>
+  <p class="lede">One requisition, start to finish. This is what a customer does every week, and it is the map the five persona flows all attach to. Read it first: the commercial process exists only to get an organisation to the point where this loop runs.</p>
+
+  <figure>
+    <div class="scroller">
+      <div class="scroller-inner">
+<svg class="dg" viewBox="0 0 1360 620" role="img" aria-label="Swimlane process map: a candidate applies, the recruiter opens the requisition and confirms the must-have requirements, Tailr extracts requirements, maps every CV to every requirement with a quoted line, and scores deterministically; the recruiter reviews the ranked pile and the hiring manager reviews five candidates; every score and decision is written to an audit log; outcomes reweight the requirement set and the candidate can receive their gaps and a development path.">
+  <defs>
+    <marker id="aOp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="mk" d="M0,1 L9,5 L0,9 z"/>
+    </marker>
+    <marker id="aOpLoop" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="mk-loop" d="M0,1 L9,5 L0,9 z"/>
+    </marker>
+  </defs>
+
+  <!-- lane bands -->
+  <rect class="band-a" x="0" y="64" width="1360" height="96"/>
+  <rect class="band-b" x="0" y="160" width="1360" height="96"/>
+  <rect class="band-a" x="0" y="256" width="1360" height="96"/>
+  <rect class="band-b" x="0" y="352" width="1360" height="96"/>
+  <rect class="band-a" x="0" y="448" width="1360" height="96"/>
+
+  <!-- lane labels -->
+  <text class="lane" x="16" y="116">CANDIDATE</text>
+  <text class="lane" x="16" y="212">RECRUITER</text>
+  <text class="lane" x="16" y="308">TAILR</text>
+  <text class="lane" x="16" y="396">HIRING</text>
+  <text class="lane" x="16" y="410">MANAGER</text>
+  <text class="lane" x="16" y="500">RECORD</text>
+
+  <!-- step numbers -->
+  <text class="num" x="234" y="44" text-anchor="middle">1</text>
+  <text class="num" x="379" y="44" text-anchor="middle">2</text>
+  <text class="num" x="524" y="44" text-anchor="middle">3</text>
+  <text class="num" x="669" y="44" text-anchor="middle">4</text>
+  <text class="num" x="814" y="44" text-anchor="middle">5</text>
+  <text class="num" x="959" y="44" text-anchor="middle">6</text>
+  <text class="num" x="1104" y="44" text-anchor="middle">7</text>
+  <text class="num" x="1249" y="44" text-anchor="middle">8</text>
+
+  <!-- 1 candidate applies -->
+  <rect class="box" x="175" y="80" width="118" height="64" rx="8"/>
+  <text class="lbl" x="234" y="105" text-anchor="middle">Applies through</text>
+  <text class="lbl" x="234" y="118" text-anchor="middle">the employer's ATS</text>
+
+  <!-- 2 recruiter opens req -->
+  <rect class="box" x="320" y="176" width="118" height="64" rx="8"/>
+  <text class="lbl" x="379" y="201" text-anchor="middle">Opens the req,</text>
+  <text class="lbl" x="379" y="214" text-anchor="middle">pastes the JD</text>
+
+  <!-- 3 tailr extracts -->
+  <rect class="box-sys" x="465" y="272" width="118" height="64" rx="8"/>
+  <text class="lbl" x="524" y="291" text-anchor="middle">Extracts 6–12</text>
+  <text class="lbl" x="524" y="304" text-anchor="middle">requirements,</text>
+  <text class="lbl" x="524" y="317" text-anchor="middle">typed must / nice</text>
+
+  <!-- 4 GATE recruiter calibrates -->
+  <rect class="box-gate" x="610" y="176" width="118" height="64" rx="8"/>
+  <text class="gate-n" x="622" y="194">1</text>
+  <text class="lbl" x="669" y="205" text-anchor="middle">Confirms the</text>
+  <text class="lbl" x="669" y="218" text-anchor="middle">must-haves</text>
+
+  <!-- 5 tailr maps evidence -->
+  <rect class="box-sys" x="755" y="272" width="118" height="64" rx="8"/>
+  <text class="lbl" x="814" y="285" text-anchor="middle">Maps every CV</text>
+  <text class="lbl" x="814" y="298" text-anchor="middle">to every</text>
+  <text class="lbl" x="814" y="311" text-anchor="middle">requirement,</text>
+  <text class="lbl" x="814" y="324" text-anchor="middle">quotes the line</text>
+
+  <!-- 6 tailr scores -->
+  <rect class="box-sys" x="900" y="272" width="118" height="64" rx="8"/>
+  <text class="lbl" x="959" y="291" text-anchor="middle">Scores it:</text>
+  <text class="lbl" x="959" y="304" text-anchor="middle">must ×2, nice ×1.</text>
+  <text class="lbl" x="959" y="317" text-anchor="middle">Arithmetic only</text>
+
+  <!-- 7 GATE recruiter reviews -->
+  <rect class="box-gate" x="1045" y="176" width="118" height="64" rx="8"/>
+  <text class="gate-n" x="1057" y="194">2</text>
+  <text class="lbl" x="1104" y="205" text-anchor="middle">Reads the ranked</text>
+  <text class="lbl" x="1104" y="218" text-anchor="middle">pile with receipts</text>
+
+  <!-- 8 GATE hiring manager -->
+  <rect class="box-gate" x="1190" y="368" width="118" height="64" rx="8"/>
+  <text class="gate-n" x="1202" y="386">3</text>
+  <text class="lbl" x="1249" y="397" text-anchor="middle">Reviews five,</text>
+  <text class="lbl" x="1249" y="410" text-anchor="middle">each with its</text>
+  <text class="lbl" x="1249" y="423" text-anchor="middle">evidence</text>
+
+  <!-- candidate outcome -->
+  <rect class="box" x="1190" y="80" width="118" height="64" rx="8"/>
+  <text class="lbl" x="1249" y="99" text-anchor="middle">A decision — and,</text>
+  <text class="lbl" x="1249" y="112" text-anchor="middle">if shared, the</text>
+  <text class="lbl" x="1249" y="125" text-anchor="middle">gaps and a path</text>
+
+  <!-- audit band -->
+  <rect class="box-quiet" x="755" y="464" width="553" height="64" rx="8"/>
+  <text class="lbl-b" x="775" y="490">Audit log</text>
+  <text class="lbl-sm" x="775" y="507">Every requirement, every quoted line, every score, and the name of the person who decided.</text>
+
+  <!-- connectors -->
+  <g class="conn" marker-end="url(#aOp)">
+    <path d="M293,112 H306 V208 H316"/>
+    <path d="M438,208 H451 V304 H461"/>
+    <path d="M583,304 H596 V208 H606"/>
+    <path d="M728,208 H741 V304 H751"/>
+    <path d="M873,304 H896"/>
+    <path d="M1018,304 H1031 V208 H1041"/>
+    <path d="M1163,208 H1176 V400 H1186"/>
+  </g>
+
+  <!-- audit ties -->
+  <g class="tick">
+    <path d="M814,336 V464" stroke-dasharray="2 5"/>
+    <path d="M959,336 V464" stroke-dasharray="2 5"/>
+    <path d="M1104,240 V464" stroke-dasharray="2 5"/>
+    <path d="M1249,432 V464" stroke-dasharray="2 5"/>
+  </g>
+
+  <!-- feedback to candidate -->
+  <path class="loop" d="M1249,368 V148" marker-end="url(#aOpLoop)"/>
+  <text class="loop-t" x="1238" y="250" text-anchor="end">gaps + path returned</text>
+  <text class="loop-t" x="1238" y="264" text-anchor="end">(employer opt-in)</text>
+
+  <!-- calibration loop -->
+  <path class="loop" d="M1031,528 V578 H524 V340" marker-end="url(#aOpLoop)"/>
+  <text class="loop-t" x="778" y="596" text-anchor="middle">outcomes reweight the requirement set for this role family</text>
+</svg>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="sw sw-gate"></i>A person decides — nothing moves without them</span>
+      <span><i class="sw sw-sys"></i>Tailr computes</span>
+      <span><i class="sw sw-human"></i>A person acts</span>
+      <span><i class="sw sw-loop"></i>Evidence flowing back</span>
+    </div>
+    <figcaption>Three human gates, deliberately. Steps 5 and 6 are the only places a model is involved, and step 6 is arithmetic — <code>lib/scoring.ts</code> as it stands today. The two green loops are what makes this Tailr and not a screener: outcomes sharpen the requirement set, and the candidate can be handed the gaps that cost them the job.</figcaption>
+  </figure>
+</section>
+
+<!-- ══════════════════════════════════════════════════ -->
+<section id="lifecycle">
+  <div class="sec-head"><span class="sec-num">03</span><h2>Process map B — the commercial lifecycle</h2></div>
+  <p class="lede">How an organisation gets from "we drown in applications" to running the loop above. Five phases, four gates. The gates matter more than the phases: each one is a place we should be willing to walk away, and the back-test in phase three is the one that decides whether we have a business here at all.</p>
+
+  <figure>
+    <div class="scroller">
+      <div class="scroller-inner">
+<svg class="dg" viewBox="0 0 1340 400" role="img" aria-label="Commercial lifecycle: five phases — qualify, clear compliance, back-test pilot, contract and onboard, run and expand — separated by four gates, each of which can send the deal to a parked or no-deal state, laid over a twelve-week timeline.">
+  <defs>
+    <marker id="aCom" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="mk" d="M0,1 L9,5 L0,9 z"/>
+    </marker>
+  </defs>
+
+  <!-- phase 1 -->
+  <rect class="box" x="30" y="60" width="176" height="170" rx="10"/>
+  <text class="num" x="46" y="82">TAILR + PROSPECT</text>
+  <text class="lbl-b" x="46" y="104">Qualify</text>
+  <text class="lbl" x="46" y="128">Inbound or outbound</text>
+  <text class="lbl" x="46" y="141">to a head of talent</text>
+  <text class="lbl" x="46" y="159">Volume, ATS, and who</text>
+  <text class="lbl" x="46" y="172">owns compliance</text>
+  <path class="tick" d="M46,186 H190"/>
+  <text class="lbl-sm" x="46" y="203">Out: a one-page fit</text>
+  <text class="lbl-sm" x="46" y="216">note, and a blocker</text>
+
+  <!-- phase 2 -->
+  <rect class="box" x="295" y="60" width="176" height="170" rx="10"/>
+  <text class="num" x="311" y="82">TAILR LED</text>
+  <text class="lbl-b" x="311" y="104">Clear compliance</text>
+  <text class="lbl" x="311" y="128">Model card, DPIA</text>
+  <text class="lbl" x="311" y="141">input, sub-processors</text>
+  <text class="lbl" x="311" y="159">Law 2 in writing:</text>
+  <text class="lbl" x="311" y="172">no auto-rejection</text>
+  <path class="tick" d="M311,186 H455"/>
+  <text class="lbl-sm" x="311" y="203">Out: the DPO's</text>
+  <text class="lbl-sm" x="311" y="216">conditions, in writing</text>
+
+  <!-- phase 3 -->
+  <rect class="box" x="560" y="60" width="176" height="170" rx="10"/>
+  <text class="num" x="576" y="82">BOTH</text>
+  <text class="lbl-b" x="576" y="104">Back-test pilot</text>
+  <text class="lbl" x="576" y="128">Run a req they have</text>
+  <text class="lbl" x="576" y="141">closed and know</text>
+  <text class="lbl" x="576" y="159">Then one live req,</text>
+  <text class="lbl" x="576" y="172">two to four weeks</text>
+  <path class="tick" d="M576,186 H720"/>
+  <text class="lbl-sm" x="576" y="203">Out: agreement rate</text>
+  <text class="lbl-sm" x="576" y="216">vs their own list</text>
+
+  <!-- phase 4 -->
+  <rect class="box" x="825" y="60" width="176" height="170" rx="10"/>
+  <text class="num" x="841" y="82">CUSTOMER LED</text>
+  <text class="lbl-b" x="841" y="104">Contract &amp; onboard</text>
+  <text class="lbl" x="841" y="128">DPA, security review,</text>
+  <text class="lbl" x="841" y="141">seats and org setup</text>
+  <text class="lbl" x="841" y="159">Calibrate one req</text>
+  <text class="lbl" x="841" y="172">family per team</text>
+  <path class="tick" d="M841,186 H985"/>
+  <text class="lbl-sm" x="841" y="203">Out: three recruiters</text>
+  <text class="lbl-sm" x="841" y="216">running real reqs</text>
+
+  <!-- phase 5 -->
+  <rect class="box" x="1090" y="60" width="176" height="170" rx="10"/>
+  <text class="num" x="1106" y="82">CUSTOMER LED</text>
+  <text class="lbl-b" x="1106" y="104">Run &amp; expand</text>
+  <text class="lbl" x="1106" y="128">The weekly loop</text>
+  <text class="lbl" x="1106" y="141">(process map A)</text>
+  <text class="lbl" x="1106" y="159">Quarterly review on</text>
+  <text class="lbl" x="1106" y="172">quality, not usage</text>
+  <path class="tick" d="M1106,186 H1250"/>
+  <text class="lbl-sm" x="1106" y="203">Out: more teams, or</text>
+  <text class="lbl-sm" x="1106" y="216">an honest churn</text>
+
+  <!-- connectors into and out of each gate -->
+  <g class="conn" marker-end="url(#aCom)">
+    <path d="M206,145 H217"/><path d="M280,145 H291"/>
+    <path d="M471,145 H482"/><path d="M545,145 H556"/>
+    <path d="M736,145 H747"/><path d="M810,145 H821"/>
+    <path d="M1001,145 H1012"/><path d="M1075,145 H1086"/>
+  </g>
+
+  <!-- gates -->
+  <g>
+    <path class="gate-stroke" d="M250,119 L280,145 L250,171 L220,145 z"/>
+    <text class="gate-n" x="250" y="149" text-anchor="middle">1</text>
+    <path class="gate-stroke" d="M515,119 L545,145 L515,171 L485,145 z"/>
+    <text class="gate-n" x="515" y="149" text-anchor="middle">2</text>
+    <path class="gate-stroke" d="M780,119 L810,145 L780,171 L750,145 z"/>
+    <text class="gate-n" x="780" y="149" text-anchor="middle">3</text>
+    <path class="gate-stroke" d="M1045,119 L1075,145 L1045,171 L1015,145 z"/>
+    <text class="gate-n" x="1045" y="149" text-anchor="middle">4</text>
+  </g>
+
+  <!-- drop-outs -->
+  <g class="conn" marker-end="url(#aCom)" stroke-dasharray="4 4">
+    <path d="M250,171 V292"/>
+    <path d="M515,171 V292"/>
+    <path d="M780,171 V292"/>
+    <path d="M1045,171 V292"/>
+  </g>
+  <text class="lbl-sm" x="250" y="312" text-anchor="middle">park</text>
+  <text class="lbl-sm" x="515" y="312" text-anchor="middle">no pilot</text>
+  <text class="lbl-sm" x="780" y="312" text-anchor="middle">no deal</text>
+  <text class="lbl-sm" x="1045" y="312" text-anchor="middle">shelfware</text>
+
+  <!-- timeline -->
+  <path class="tick" d="M30,352 H1266"/>
+  <g class="tick">
+    <path d="M118,346 V358"/><path d="M383,346 V358"/><path d="M648,346 V358"/>
+    <path d="M913,346 V358"/><path d="M1178,346 V358"/>
+  </g>
+  <text class="lbl-sm" x="118" y="375" text-anchor="middle">Week 0</text>
+  <text class="lbl-sm" x="383" y="375" text-anchor="middle">Week 2</text>
+  <text class="lbl-sm" x="648" y="375" text-anchor="middle">Week 4</text>
+  <text class="lbl-sm" x="913" y="375" text-anchor="middle">Week 10</text>
+  <text class="lbl-sm" x="1178" y="375" text-anchor="middle">Week 12+</text>
+</svg>
+      </div>
+    </div>
+    <figcaption>Compliance sits at phase two, before the pilot, not after it. That is the deliberate inversion: most HR tech runs the pilot first and then discovers in week ten that the DPO will not sign. Getting told no in week two is cheap.</figcaption>
+  </figure>
+
+  <h3>What each gate actually asks</h3>
+  <div class="gates">
+    <div class="gate-row">
+      <div class="g-n">1</div>
+      <div class="g-q">Is there enough volume for a ranking to be worth anything?</div>
+      <div class="g-a">Roughly 150+ applications per requisition, an ATS we can export from, and a named person who owns data protection. <em>Below that, a recruiter reading every CV is genuinely fine and we should say so.</em></div>
+    </div>
+    <div class="gate-row">
+      <div class="g-n">2</div>
+      <div class="g-q">Will their DPO accept how this works?</div>
+      <div class="g-a">Law 2 accepted in writing, retention period agreed, sub-processors (Anthropic, Supabase, Vercel) accepted, candidate-facing notice drafted. <em>No pilot before this. Not a shortcut we take for a logo.</em></div>
+    </div>
+    <div class="gate-row">
+      <div class="g-n">3</div>
+      <div class="g-q">Did it agree with their own judgement — on a req where we already know the answer?</div>
+      <div class="g-a">Bar set <b>before</b> the pilot runs, not negotiated after. Suggested: Tailr's top 20 contains at least 4 of the 5 people they actually interviewed, and surfaces at least one strong candidate they missed. <em>If we miss the bar we say so and keep the finding.</em></div>
+    </div>
+    <div class="gate-row">
+      <div class="g-n">4</div>
+      <div class="g-q">Is anyone actually using it two weeks after onboarding?</div>
+      <div class="g-a">Three recruiters, real requisitions, unprompted. <em>An unused seat is worse than a lost deal — it is a reference we can never use.</em></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ -->
+<section id="personas">
+  <div class="sec-head"><span class="sec-num">04</span><h2>Five personas</h2></div>
+  <p class="lede">Four of them work for the customer. The fifth does not, never pays us, and is the reason the other four can use this at all. Each gets a journey — what they do, what they think, where it breaks, what Tailr does about it — and the flow they walk. Tailr's own side (you selling, then supporting) is the top lane of process map B rather than a sixth journey.</p>
+
+  <!-- ── PERSONA 1 ─────────────────────────────── -->
+  <div class="persona" id="ta">
+    <div class="p-head">
+      <span class="p-key">P1 · BUYER</span>
+      <span class="p-name">Priya</span>
+      <span class="p-role">Head of Talent Acquisition · 200-person scale-up · 40 hires a year</span>
+    </div>
+    <dl class="p-facts">
+      <div class="p-fact"><dt>Owns</dt><dd>The budget, the ATS contract, and the quality-of-hire number the board sees.</dd></div>
+      <div class="p-fact"><dt>Measured on</dt><dd>Time to hire, cost per hire, and how much hiring-manager time recruiting burns.</dd></div>
+      <div class="p-fact"><dt>Wants</dt><dd>Her three recruiters to stop spending Mondays on a pile of 600 CVs.</dd></div>
+      <div class="p-fact"><dt>Afraid of</dt><dd>Buying a fourth tool nobody logs into — and of being the name on a bias story.</dd></div>
+    </dl>
+
+    <div class="jm-scroll">
+      <div class="jm">
+        <div class="jm-corner"></div>
+        <div class="jm-curve">
+<svg class="dg" viewBox="0 0 1000 104" role="img" aria-label="Emotion curve for the TA lead: frustrated when noticing the pain, cautious while evaluating, encouraged by the pilot, dipping during rollout, confident once she has numbers to defend.">
+  <path class="curve-base" d="M0,58 H1000"/>
+  <g class="tick"><path d="M200,14 V96"/><path d="M400,14 V96"/><path d="M600,14 V96"/><path d="M800,14 V96"/></g>
+  <polyline class="curve-line" points="100,76 300,58 500,40 700,67 900,31"/>
+  <circle class="curve-dot" cx="100" cy="76" r="5"/>
+  <circle class="curve-dot" cx="300" cy="58" r="5"/>
+  <circle class="curve-dot-key" cx="500" cy="40" r="5.5"/>
+  <circle class="curve-dot" cx="700" cy="67" r="5"/>
+  <circle class="curve-dot" cx="900" cy="31" r="5"/>
+</svg>
+        </div>
+
+        <div class="jm-rl">Phase</div>
+        <div class="jm-c jm-ph">Notices the pain</div>
+        <div class="jm-c jm-ph">Evaluates</div>
+        <div class="jm-c jm-ph">Proves it</div>
+        <div class="jm-c jm-ph">Rolls it out</div>
+        <div class="jm-c jm-ph">Defends &amp; expands</div>
+
+        <div class="jm-rl">Doing</div>
+        <div class="jm-c">Watches a grad req pull 900 applicants and two recruiters vanish for a week.</div>
+        <div class="jm-c">Demo, then loops in People Ops before she loops in her recruiters.</div>
+        <div class="jm-c">Hands us a closed req and checks whether we find the person they hired.</div>
+        <div class="jm-c">Buys seats, runs a lunch-and-learn, asks recruiters to use it on two reqs each.</div>
+        <div class="jm-c">Takes quality-of-hire and HM-hours-saved into her quarterly review.</div>
+
+        <div class="jm-rl">Thinking</div>
+        <div class="jm-c">"This does not scale and I cannot hire a fourth recruiter."</div>
+        <div class="jm-c">"Every vendor says AI. What happens the first time it's wrong?"</div>
+        <div class="jm-c">"If it misses our best hire, that is the end of the conversation."</div>
+        <div class="jm-c">"Marcus hasn't opened it since Tuesday. Have I just bought shelfware?"</div>
+        <div class="jm-c">"I can put this in front of the board without flinching."</div>
+
+        <div class="jm-rl friction">Where it breaks</div>
+        <div class="jm-c friction">She reaches for an ATS module she already pays for and it half-works.</div>
+        <div class="jm-c friction">Procurement asks for a model card and a DPIA she cannot get from us in a day.</div>
+        <div class="jm-c friction">The bar for "good" gets argued about <em>after</em> the results land.</div>
+        <div class="jm-c friction">Adoption. Everything before this was theory; this is where deals actually die.</div>
+        <div class="jm-c friction">She has usage stats but nothing that proves the hires got better.</div>
+
+        <div class="jm-rl move">Tailr's move</div>
+        <div class="jm-c move">Lead with the grad and early-careers pile — the highest-volume, lowest-signal case.</div>
+        <div class="jm-c move">Ship the compliance pack as a standing artefact, not a bespoke scramble.</div>
+        <div class="jm-c move">Write the pass bar into the pilot agreement before we run anything.</div>
+        <div class="jm-c move">Gate 4: three recruiters on real reqs in two weeks, or we treat it as failed.</div>
+        <div class="jm-c move">Quarterly report on decision quality, not seats used.</div>
+
+        <div class="jm-rl">Signal we watch</div>
+        <div class="jm-c metric">Applications per req at first contact</div>
+        <div class="jm-c metric">Days from demo to DPO conversation</div>
+        <div class="jm-c metric">Back-test agreement rate</div>
+        <div class="jm-c metric">Recruiters active in week 2</div>
+        <div class="jm-c metric">Reqs run per recruiter per month</div>
+      </div>
+    </div>
+
+    <figure>
+      <div class="scroller">
+        <div class="scroller-inner">
+<svg class="dg" viewBox="0 0 1200 236" role="img" aria-label="TA lead flow: volume pain named, discovery and compliance pack, decision on whether the pack is accepted with a park exit, back-test on a closed requisition, decision on whether it hits the pre-agreed bar with a no-deal exit, then DPA, seats and go live.">
+  <defs>
+    <marker id="aF1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="mk" d="M0,1 L9,5 L0,9 z"/>
+    </marker>
+  </defs>
+  <rect class="box" x="20" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="97" y="62" text-anchor="middle">Volume pain</text>
+  <text class="lbl" x="97" y="76" text-anchor="middle">named on one req</text>
+
+  <rect class="box" x="215" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="292" y="62" text-anchor="middle">Discovery +</text>
+  <text class="lbl" x="292" y="76" text-anchor="middle">compliance pack</text>
+
+  <path class="gate-stroke" d="M487,27 L547,67 L487,107 L427,67 z"/>
+  <text class="lbl" x="487" y="63" text-anchor="middle">DPO accepts</text>
+  <text class="lbl" x="487" y="76" text-anchor="middle">the pack?</text>
+
+  <rect class="box" x="605" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="682" y="62" text-anchor="middle">Back-test on a</text>
+  <text class="lbl" x="682" y="76" text-anchor="middle">closed req</text>
+
+  <path class="gate-stroke" d="M877,27 L937,67 L877,107 L817,67 z"/>
+  <text class="lbl" x="877" y="63" text-anchor="middle">Hits the</text>
+  <text class="lbl" x="877" y="76" text-anchor="middle">pre-agreed bar?</text>
+
+  <rect class="box" x="995" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="1072" y="55" text-anchor="middle">DPA, seats,</text>
+  <text class="lbl" x="1072" y="69" text-anchor="middle">req families</text>
+  <text class="lbl" x="1072" y="83" text-anchor="middle">→ live</text>
+
+  <g class="conn" marker-end="url(#aF1)">
+    <path d="M175,67 H211"/>
+    <path d="M370,67 H423"/>
+    <path d="M547,67 H601"/>
+    <path d="M760,67 H813"/>
+    <path d="M937,67 H991"/>
+    <path d="M487,107 V162"/>
+    <path d="M877,107 V162"/>
+  </g>
+  <text class="lbl-sm" x="565" y="60">yes</text>
+  <text class="lbl-sm" x="955" y="60">yes</text>
+  <text class="lbl-sm" x="497" y="130">no</text>
+  <text class="lbl-sm" x="887" y="130">no</text>
+
+  <rect class="box-quiet" x="410" y="166" width="155" height="48" rx="8"/>
+  <text class="lbl-sm" x="487" y="186" text-anchor="middle">Parked until the</text>
+  <text class="lbl-sm" x="487" y="200" text-anchor="middle">next budget cycle</text>
+
+  <rect class="box-quiet" x="800" y="166" width="155" height="48" rx="8"/>
+  <text class="lbl-sm" x="877" y="186" text-anchor="middle">No deal — and we</text>
+  <text class="lbl-sm" x="877" y="200" text-anchor="middle">keep the finding</text>
+</svg>
+        </div>
+      </div>
+      <figcaption>Priya's flow is the commercial lifecycle seen from her desk. The two diamonds are the only places she can actually stop, and both are things we control the quality of.</figcaption>
+    </figure>
+  </div>
+
+  <!-- ── PERSONA 2 ─────────────────────────────── -->
+  <div class="persona" id="recruiter">
+    <div class="p-head">
+      <span class="p-key">P2 · POWER USER</span>
+      <span class="p-name">Marcus</span>
+      <span class="p-role">Recruiter · six open reqs · roughly 180 applications each</span>
+    </div>
+    <dl class="p-facts">
+      <div class="p-fact"><dt>Owns</dt><dd>The pile. Everything between "applied" and "the hiring manager sees five".</dd></div>
+      <div class="p-fact"><dt>Measured on</dt><dd>Time to shortlist, and whether hiring managers accept what he sends.</dd></div>
+      <div class="p-fact"><dt>Wants</dt><dd>To stop making six-second decisions he cannot justify a month later.</dd></div>
+      <div class="p-fact"><dt>Afraid of</dt><dd>Binning the good one — and carrying it when the tool is confidently wrong.</dd></div>
+    </dl>
+
+    <div class="jm-scroll">
+      <div class="jm">
+        <div class="jm-corner"></div>
+        <div class="jm-curve">
+<svg class="dg" viewBox="0 0 1000 104" role="img" aria-label="Emotion curve for the recruiter: dread as the requisition opens, control returning during calibration, relief at the ranked pile, steady through shortlisting, dipping if the hiring manager disagrees at debrief.">
+  <path class="curve-base" d="M0,58 H1000"/>
+  <g class="tick"><path d="M200,14 V96"/><path d="M400,14 V96"/><path d="M600,14 V96"/><path d="M800,14 V96"/></g>
+  <polyline class="curve-line" points="100,83 300,49 500,25 700,36 900,62"/>
+  <circle class="curve-dot" cx="100" cy="83" r="5"/>
+  <circle class="curve-dot" cx="300" cy="49" r="5"/>
+  <circle class="curve-dot-key" cx="500" cy="25" r="5.5"/>
+  <circle class="curve-dot" cx="700" cy="36" r="5"/>
+  <circle class="curve-dot" cx="900" cy="62" r="5"/>
+</svg>
+        </div>
+
+        <div class="jm-rl">Phase</div>
+        <div class="jm-c jm-ph">Req opens</div>
+        <div class="jm-c jm-ph">Calibrates</div>
+        <div class="jm-c jm-ph">Screens the pile</div>
+        <div class="jm-c jm-ph">Shortlists</div>
+        <div class="jm-c jm-ph">Debriefs</div>
+
+        <div class="jm-rl">Doing</div>
+        <div class="jm-c">Pastes the JD URL. 180 CVs are already sitting in the ATS.</div>
+        <div class="jm-c">Reads the 6–12 extracted requirements, drops two, adds one the JD left out.</div>
+        <div class="jm-c">Works down a ranked list, reading the quoted evidence rather than the CV.</div>
+        <div class="jm-c">Picks five, writes one line each, sends the link to the hiring manager.</div>
+        <div class="jm-c">Hears which of the five were right, and logs why the others were not.</div>
+
+        <div class="jm-rl">Thinking</div>
+        <div class="jm-c">"Six reqs. I have about ninety seconds a CV and that is being generous."</div>
+        <div class="jm-c">"It read the JD better than the JD was written. But 'stakeholder management' is not a must."</div>
+        <div class="jm-c">"It quoted her actual sentence. I can send this without reading all forty pages."</div>
+        <div class="jm-c">"If Dana pushes back I have the receipt for every one of these."</div>
+        <div class="jm-c">"It ranked the wrong thing on this family of roles. Does anyone fix that?"</div>
+
+        <div class="jm-rl friction">Where it breaks</div>
+        <div class="jm-c friction">Any tool that makes him leave the ATS and re-upload things loses on day one.</div>
+        <div class="jm-c friction">If calibration feels like admin rather than control, he clicks straight past it.</div>
+        <div class="jm-c friction">One bad quoted line — a fabrication, a misread date — and he distrusts all of it.</div>
+        <div class="jm-c friction">He has no way to say "this ranking is wrong" that changes anything.</div>
+        <div class="jm-c friction">Outcomes go into the ATS and never come back to the ranking.</div>
+
+        <div class="jm-rl move">Tailr's move</div>
+        <div class="jm-c move">Candidates arrive by ATS sync. He never uploads a CV by hand.</div>
+        <div class="jm-c move">Calibration is four clicks on a pre-filled list, and it visibly moves the ranking.</div>
+        <div class="jm-c move">Every claim is a quote with provenance. Law 1 is the trust mechanism, not a slogan.</div>
+        <div class="jm-c move">"Dispute this line" on every requirement — it recomputes and it is logged.</div>
+        <div class="jm-c move">Outcomes reweight the requirement set for that role family (the calibration loop).</div>
+
+        <div class="jm-rl">Signal we watch</div>
+        <div class="jm-c metric">Reqs opened per week</div>
+        <div class="jm-c metric">% of reqs where must-haves were edited</div>
+        <div class="jm-c metric">Minutes from sync to shortlist</div>
+        <div class="jm-c metric">Disputes per 100 candidates</div>
+        <div class="jm-c metric">HM acceptance rate of the five</div>
+      </div>
+    </div>
+
+    <figure>
+      <div class="scroller">
+        <div class="scroller-inner">
+<svg class="dg" viewBox="0 0 1200 236" role="img" aria-label="Recruiter flow: open the requisition and paste the job URL, Tailr extracts requirements, a decision on whether the must-haves are right that loops back to re-extraction, candidates scored with quoted evidence, a decision on whether any evidence is disputed which recomputes the score, then shortlist five to the hiring manager.">
+  <defs>
+    <marker id="aF2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="mk" d="M0,1 L9,5 L0,9 z"/>
+    </marker>
+  </defs>
+  <rect class="box" x="20" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="97" y="62" text-anchor="middle">Open req,</text>
+  <text class="lbl" x="97" y="76" text-anchor="middle">paste the JD URL</text>
+
+  <rect class="box-sys" x="215" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="292" y="62" text-anchor="middle">Tailr extracts the</text>
+  <text class="lbl" x="292" y="76" text-anchor="middle">requirements</text>
+
+  <path class="gate-stroke" d="M487,27 L547,67 L487,107 L427,67 z"/>
+  <text class="lbl" x="487" y="63" text-anchor="middle">Must-haves</text>
+  <text class="lbl" x="487" y="76" text-anchor="middle">right?</text>
+
+  <rect class="box-sys" x="605" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="682" y="55" text-anchor="middle">Every candidate</text>
+  <text class="lbl" x="682" y="69" text-anchor="middle">scored, with the</text>
+  <text class="lbl" x="682" y="83" text-anchor="middle">line that proves it</text>
+
+  <path class="gate-stroke" d="M877,27 L937,67 L877,107 L817,67 z"/>
+  <text class="lbl" x="877" y="63" text-anchor="middle">Evidence</text>
+  <text class="lbl" x="877" y="76" text-anchor="middle">disputed?</text>
+
+  <rect class="box" x="995" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="1072" y="62" text-anchor="middle">Shortlist five →</text>
+  <text class="lbl" x="1072" y="76" text-anchor="middle">hiring manager</text>
+
+  <g class="conn" marker-end="url(#aF2)">
+    <path d="M175,67 H211"/>
+    <path d="M370,67 H423"/>
+    <path d="M547,67 H601"/>
+    <path d="M760,67 H813"/>
+    <path d="M937,67 H991"/>
+    <path d="M487,107 V162"/>
+    <path d="M877,107 V162"/>
+    <path d="M410,190 H292 V98"/>
+    <path d="M800,190 H682 V98"/>
+  </g>
+  <text class="lbl-sm" x="565" y="60">yes</text>
+  <text class="lbl-sm" x="955" y="60">no</text>
+  <text class="lbl-sm" x="497" y="130">no</text>
+  <text class="lbl-sm" x="887" y="130">yes</text>
+
+  <rect class="box" x="410" y="166" width="155" height="48" rx="8"/>
+  <text class="lbl-sm" x="487" y="186" text-anchor="middle">Edit, add or drop —</text>
+  <text class="lbl-sm" x="487" y="200" text-anchor="middle">then re-extract</text>
+
+  <rect class="box" x="800" y="166" width="155" height="48" rx="8"/>
+  <text class="lbl-sm" x="877" y="186" text-anchor="middle">Flag the line;</text>
+  <text class="lbl-sm" x="877" y="200" text-anchor="middle">score recomputes</text>
+</svg>
+        </div>
+      </div>
+      <figcaption>Both loops go backwards on purpose. A recruiter who can correct the machine trusts it; a recruiter who can only accept or ignore it stops opening it by week three — which is exactly how gate 4 gets failed.</figcaption>
+    </figure>
+  </div>
+
+  <!-- ── PERSONA 3 ─────────────────────────────── -->
+  <div class="persona" id="hm">
+    <div class="p-head">
+      <span class="p-key">P3 · REVIEWER</span>
+      <span class="p-name">Dana</span>
+      <span class="p-role">Engineering manager · hires two or three people a year · lives in Slack, not the ATS</span>
+    </div>
+    <dl class="p-facts">
+      <div class="p-fact"><dt>Owns</dt><dd>The final yes. Also the consequences of the wrong yes, for two years.</dd></div>
+      <div class="p-fact"><dt>Measured on</dt><dd>Whether the team ships. Hiring is overhead she absorbs, not a job she has.</dd></div>
+      <div class="p-fact"><dt>Wants</dt><dd>Five people worth an hour each, and to not read a hundred CVs to get there.</dd></div>
+      <div class="p-fact"><dt>Afraid of</dt><dd>Being handed an AI ranking she has to defend in a debrief she did not attend.</dd></div>
+    </dl>
+
+    <div class="jm-scroll">
+      <div class="jm">
+        <div class="jm-corner"></div>
+        <div class="jm-curve">
+<svg class="dg" viewBox="0 0 1000 104" role="img" aria-label="Emotion curve for the hiring manager: neutral at briefing, dropping sharply during the silent waiting period, rising to its peak when the evidence-backed shortlist arrives, staying positive through interviews and the decision.">
+  <path class="curve-base" d="M0,58 H1000"/>
+  <g class="tick"><path d="M200,14 V96"/><path d="M400,14 V96"/><path d="M600,14 V96"/><path d="M800,14 V96"/></g>
+  <polyline class="curve-line" points="100,58 300,85 500,25 700,36 900,47"/>
+  <circle class="curve-dot" cx="100" cy="58" r="5"/>
+  <circle class="curve-dot" cx="300" cy="85" r="5"/>
+  <circle class="curve-dot-key" cx="500" cy="25" r="5.5"/>
+  <circle class="curve-dot" cx="700" cy="36" r="5"/>
+  <circle class="curve-dot" cx="900" cy="47" r="5"/>
+</svg>
+        </div>
+
+        <div class="jm-rl">Phase</div>
+        <div class="jm-c jm-ph">Briefs the role</div>
+        <div class="jm-c jm-ph">Waits</div>
+        <div class="jm-c jm-ph">Reviews the five</div>
+        <div class="jm-c jm-ph">Interviews</div>
+        <div class="jm-c jm-ph">Decides</div>
+
+        <div class="jm-rl">Doing</div>
+        <div class="jm-c">Half-hour with Marcus, mostly describing the last person who did the job well.</div>
+        <div class="jm-c">Nothing. Two weeks of silence, punctuated by asking how it is going.</div>
+        <div class="jm-c">Opens a link on her phone. Ten minutes, between two meetings.</div>
+        <div class="jm-c">Four interviews, using the gaps Tailr flagged as the probing questions.</div>
+        <div class="jm-c">Debrief, offer, and a reason recorded for everyone she said no to.</div>
+
+        <div class="jm-rl">Thinking</div>
+        <div class="jm-c">"I know what good looks like. I am terrible at writing it down."</div>
+        <div class="jm-c">"No idea whether this is going well or whether we have no applicants."</div>
+        <div class="jm-c">"It says 'strong' on Kubernetes and here is her sentence saying so. Fine."</div>
+        <div class="jm-c">"The gap list gave me better questions than I would have written."</div>
+        <div class="jm-c">"I could explain this decision to the person who did not get it."</div>
+
+        <div class="jm-rl friction">Where it breaks</div>
+        <div class="jm-c friction">The requirements she cares about never make it into the JD, so they never get scored.</div>
+        <div class="jm-c friction">The silence. This is the deepest dip in her whole journey and it is entirely fixable.</div>
+        <div class="jm-c friction">A bare number with no reasoning reads as "a robot picked these" and she overrides it.</div>
+        <div class="jm-c friction">Interview notes live somewhere else, so nothing she learns gets back to the ranking.</div>
+        <div class="jm-c friction">"Not a fit" as a rejection reason — useless to the candidate and to calibration.</div>
+
+        <div class="jm-rl move">Tailr's move</div>
+        <div class="jm-c move">Let her add two must-haves in her own words at brief time. That is her whole input.</div>
+        <div class="jm-c move">A weekly line: how many applied, how many scored, when five will land.</div>
+        <div class="jm-c move">The evidence card <b>is</b> the interface — quote first, score second, never score alone.</div>
+        <div class="jm-c move">Interview prep already generates gap-probing questions. Point it at the shortlist.</div>
+        <div class="jm-c move">Rejection reasons pick from the requirement list — structured, so calibration can use them.</div>
+
+        <div class="jm-rl">Signal we watch</div>
+        <div class="jm-c metric">HM-added must-haves per req</div>
+        <div class="jm-c metric">Days of silence before the shortlist</div>
+        <div class="jm-c metric">Evidence cards opened per shortlist</div>
+        <div class="jm-c metric">Interviews per hire</div>
+        <div class="jm-c metric">% rejections with a structured reason</div>
+      </div>
+    </div>
+
+    <figure>
+      <div class="scroller">
+        <div class="scroller-inner">
+<svg class="dg" viewBox="0 0 1200 236" role="img" aria-label="Hiring manager flow: a link arrives by email, she opens the shortlist, reads an evidence card, a decision on whether she is convinced which branches to rejecting with a structured reason, then books the interview and logs the outcome.">
+  <defs>
+    <marker id="aF3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="mk" d="M0,1 L9,5 L0,9 z"/>
+    </marker>
+    <marker id="aF3L" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="mk-loop" d="M0,1 L9,5 L0,9 z"/>
+    </marker>
+  </defs>
+  <rect class="box" x="20" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="97" y="55" text-anchor="middle">A link: five people,</text>
+  <text class="lbl" x="97" y="69" text-anchor="middle">evidence attached.</text>
+  <text class="lbl" x="97" y="83" text-anchor="middle">No login wall</text>
+
+  <rect class="box" x="215" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="292" y="62" text-anchor="middle">Opens the</text>
+  <text class="lbl" x="292" y="76" text-anchor="middle">shortlist</text>
+
+  <rect class="box" x="410" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="487" y="55" text-anchor="middle">Reads the</text>
+  <text class="lbl" x="487" y="69" text-anchor="middle">evidence card —</text>
+  <text class="lbl" x="487" y="83" text-anchor="middle">quote, then score</text>
+
+  <path class="gate-stroke" d="M682,27 L742,67 L682,107 L622,67 z"/>
+  <text class="lbl" x="682" y="72" text-anchor="middle">Convinced?</text>
+
+  <rect class="box" x="800" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="877" y="62" text-anchor="middle">Books the</text>
+  <text class="lbl" x="877" y="76" text-anchor="middle">interview</text>
+
+  <rect class="box" x="995" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="1072" y="62" text-anchor="middle">Logs the outcome</text>
+  <text class="lbl" x="1072" y="76" text-anchor="middle">against the reqs</text>
+
+  <g class="conn" marker-end="url(#aF3)">
+    <path d="M175,67 H211"/>
+    <path d="M370,67 H406"/>
+    <path d="M565,67 H618"/>
+    <path d="M742,67 H796"/>
+    <path d="M955,67 H991"/>
+    <path d="M682,107 V162"/>
+  </g>
+  <text class="lbl-sm" x="758" y="60">yes</text>
+  <text class="lbl-sm" x="692" y="130">no</text>
+
+  <rect class="box" x="605" y="166" width="180" height="48" rx="8"/>
+  <text class="lbl-sm" x="695" y="186" text-anchor="middle">Rejects against a named</text>
+  <text class="lbl-sm" x="695" y="200" text-anchor="middle">requirement — recorded</text>
+
+  <path class="loop" d="M785,190 H1072 V98" marker-end="url(#aF3L)"/>
+  <text class="loop-t" x="930" y="182" text-anchor="middle">a structured no is data, not a dead end</text>
+</svg>
+        </div>
+      </div>
+      <figcaption>Dana's rejection path is drawn as a first-class route, not an exit. A "no" tied to a named requirement is what feeds the calibration loop and what makes candidate feedback possible at all.</figcaption>
+    </figure>
+  </div>
+
+  <!-- ── PERSONA 4 ─────────────────────────────── -->
+  <div class="persona" id="dpo">
+    <div class="p-head">
+      <span class="p-key">P4 · GATEKEEPER</span>
+      <span class="p-name">Sam</span>
+      <span class="p-role">People Ops lead, doubling as data protection officer · can end this in one email</span>
+    </div>
+    <dl class="p-facts">
+      <div class="p-fact"><dt>Owns</dt><dd>The DPIA, the lawful basis, the retention schedule, and the regulator's opinion of it.</dd></div>
+      <div class="p-fact"><dt>Measured on</dt><dd>Nothing going wrong. There is no upside, only downside, and they know it.</dd></div>
+      <div class="p-fact"><dt>Wants</dt><dd>Clear answers on automated decision-making, retention, and who the sub-processors are.</dd></div>
+      <div class="p-fact"><dt>Afraid of</dt><dd>Signing off something that turns out to rank candidates on a proxy for age or ethnicity.</dd></div>
+    </dl>
+
+    <div class="jm-scroll">
+      <div class="jm">
+        <div class="jm-corner"></div>
+        <div class="jm-curve">
+<svg class="dg" viewBox="0 0 1000 104" role="img" aria-label="Emotion curve for the People Ops and data protection lead: wary when pulled in, at their lowest while assessing vendor material, recovering as conditions are set, positive on approval and higher still once monitoring proves real.">
+  <path class="curve-base" d="M0,58 H1000"/>
+  <g class="tick"><path d="M200,14 V96"/><path d="M400,14 V96"/><path d="M600,14 V96"/><path d="M800,14 V96"/></g>
+  <polyline class="curve-line" points="100,76 300,89 500,58 700,45 900,34"/>
+  <circle class="curve-dot" cx="100" cy="76" r="5"/>
+  <circle class="curve-dot-key" cx="300" cy="89" r="5.5"/>
+  <circle class="curve-dot" cx="500" cy="58" r="5"/>
+  <circle class="curve-dot" cx="700" cy="45" r="5"/>
+  <circle class="curve-dot" cx="900" cy="34" r="5"/>
+</svg>
+        </div>
+
+        <div class="jm-rl">Phase</div>
+        <div class="jm-c jm-ph">Gets pulled in</div>
+        <div class="jm-c jm-ph">Assesses</div>
+        <div class="jm-c jm-ph">Sets conditions</div>
+        <div class="jm-c jm-ph">Approves or blocks</div>
+        <div class="jm-c jm-ph">Monitors</div>
+
+        <div class="jm-rl">Doing</div>
+        <div class="jm-c">Forwarded a demo recording by Priya with "any concerns?" and no context.</div>
+        <div class="jm-c">Hunts for a model card, a sub-processor list, and a straight answer on Article 22.</div>
+        <div class="jm-c">Drafts conditions: retention, candidate notice, no solely-automated rejection.</div>
+        <div class="jm-c">Signs the DPA, or sends the email that ends it. Either takes ten minutes.</div>
+        <div class="jm-c">Quarterly: samples the audit log, checks outcome rates across groups.</div>
+
+        <div class="jm-rl">Thinking</div>
+        <div class="jm-c">"Another AI tool that scores people. Here we go."</div>
+        <div class="jm-c">"Nobody can tell me whether a human sees every candidate. That is the whole question."</div>
+        <div class="jm-c">"If the score is arithmetic over quoted evidence, I can actually document this."</div>
+        <div class="jm-c">"Explainable, logged, human-decided. I have approved far worse than this."</div>
+        <div class="jm-c">"Can I still see, a year later, why that person was rejected?"</div>
+
+        <div class="jm-rl friction">Where it breaks</div>
+        <div class="jm-c friction">Nobody involves them until a decision has effectively been made. Then they look obstructive.</div>
+        <div class="jm-c friction">Vendor material that says "AI-powered" and answers nothing. Lowest point of any journey here.</div>
+        <div class="jm-c friction">Conditions they cannot verify are conditions they will not accept.</div>
+        <div class="jm-c friction">A model that cannot explain a single score makes the DPIA unwritable.</div>
+        <div class="jm-c friction">Monitoring that depends on us sending a PDF once a quarter.</div>
+
+        <div class="jm-rl move">Tailr's move</div>
+        <div class="jm-c move">Gate 2 exists to reach them in week two. Ask for them by name on the discovery call.</div>
+        <div class="jm-c move">A standing pack: model card, DPIA input, sub-processors, retention, Article 22 statement.</div>
+        <div class="jm-c move">Law 2 as a product property they can test, not a policy we promise.</div>
+        <div class="jm-c move">"Show the working" on any score: requirement, quote, strength, weight, arithmetic.</div>
+        <div class="jm-c move">Give them a read-only seat on the audit log — the admin-viewer role already models this.</div>
+
+        <div class="jm-rl">Signal we watch</div>
+        <div class="jm-c metric">Days from first contact to DPO involved</div>
+        <div class="jm-c metric">Questions the pack does not answer</div>
+        <div class="jm-c metric">Conditions we cannot meet</div>
+        <div class="jm-c metric">Gate-2 pass rate</div>
+        <div class="jm-c metric">Audit queries served without us</div>
+      </div>
+    </div>
+
+    <figure>
+      <div class="scroller">
+        <div class="scroller-inner">
+<svg class="dg" viewBox="0 0 1200 236" role="img" aria-label="People Ops and DPO flow: the request lands, they read the model card and DPIA input, a decision on whether any rejection is solely automated which blocks outright if yes, checks on lawful basis, retention and sub-processors, a decision on whether conditions are met which returns conditions for re-review, then approval with quarterly monitoring.">
+  <defs>
+    <marker id="aF4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="mk" d="M0,1 L9,5 L0,9 z"/>
+    </marker>
+  </defs>
+  <rect class="box" x="20" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="97" y="62" text-anchor="middle">Request lands</text>
+  <text class="lbl" x="97" y="76" text-anchor="middle">from talent</text>
+
+  <rect class="box" x="215" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="292" y="62" text-anchor="middle">Reads model card</text>
+  <text class="lbl" x="292" y="76" text-anchor="middle">+ DPIA input</text>
+
+  <path class="gate-stroke" d="M487,20 L553,67 L487,114 L421,67 z"/>
+  <text class="lbl" x="487" y="56" text-anchor="middle">Any rejection</text>
+  <text class="lbl" x="487" y="69" text-anchor="middle">made without</text>
+  <text class="lbl" x="487" y="82" text-anchor="middle">a human?</text>
+
+  <rect class="box" x="605" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="682" y="55" text-anchor="middle">Lawful basis,</text>
+  <text class="lbl" x="682" y="69" text-anchor="middle">retention,</text>
+  <text class="lbl" x="682" y="83" text-anchor="middle">sub-processors</text>
+
+  <path class="gate-stroke" d="M877,27 L937,67 L877,107 L817,67 z"/>
+  <text class="lbl" x="877" y="63" text-anchor="middle">Conditions</text>
+  <text class="lbl" x="877" y="76" text-anchor="middle">met?</text>
+
+  <rect class="box" x="995" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="1072" y="62" text-anchor="middle">Approves +</text>
+  <text class="lbl" x="1072" y="76" text-anchor="middle">quarterly review</text>
+
+  <g class="conn" marker-end="url(#aF4)">
+    <path d="M175,67 H211"/>
+    <path d="M370,67 H417"/>
+    <path d="M553,67 H601"/>
+    <path d="M760,67 H813"/>
+    <path d="M937,67 H991"/>
+    <path d="M487,114 V162"/>
+    <path d="M877,107 V162"/>
+    <path d="M800,190 H682 V98"/>
+  </g>
+  <text class="lbl-sm" x="568" y="60">no</text>
+  <text class="lbl-sm" x="955" y="60">yes</text>
+  <text class="lbl-sm" x="497" y="136">yes</text>
+  <text class="lbl-sm" x="887" y="130">no</text>
+
+  <rect class="box-gate" x="410" y="166" width="155" height="48" rx="8"/>
+  <text class="lbl-sm" x="487" y="186" text-anchor="middle">Blocked. Law 2 is</text>
+  <text class="lbl-sm" x="487" y="200" text-anchor="middle">the answer to this</text>
+
+  <rect class="box" x="800" y="166" width="155" height="48" rx="8"/>
+  <text class="lbl-sm" x="877" y="186" text-anchor="middle">Conditions issued;</text>
+  <text class="lbl-sm" x="877" y="200" text-anchor="middle">back for re-review</text>
+</svg>
+        </div>
+      </div>
+      <figcaption>The first diamond is the entire deal. Every other question Sam asks has a normal SaaS answer; that one does not, and Law 2 is the only thing that turns it from a block into a formality.</figcaption>
+    </figure>
+  </div>
+
+  <!-- ── PERSONA 5 ─────────────────────────────── -->
+  <div class="persona" id="candidate">
+    <div class="p-head">
+      <span class="p-key">P5 · SUBJECT</span>
+      <span class="p-name">Ade</span>
+      <span class="p-role">Applicant · never pays us · the reason the other four are allowed to do any of this</span>
+    </div>
+    <dl class="p-facts">
+      <div class="p-fact"><dt>Owns</dt><dd>The data. Legally, theirs — including the right to know why they were rejected.</dd></div>
+      <div class="p-fact"><dt>Measured on</dt><dd>Nothing. They apply to forty things and hear back from six.</dd></div>
+      <div class="p-fact"><dt>Wants</dt><dd>To know what was actually missing, while they can still do something about it.</dd></div>
+      <div class="p-fact"><dt>Afraid of</dt><dd>Being filtered out by a machine, silently, for a reason nobody will ever tell them.</dd></div>
+    </dl>
+
+    <div class="jm-scroll">
+      <div class="jm">
+        <div class="jm-corner"></div>
+        <div class="jm-curve">
+<svg class="dg" viewBox="0 0 1000 104" role="img" aria-label="Emotion curve for the candidate: neutral on applying, dropping while invisibly assessed, reaching the deepest trough of any persona on hearing back, then rising sharply if they are told what was missing and given a path to close it.">
+  <path class="curve-base" d="M0,58 H1000"/>
+  <g class="tick"><path d="M200,14 V96"/><path d="M400,14 V96"/><path d="M600,14 V96"/><path d="M800,14 V96"/></g>
+  <polyline class="curve-line" points="100,58 300,76 500,94 700,40 900,25"/>
+  <circle class="curve-dot" cx="100" cy="58" r="5"/>
+  <circle class="curve-dot" cx="300" cy="76" r="5"/>
+  <circle class="curve-dot-key" cx="500" cy="94" r="5.5"/>
+  <circle class="curve-dot" cx="700" cy="40" r="5"/>
+  <circle class="curve-dot" cx="900" cy="25" r="5"/>
+</svg>
+        </div>
+
+        <div class="jm-rl">Phase</div>
+        <div class="jm-c jm-ph">Applies</div>
+        <div class="jm-c jm-ph">Is assessed</div>
+        <div class="jm-c jm-ph">Hears back</div>
+        <div class="jm-c jm-ph">Understands why</div>
+        <div class="jm-c jm-ph">Does something</div>
+
+        <div class="jm-rl">Doing</div>
+        <div class="jm-c">Uploads a CV to the employer's ATS. Application number 34 this month.</div>
+        <div class="jm-c">Nothing. Scored against 9 requirements they have never seen.</div>
+        <div class="jm-c">Gets an email. Today that is a template with no information in it.</div>
+        <div class="jm-c">Sees which requirements they met, which they did not, and the lines that were read as evidence.</div>
+        <div class="jm-c">Closes the two gaps. Applies again somewhere better matched.</div>
+
+        <div class="jm-rl">Thinking</div>
+        <div class="jm-c">"Into the void again."</div>
+        <div class="jm-c">"Did a person even open this?"</div>
+        <div class="jm-c">"Four weeks for 'we have decided to progress other candidates'."</div>
+        <div class="jm-c">"Two of those I actually have. I just never wrote them down properly."</div>
+        <div class="jm-c">"This is the first rejection that was worth receiving."</div>
+
+        <div class="jm-rl friction">Where it breaks</div>
+        <div class="jm-c friction">No idea an algorithm is involved. That alone is a transparency problem.</div>
+        <div class="jm-c friction">Complete invisibility — and the deepest trough on this page sits in the next column.</div>
+        <div class="jm-c friction">Silence, or a rejection so generic it teaches nothing. Every screener on the market ends here.</div>
+        <div class="jm-c friction">Feedback is a legal risk to employers. Many will refuse to share it.</div>
+        <div class="jm-c friction">Even good feedback dead-ends unless there is somewhere to take it.</div>
+
+        <div class="jm-rl move">Tailr's move</div>
+        <div class="jm-c move">A plain notice at application: what Tailr does, what it does not, and that a person decides.</div>
+        <div class="jm-c move">Law 2 — a human reviews every candidate. That is what makes the notice true.</div>
+        <div class="jm-c move">Structured rejection reasons make a real answer possible for the first time.</div>
+        <div class="jm-c move">Requirement-level feedback drawn only from quoted evidence, never a generated judgement.</div>
+        <div class="jm-c move">The gaps hand off to Career Path — which is the consumer product we already ship.</div>
+
+        <div class="jm-rl">Signal we watch</div>
+        <div class="jm-c metric">Notice shown on 100% of applications</div>
+        <div class="jm-c metric">% reviewed by a person (target: 100)</div>
+        <div class="jm-c metric">Days to decision</div>
+        <div class="jm-c metric">% of employers sharing feedback</div>
+        <div class="jm-c metric">Career Path accounts created from a rejection</div>
+      </div>
+    </div>
+
+    <figure>
+      <div class="scroller">
+        <div class="scroller-inner">
+<svg class="dg" viewBox="0 0 1200 236" role="img" aria-label="Candidate flow: applies via the employer, sees a plain notice about what Tailr does, is assessed against the requirements, a person reviews every candidate, a decision on whether the employer shares feedback, leading either to a decision only or to gaps plus a development path that hands off to Tailr Career Path.">
+  <defs>
+    <marker id="aF5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="mk" d="M0,1 L9,5 L0,9 z"/>
+    </marker>
+    <marker id="aF5L" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="mk-loop" d="M0,1 L9,5 L0,9 z"/>
+    </marker>
+  </defs>
+  <rect class="box" x="20" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="97" y="62" text-anchor="middle">Applies via the</text>
+  <text class="lbl" x="97" y="76" text-anchor="middle">employer</text>
+
+  <rect class="box" x="215" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="292" y="55" text-anchor="middle">Sees the notice:</text>
+  <text class="lbl" x="292" y="69" text-anchor="middle">what Tailr does,</text>
+  <text class="lbl" x="292" y="83" text-anchor="middle">and what it doesn't</text>
+
+  <rect class="box-sys" x="410" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="487" y="62" text-anchor="middle">Assessed against</text>
+  <text class="lbl" x="487" y="76" text-anchor="middle">the requirements</text>
+
+  <rect class="box-gate" x="605" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="682" y="62" text-anchor="middle">A person reviews</text>
+  <text class="lbl" x="682" y="76" text-anchor="middle">every candidate</text>
+
+  <path class="gate-stroke" d="M877,24 L940,67 L877,110 L814,67 z"/>
+  <text class="lbl" x="877" y="63" text-anchor="middle">Employer shares</text>
+  <text class="lbl" x="877" y="76" text-anchor="middle">feedback?</text>
+
+  <rect class="box" x="995" y="40" width="155" height="54" rx="8"/>
+  <text class="lbl" x="1072" y="55" text-anchor="middle">The gaps, and a</text>
+  <text class="lbl" x="1072" y="69" text-anchor="middle">path to close them</text>
+  <text class="lbl" x="1072" y="83" text-anchor="middle">→ Career Path</text>
+
+  <g class="conn" marker-end="url(#aF5)">
+    <path d="M175,67 H211"/>
+    <path d="M370,67 H406"/>
+    <path d="M565,67 H601"/>
+    <path d="M760,67 H810"/>
+    <path d="M877,110 V162"/>
+  </g>
+  <path class="loop" d="M940,67 H991" marker-end="url(#aF5L)"/>
+  <text class="lbl-sm" x="957" y="58">yes</text>
+  <text class="lbl-sm" x="887" y="134">no</text>
+
+  <rect class="box-quiet" x="800" y="166" width="155" height="48" rx="8"/>
+  <text class="lbl-sm" x="877" y="186" text-anchor="middle">A decision, and</text>
+  <text class="lbl-sm" x="877" y="200" text-anchor="middle">nothing else</text>
+</svg>
+        </div>
+      </div>
+      <figcaption>The diamond on the right is the single most consequential open question on this page. Take the top branch and the two halves of Tailr become one product — rejections from the employer side become sign-ups on the consumer side. Take the bottom one and we have built a competent screener with no moat.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ -->
+<section id="build">
+  <div class="sec-head"><span class="sec-num">05</span><h2>What we already have, and what this costs</h2></div>
+  <p class="lede">Sized against the repo as it stands on 9 September. The assessment engine is the expensive part and it is done. Almost everything left is organisational plumbing and governance surfaces — unglamorous, but not research.</p>
+
+  <div class="build">
+    <div class="build-col have">
+      <h4>Already built, reusable as-is</h4>
+      <ul>
+        <li><b>Requirement extraction</b> — 6–12 typed must/nice requirements with keywords, straight out of the tailor pipeline.</li>
+        <li><b>Evidence mapping</b> — per-requirement strength plus a quoted line from the CV, with "empty beats invented" enforced in the prompts.</li>
+        <li><b>Deterministic scoring</b> — <code>computeMatchScore</code>: musts weigh double, four strength values, reproducible and explainable.</li>
+        <li><b>JD ingest from any URL</b> — bare hosts normalised, works across job boards.</li>
+        <li><b>CV parsing</b> — PDF, DOCX and TXT, already in production.</li>
+        <li><b>Gap-probing interview questions</b> — the hiring manager's prep, already generated.</li>
+        <li><b>Auth, rate limiting, row-level security</b> — the whole Supabase foundation.</li>
+        <li><b>A read-only viewer role</b> — the pattern Sam's audit seat should copy.</li>
+        <li><b>Career Path</b> — where a rejected candidate's gaps go. The other half of the loop.</li>
+      </ul>
+    </div>
+    <div class="build-col new">
+      <h4>Net new for the employer side</h4>
+      <ul>
+        <li><b>Organisations, seats and roles</b> — everything today is a single user with a single subscription. This is the real schema work.</li>
+        <li><b>Requisition as an object</b> — a JD, a calibrated requirement set, and many candidates against it.</li>
+        <li><b>Data separation</b> — an employer's candidate data must never touch consumer Career Path data. RLS design, decided before any code.</li>
+        <li><b>ATS integration</b> — candidate sync. Marcus will not re-upload CVs by hand and the whole thing dies if we ask him to.</li>
+        <li><b>The audit log</b> — immutable, queryable by the customer, the artefact gate 2 turns on.</li>
+        <li><b>Candidate notice + consent surface</b> — shown at application, on the employer's side.</li>
+        <li><b>Bias monitoring</b> — outcome rates by group, or Sam cannot renew.</li>
+        <li><b>Recruiter review UI</b> — the ranked pile and the evidence card. <em>Figma first, per the working rules.</em></li>
+        <li><b>Feedback-to-candidate surface</b> — gated on decision 4 below.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ -->
+<section id="decisions">
+  <div class="sec-head"><span class="sec-num">06</span><h2>Six decisions I need from you</h2></div>
+  <p class="lede">Each of these changes the maps above. I have given a recommendation on all six rather than a menu — argue with the recommendation, that is faster than starting from nothing.</p>
+
+  <div class="decisions">
+    <div class="dec">
+      <p class="q">1. Is "no auto-reject" a product law or a configurable setting?</p>
+      <p class="why">Every gate, every persona journey and the entire compliance story on this page assumes it is a law. Making it configurable would let us sell to high-volume employers who want the pile cut automatically — and would collapse the candidate feedback loop, the Article 22 answer, and Sam's approval in the same move.</p>
+      <p class="rec"><b>Recommendation</b>A law, written next to the Evidence Rule in <code>docs/</code> and enforced in code, not policy. It is the cheapest competitive moat we will ever get, and we cannot un-ring it later.</p>
+    </div>
+    <div class="dec">
+      <p class="q">2. Does the employer product ever read a candidate's own Tailr profile?</p>
+      <p class="why">If a candidate has a Career Arc with us, we know far more than their submitted CV. Using it without their explicit, per-employer consent would be a serious breach of trust and probably of law. Not using it means we assess employers' candidates from the CV alone, like everyone else.</p>
+      <p class="rec"><b>Recommendation</b>Never by default. Candidate-initiated only: they choose to attach their Arc to a specific application, and can see exactly what the employer sees. Anything else poisons the consumer product.</p>
+    </div>
+    <div class="dec">
+      <p class="q">3. Where does it live — inside the ATS, or as its own surface?</p>
+      <p class="why">Marcus lives in the ATS. Dana lives in email. Priya lives in a dashboard. A standalone app is far faster to build and is the thing Marcus stops opening in week three, failing gate 4.</p>
+      <p class="rec"><b>Recommendation</b>Own surface at <code>app.gettailr.com/hire</code> for the pilot, with CSV import in and out — but treat one real ATS integration (Greenhouse or Workable) as the price of leaving pilot, not as a phase-two nice-to-have.</p>
+    </div>
+    <div class="dec">
+      <p class="q">4. Is candidate feedback opt-in for employers, on by default, or mandatory?</p>
+      <p class="why">The strategic hinge, and the diamond on Ade's flow. Mandatory feedback makes Tailr the only screener a candidate would want an employer to use — and will lose deals with legal teams who see any feedback as litigation risk.</p>
+      <p class="rec"><b>Recommendation</b>On by default, employer can turn it off, and we say plainly in the sales conversation that we would rather they did not. Mandatory in the pilot cohort, so we learn whether it actually causes the problem legal teams fear.</p>
+    </div>
+    <div class="dec">
+      <p class="q">5. What do we charge for, and who signs?</p>
+      <p class="why">Per seat rewards us for recruiters logging in, which is not the value. Per requisition matches the unit of work. Per candidate screened scales with the pile but prices us out of exactly the high-volume grad reqs that are our best case.</p>
+      <p class="rec"><b>Recommendation</b>Per requisition, with an annual commitment and unlimited candidates inside it. It matches the loop in process map A, it rewards the outcome rather than the login, and it makes the back-test pilot trivially priceable.</p>
+    </div>
+    <div class="dec">
+      <p class="q">6. Does this fork the recruitment prototype, or replace it?</p>
+      <p class="why">The prototype scored candidates on evidence strength (25%) and confidence (10%), and is paused pending Y's feedback. These maps assume a different scoring basis — the production tailor pipeline's requirement mapping — because that one already exists and can show its receipts.</p>
+      <p class="rec"><b>Recommendation</b>Replace the scoring model; keep whatever the prototype learned about recruiter workflow. Two scoring systems for the same judgement is exactly the contradiction the Evidence Rule was written to prevent.</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <p><b>Two things to flag on process, per the working rules.</b></p>
+    <p>The Figma connector is not authorised in this session, so nothing here is a screen design — these are process and journey artefacts, and the recruiter review UI and evidence card in section 05 go to Figma for your sign-off before any of them get implemented.</p>
+    <p style="margin:0">The Notion connector also dropped out mid-session, so I could not create the board card this change is owed. The <code>docs/PROJECT.md</code> row is written; the Notion card is still outstanding and needs adding by hand.</p>
+  </div>
+</section>
+
+</div>
