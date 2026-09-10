@@ -1,0 +1,543 @@
+<title>Maps vs Staging</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap">
+<style>
+:root{
+  --ground:#f9f6f0; --surface:#fdfcf9; --surface-raised:#ffffff; --sys-fill:#f4efe6;
+  --band-a:rgba(30,24,19,.028); --band-b:rgba(30,24,19,.058);
+  --ink:#1e1813; --ink-70:rgba(30,24,19,.70); --ink-55:rgba(30,24,19,.55);
+  --ink-40:rgba(30,24,19,.40); --ink-15:rgba(30,24,19,.15);
+  --border:#eee6da; --border-strong:#d9d1bf;
+  --accent:#dc4f33; --accent-deep:#b3341b; --tint-1:#fff7f4; --tint-2:#f5d9d0;
+  --ok:#2f6b57; --ok-bg:rgba(47,107,87,.08);
+  --warn:#a06a08; --warn-bg:rgba(160,106,8,.085);
+  --shadow:0 1px 2px rgba(30,24,19,.05), 0 10px 28px -20px rgba(30,24,19,.35);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#16120f; --surface:#1d1815; --surface-raised:#241d19; --sys-fill:#2b231c;
+    --band-a:rgba(242,235,225,.035); --band-b:rgba(242,235,225,.07);
+    --ink:#f2ebe1; --ink-70:rgba(242,235,225,.72); --ink-55:rgba(242,235,225,.56);
+    --ink-40:rgba(242,235,225,.40); --ink-15:rgba(242,235,225,.16);
+    --border:#372f28; --border-strong:#4c4239;
+    --accent:#f0715a; --accent-deep:#ff9481; --tint-1:rgba(240,113,90,.10); --tint-2:rgba(240,113,90,.20);
+    --ok:#68b394; --ok-bg:rgba(104,179,148,.10);
+    --warn:#d69a3a; --warn-bg:rgba(214,154,58,.11);
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 12px 30px -20px rgba(0,0,0,.85);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#16120f; --surface:#1d1815; --surface-raised:#241d19; --sys-fill:#2b231c;
+  --band-a:rgba(242,235,225,.035); --band-b:rgba(242,235,225,.07);
+  --ink:#f2ebe1; --ink-70:rgba(242,235,225,.72); --ink-55:rgba(242,235,225,.56);
+  --ink-40:rgba(242,235,225,.40); --ink-15:rgba(242,235,225,.16);
+  --border:#372f28; --border-strong:#4c4239;
+  --accent:#f0715a; --accent-deep:#ff9481; --tint-1:rgba(240,113,90,.10); --tint-2:rgba(240,113,90,.20);
+  --ok:#68b394; --ok-bg:rgba(104,179,148,.10);
+  --warn:#d69a3a; --warn-bg:rgba(214,154,58,.11);
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 12px 30px -20px rgba(0,0,0,.85);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--ground);color:var(--ink);
+  font-family:'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased
+}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px 96px}
+p{margin:0 0 14px}
+.prose{max-width:66ch}
+code{
+  font-family:inherit;font-weight:600;font-size:.94em;letter-spacing:-.005em;
+  background:var(--band-b);border:1px solid var(--border);
+  padding:1px 5px;border-radius:5px;white-space:nowrap
+}
+a{color:var(--accent-deep);text-decoration:none;border-bottom:1px solid var(--tint-2)}
+a:hover{border-bottom-color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:3px}
+
+.masthead{padding:52px 0 30px;border-bottom:1px solid var(--border)}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--accent-deep);margin:0 0 14px}
+h1{font-size:clamp(32px,5vw,50px);line-height:1.05;letter-spacing:-.028em;font-weight:600;margin:0 0 16px;text-wrap:balance}
+.thesis{font-size:18px;line-height:1.5;color:var(--ink-70);max-width:62ch;margin:0 0 26px}
+.thesis strong{color:var(--ink);font-weight:600}
+.meta{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-size:11.5px;font-weight:500;padding:5px 11px;border-radius:999px;border:1px solid var(--border-strong);color:var(--ink-55);background:var(--surface)}
+.chip-live{border-color:var(--accent);color:var(--accent-deep);background:var(--tint-1)}
+
+section{padding:50px 0 8px;scroll-margin-top:20px}
+.sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:8px}
+.sec-num{font-size:11px;font-weight:600;letter-spacing:.1em;color:var(--ink-40);padding-top:6px;flex:none}
+h2{font-size:clamp(22px,3vw,29px);line-height:1.15;letter-spacing:-.02em;font-weight:600;margin:0;text-wrap:balance}
+h3{font-size:16.5px;font-weight:600;letter-spacing:-.01em;margin:32px 0 10px}
+.lede{font-size:16px;color:var(--ink-70);max-width:66ch;margin:0 0 24px}
+
+/* verdict banner */
+.verdict{
+  margin:26px 0 8px;padding:22px 24px;border-radius:13px;
+  background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);box-shadow:var(--shadow)
+}
+.verdict .big{font-size:19px;font-weight:600;letter-spacing:-.015em;line-height:1.35;margin:0 0 10px;text-wrap:balance}
+.verdict p{font-size:14px;color:var(--ink-70);margin:0}
+
+/* figures */
+figure{margin:28px 0 8px}
+.scroller{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:18px;box-shadow:var(--shadow)}
+.scroller-inner{min-width:900px}
+svg.dg{display:block;width:100%;height:auto;color:var(--ink-40)}
+figcaption{font-size:13px;color:var(--ink-55);margin-top:12px;max-width:72ch}
+.dg .box{fill:var(--surface-raised);stroke:var(--border-strong);stroke-width:1}
+.dg .box-sys{fill:var(--sys-fill);stroke:var(--border-strong);stroke-width:1}
+.dg .box-new{fill:var(--tint-1);stroke:var(--accent);stroke-width:2}
+.dg .box-ok{fill:var(--ok-bg);stroke:var(--ok);stroke-width:1.5}
+.dg .box-warn{fill:var(--warn-bg);stroke:var(--warn);stroke-width:1.5}
+.dg .box-void{fill:none;stroke:var(--ink-15);stroke-width:1;stroke-dasharray:4 4}
+.dg .band-a{fill:var(--band-a)}
+.dg .lbl{fill:var(--ink);font-size:10.5px;font-weight:450}
+.dg .lbl-b{fill:var(--ink);font-size:12px;font-weight:600}
+.dg .lbl-sm{fill:var(--ink-55);font-size:9.5px}
+.dg .lane{fill:var(--ink-55);font-size:10px;font-weight:600;letter-spacing:.07em}
+.dg .num{fill:var(--ink-40);font-size:10px;font-weight:600}
+.dg .conn{fill:none;stroke:var(--ink-40);stroke-width:1.4}
+.dg .tick{fill:none;stroke:var(--ink-15);stroke-width:1}
+.dg .mk{fill:var(--ink-40)}
+.dg .v-ok{fill:var(--ok);font-size:9.5px;font-weight:600}
+.dg .v-warn{fill:var(--warn);font-size:9.5px;font-weight:600}
+.dg .v-new{fill:var(--accent);font-size:9.5px;font-weight:600}
+
+/* status pills */
+.pill{
+  display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;padding:3px 8px;border-radius:5px;white-space:nowrap
+}
+.p-ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok)}
+.p-diff{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn)}
+.p-gap{background:var(--tint-1);color:var(--accent-deep);border:1px solid var(--accent)}
+.p-open{background:transparent;color:var(--ink-55);border:1px dashed var(--border-strong)}
+
+/* tables */
+.tbl{width:100%;border-collapse:collapse;margin:22px 0 8px;font-size:13.5px}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.tbl th{
+  text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-40);padding:13px 16px;border-bottom:1px solid var(--border);white-space:nowrap
+}
+.tbl td{padding:13px 16px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--ink-70)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl td:first-child{color:var(--ink);font-weight:600;white-space:nowrap}
+.tbl .num-cell{font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* decision cards */
+.decs{display:grid;gap:13px;margin:24px 0 8px}
+.dec{border:1px solid var(--border);border-radius:11px;background:var(--surface);padding:18px 20px;border-left:3px solid var(--ok)}
+.dec.still-open{border-left-color:var(--accent)}
+.dec .top{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:8px}
+.dec .q{font-size:15px;font-weight:600;letter-spacing:-.01em;margin:0}
+.dec .said{font-size:13px;color:var(--ink-55);margin:0 0 8px}
+.dec .code-says{font-size:13.5px;line-height:1.5;color:var(--ink);margin:0}
+.dec .code-says b{color:var(--ok);font-weight:600;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;display:block;margin-bottom:4px}
+.dec.still-open .code-says b{color:var(--accent-deep)}
+
+/* two-col lists */
+.cols{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin:24px 0 8px}
+.col{border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden}
+.col h4{margin:0;padding:14px 18px;font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--border)}
+.col.gap h4{color:var(--accent-deep);background:var(--tint-1)}
+.col.open h4{color:var(--warn);background:var(--warn-bg)}
+.col ul{margin:0;padding:12px 18px 16px;list-style:none}
+.col li{font-size:13.5px;line-height:1.5;padding:7px 0 7px 16px;position:relative;color:var(--ink-70)}
+.col li::before{content:"";position:absolute;left:0;top:14px;width:6px;height:6px;border-radius:2px}
+.col.gap li::before{background:var(--accent)}
+.col.open li::before{background:var(--warn)}
+.col li b{color:var(--ink);font-weight:600}
+
+.risk{margin:20px 0;padding:19px 22px;border-radius:11px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--warn)}
+.risk .t{font-size:15.5px;font-weight:600;letter-spacing:-.01em;margin:0 0 8px}
+.risk p{font-size:13.5px;color:var(--ink-70);margin:0 0 10px}
+.risk p:last-child{margin:0}
+.risk .fix{font-size:13.5px;color:var(--ink);padding-top:10px;border-top:1px dashed var(--border-strong)}
+.risk .fix b{color:var(--warn);font-weight:600;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;display:block;margin-bottom:4px}
+
+.note{margin:36px 0 0;padding:18px 22px;border-radius:11px;background:var(--band-a);border:1px solid var(--border);font-size:13.5px;line-height:1.55;color:var(--ink-70)}
+.note b{color:var(--ink)}
+
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:640px){
+  .wrap{padding:0 16px 72px}
+  .masthead{padding:34px 0 24px}
+}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Reconciliation · 10 September 2026 · companion to "Tailr for Employers"</p>
+  <h1>Maps vs Staging</h1>
+  <p class="thesis">I drew maps for a product that already exists. Here is where they agree with the build, where they disagree, and the one place the maps modelled <strong>the wrong business entirely</strong>.</p>
+  <div class="meta">
+    <span class="chip chip-live">Read from origin/staging @ 8d0f45f</span>
+    <span class="chip">45 agency modules · 110 API routes · 21 screens</span>
+    <span class="chip">44 of 96 test files are agency or matching</span>
+  </div>
+</header>
+
+<section id="verdict">
+  <div class="sec-head"><span class="sec-num">01</span><h2>The headline: I mapped the wrong shape</h2></div>
+
+  <div class="verdict">
+    <p class="big">My maps assumed an in-house employer buying a screening tool. Staging is a product for recruitment agencies, and the employer is the agency's client, not Tailr's customer.</p>
+    <p>That single structural difference invalidates most of the commercial lifecycle in the original document and four of the five personas. The operating loop survives much better — that part was mapped from the tailor pipeline, which the agency product genuinely reuses.</p>
+  </div>
+
+  <figure>
+    <div class="scroller">
+      <div class="scroller-inner">
+<svg class="dg" viewBox="0 0 1180 330" role="img" aria-label="Comparison of party structures: the map assumed three parties — employer pays Tailr, Tailr assesses the candidate. Staging has four — the client employer pays the recruitment agency, the agency pays Tailr, and the candidate is already a Tailr consumer user.">
+  <defs>
+    <marker id="aP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="mk" d="M0,1 L9,5 L0,9 z"/>
+    </marker>
+  </defs>
+
+  <text class="lane" x="180" y="32">THE MAP — 8 SEPTEMBER</text>
+  <text class="lane" x="760" y="32">STAGING — WHAT IS BUILT</text>
+  <path class="tick" d="M590,44 V318"/>
+
+  <!-- left chain -->
+  <rect class="box" x="180" y="90" width="230" height="50" rx="9"/>
+  <text class="lbl-b" x="295" y="112" text-anchor="middle">Employer (in-house TA)</text>
+  <text class="lbl-sm" x="295" y="127" text-anchor="middle">pays Tailr</text>
+
+  <rect class="box-sys" x="180" y="165" width="230" height="50" rx="9"/>
+  <text class="lbl-b" x="295" y="187" text-anchor="middle">Tailr</text>
+  <text class="lbl-sm" x="295" y="202" text-anchor="middle">ranks and evidences</text>
+
+  <rect class="box" x="180" y="240" width="230" height="50" rx="9"/>
+  <text class="lbl-b" x="295" y="262" text-anchor="middle">Candidate</text>
+  <text class="lbl-sm" x="295" y="277" text-anchor="middle">applies, is assessed</text>
+
+  <g class="conn" marker-end="url(#aP)">
+    <path d="M295,140 V161"/>
+    <path d="M295,215 V236"/>
+  </g>
+
+  <!-- right chain -->
+  <rect class="box-new" x="700" y="55" width="230" height="50" rx="9"/>
+  <text class="lbl-b" x="815" y="77" text-anchor="middle">Client employer</text>
+  <text class="lbl-sm" x="815" y="92" text-anchor="middle">pays the agency — /hiring portal</text>
+
+  <rect class="box" x="700" y="125" width="230" height="50" rx="9"/>
+  <text class="lbl-b" x="815" y="147" text-anchor="middle">Recruitment agency</text>
+  <text class="lbl-sm" x="815" y="162" text-anchor="middle">pays Tailr — /agencies</text>
+
+  <rect class="box-sys" x="700" y="195" width="230" height="50" rx="9"/>
+  <text class="lbl-b" x="815" y="217" text-anchor="middle">Tailr</text>
+  <text class="lbl-sm" x="815" y="232" text-anchor="middle">assesses, records, notifies</text>
+
+  <rect class="box" x="700" y="265" width="230" height="50" rx="9"/>
+  <text class="lbl-b" x="815" y="287" text-anchor="middle">Candidate</text>
+  <text class="lbl-sm" x="815" y="302" text-anchor="middle">already has a Tailr account</text>
+
+  <g class="conn" marker-end="url(#aP)">
+    <path d="M815,105 V121"/>
+    <path d="M815,175 V191"/>
+    <path d="M815,245 V261"/>
+  </g>
+
+  <text class="v-new" x="948" y="84">the party I never modelled</text>
+  <text class="lbl-sm" x="948" y="154">brief in, submission out</text>
+  <text class="lbl-sm" x="948" y="294">consent lives here</text>
+</svg>
+      </div>
+    </div>
+    <figcaption>An extra party, and the payer moves. Every gate, price and persona in map B pointed at the employer; in the build, the employer is downstream of the customer. The candidate having their own Tailr account — the thing I listed as decision 2 — is load-bearing in the build already.</figcaption>
+  </figure>
+</section>
+
+<section id="workflow">
+  <div class="sec-head"><span class="sec-num">02</span><h2>Process map A vs the seven steps</h2></div>
+  <p class="lede">The operating loop is the part that holds up. <code>lib/agency/steps.ts</code> defines seven workflow steps, and <code>lib/agency/phases.ts</code> wraps them in three derived phases. Aligned by stage of work against my eight-step map, the matches and the holes are both obvious.</p>
+
+  <figure>
+    <div class="scroller">
+      <div class="scroller-inner">
+<svg class="dg" viewBox="0 0 1360 350" role="img" aria-label="Nine stages of work compared. The map and staging agree on requirements extraction, the must-have confirmation gate, assessment and presentation. They differ on intake, how candidates arrive, and whether results are ranked or banded. Staging has screening calls and an interviews-and-close phase that the map omitted entirely.">
+  <rect class="band-a" x="0" y="48" width="1360" height="102"/>
+
+  <text class="lane" x="12" y="96">THE MAP</text>
+  <text class="lane" x="12" y="205">STAGING</text>
+
+  <!-- stage headers -->
+  <text class="num" x="204" y="38" text-anchor="middle">1 · Intake</text>
+  <text class="num" x="337" y="38" text-anchor="middle">2 · Requirements</text>
+  <text class="num" x="470" y="38" text-anchor="middle">3 · Confirm</text>
+  <text class="num" x="603" y="38" text-anchor="middle">4 · People</text>
+  <text class="num" x="736" y="38" text-anchor="middle">5 · Screen</text>
+  <text class="num" x="869" y="38" text-anchor="middle">6 · Assess</text>
+  <text class="num" x="1002" y="38" text-anchor="middle">7 · Choose</text>
+  <text class="num" x="1135" y="38" text-anchor="middle">8 · Present</text>
+  <text class="num" x="1268" y="38" text-anchor="middle">9 · Close</text>
+
+  <!-- MAP row -->
+  <rect class="box" x="145" y="62" width="118" height="76" rx="8"/>
+  <text class="lbl" x="204" y="94" text-anchor="middle">Open the req,</text>
+  <text class="lbl" x="204" y="107" text-anchor="middle">paste the JD</text>
+
+  <rect class="box" x="278" y="62" width="118" height="76" rx="8"/>
+  <text class="lbl" x="337" y="88" text-anchor="middle">Extract 6–12</text>
+  <text class="lbl" x="337" y="101" text-anchor="middle">typed</text>
+  <text class="lbl" x="337" y="114" text-anchor="middle">requirements</text>
+
+  <rect class="box" x="411" y="62" width="118" height="76" rx="8"/>
+  <text class="lbl" x="470" y="94" text-anchor="middle">Confirm the</text>
+  <text class="lbl" x="470" y="107" text-anchor="middle">must-haves</text>
+
+  <rect class="box" x="544" y="62" width="118" height="76" rx="8"/>
+  <text class="lbl" x="603" y="94" text-anchor="middle">Candidate</text>
+  <text class="lbl" x="603" y="107" text-anchor="middle">applies via ATS</text>
+
+  <rect class="box-void" x="677" y="62" width="118" height="76" rx="8"/>
+  <text class="lbl-sm" x="736" y="104" text-anchor="middle">— not mapped —</text>
+
+  <rect class="box" x="810" y="62" width="118" height="76" rx="8"/>
+  <text class="lbl" x="869" y="88" text-anchor="middle">Map evidence,</text>
+  <text class="lbl" x="869" y="101" text-anchor="middle">score musts ×2,</text>
+  <text class="lbl" x="869" y="114" text-anchor="middle">quote the line</text>
+
+  <rect class="box" x="943" y="62" width="118" height="76" rx="8"/>
+  <text class="lbl" x="1002" y="94" text-anchor="middle">Ranked pile</text>
+  <text class="lbl" x="1002" y="107" text-anchor="middle">with receipts</text>
+
+  <rect class="box" x="1076" y="62" width="118" height="76" rx="8"/>
+  <text class="lbl" x="1135" y="94" text-anchor="middle">Hiring manager</text>
+  <text class="lbl" x="1135" y="107" text-anchor="middle">reviews five</text>
+
+  <rect class="box" x="1209" y="62" width="118" height="76" rx="8"/>
+  <text class="lbl" x="1268" y="94" text-anchor="middle">Outcome logged</text>
+  <text class="lbl" x="1268" y="107" text-anchor="middle">to the audit log</text>
+
+  <!-- STAGING row -->
+  <rect class="box-warn" x="145" y="162" width="118" height="96" rx="8"/>
+  <text class="lbl" x="204" y="186" text-anchor="middle">Role intake —</text>
+  <text class="lbl" x="204" y="199" text-anchor="middle">names the client,</text>
+  <text class="lbl" x="204" y="212" text-anchor="middle">the rounds and</text>
+  <text class="lbl" x="204" y="225" text-anchor="middle">the start date</text>
+
+  <rect class="box-ok" x="278" y="162" width="118" height="96" rx="8"/>
+  <text class="lbl" x="337" y="199" text-anchor="middle">Parse</text>
+  <text class="lbl" x="337" y="212" text-anchor="middle">(same schema)</text>
+
+  <rect class="box-ok" x="411" y="162" width="118" height="96" rx="8"/>
+  <text class="lbl" x="470" y="199" text-anchor="middle">Parse review</text>
+  <text class="lbl" x="470" y="212" text-anchor="middle">— the same gate</text>
+
+  <rect class="box-warn" x="544" y="162" width="118" height="96" rx="8"/>
+  <text class="lbl" x="603" y="186" text-anchor="middle">Add candidates,</text>
+  <text class="lbl" x="603" y="199" text-anchor="middle">or a quiet scan</text>
+  <text class="lbl" x="603" y="212" text-anchor="middle">finds opted-in</text>
+  <text class="lbl" x="603" y="225" text-anchor="middle">Tailr users</text>
+
+  <rect class="box-new" x="677" y="162" width="118" height="96" rx="8"/>
+  <text class="lbl" x="736" y="186" text-anchor="middle">Screening calls;</text>
+  <text class="lbl" x="736" y="199" text-anchor="middle">consent-gated</text>
+  <text class="lbl" x="736" y="212" text-anchor="middle">capture becomes</text>
+  <text class="lbl" x="736" y="225" text-anchor="middle">evidence</text>
+
+  <rect class="box-warn" x="810" y="162" width="118" height="96" rx="8"/>
+  <text class="lbl" x="869" y="186" text-anchor="middle">Assess + score:</text>
+  <text class="lbl" x="869" y="199" text-anchor="middle">five categories,</text>
+  <text class="lbl" x="869" y="212" text-anchor="middle">musts ×3,</text>
+  <text class="lbl" x="869" y="225" text-anchor="middle">recruiter overrides</text>
+
+  <rect class="box-warn" x="943" y="162" width="118" height="96" rx="8"/>
+  <text class="lbl" x="1002" y="193" text-anchor="middle">Compare —</text>
+  <text class="lbl" x="1002" y="206" text-anchor="middle">bands, never</text>
+  <text class="lbl" x="1002" y="219" text-anchor="middle">an ordinal rank</text>
+
+  <rect class="box-ok" x="1076" y="162" width="118" height="96" rx="8"/>
+  <text class="lbl" x="1135" y="186" text-anchor="middle">Client submission</text>
+  <text class="lbl" x="1135" y="199" text-anchor="middle">— frozen snapshot,</text>
+  <text class="lbl" x="1135" y="212" text-anchor="middle">disclosure switches,</text>
+  <text class="lbl" x="1135" y="225" text-anchor="middle">named recipient</text>
+
+  <rect class="box-new" x="1209" y="162" width="118" height="96" rx="8"/>
+  <text class="lbl" x="1268" y="186" text-anchor="middle">Interviews,</text>
+  <text class="lbl" x="1268" y="199" text-anchor="middle">calendar, handover</text>
+  <text class="lbl" x="1268" y="212" text-anchor="middle">pack, close-out,</text>
+  <text class="lbl" x="1268" y="225" text-anchor="middle">closure notices</text>
+
+  <!-- verdict row -->
+  <text class="v-warn" x="204" y="284" text-anchor="middle">differs</text>
+  <text class="v-ok" x="337" y="284" text-anchor="middle">agrees</text>
+  <text class="v-ok" x="470" y="284" text-anchor="middle">agrees</text>
+  <text class="v-warn" x="603" y="284" text-anchor="middle">differs</text>
+  <text class="v-new" x="736" y="284" text-anchor="middle">I missed this</text>
+  <text class="v-warn" x="869" y="284" text-anchor="middle">differs</text>
+  <text class="v-warn" x="1002" y="284" text-anchor="middle">differs</text>
+  <text class="v-ok" x="1135" y="284" text-anchor="middle">agrees</text>
+  <text class="v-new" x="1268" y="284" text-anchor="middle">I missed this</text>
+
+  <path class="tick" d="M145,300 H1327"/>
+  <text class="lbl-sm" x="145" y="322">Phase 1 — Shortlist (the seven steps)</text>
+  <text class="lbl-sm" x="1076" y="322">Phase 2 — Interviews</text>
+  <text class="lbl-sm" x="1240" y="336">Phase 3 — Handover</text>
+</svg>
+      </div>
+    </div>
+    <figcaption>Three of nine stages agree outright, including the must-have confirmation gate — the one I called the most important human checkpoint. Two stages I never drew at all, and both are where a recruitment agency actually earns its fee.</figcaption>
+  </figure>
+</section>
+
+<section id="personas">
+  <div class="sec-head"><span class="sec-num">03</span><h2>The five personas, scored</h2></div>
+  <p class="lede">One survives intact. One is right but works for a different company than I gave them. Two describe roles the build has restructured, and I invented a gatekeeper that the product satisfies with settings rather than a person.</p>
+
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>Persona</th><th>Verdict</th><th>What the build actually has</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>P5 Candidate</td>
+          <td><span class="pill p-ok">Holds up</span></td>
+          <td>The strongest match. <code>/consent</code>, <code>/rights</code>, <code>/booking</code>, <code>/reference</code> and <code>/found</code> are all candidate-held token doorways, and the code is unusually explicit that consent is theirs alone — <code>recordDecision</code> takes a raw token and refuses an agency context, so a recruiter cannot consent on someone's behalf.</td>
+        </tr>
+        <tr>
+          <td>P2 Recruiter</td>
+          <td><span class="pill p-diff">Right role, wrong employer</span></td>
+          <td>Marcus is an agency consultant, not an in-house recruiter. The daily job I described — calibrate, assess, choose, present — is exactly the seven steps. But he bills a client, juggles a brief he did not write, and his output is a submission, not a shortlist link.</td>
+        </tr>
+        <tr>
+          <td>P3 Hiring manager</td>
+          <td><span class="pill p-diff">Split in two</span></td>
+          <td>Dana became the whole <code>/hiring</code> surface — a client contact with their own workspace, portal token, shortlist decisions and interview scheduling. Richer than the "reviews a link on her phone" persona, and it is a paying relationship with the agency rather than an internal favour.</td>
+        </tr>
+        <tr>
+          <td>P1 Head of TA</td>
+          <td><span class="pill p-gap">Wrong buyer</span></td>
+          <td>No in-house TA lead exists in the build. The buyer is whoever runs the agency; <code>/agencies/settings</code> is where they set retention and notice windows. My entire commercial lifecycle pointed at the wrong company.</td>
+        </tr>
+        <tr>
+          <td>P4 People Ops / DPO</td>
+          <td><span class="pill p-diff">Answered, not personified</span></td>
+          <td>There is no DPO screen. Instead the concerns are settled structurally: configurable retention (1–3650 days), a notice window (0–28 days), <code>writeAudit</code> on every agency write, and <code>/agencies/audit</code>. The persona was a useful lens; it does not need a seat.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="scoring">
+  <div class="sec-head"><span class="sec-num">04</span><h2>Two scoring engines now exist</h2></div>
+  <p class="lede">I recommended replacing the prototype's scoring with the tailor pipeline's. The build went the other way and shipped the five-category engine — with integrity guards mine did not have. The result is that Tailr now scores the same kind of judgement two different ways.</p>
+
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>&nbsp;</th><th>Consumer — <code>lib/scoring.ts</code></th><th>Agency — <code>lib/agency/scoring.ts</code></th></tr></thead>
+      <tbody>
+        <tr><td>Strength values</td><td class="num-cell">1 · 0.6 · 0.25 · 0</td><td class="num-cell">1.0 · 0.7 · 0.4 · 0.0</td></tr>
+        <tr><td>Requirement weights</td><td class="num-cell">must ×2, nice ×1</td><td class="num-cell">must ×3, important ×2, nice ×1</td></tr>
+        <tr><td>Categories</td><td>One — requirement coverage</td><td>Five — coverage 45, evidence 25, seniority 10, context 10, confidence 10</td></tr>
+        <tr><td>Human override</td><td>None</td><td>Recruiter overrides beat parsed evidence, and are part of the stored breakdown</td></tr>
+        <tr><td>Integrity guard</td><td>Input hash on the tailor cache</td><td><code>ENGINE_VERSION</code> plus an inputs hash — a submission <b>refuses to render</b> if the hash disagrees with the stored breakdown</td></tr>
+        <tr><td>Presentation</td><td>A percentage</td><td>Bands only — "fit / strong / very strong". Ordinal ranking was deliberately rejected as implying false precision</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="prose" style="margin-top:20px">The agency engine is the better piece of work, and the band decision is one I would not have made and should have. But <code>docs/EVIDENCE-RULE.md</code> was written precisely because two loops pulling opposite ways is a product problem, and two engines grading evidence on different scales is the same problem in a new place. A candidate can be "transferable" worth 0.6 on one side of the product and 0.7 on the other.</p>
+</section>
+
+<section id="decisions">
+  <div class="sec-head"><span class="sec-num">05</span><h2>The six decisions, answered by the code</h2></div>
+  <p class="lede">I asked you for six decisions. Five were already made — most of them in comments written months ago, and mostly better than my recommendation. Here is each one against what the build does.</p>
+
+  <div class="decs">
+    <div class="dec">
+      <div class="top"><p class="q">1. Is "no auto-reject" a law or a setting?</p><span class="pill p-ok">Settled — a law</span></div>
+      <p class="said">I recommended: a law, enforced in code.</p>
+      <p class="code-says"><b>The code already says</b>And says it three times over. The prefilter: <em>"Nobody is rejected here… they were never told a scan was happening at all."</em> The match floor: <em>"It narrows what we are willing to claim, which is a statement about us."</em> Right-to-represent: <em>"It never filters, ranks or hides anyone (guardrail test)."</em> Client decisions: <em>"'Not for this role' is a signal, never a removal."</em> There is a guardrail test holding it.</p>
+    </div>
+
+    <div class="dec">
+      <div class="top"><p class="q">2. Does the employer read a candidate's own Tailr profile?</p><span class="pill p-ok">Settled — as recommended</span></div>
+      <p class="said">I recommended: never by default, candidate-initiated only.</p>
+      <p class="code-says"><b>The code already says</b>Opt-in and discoverability are separate flags on <code>match_preferences</code>; every change writes a row to <code>matching_consent_events</code> with a copy version and a surface. Applying writes a consent event <em>first</em>, with a disclosure manifest, before anything else happens. The person's own window onto a role is the recommendation and a snapshot — nothing agency-side.</p>
+    </div>
+
+    <div class="dec">
+      <div class="top"><p class="q">3. Own surface, or inside the ATS?</p><span class="pill p-ok">Settled — own surface</span></div>
+      <p class="said">I recommended: own surface for pilot, one real ATS integration before leaving pilot.</p>
+      <p class="code-says"><b>The code already says</b>Own surface, with its own sign-in at <code>/agencies/sign-in</code> and a separate client context. No ATS integration exists. For agencies that is a far more defensible choice than it would have been for in-house TA — the agency's system of record <em>is</em> this.</p>
+    </div>
+
+    <div class="dec still-open">
+      <div class="top"><p class="q">4. Is candidate feedback opt-in, default-on, or mandatory?</p><span class="pill p-gap">Half-built</span></div>
+      <p class="said">I recommended: on by default, mandatory in the pilot cohort.</p>
+      <p class="code-says"><b>Still open</b>Closure notices exist and are principled — <em>"Ghosting is the recruitment industry's worst habit"</em> — and they tell people the role ended and when their data will be deleted. But they say <em>nothing about why</em>. The requirement-level feedback that would turn a rejection into a career path, which was the strategic hinge of the whole document, is not built. This is the one decision genuinely still yours.</p>
+    </div>
+
+    <div class="dec still-open">
+      <div class="top"><p class="q">5. What do we charge, and who signs?</p><span class="pill p-gap">Untouched</span></div>
+      <p class="said">I recommended: per requisition, annual commitment.</p>
+      <p class="code-says"><b>Still open</b>There is no billing anywhere in the agency code — no plans, no Stripe, no seat model. The only limits are input sizes and retention windows. And my recommendation now needs rethinking anyway: "per requisition" priced to an employer is a different instrument when the buyer is an agency running many clients' roles at once.</p>
+    </div>
+
+    <div class="dec">
+      <div class="top"><p class="q">6. Fork the prototype, or replace its scoring?</p><span class="pill p-diff">Settled — the other way</span></div>
+      <p class="said">I recommended: replace the prototype's scoring with the tailor pipeline's.</p>
+      <p class="code-says"><b>The code already says</b>The five-category engine shipped and is the only implementation — <em>"the frontend never computes scores"</em>. It is a port of the prototype's <code>computeScore()</code> reference. The consumer engine remains untouched, so both now exist. See section 04.</p>
+    </div>
+  </div>
+</section>
+
+<section id="unmapped">
+  <div class="sec-head"><span class="sec-num">06</span><h2>What each side has that the other doesn't</h2></div>
+
+  <div class="cols">
+    <div class="col gap">
+      <h4>Built on staging · absent from my maps</h4>
+      <ul>
+        <li><b>Screening calls with consented capture</b> — audio only, the agency is controller, the client never sees the raw transcript, and withdrawal is a cascade that deletes derived evidence and rescores.</li>
+        <li><b>Interviews and calendar</b> — rounds, offered slots, candidate booking by token, ICS generation.</li>
+        <li><b>Right to represent</b> — per role, never blanket. Gates one act only: submission to a client.</li>
+        <li><b>References</b> — a token doorway of their own.</li>
+        <li><b>Handover pack and close-out</b> — the frozen document that ends Tailr's involvement.</li>
+        <li><b>Closure notices</b> — everyone the loop was opened with is told the role ended, and when their data goes.</li>
+        <li><b>Right-to-work checks</b> on two axes, and placements.</li>
+        <li><b>Notification preferences and an audit view</b>, with suppression re-checked at send time.</li>
+        <li><b>A derived phase model</b> — no phase column to drift out of sync with reality.</li>
+      </ul>
+    </div>
+    <div class="col open">
+      <h4>In my maps · not in the build</h4>
+      <ul>
+        <li><b>Requirement-level feedback to the candidate</b> — the strategic hinge. Closure notices tell people it ended, not what was missing.</li>
+        <li><b>The calibration loop</b> — outcomes reweighting the requirement set for a role family. Placements are recorded but nothing feeds back into scoring.</li>
+        <li><b>Any commercial process at all</b> — no pricing, no pilot structure, no back-test. Map B's four gates have no counterpart in code, which is fine; they are a sales process, not a feature.</li>
+        <li><b>The in-house employer segment</b> — a real second market the build does not currently serve, and a decision you have implicitly already made.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="risks">
+  <div class="sec-head"><span class="sec-num">07</span><h2>Two things I'd act on</h2></div>
+
+  <div class="risk">
+    <p class="t">Two scoring engines grading the same kind of judgement</p>
+    <p>Not urgent, but it compounds. The consumer side tells someone their evidence is "transferable" worth 0.6 of a requirement; the agency side scores the same word at 0.7 inside a five-category model, with recruiter overrides on top. The Evidence Rule exists because contradictions between the two halves of Tailr are a product problem, not a tidiness problem.</p>
+    <p class="fix"><b>What I'd do</b>Leave both running — the agency engine is better and rewriting it would be vandalism. But write down which one is canonical and why, in <code>docs/</code> next to the Evidence Rule, before a third one appears. If either moves, the answer for candidates and recruiters has to move together.</p>
+  </div>
+
+  <div class="risk">
+    <p class="t">Main and staging have diverged past the point of a clean port</p>
+    <p>Staging carries the agency product plus migrations on a timestamp naming scheme; main has numbered migrations that stop at 018 and is missing <code>019_career_evidence.sql</code> entirely — a file that exists on staging and whose table was applied to production by hand. Main can no longer rebuild its own schema, and the two branches' migration histories no longer reconcile.</p>
+    <p class="fix"><b>What I'd do</b>Port <code>019</code> and <code>020</code> to main first — that is a ten-minute fix that stops the schema drifting further. Then decide deliberately whether the agency product ever lands on main or stays its own deployable. Right now that decision is being made by default, one unmerged branch at a time.</p>
+  </div>
+</section>
+
+<div class="note">
+  <p><b>How I read this.</b> From <code>origin/staging</code> at commit <code>8d0f45f</code> — the source, its tests and its migration files, plus the two Supabase databases directly. I have not driven the running staging app, so this describes what the code does, not what the screens feel like.</p>
+  <p style="margin:0">The original maps at <b>Tailr for Employers</b> are now partly wrong and I have not edited them — the gap between what I proposed and what exists is more useful to you than a quietly corrected document. Say the word and I will revise them to the agency model.</p>
+</div>
+
+</div>
