@@ -29,6 +29,8 @@ type Booking = {
   scheduledAt: string | null
   durationMinutes: number
   meetingUrl: string | null
+  openWindows: Array<{ slotId: string; start: string; end: string }>
+  needsChoice: boolean
 }
 
 function whenText(iso: string | null, minutes: number): string {
@@ -114,13 +116,92 @@ export default function BookingPage({ params }: { params: Promise<{ token: strin
     )
   }
 
+  async function claim(slotId: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/booking/${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slotId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (body?.booking) setBooking(body.booking as Booking)
+      if (!res.ok || body?.outcome === "taken") {
+        setError(
+          body?.outcome === "taken"
+            ? "Somebody took that time a moment before you. The times below are the ones still free."
+            : "That did not save. Please try again."
+        )
+      }
+    } catch {
+      setError("That did not save. Please try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const where = booking.company || "the company"
   const when = whenText(booking.scheduledAt, booking.durationMinutes)
 
   return (
     <main className="cs-wrap">
       <div className="cs-card">
-        {booking.state === "invited" && (
+        {/*
+          SELF-BOOKING (11 Sep 2026). An invitation with no time held is an
+          invitation to CHOOSE: the candidate picks from what is still free,
+          in their own timezone, and the window disappears for everyone else
+          the moment they take it. The fixed-time invitation below still
+          exists — a recruiter can hold a slot for someone — so the doorway
+          answers both.
+        */}
+        {booking.state === "invited" && booking.needsChoice && (
+          <>
+            <p className="cs-eyebrow">Your interview</p>
+            <h1 className="cs-title">Choose a time that suits you.</h1>
+            <p className="cs-body">
+              {booking.agencyName} has arranged an interview with {where}. Pick whichever of these
+              works — the times are shown in your own timezone.
+            </p>
+            {error && (
+              <p className="cs-error" role="alert">
+                {error}
+              </p>
+            )}
+            {booking.openWindows.length === 0 ? (
+              <p className="cs-body">
+                Every time has been taken. Your recruiter will be in touch with more — nothing about
+                your application has changed.
+              </p>
+            ) : (
+              <div className="bk-slots">
+                {booking.openWindows.map((w) => (
+                  <button key={w.slotId} className="bk-slot" disabled={busy} onClick={() => void claim(w.slotId)}>
+                    <span className="bk-slot-day">
+                      {new Date(w.start).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+                    </span>
+                    <span className="bk-slot-time">
+                      {new Date(w.start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                      {" – "}
+                      {new Date(w.end).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="cs-choice" style={{ marginTop: 14 }}>
+              <button className="cs-btn cs-btn-quiet" disabled={busy} onClick={() => answer("declined")}>
+                None of these work
+              </button>
+            </div>
+            <p className="cs-small">
+              No account needed. If none of them work, say so and your recruiter arranges more — it
+              is not a comment on the role, and nothing about your application changes.
+            </p>
+          </>
+        )}
+
+        {booking.state === "invited" && !booking.needsChoice && (
           <>
             <p className="cs-eyebrow">Your interview</p>
             <h1 className="cs-title">A time has been held for you.</h1>

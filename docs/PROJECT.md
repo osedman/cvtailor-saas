@@ -3929,6 +3929,47 @@ imports nothing, with a test pinning that.
 **Verified:** typecheck clean, 1,106 tests, production build clean. Not
 clicked by a person.
 
+## 🎟 11 Sep 2026 — candidates self-book, and the cohort is the cohort
+
+Ose settled both conflicts: **candidates self-book, the recruiter just has
+visibility of what has been booked**, and the subset the client chooses is
+the **interview cohort** ("recommended candidates" is dropped — it pointed
+the same word the opposite way from `role_recommendations`).
+
+This amends §5.4/§5.5, where the recruiter booked rounds. What did NOT
+change is the mechanism: double-booking was always prevented by the partial
+unique index on `interview_rounds (slot_id)`, never by the recruiter being
+the only actor — so moving who claims a window weakens nothing.
+
+**How it works now.** Confirming on the client's set-up screen records the
+decisions, offers the windows, and then invites the cohort:
+`inviteCohort` (lib/agency/cohort.ts) creates one round per chosen candidate
+with **no slot and no time** — the round IS the invitation — mints a booking
+token and sends a self-booking email with no calendar attachment, because an
+.ics for an unchosen hour is a lie a phone will put in someone's week.
+
+The candidate's doorway now has two shapes. A round with a time held keeps
+the old confirm/decline. A round without one shows the windows still free,
+in their own timezone, one tap each. Claiming writes `slot_id` with
+`.is("slot_id", null)` and reads the constraint's answer: a `23505` is
+somebody a second quicker, and the page re-renders honestly with that window
+gone rather than pretending it failed. Windows offered are filtered by the
+role's own rules — the notice period, already held, revoked, long enough for
+the interview, and never a window offered against a different role.
+
+Nobody is invited twice: a candidate with a live round is skipped, because
+two links to one person is how somebody ends up holding two windows.
+
+**Verified:** typecheck clean, 1,121 tests, production build clean. Not
+clicked by a person — and note the email guard means invitations only
+actually send to allowlisted addresses on staging, which is the safety net
+working, not a failure.
+
+**Still to build from the spec:** hold as a third decision and the
+persistent action bar, the cohort scheduling dashboard for the client, the
+recruiter's read-only view of the same board, reminders, rescheduling,
+video links and waves.
+
 ---
 
-_Last updated: 10 September 2026_
+_Last updated: 11 September 2026_

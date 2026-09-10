@@ -87,6 +87,19 @@ Much of the MVP list shipped on 5 September. Honest state:
 | Video call link generation | **Not built.** |
 | Delegate availability to another interviewer | **Not built.** |
 
+## Both conflicts settled (11 Sep 2026, Ose)
+
+1. **Candidates self-book.** "Candidates self-book, and the recruiter should
+   just have visibility of what's been booked." The recruiter no longer
+   seats anyone; they watch the board fill. §5.4/§5.5 is amended by this.
+2. **"Interview cohort"** is the term for the subset the client chooses.
+   "Recommended candidates" is dropped — `role_recommendations` already
+   means a role recommended *to a person*, and the shortlist stays the
+   shortlist.
+
+_The original statement of both, kept because the reasoning still explains
+the shape of what was built:_
+
 ## Two conflicts to settle before they are built
 
 **1. Who books — this reverses a settled decision.** The client-actor model

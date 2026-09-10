@@ -221,7 +221,21 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
         offered = Array.isArray(b?.offered) ? b.offered.length : 0
         if (b?.failed) setError(`${offered} offered, then: ${b.failed.error}`)
       }
+      // The cohort: everyone chosen gets a link to pick their own time. The
+      // windows must land first — an invitation with nothing to choose from
+      // is worse than no invitation.
+      let invited = 0
+      if (chosen.length > 0) {
+        const r = await fetch(`/api/hiring/roles/${roleId}/cohort`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ candidateRefs: chosen }),
+        })
+        const b = await r.json().catch(() => ({}))
+        if (Array.isArray(b?.invited)) invited = b.invited.length
+      }
       void written
+      void invited
       setDone({
         interviewed: chosen.length,
         declined: Object.values(choices).filter((c) => c === "decline").length,
@@ -289,8 +303,8 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                   </div>
                   <div className="ag-receipt-cells">
                     <div className="ag-receipt-cell"><span className="ag-receipt-label">Now owned by</span><span className="ag-receipt-value">Your recruiter</span></div>
-                    <div className="ag-receipt-cell"><span className="ag-receipt-label">Their next task</span><span className="ag-receipt-value">{done.offered ? `Book round 1 for ${done.interviewed} candidate${done.interviewed === 1 ? "" : "s"} into your windows.` : "Wait for your interview windows, then book round 1."}</span></div>
-                    <div className="ag-receipt-cell"><span className="ag-receipt-label">Then</span><span className="ag-receipt-value">Each candidate confirms; the rounds land in your diary; you write each one up before deciding.</span></div>
+                    <div className="ag-receipt-cell"><span className="ag-receipt-label">Their next task</span><span className="ag-receipt-value">{done.offered ? `Nothing — ${done.interviewed} candidate${done.interviewed === 1 ? " picks their" : "s pick their"} own time from your windows. Your recruiter watches it fill.` : "Offer some times, then the candidates can book."}</span></div>
+                    <div className="ag-receipt-cell"><span className="ag-receipt-label">Then</span><span className="ag-receipt-value">Each booking takes that window off the board; the rounds land in your diary; you write each one up before deciding.</span></div>
                   </div>
                 </div>
                 <p style={{ marginTop: 14 }}>
