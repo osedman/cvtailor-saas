@@ -3873,6 +3873,62 @@ sidebar altogether that is a Figma frame, not a hygiene fix.
 **Verified:** typecheck clean, full suite green, production build clean.
 Not clicked by a person — Ose's walk is the verification.
 
+## 🗓 10 Sep 2026 (later) — the interview phase spec, and its foundation
+
+Ose specified the interview phase in full: a **batch** scheduling workflow,
+not ten separate ones. Recorded verbatim in intent as
+`docs/INTERVIEW-PHASE-PLAN.md`, with an honest map of what his MVP list
+already has in the product (most of the calendar half shipped 5 Sep) and
+what is genuinely new. The promise it is all serving: *choose who you want
+to interview, approve your availability once, and Tailr coordinates the
+rest.*
+
+**Built now, the foundation everything downstream reads:**
+
+- **Interview rules** (`agency.interview_settings`, migration
+  `20260910090000`): interview type, duration, location kind and detail,
+  date range, minimum notice, buffer, maximum per day, rescheduling policy.
+  One row per role, audit-coupled, no authenticated writes. Plus
+  `agency.interview_templates` for reuse across roles. Before this the
+  numbers existed only as arguments to `proposeWindows()` in the browser —
+  nothing stored, so nothing enforceable, reusable or visible to the
+  recruiter.
+- **Capacity validation** (`lib/calendar/capacity.ts`, pure): measures the
+  ticked windows against the rules and the cohort, and reports usable slots,
+  spare, and why any window was rejected — inside the notice period, over
+  the daily cap, shorter than the interview. Ose's line: twelve candidates
+  against seven slots must not proceed without a clear warning. It warns; it
+  never blocks, because judgement belongs to people.
+- **The client's set-up screen** now asks the rules once and shows the
+  verdict live as they tick windows.
+
+**Two traps hit and recorded.** The audit log's `entity_type` has both a
+check constraint and a TS union, held together by a test after a rebuild
+once silently dropped `member` — so `'interview'` was added to both, with
+the new list built from the deployed one. And importing `DEFAULT_SETTINGS`
+from a module that reaches `agencyAdmin` dragged `next/headers` into the
+browser bundle and failed the build, exactly as CLAUDE.md's lesson says;
+the shape and validator now live in `lib/agency/interview-rules.ts`, which
+imports nothing, with a test pinning that.
+
+**Two conflicts raised for Ose, not resolved:**
+
+1. **Candidate self-booking reverses a settled decision.** §5.4/§5.5 (13–14
+   Aug) says the recruiter books rounds. The spec has candidates pick from
+   the open pool. Better for batch, but it is a reversal, and what goes is
+   the recruiter's control over who is seated when. The mechanism already
+   allows it: double-booking is prevented by the partial unique index on
+   `interview_rounds.slot_id`, not by the recruiter being the only actor.
+2. **"Recommended candidates" collides with `role_recommendations`**, which
+   means a role recommended *to a person*. Same word, opposite direction,
+   and the repo already has a scar from reusing "shortlist". "Interview
+   cohort" is clean; alternatives for the other half are in the plan.
+
+**Ose to run in tailr-staging:** `20260910090000_interview_settings.sql`.
+
+**Verified:** typecheck clean, 1,106 tests, production build clean. Not
+clicked by a person.
+
 ---
 
 _Last updated: 10 September 2026_

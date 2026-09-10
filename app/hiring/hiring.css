@@ -388,3 +388,10 @@
 .hm-setup-window.on { border-color: var(--ag-coral); color: var(--ag-ink); }
 .hm-setup-window-day { font-weight: 600; }
 .hm-setup-window-time { font-family: var(--ag-mono); font-size: var(--t-small); color: var(--ag-ink-3); margin-left: auto; }
+
+/* Capacity verdict on the interview set-up screen. Three levels, and the
+ * short one is a warning rather than a block: judgement stays with the
+ * person, so proceeding is a choice and never an accident. */
+.hm-capacity.ok { border-color: var(--ag-border); }
+.hm-capacity.tight { border-color: var(--ag-warn-mark); }
+.hm-capacity.short { border-color: var(--ag-coral); background: var(--ag-tint-1); }

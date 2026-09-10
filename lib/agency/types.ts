@@ -154,6 +154,9 @@ export interface AuditEntry {
     // Cross-wall notifications (lib/agency/notify.ts). Widened by
     // 20260822110000_notification_audit.sql.
     | "notification"
+    // Interview rules for a role (20260910090000): duration, buffer, notice,
+    // daily cap. About the process, never about a person.
+    | "interview"
   entityRef: string
   action: string
   fromValue?: unknown

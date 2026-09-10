@@ -27,6 +27,8 @@ import { HiringNav, EmptyBand } from "@/components/agency/hm-shared"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
 import { SignOut } from "@/components/agency/sign-out"
 import { proposeWindows, windowsWanted, type Interval } from "@/lib/calendar/windows"
+import { assessCapacity, type Capacity } from "@/lib/calendar/capacity"
+import { DEFAULT_SETTINGS, type InterviewSettings } from "@/lib/agency/interview-rules"
 
 interface Entry {
   ref: string
@@ -59,12 +61,16 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
   const [shortlist, setShortlist] = useState<Shortlist | null>(null)
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null)
   const [choices, setChoices] = useState<Record<string, Choice>>({})
-  const [duration, setDuration] = useState(45)
+  // The rules the round is scheduled BY (10 Sep 2026). They were three
+  // throwaway controls; they are a stored, reusable object now, so the
+  // proposal, the capacity check and the recruiter all read the same numbers.
+  const [rules, setRules] = useState<InterviewSettings>(DEFAULT_SETTINGS)
+  const setRule = <K extends keyof InterviewSettings>(k: K, v: InterviewSettings[K]) =>
+    setRules((p) => ({ ...p, [k]: v }))
   const [busy, setBusy] = useState<Interval[] | null>(null)
   const [scanning, setScanning] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
-  const [rangeFrom, setRangeFrom] = useState(() => toDateInput(new Date(Date.now() + 86_400_000)))
-  const [rangeDays, setRangeDays] = useState(10)
+  const [capacity, setCapacity] = useState<Capacity | null>(null)
   const [proposed, setProposed] = useState<Interval[] | null>(null)
   const [short, setShort] = useState(false)
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -74,7 +80,11 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
 
   const load = useCallback(async () => {
     try {
-      const [s, c] = await Promise.all([fetch(`/api/hiring/roles/${roleId}/shortlist`), fetch("/api/hiring/calendar/status")])
+      const [s, c, st] = await Promise.all([
+        fetch(`/api/hiring/roles/${roleId}/shortlist`),
+        fetch("/api/hiring/calendar/status"),
+        fetch(`/api/hiring/roles/${roleId}/interview-settings`),
+      ])
       if (s.status === 401) return setScreen("unauthed")
       if (s.status === 404) return setScreen("none")
       if (!s.ok) return setScreen("error")
@@ -84,6 +94,13 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
       for (const e of body.shortlist.entries) initial[e.ref] = e.action === "interview" || e.action === "approve" ? "interview" : e.action === "decline" ? "decline" : ""
       setChoices(initial)
       if (c.ok) setCalendar((await c.json()) as CalendarStatus)
+      if (st.ok) {
+        const saved = (await st.json()) as { settings: InterviewSettings }
+        // A window that has already passed helps nobody: default the range
+        // forward rather than showing last month's.
+        const from = saved.settings.windowFrom && saved.settings.windowFrom >= toDateInput(new Date()) ? saved.settings.windowFrom : null
+        setRules({ ...saved.settings, windowFrom: from, windowTo: from ? saved.settings.windowTo : null })
+      }
       setScreen("ready")
     } catch {
       setScreen("error")
@@ -103,12 +120,20 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
     setCalendarNote(new URLSearchParams(window.location.search).get("calendar"))
   }, [])
 
+  /** The range to look across: what they chose, or the next fortnight. */
+  function range(): { from: Date; to: Date; days: number } {
+    const from = rules.windowFrom ? new Date(`${rules.windowFrom}T00:00:00`) : new Date(Date.now() + 86_400_000)
+    from.setHours(0, 0, 0, 0)
+    const to = rules.windowTo ? new Date(`${rules.windowTo}T23:59:59`) : new Date(from.getTime() + 14 * 86_400_000)
+    const days = Math.max(1, Math.ceil((to.getTime() - from.getTime()) / 86_400_000))
+    return { from, to, days }
+  }
+
   async function scan() {
     setScanning(true)
     setScanError(null)
     try {
-      const from = new Date(`${rangeFrom}T00:00:00`)
-      const to = new Date(from.getTime() + rangeDays * 86_400_000)
+      const { from, to } = range()
       const res = await fetch(`/api/hiring/calendar/busy?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`)
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -126,18 +151,42 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
   }
 
   function propose(intervals: Interval[]) {
-    const from = new Date(`${rangeFrom}T00:00:00`)
-    const p = proposeWindows({ candidates: chosen.length, durationMinutes: duration, busy: intervals, from, days: rangeDays })
+    const { from, days } = range()
+    const p = proposeWindows({
+      candidates: chosen.length,
+      durationMinutes: rules.durationMinutes,
+      bufferMinutes: rules.bufferMinutes,
+      perDayMax: rules.maxPerDay,
+      busy: intervals,
+      from,
+      days,
+    })
     setProposed(p.windows)
     setShort(p.short)
     setPicked(new Set(p.windows.map((w) => w.start)))
   }
+
+  // Capacity is measured against what is TICKED, not what was proposed —
+  // unticking is how a manager says no, and the count has to follow.
+  useEffect(() => {
+    if (!proposed) return setCapacity(null)
+    const picks = proposed.filter((w) => picked.has(w.start))
+    setCapacity(assessCapacity(picks, chosen.length, rules))
+  }, [proposed, picked, chosen.length, rules])
 
   async function confirm() {
     if (!shortlist) return
     setSubmitting(true)
     setError(null)
     try {
+      // The rules are saved first and on their own: they are what every
+      // later offer, reminder and reschedule is measured against, so they
+      // must not depend on the rest of this succeeding.
+      await fetch(`/api/hiring/roles/${roleId}/interview-settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: rules }),
+      }).catch(() => {})
       const fresh = shortlist.entries.filter((e) => !e.action)
       const decisions = fresh
         .map((e) => ({ ref: e.ref, action: choices[e.ref] }))
@@ -295,29 +344,63 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                     <span className="agd-aside">{chosen.length === 0 ? "choose candidates first" : `we will propose ${wanted} windows for ${chosen.length}`}</span>
                   </div>
 
+                  {/* THE RULES, NOT THE APPOINTMENTS. Answered once, then the
+                      proposal, the capacity check and the recruiter all read
+                      the same numbers. */}
                   <div className="hm-setup-controls">
                     <label className="hm-field">
                       <span className="hm-field-label">Interview length</span>
-                      <select className="ag-input" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
-                        <option value={30}>30 minutes</option>
-                        <option value={45}>45 minutes</option>
-                        <option value={60}>60 minutes</option>
+                      <select className="ag-input" value={rules.durationMinutes} onChange={(e) => setRule("durationMinutes", Number(e.target.value))}>
+                        {[15, 30, 45, 60, 90].map((n) => <option key={n} value={n}>{n} minutes</option>)}
                       </select>
                     </label>
                     <label className="hm-field">
-                      <span className="hm-field-label">From</span>
-                      <input className="ag-input" type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
+                      <span className="hm-field-label">Where</span>
+                      <select className="ag-input" value={rules.locationKind} onChange={(e) => setRule("locationKind", e.target.value as InterviewSettings["locationKind"])}>
+                        <option value="video">Video call</option>
+                        <option value="phone">Phone</option>
+                        <option value="in_person">In person</option>
+                      </select>
                     </label>
                     <label className="hm-field">
-                      <span className="hm-field-label">Across</span>
-                      <select className="ag-input" value={rangeDays} onChange={(e) => setRangeDays(Number(e.target.value))}>
-                        <option value={5}>5 days</option>
-                        <option value={10}>10 days</option>
-                        <option value={14}>14 days</option>
-                        <option value={21}>21 days</option>
+                      <span className="hm-field-label">{rules.locationKind === "in_person" ? "Address or room" : rules.locationKind === "phone" ? "Who calls whom" : "Which platform"}</span>
+                      <input
+                        className="ag-input"
+                        placeholder={rules.locationKind === "in_person" ? "e.g. Meeting room 2" : rules.locationKind === "phone" ? "e.g. we call you" : "e.g. Google Meet"}
+                        value={rules.locationDetail}
+                        onChange={(e) => setRule("locationDetail", e.target.value)}
+                      />
+                    </label>
+                    <label className="hm-field">
+                      <span className="hm-field-label">Earliest day</span>
+                      <input className="ag-input" type="date" value={rules.windowFrom ?? ""} onChange={(e) => setRule("windowFrom", e.target.value || null)} />
+                    </label>
+                    <label className="hm-field">
+                      <span className="hm-field-label">Latest day</span>
+                      <input className="ag-input" type="date" value={rules.windowTo ?? ""} onChange={(e) => setRule("windowTo", e.target.value || null)} />
+                    </label>
+                    <label className="hm-field">
+                      <span className="hm-field-label">Most in one day</span>
+                      <select className="ag-input" value={rules.maxPerDay} onChange={(e) => setRule("maxPerDay", Number(e.target.value))}>
+                        {[1, 2, 3, 4, 5, 6, 8].map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </label>
+                    <label className="hm-field">
+                      <span className="hm-field-label">Gap between</span>
+                      <select className="ag-input" value={rules.bufferMinutes} onChange={(e) => setRule("bufferMinutes", Number(e.target.value))}>
+                        {[0, 15, 30, 60].map((n) => <option key={n} value={n}>{n === 0 ? "None" : `${n} minutes`}</option>)}
+                      </select>
+                    </label>
+                    <label className="hm-field">
+                      <span className="hm-field-label">Notice a candidate gets</span>
+                      <select className="ag-input" value={rules.minNoticeHours} onChange={(e) => setRule("minNoticeHours", Number(e.target.value))}>
+                        {[0, 12, 24, 48, 72].map((n) => <option key={n} value={n}>{n === 0 ? "No minimum" : `${n} hours`}</option>)}
                       </select>
                     </label>
                   </div>
+                  <p className="agd-aside" style={{ marginTop: 8 }}>
+                    Answer these once. Every candidate you invite is offered times that obey them, and your recruiter sees the same rules.
+                  </p>
 
                   <div className="hm-setup-source">
                     {connected ? (
@@ -351,6 +434,26 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                   </div>
                   {scanError && <p className="ag-banner" role="alert">{scanError}</p>}
                   {busy && <p className="agd-aside">Read {busy.length} busy span{busy.length === 1 ? "" : "s"} from your calendar. Nothing about them is stored.</p>}
+
+                  {capacity && chosen.length > 0 && (
+                    <div className={`ag-banner hm-capacity ${capacity.level}`} role="status">
+                      <div style={{ fontWeight: 600 }}>{capacity.headline}</div>
+                      {(capacity.rejected.tooSoon > 0 || capacity.rejected.overDailyCap > 0 || capacity.rejected.tooShort > 0) && (
+                        <div className="ag-meta" style={{ marginTop: 4 }}>
+                          {[
+                            capacity.rejected.tooSoon > 0 && `${capacity.rejected.tooSoon} inside your ${rules.minNoticeHours}-hour notice`,
+                            capacity.rejected.overDailyCap > 0 && `${capacity.rejected.overDailyCap} over your ${rules.maxPerDay}-a-day limit`,
+                            capacity.rejected.tooShort > 0 && `${capacity.rejected.tooShort} shorter than ${rules.durationMinutes} minutes`,
+                          ].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                      {capacity.level === "short" && (
+                        <div className="ag-meta" style={{ marginTop: 4 }}>
+                          Widen the range, raise the daily limit, or invite fewer people for now — you can invite the rest when times open up.
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {proposed && (
                     <div className="hm-setup-windows">
