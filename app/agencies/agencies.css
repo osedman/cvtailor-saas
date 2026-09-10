@@ -1664,3 +1664,11 @@ a.ag-rh-next:hover { opacity: 0.86; }
  * carrying the role's accent, so the eye sees two lists, not one long one. */
 .ag-rail-group { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--ag-border); }
 .ag-rail-group > .ag-rail-label { color: var(--ag-coral-text); }
+
+/* The status rail on a dashboard role row (restored 10 Sep 2026). The row
+ * keeps its three columns; the rail is a fourth child spanning all of them,
+ * so it reads as the role's progress rather than a fourth column of text. */
+.agd-today-row.with-rail { row-gap: 10px; }
+.agd-today-rail { grid-column: 1 / -1; }
+.agd-today-row[data-flag="blocked"] { background: var(--ag-tint-1); }
+.agd-today-row[data-flag="blocked"]:hover { background: var(--ag-tint-2); }

@@ -33,6 +33,53 @@ interface TodayRow {
   next: NextAction
 }
 
+const PHASE_ORDER = ["shortlist", "interviews", "handover"] as const
+
+/**
+ * The status rail on a role row (restored 10 Sep 2026, Ose).
+ *
+ * Two modes, exactly as the old dashboard drew it: inside the shortlist flow
+ * it is the six steps with the live one marked here / blocked / waiting;
+ * past it, the three phases. A role in interviews would otherwise show a
+ * six-step rail pointing backwards at work that is finished.
+ *
+ * Labels are transparent except on the live segment, so the row reads as one
+ * word and a bar rather than six words competing with the title.
+ */
+function StatusRail({ row }: { row: RoleRow }) {
+  if (row.phase && row.phase !== "shortlist") {
+    return (
+      <span className="ag-stage" aria-label={`Phase: ${row.phase}`}>
+        {PHASE_ORDER.map((key) => {
+          const st =
+            PHASE_ORDER.indexOf(key) < PHASE_ORDER.indexOf(row.phase!) ? "done" : key === row.phase ? "here" : undefined
+          const name = key.charAt(0).toUpperCase() + key.slice(1)
+          return (
+            <span className="ag-stage-seg" key={key} data-s={st} title={name}>
+              <span className="ag-stage-bar" />
+              <span className="ag-stage-label">{name}</span>
+            </span>
+          )
+        })}
+      </span>
+    )
+  }
+  return (
+    <span className="ag-stage" aria-label={`Step ${row.stage} of 6: ${STAGES[row.stage - 1] ?? ""}`}>
+      {STAGES.map((name, i) => {
+        const n = i + 1
+        const st = row.stage_state === "done" ? "done" : n < row.stage ? "done" : n === row.stage ? row.stage_state : undefined
+        return (
+          <span className="ag-stage-seg" key={name} data-s={st} title={`${n}. ${name}`}>
+            <span className="ag-stage-bar" />
+            <span className="ag-stage-label">{name}</span>
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
 const phaseLabel = (p: PhaseKey) => PHASES.find((x) => x.key === p)?.label ?? p
 interface RoleRow {
   id: string; ref: string; title: string; company: string; salary_band: string; status: string
@@ -232,6 +279,9 @@ export default function AgencyHomePage() {
       `${r.role.title} ${r.role.company} ${r.role.ref} ${r.role.ownerName ?? ""}`.toLowerCase().includes(needle)
     )
   }, [today, q])
+  // The rail's stage and phase come from the dashboard payload the page
+  // already fetches — merged by id, so no second request for a visual.
+  const statusById = useMemo(() => new Map((data?.roles ?? []).map((r) => [r.id, r])), [data])
   const acts = (today ?? []).filter((r) => r.next.mode === "act").length
   const hour = new Date().getHours()
   const tail = hour >= 17 ? "before you log off" : hour >= 12 ? "this afternoon" : "this morning"
@@ -381,7 +431,8 @@ export default function AgencyHomePage() {
                       {shownRoles.map((r) => (
                         <Link
                           key={r.role.id}
-                          className={`agd-today-row ${r.next.mode}`}
+                          className={`agd-today-row with-rail ${r.next.mode}`}
+                          data-flag={statusById.get(r.role.id)?.stage_state === "blocked" ? "blocked" : undefined}
                           href={r.next.cta?.href ?? `/agencies/roles/${r.role.id}`}
                         >
                           <span className="agd-today-role">
@@ -402,6 +453,11 @@ export default function AgencyHomePage() {
                             {r.next.waitingOn.label}
                             {r.next.since ? ` · ${ageLabel(r.next.since, todayNow)}` : ""}
                           </span>
+                          {statusById.get(r.role.id) && (
+                            <span className="agd-today-rail">
+                              <StatusRail row={statusById.get(r.role.id)!} />
+                            </span>
+                          )}
                         </Link>
                       ))}
                     </div>
