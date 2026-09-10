@@ -28,7 +28,9 @@ describe("the role's contact", () => {
   })
   it("names the client on the header from the role first, then the brief", () => {
     const src = read("lib/agency/role-facts.ts")
-    expect(src).toMatch(/\(role\.contact_id as string \| null\) \?\? \(brief\.data\?\.contact_id as string \| null\)/)
+    // Same precedence, batched shape (10 Sep 2026): the brief contacts are
+    // grouped by role once rather than read per role.
+    expect(src).toMatch(/\(role\.contact_id as string \| null\) \?\? briefByRole\.get\(roleId\)/)
   })
   it("a client-written brief copies its contact onto the minted role, so both paths converge", () => {
     const src = read("lib/agency/briefs.ts")

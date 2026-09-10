@@ -1653,3 +1653,14 @@ a.ag-rh-next:hover { opacity: 0.86; }
 /* Handover checklist rows (close-out). */
 .ag-check-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px; border: 1px solid var(--ag-border); border-radius: var(--r-sm); background: var(--ag-paper); }
 .ag-pill.warn { border-color: var(--ag-warn-mark); color: var(--ag-warn); }
+
+/* ── Sidebar groups (10 Sep 2026) ─────────────────────────────────────────
+ * Two lists live in the recruiter sidebar: where you work (AgencyNav) and
+ * where this role is (the seven steps, or RoleRail). They were stacked with
+ * identical styling, so the role's rail read as more global nav bolted to
+ * the bottom — reported as "just wrong", and it was.
+ *
+ * The role's list is now a named group with a rule above it and its label
+ * carrying the role's accent, so the eye sees two lists, not one long one. */
+.ag-rail-group { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--ag-border); }
+.ag-rail-group > .ag-rail-label { color: var(--ag-coral-text); }

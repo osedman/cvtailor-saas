@@ -145,7 +145,8 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
         </button>
         <AgencySwitcher />
         <AgencyNav />
-        <div>
+        {/* A named group, not more global nav: see .ag-rail-group. */}
+        <div className="ag-rail-group">
           <div className="ag-rail-label">Shortlist workflow</div>
           {WORKFLOW_STEPS.map((st) => (
             <button

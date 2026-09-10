@@ -15,7 +15,7 @@
  */
 
 import { agencyAdmin } from "./db"
-import { getRoleFacts } from "./role-facts"
+import { getRoleFacts, getRoleFactsBatch, type RoleHeaderFacts } from "./role-facts"
 import { deriveSubState, handoffFor, nextAction, type Handoff, type NextAction } from "./next-action"
 import type { HiringContext } from "./types"
 import type { PhaseKey } from "./phases"
@@ -66,10 +66,44 @@ export interface ClientRoleHeader {
   now: string
 }
 
+/**
+ * Headers for many ties at once. Ties can span agencies, so the facts are
+ * batched per agency — same reason as the recruiter's queue: a per-role loop
+ * is a dozen queries each.
+ */
+export async function getClientRoleHeaders(
+  ctx: HiringContext,
+  ties: ClientRoleTie[]
+): Promise<ClientRoleHeader[]> {
+  const byAgency = new Map<string, ClientRoleTie[]>()
+  for (const tie of ties) {
+    const list = byAgency.get(tie.agencyId)
+    if (list) list.push(tie)
+    else byAgency.set(tie.agencyId, [tie])
+  }
+  const out: ClientRoleHeader[] = []
+  for (const [agencyId, group] of byAgency) {
+    const facts = await getRoleFactsBatch(
+      { agencyId, userId: ctx.userId, role: "viewer" },
+      group.map((t) => t.roleId)
+    )
+    for (const tie of group) {
+      const f = facts.get(tie.roleId)
+      if (f) out.push(projectForClient(f, tie))
+    }
+  }
+  return out
+}
+
 /** The header for one role the caller is tied to, or null when it is not theirs. */
 export async function getClientRoleHeader(ctx: HiringContext, tie: ClientRoleTie): Promise<ClientRoleHeader | null> {
   const facts = await getRoleFacts({ agencyId: tie.agencyId, userId: ctx.userId, role: "viewer" }, tie.roleId)
   if (!facts) return null
+  return projectForClient(facts, tie)
+}
+
+/** The one projection, shared by the single read and the batch. */
+function projectForClient(facts: RoleHeaderFacts, tie: ClientRoleTie): ClientRoleHeader {
   const sub = deriveSubState(facts)
   const next = nextAction(facts, "client", tie.roleId)
   const inShortlist = facts.phase === "shortlist"

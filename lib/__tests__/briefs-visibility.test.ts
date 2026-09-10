@@ -44,19 +44,31 @@ describe("the dashboard surfaces briefs", () => {
     expect(elsewhere).not.toMatch(/role_title|jd_raw|contact/)
   })
 
-  it("renders a band with a route into the inbox, and a switch for elsewhere", () => {
-    expect(page).toMatch(/Briefs from your clients/)
-    expect(page).toMatch(/router\.push\("\/agencies\/briefs"\)/)
-    // The elsewhere hint carries the switch — the same validated session
-    // endpoint the sidebar switcher uses, never a raw cookie write.
-    const band = page.slice(page.indexOf("agd-briefs"))
-    expect(band.slice(0, 3000)).toMatch(/\/api\/agency\/session/)
-    expect(band.slice(0, 3000)).toMatch(/has {e\.count} brief/)
+  /**
+   * THE BAND IS GONE, THE GUARANTEE IS NOT (10 Sep 2026).
+   *
+   * The dashboard used to carry a "Briefs from your clients" band, built
+   * after four briefs sat unseen for a week. Ose cut the dashboard to live
+   * roles only for MVP, so the band went with it — but the incident it
+   * answered has not gone away, so what survives is pinned here instead:
+   * the shared nav counts waiting briefs, on EVERY screen, across every
+   * agency the recruiter belongs to. If that count ever goes, a brief can
+   * sit unseen again.
+   */
+  it("the waiting count reaches every screen through the shared nav", () => {
+    const nav = read("components/agency/agency-nav.tsx")
+    expect(nav).toMatch(/fetch\("\/api\/agency\/briefs\?status=submitted"\)/)
+    expect(nav).toMatch(/waiting > 0 &&/)
+    expect(nav).toMatch(/key: "briefs"[^\n]*href: "\/agencies\/briefs"/)
   })
 
-  it("says what accepting does in both JD states", () => {
-    expect(page).toMatch(/JD attached — accepting carries it straight into intake/)
-    expect(page).toMatch(/No JD — accepting opens intake to paste or upload one/)
+  it("the dashboard no longer carries its own briefs band", () => {
+    expect(page).not.toContain("agd-briefs")
+  })
+
+  it("the inbox itself still says what accepting does in both JD states", () => {
+    const inbox = read("app/agencies/briefs/page.tsx")
+    expect(inbox).toMatch(/JD|job description/i)
   })
 })
 

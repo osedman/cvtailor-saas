@@ -183,6 +183,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   useEffect(() => {
     if (step === "candidates" && matching?.enabled) void loadMatched()
   }, [step, matching?.enabled, loadMatched])
+  // Publishing from inside the step should fill the list without a reload.
+  useEffect(() => {
+    if (matching?.enabled && matched === null) void loadMatched()
+  }, [matching?.enabled, matched, loadMatched])
   async function invite(recommendationId: string) {
     setInviting(recommendationId)
     setError(null)
@@ -818,7 +822,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         </button>
         <AgencySwitcher />
         <AgencyNav />
-        <div>
+        {/* A named group, not more global nav: see .ag-rail-group. */}
+        <div className="ag-rail-group">
           <div className="ag-rail-label">Shortlist workflow</div>
           {WORKFLOW_STEPS.map((s) => {
             if (s.key === "detail") {
@@ -1127,53 +1132,125 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   <button className="ag-btn ag-btn-primary" onClick={() => setStep("screening")} disabled={candidates.length === 0}>Continue to screening</button>
                 </div>
               </div>
-              {matching?.enabled && (
-                <div className="ag-card" style={{ marginBottom: 16 }}>
-                  <div className="ag-card-head">
-                    <span className="ag-card-title">Matched on Tailr</span>
-                    <span className="ag-pill">
-                      {matching.scanQueued ? "Scan queued" : matching.lastScanAt ? `Checked ${new Date(matching.lastScanAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : "Not scanned yet"}
-                    </span>
-                  </div>
-                  <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
-                    <p className="ag-note" style={{ margin: 0 }}>
-                      People whose evidence bank matches this role at or above your minimum score <b>and who chose to be seen by recruiters</b>. A row is what they consented to show: name, headline, band, the matched evidence. Their CV and contact details arrive only when they apply. Bands, never a ranking.
-                    </p>
-                    {matched === null && <p className="ag-quiet">Loading…</p>}
-                    {matched && matched.people.length === 0 && (
-                      <p className="ag-quiet">Nobody who chose to be seen matches yet{matched.bucket !== "none" ? " — people who match but have not chosen to be seen stay in the rounded count on the matching card below." : "."}</p>
-                    )}
-                    {matched?.people.map((p) => (
-                      <div key={p.recommendationId} className="ag-check-row" style={{ alignItems: "flex-start" }}>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
-                            <span style={{ fontWeight: 600 }}>{p.name}</span>
-                            <span className="ag-pill">{p.band} match</span>
-                            {p.state === "invited" && <span className="ag-pill">Invited{p.invitedAt ? ` · ${new Date(p.invitedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</span>}
-                            {p.state === "applied" && <span className="ag-pill">Applied · in your pool</span>}
-                          </div>
-                          {p.headline && <div className="ag-meta" style={{ marginTop: 2 }}>{p.headline}</div>}
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-                            {p.evidence.map((e) => (
-                              <span key={e.requirement_ref} className="ag-pill" title={e.quote ?? "MISSING — no evidence for this requirement"} style={e.strength === "missing" ? { opacity: 0.55 } : undefined}>
-                                {e.requirement_ref} · {e.strength}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        {p.state !== "applied" && p.state !== "invited" && (
-                          <button className="ag-btn ag-btn-primary" disabled={inviting === p.recommendationId || callerRole === "viewer"} onClick={() => void invite(p.recommendationId)}>
-                            {inviting === p.recommendationId ? "Inviting…" : "Invite to apply"}
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    {matched && matched.people.length > 0 && matched.bucket !== "none" && (
-                      <p className="ag-note" style={{ margin: 0 }}>The scan also matched people who have not chosen to be seen; they stay in the rounded count and are never listed.</p>
-                    )}
-                  </div>
+              {/*
+                THE SCAN, WHERE THE WORK IS (10 Sep 2026, Ose).
+                This step is "add candidates", and matching is the other way
+                candidates arrive — so the scan belongs here, not only in the
+                role-level card far below. It shows the PROCESS first, then
+                the people. Before this it rendered only once matching was
+                already live, so on a fresh role the step said nothing at all
+                and publishing was somewhere else entirely.
+
+                Who is listed is unchanged and deliberate: people who match
+                AND turned on the third switch. Everyone else the scan
+                touched stays a rounded count. Nobody is named who did not
+                choose to be seen.
+              */}
+              <div className="ag-card" style={{ marginBottom: 16 }}>
+                <div className="ag-card-head">
+                  <span className="ag-card-title">Matched on Tailr</span>
+                  <span className="ag-pill">
+                    {requirements.length === 0
+                      ? "Needs requirements"
+                      : !matching?.enabled
+                        ? "Not scanning"
+                        : matching.scanQueued
+                          ? "Scan running"
+                          : matching.lastScanAt
+                            ? `Checked ${new Date(matching.lastScanAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
+                            : "Waiting for first scan"}
+                  </span>
                 </div>
-              )}
+                <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
+                  {requirements.length === 0 ? (
+                    <p className="ag-note" style={{ margin: 0 }}>
+                      Tailr scans against this role&apos;s requirements, so parse them first. Once they exist you can publish this role and the scan runs on its own.
+                    </p>
+                  ) : !matching?.enabled ? (
+                    <>
+                      <p className="ag-note" style={{ margin: 0 }}>
+                        Publish this role and Tailr scans every Tailr user who opted into matching, against these {requirements.length} requirements. Nobody is contacted, nothing is shared, and no agency browses anyone: you see only the people who match and who chose to be seen.
+                      </p>
+                      <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+                        <div>
+                          <label className="ag-label" htmlFor="scan-min-score">Minimum score</label>
+                          <input
+                            id="scan-min-score"
+                            className="ag-input"
+                            style={{ maxWidth: 110 }}
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={minScoreDraft}
+                            onChange={(e) => setMinScoreDraft(Number(e.target.value))}
+                          />
+                        </div>
+                        <button
+                          className="ag-btn ag-btn-primary"
+                          disabled={busy === "matching" || callerRole === "viewer"}
+                          onClick={() => void setMatchingEnabled(true)}
+                        >
+                          {busy === "matching" ? "Publishing…" : "Publish and scan"}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="ag-note" style={{ margin: 0 }}>
+                        {matching.scanQueued
+                          ? "The scan is running now. Matches appear here as it finishes; nothing else is needed from you."
+                          : matching.lastScanAt
+                            ? "Scanned against this role's requirements. It re-runs on its own whenever you republish or the requirements change."
+                            : "Published. The first scan is queued and will run shortly."}
+                      </p>
+                      {matched === null ? (
+                        <p className="ag-quiet">Loading…</p>
+                      ) : matched.people.length === 0 ? (
+                        <p className="ag-quiet">
+                          {matching.lastScanAt
+                            ? "Nobody who chose to be seen matches this role yet."
+                            : "Nothing yet — the first scan has not finished."}
+                          {matched.bucket !== "none" && " People who match but have not chosen to be seen stay in the rounded count on the matching card below."}
+                        </p>
+                      ) : (
+                        <>
+                          <p className="ag-note" style={{ margin: 0 }}>
+                            Matched and chose to be seen. A row is what they consented to show: name, headline, band, the matched evidence. Their CV and contact details arrive only if they apply. Bands, never a ranking.
+                          </p>
+                          {matched.people.map((p) => (
+                            <div key={p.recommendationId} className="ag-check-row" style={{ alignItems: "flex-start" }}>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                                  <span style={{ fontWeight: 600 }}>{p.name}</span>
+                                  <span className="ag-pill">{p.band} match</span>
+                                  {p.state === "invited" && <span className="ag-pill">Invited{p.invitedAt ? ` · ${new Date(p.invitedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</span>}
+                                  {p.state === "applied" && <span className="ag-pill">Applied · in your pool</span>}
+                                </div>
+                                {p.headline && <div className="ag-meta" style={{ marginTop: 2 }}>{p.headline}</div>}
+                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                                  {p.evidence.map((e) => (
+                                    <span key={e.requirement_ref} className="ag-pill" title={e.quote ?? "MISSING — no evidence for this requirement"} style={e.strength === "missing" ? { opacity: 0.55 } : undefined}>
+                                      {e.requirement_ref} · {e.strength}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              {p.state !== "applied" && p.state !== "invited" && (
+                                <button className="ag-btn ag-btn-primary" disabled={inviting === p.recommendationId || callerRole === "viewer"} onClick={() => void invite(p.recommendationId)}>
+                                  {inviting === p.recommendationId ? "Inviting…" : "Invite to apply"}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          {matched.bucket !== "none" && (
+                            <p className="ag-note" style={{ margin: 0 }}>The scan also matched people who have not chosen to be seen. They stay a rounded count and are never listed.</p>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
               <div className="ag-grid-2">
                 <div className="ag-card">
                   <div className="ag-card-head">

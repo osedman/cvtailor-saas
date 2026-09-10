@@ -53,7 +53,7 @@ export function RoleRail({
   }
 
   return (
-    <div>
+    <div className="ag-rail-group">
       <div className="ag-rail-label">This role</div>
       {item("workflow", "Shortlist flow", workflowHref(roleId), shortlistDone)}
       {item("interviews", "Interviews", phaseHref("interviews", roleId))}

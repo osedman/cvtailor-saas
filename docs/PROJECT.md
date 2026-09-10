@@ -3806,6 +3806,73 @@ real user sees it, the same gate as the capture consent.
 **Verified:** typecheck clean, 1,090 tests green, production build
 clean. Not clicked by a person.
 
+## 🧽 10 Sep 2026 — Ose's review: the dashboard cut to live roles, the slowness fixed at its cause, and the scan shown where candidates arrive
+
+Ose walked staging and dictated a review. Three of its items built here; the
+rest recorded below, unbuilt.
+
+**The dashboard is live roles and nothing else.** It carried seven bands —
+Today, Also needs you, briefs, the queue, live roles, clients, desk health —
+and a nav whose four sections expanded into more of them. His words: "it's
+too busy… for MVP let's skim this down completely… just keep it to live
+roles." Now one band, one row per live role, each carrying what the ladder
+says it needs next, with the search narrowing those rows. The nav's
+expanding sections are gone entirely. Briefs still surface through the nav's
+own waiting count. The page went from 675 lines to 422; the attention-card
+engine, the queue builder and the role filter went with the bands.
+
+**The slowness had one cause, and it was mine.** `/api/agency/today` called
+`getRoleFacts` once per role in a loop, and each call ran about a dozen
+queries: twenty open roles was several hundred round trips before the
+dashboard could paint. I flagged the risk in that route's own comment when I
+wrote it, and it arrived. `lib/agency/role-facts.ts` is now
+**`getRoleFactsBatch`** — each table read ONCE with an `in (…)` and grouped
+in memory, a fixed query count whatever the role count — and `getRoleFacts`
+is a one-role call into it, so there is still one assembler. The client's
+side (`/api/hiring/today`) batches the same way, per agency, and the client
+projection was extracted so the single read and the batch cannot drift.
+
+**The scan is shown where candidates arrive.** His ask: "where we parse the
+requirements first and we are scanning for candidates… create a window in
+that add candidates part that shows either the process or the profiles or
+the people who are being scanned. Let's add that first." Step 03 now carries
+the whole process: needs-requirements → publish-and-scan (with the minimum
+score, right there) → scan running → checked on a date, then the people. It
+used to render only once matching was already live, so a fresh role said
+nothing and the publish control sat far below at role level.
+
+**Decided with him before building:** the window shows the process and the
+people who matched *and* turned on the discoverable switch. Everyone else
+the scan touched stays a rounded count, never named. His words: "process
+plus matched people, no un-opted profiles." So the consent wall is exactly
+where migration `20260905120000` put it.
+
+**The rail bug he caught.** "The shortlist workflow navigation appears on the
+bottom of the main navigation, which is just wrong." It was: the seven steps
+and the global nav were stacked in one sidebar with identical styling, so the
+role's rail read as more global nav. Both role rails are now a named group
+with a rule above them (`.ag-rail-group`). If he wants the steps out of the
+sidebar altogether that is a Figma frame, not a hygiene fix.
+
+### Recorded from the same review, NOT built
+
+1. **The brief becomes the recruiter's, and creating it creates the role.**
+   His words: the client brief "should initiate the role, and that is the
+   responsibility of the recruiter" — carrying the number of interview
+   stages, the role information and the attached JD, which then goes to the
+   hiring manager; the brief then identifies the role ("here's the brief,
+   here's what this role is, this role is live, it's in shortlisting").
+   Intake already carries those fields (5 Sep, `job_roles.contact_id`), so
+   what is left is the direction — today a brief flows client → recruiter,
+   and he wants recruiter → client — and what then happens to the briefs
+   inbox. Needs a decision before code.
+2. **Confirmed as already right:** shortlisting done → candidates get the
+   link → the client is prompted for calendar availability → that starts the
+   interview workflow. Built 5 Sep, and he described it back unprompted.
+
+**Verified:** typecheck clean, full suite green, production build clean.
+Not clicked by a person — Ose's walk is the verification.
+
 ---
 
-_Last updated: 5 September 2026_
+_Last updated: 10 September 2026_

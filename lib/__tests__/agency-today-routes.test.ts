@@ -14,8 +14,9 @@ const read = (p: string) => tsCode(readFileSync(join(process.cwd(), p), "utf8"))
 describe("the recruiter's Today route", () => {
   const src = read("app/api/agency/today/route.ts")
   it("derives every row from the ladder, never from a stage column", () => {
-    expect(src).toMatch(/getRoleFacts\(auth\.ctx, r\.id as string, now\)/)
-    expect(src).toMatch(/nextAction\(facts, "recruiter", facts\.roleId\)/)
+    // Batched since 10 Sep 2026: one assembly for every role, not one each.
+    expect(src).toMatch(/getRoleFactsBatch\(auth\.ctx, \(roles \?\? \[\]\)\.map/)
+    expect(src).toMatch(/nextAction\(f, "recruiter", f\.roleId\)/)
     expect(src).not.toMatch(/stage_state/)
   })
   it("leaves closed roles out", () => {
@@ -48,7 +49,7 @@ describe("the client's routes go through the projection", () => {
   it.each(["app/api/hiring/roles/[roleId]/header/route.ts", "app/api/hiring/today/route.ts"])("%s", (p) => {
     const src = read(p)
     expect(src).toMatch(/listClientRoles\(auth\.ctx\)/)
-    expect(src).toMatch(/getClientRoleHeader\(auth\.ctx/)
+    expect(src).toMatch(/getClientRoleHeaders?\(auth\.ctx/)
     expect(src).not.toMatch(/getRoleFacts\(/)
     expect(src).not.toMatch(/status: 403[^\n]*Role/)
   })

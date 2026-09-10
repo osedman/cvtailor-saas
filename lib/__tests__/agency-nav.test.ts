@@ -11,6 +11,7 @@
 import { describe, it, expect } from "vitest"
 import { readFileSync, existsSync } from "fs"
 import { join } from "path"
+import { tsCode } from "./helpers/source-scan"
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 
@@ -102,11 +103,26 @@ describe("every agency screen uses the shared nav", () => {
     if (!isWorkflow) expect(/workflowHref\(|<RoleRail /.test(s), `${path} has no way into the workflow`).toBe(true)
   })
 
-  it("the dashboard's sections are passed to the nav, not rendered beside it", () => {
+  it("the dashboard has no expanding sections at all (10 Sep 2026)", () => {
+    // It used to nest four scroll anchors under its own nav item, which
+    // opened four more bands. For MVP the dashboard is live roles and
+    // nothing else, so there is nothing to expand into.
     const s = read("app/agencies/page.tsx")
-    expect(s).toMatch(/sections=\{\[/)
-    expect(s).toMatch(/id: "agd-roles"/)
-    expect(s).toMatch(/onSection=/)
+    expect(s).toMatch(/<AgencyNav current="roles" \/>/)
+    expect(s).not.toMatch(/sections=\{\[/)
+    expect(s).not.toMatch(/onSection=/)
+  })
+
+  it("the dashboard renders one band, and it is the roles", () => {
+    // Comments stripped: the removed band names survive in the note that
+    // explains why they went, and a scan of raw source would match those.
+    const s = tsCode(read("app/agencies/page.tsx"))
+    const bands = [...s.matchAll(/className="agd-eyebrow"/g)]
+    expect(bands).toHaveLength(1)
+    expect(s).toMatch(/id="agd-roles-h">Live roles</)
+    for (const gone of ["Also needs you", "Briefs from your clients", ">Queue<", ">Desk health<"]) {
+      expect(s, gone).not.toContain(gone)
+    }
   })
 })
 
