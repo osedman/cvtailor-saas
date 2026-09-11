@@ -28,6 +28,7 @@ import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header
 import { SignOut } from "@/components/agency/sign-out"
 import { proposeWindows, windowsWanted, type Interval } from "@/lib/calendar/windows"
 import { assessCapacity, type Capacity } from "@/lib/calendar/capacity"
+import { CohortBoard, type BoardData } from "@/components/agency/cohort-board"
 import { DEFAULT_SETTINGS, type InterviewSettings } from "@/lib/agency/interview-rules"
 
 interface Entry {
@@ -71,6 +72,21 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
   const [scanning, setScanning] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
   const [capacity, setCapacity] = useState<Capacity | null>(null)
+  // Once anyone has been invited, this screen stops being a set-up form and
+  // becomes the scheduling board. One screen, two phases of the same job.
+  const [board, setBoard] = useState<BoardData | null>(null)
+  const loadBoard = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/hiring/roles/${roleId}/cohort`)
+      if (!res.ok) return
+      setBoard((await res.json()) as BoardData)
+    } catch {
+      /* the board simply does not render rather than guessing */
+    }
+  }, [roleId])
+  useEffect(() => {
+    void loadBoard()
+  }, [loadBoard])
   const [proposed, setProposed] = useState<Interval[] | null>(null)
   const [short, setShort] = useState(false)
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -236,6 +252,7 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
       }
       void written
       void invited
+      await loadBoard()
       setDone({
         interviewed: chosen.length,
         declined: Object.values(choices).filter((c) => c === "decline").length,
@@ -289,6 +306,23 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
             )}
             {calendarNote && calendarNote !== "connected" && (
               <p className="ag-banner" role="alert">The calendar was not connected ({calendarNote.replace(/-/g, " ")}). You can still pick a range of days below.</p>
+            )}
+
+            {board && board.members.length > 0 && (
+              <section className="agd-band" aria-labelledby="cohort-h">
+                <div className="agd-eyebrow-row">
+                  <h2 className="agd-eyebrow" id="cohort-h">Your interview cohort</h2>
+                  <span className="agd-rule" />
+                  <span className="agd-aside">everyone you invited, and where they are</span>
+                </div>
+                <CohortBoard
+                  board={board}
+                  hat="client"
+                  remindEndpoint={`/api/hiring/roles/${roleId}/cohort`}
+                  onChanged={() => void loadBoard()}
+                  offerMoreHref={`/hiring/roles/${roleId}/interviews#setup-when`}
+                />
+              </section>
             )}
 
             {done ? (

@@ -3970,6 +3970,50 @@ persistent action bar, the cohort scheduling dashboard for the client, the
 recruiter's read-only view of the same board, reminders, rescheduling,
 video links and waves.
 
+## 📋 11 Sep 2026 (later) — the cohort scheduling board, one derivation and two hats
+
+Ose: "build the cohort dashboard." Built for both sides at once, because
+candidates book themselves now and the recruiter's half of that bargain is
+seeing the board fill.
+
+**One derivation.** `getCohortBoard` (lib/agency/cohort.ts) and the pure
+`lib/agency/cohort-status.ts` are what both screens read, so the client and
+the recruiter can never disagree about who is booked. Status is derived from
+the round and never stored: no slot is awaiting a choice, a slot is booked, a
+decline is "no suitable time", a round whose time has passed is a write-up
+due until the write-up exists.
+
+**Ose's status list, mapped honestly rather than faked.** He listed Selected
+→ Invitation sent → Booked → Confirmed → Interview complete → Feedback due.
+Two of those do not exist here and the module says so: *Selected* is a
+decision on the shortlist before any round exists, so it belongs to that
+board; *Booked* and *Confirmed* are the same event once candidates choose
+their own time, and showing both would be two names for one fact.
+
+**What each hat gets.** Identical rows; a different closing sentence. The
+client is told they can offer more times and gets the link to do it; the
+recruiter is told nothing here seats anyone. The recruiter's route has no
+POST at all and never touches `slot_id` — visibility, as agreed.
+
+**The capacity line, where it matters most.** The board compares windows left
+against people still to book, and says plainly when there are fewer windows
+than people — the same arithmetic as the set-up screen, at the moment it
+actually bites.
+
+**Sending a link again mints a fresh one, and the board says so.** The stored
+token is a hash and cannot be reversed, so a reminder is necessarily a new
+link and the old one stops working. Better to state that than to let someone
+wonder why the first email died. Somebody who already holds a time cannot be
+reminded of anything, and is not offered the button.
+
+**Verified:** typecheck clean, 1,134 tests, production build clean. No
+migration — the board reads rounds that already exist. Not clicked by a
+person.
+
+**Still to build from the spec:** hold as a third decision with the
+persistent action bar, reminders on a schedule rather than on a click,
+rescheduling, video links, and invitation waves.
+
 ---
 
 _Last updated: 11 September 2026_

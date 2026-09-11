@@ -32,6 +32,7 @@ import { AgencyNav } from "@/components/agency/agency-nav"
 import { RoleRail } from "@/components/agency/role-rail"
 import { InterviewCapture } from "@/components/agency/interview-capture"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
+import { CohortBoard, type BoardData } from "@/components/agency/cohort-board"
 import { type PhaseKey } from "@/lib/agency/phases"
 import { SignOut } from "@/components/agency/sign-out"
 
@@ -99,6 +100,21 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
   // The consent link, surfaced once. If the email fails the recruiter still
   // has something to send — the ask has to reach a real person either way.
   const [askResult, setAskResult] = useState<{ roundId: string; url: string; emailed: boolean } | null>(null)
+
+  // Candidates book themselves now, so this screen's first job is showing
+  // the recruiter what has actually been booked (Ose, 11 Sep 2026).
+  const [board, setBoard] = useState<BoardData | null>(null)
+  const loadBoard = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/cohort`)
+      if (res.ok) setBoard((await res.json()) as BoardData)
+    } catch {
+      /* the board does not render rather than guessing */
+    }
+  }, [roleId])
+  useEffect(() => {
+    void loadBoard()
+  }, [loadBoard])
 
   const load = useCallback(async () => {
     announceRoleChanged()
@@ -271,6 +287,20 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
       <main className="ag-main">
         <div className="ag-screen">
           <RoleHeader roleId={roleId} hat="recruiter" />
+
+          {/* Scheduling, before the loop: who is booked and who has not
+              chosen yet. Read-only by design — candidates seat themselves. */}
+          {board && board.members.length > 0 && (
+            <section style={{ marginTop: 16 }} aria-labelledby="cohort-h">
+              <p className="ag-field-label" id="cohort-h">The cohort · scheduling</p>
+              <CohortBoard
+                board={board}
+                hat="recruiter"
+                remindEndpoint={`/api/agency/roles/${roleId}/cohort`}
+                onChanged={() => void loadBoard()}
+              />
+            </section>
+          )}
 
           <p className="ag-step-eyebrow">Interview loop · the selection process</p>
           <h1 className="ag-title">

@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireHiringContext } from "@/lib/agency/client-auth"
 import type { HiringFailure } from "@/lib/agency/client-auth"
 import { listClientRoles } from "@/lib/agency/client-header"
-import { inviteCohort } from "@/lib/agency/cohort"
+import { getCohortBoard, inviteCohort, remindCohortMember } from "@/lib/agency/cohort"
 import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 60
@@ -36,6 +36,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
 
     const result = await inviteCohort(tie.agencyId, roleId, tie.contactId, refs, auth.ctx.userId)
     return NextResponse.json(result, { status: 201 })
+  } catch (error) {
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+  }
+}
+
+/** The client's scheduling board: the whole cohort, and what each needs. */
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  try {
+    const { roleId } = await params
+    const auth = await requireHiringContext()
+    if (!auth.ok) return authFail(auth.failure)
+    const tie = (await listClientRoles(auth.ctx)).find((t) => t.roleId === roleId)
+    if (!tie) return NextResponse.json({ error: "Role not found" }, { status: 404 })
+    const board = await getCohortBoard({ agencyId: tie.agencyId, userId: auth.ctx.userId, role: "viewer" }, roleId)
+    return NextResponse.json(board)
+  } catch (error) {
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+  }
+}
+
+/** Send one person's booking link again. */
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  try {
+    const { roleId } = await params
+    const auth = await requireHiringContext()
+    if (!auth.ok) return authFail(auth.failure)
+    const tie = (await listClientRoles(auth.ctx)).find((t) => t.roleId === roleId)
+    if (!tie) return NextResponse.json({ error: "Role not found" }, { status: 404 })
+    const body = await req.json().catch(() => ({}))
+    const roundId = typeof body?.roundId === "string" ? body.roundId : ""
+    if (!roundId) return NextResponse.json({ error: "roundId is required" }, { status: 400 })
+    const result = await remindCohortMember(
+      { agencyId: tie.agencyId, userId: auth.ctx.userId, role: "viewer" },
+      roleId,
+      roundId
+    )
+    return NextResponse.json(result)
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }

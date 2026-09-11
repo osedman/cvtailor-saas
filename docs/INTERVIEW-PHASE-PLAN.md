@@ -137,6 +137,11 @@ Foundation first, because everything downstream reads it:
 2. **Capacity validation** against those rules, surfaced before invitations
    go out.
 3. **Hold**, the persistent action bar, and the cohort vocabulary.
-4. **The cohort dashboard** for the client.
+4. ~~**The cohort dashboard** for the client.~~ **Built 11 Sep 2026**, for
+   both hats from one derivation. Statuses honestly mapped: "Selected" lives
+   on the shortlist board before any round exists, and "Booked"/"Confirmed"
+   are one event in a self-booking model, so the board shows Awaiting
+   booking · Booked · Write-up due · Interview complete · No suitable time ·
+   Cancelled, plus a chase flag after 72 unanswered hours.
 5. **Self-booking from the open pool** — after conflict 1 is settled.
 6. **Reminders, rescheduling, video links, waves.**

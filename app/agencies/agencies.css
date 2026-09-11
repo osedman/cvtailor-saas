@@ -1672,3 +1672,24 @@ a.ag-rh-next:hover { opacity: 0.86; }
 .agd-today-rail { grid-column: 1 / -1; }
 .agd-today-row[data-flag="blocked"] { background: var(--ag-tint-1); }
 .agd-today-row[data-flag="blocked"]:hover { background: var(--ag-tint-2); }
+
+/* ── The interview cohort's scheduling board (11 Sep 2026) ────────────────
+ * One component, both hats: the client watches their cohort fill and the
+ * recruiter watches the same board, because candidates book themselves and
+ * visibility is what the recruiter gets. */
+.ag-cohort { display: flex; flex-direction: column; gap: 10px; }
+.ag-cohort-summary { margin: 0; font-weight: 600; }
+.ag-cohort-capacity { margin: 0; font-size: var(--t-small); color: var(--ag-ink-2); }
+.ag-cohort-capacity.short { color: var(--ag-coral-text); font-weight: 600; }
+.ag-cohort-rows { display: flex; flex-direction: column; gap: 6px; }
+.ag-cohort-row { display: grid; grid-template-columns: minmax(0, 1.3fr) auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 10px 12px; border: 1px solid var(--ag-border); border-radius: var(--r-sm); background: var(--ag-paper); }
+.ag-cohort-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ag-cohort-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-cohort-when { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-2); }
+.ag-cohort-act { display: flex; justify-content: flex-end; }
+.ag-cohort-status.good { border-color: var(--ag-calm); color: var(--ag-calm); }
+.ag-cohort-status.attention { border-color: var(--ag-warn-mark); color: var(--ag-warn); }
+@media (max-width: 760px) {
+  .ag-cohort-row { grid-template-columns: 1fr auto; row-gap: 8px; }
+  .ag-cohort-act { grid-column: 1 / -1; justify-content: flex-start; }
+}

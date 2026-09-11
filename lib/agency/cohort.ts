@@ -20,6 +20,9 @@
 
 import { agencyAdmin, writeAudit } from "./db"
 import { mintBookingToken, sendSelfBookingInvite } from "./booking"
+import { listOpenSlots, listRoundsForRole } from "./rounds"
+import { cohortStatus, needsChasing, statusRank, type CohortRoundFacts, type CohortStatus } from "./cohort-status"
+import type { AgencyContext } from "./types"
 
 export interface CohortInviteResult {
   invited: Array<{ candidateRef: string; sent: boolean; reason?: string }>
@@ -110,4 +113,121 @@ export async function inviteCohort(
   }
 
   return result
+}
+
+
+export interface CohortMember {
+  roundId: string
+  candidateRef: string
+  /** The name the caller is entitled to. Refs only where they are not. */
+  candidateName: string
+  roundNumber: number
+  status: CohortStatus
+  scheduledAt: string | null
+  durationMinutes: number
+  /** An unanswered invitation that has waited long enough to chase. */
+  chase: boolean
+}
+
+export interface CohortBoard {
+  members: CohortMember[]
+  /** Windows still free for the people who have not booked. */
+  openWindows: number
+  now: string
+}
+
+/**
+ * The scheduling board for one role: everyone invited, where they stand, and
+ * how many windows are left for those who have not chosen yet.
+ *
+ * ONE DERIVATION, TWO BOARDS. The client's and the recruiter's read this
+ * same function, so they cannot disagree about who is booked. What differs
+ * is only what each is entitled to see, and that is the caller's job — the
+ * recruiter route passes names through, the client route matches them
+ * against their own submission snapshot.
+ */
+export async function getCohortBoard(ctx: AgencyContext, roleId: string): Promise<CohortBoard> {
+  const now = new Date()
+  const [rounds, openSlots] = await Promise.all([listRoundsForRole(ctx, roleId), listOpenSlots(ctx, roleId)])
+
+  const members: CohortMember[] = rounds.map((r) => {
+    const facts: CohortRoundFacts = {
+      status: r.status,
+      candidateResponse: r.candidateResponse,
+      scheduledAt: r.scheduledAt,
+      hasDebrief: r.hasDebrief,
+      createdAt: r.createdAt,
+    }
+    return {
+      roundId: r.id,
+      candidateRef: r.candidateRef,
+      candidateName: r.candidateName,
+      roundNumber: r.roundNumber,
+      status: cohortStatus(facts, now),
+      scheduledAt: r.scheduledAt,
+      durationMinutes: r.durationMinutes,
+      chase: needsChasing(facts, now),
+    }
+  })
+
+  // What needs somebody first, then what is settled; inside a status, the
+  // soonest interview leads.
+  members.sort(
+    (a, b) =>
+      statusRank(a.status) - statusRank(b.status) ||
+      (a.scheduledAt ?? "").localeCompare(b.scheduledAt ?? "") ||
+      a.candidateRef.localeCompare(b.candidateRef)
+  )
+
+  return { members, openWindows: openSlots.length, now: now.toISOString() }
+}
+
+/**
+ * Send somebody's booking link again.
+ *
+ * A FRESH TOKEN, AND THE OLD ONE STOPS WORKING. Minting is the only way to
+ * hand out a link — the stored hash cannot be reversed — so a reminder is
+ * necessarily a new link. Better that than a reminder that quietly cannot be
+ * sent, but the board says so rather than letting someone wonder why the
+ * first email stopped working.
+ */
+export async function remindCohortMember(
+  ctx: AgencyContext,
+  roleId: string,
+  roundId: string
+): Promise<{ sent: boolean; reason?: string }> {
+  const admin = agencyAdmin()
+  const { data: round } = await admin
+    .from("interview_rounds")
+    .select("id, agency_id, role_id, candidate_id, slot_id, status")
+    .eq("agency_id", ctx.agencyId)
+    .eq("role_id", roleId)
+    .eq("id", roundId)
+    .maybeSingle()
+  if (!round) return { sent: false, reason: "not_found" }
+  if (round.status === "cancelled") return { sent: false, reason: "cancelled" }
+  // Nothing to remind them of: they already hold a time.
+  if (round.slot_id) return { sent: false, reason: "already_booked" }
+
+  const token = await mintBookingToken(admin, roundId)
+  const sent = await sendSelfBookingInvite(admin, roundId, token)
+
+  const { data: candidate } = await admin
+    .from("candidates")
+    .select("ref")
+    .eq("id", round.candidate_id as string)
+    .maybeSingle()
+
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    roleId,
+    candidateId: round.candidate_id as string,
+    actorId: ctx.userId,
+    entityType: "round",
+    entityRef: (candidate?.ref as string) ?? "",
+    action: "booking_reminded",
+    reason: "link sent again; the previous one no longer works",
+    toValue: { round_id: roundId, sent: sent.sent },
+  })
+  return sent
 }
