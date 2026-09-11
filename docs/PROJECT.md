@@ -4014,6 +4014,41 @@ person.
 persistent action bar, reminders on a schedule rather than on a click,
 rescheduling, video links, and invitation waves.
 
+## ✋ 11 Sep 2026 (evening) — hold, and the action bar
+
+Step 1 of Ose's interview spec, finished.
+
+**Hold** is the third decision (migration `20260911090000` widens
+`client_actions.action`). It is the call a client who is unsure would
+otherwise have had to make as a decline — the wrong signal entirely, and one
+that reaches a candidate as a closed door. It is also the reserve that
+invitation waves will run on when they are built.
+
+Like every other client action it is a signal on a submission and never a
+removal: same insert path, same audit row, nothing hidden from the
+recruiter, nothing sent to the candidate. Only the interviewed become cohort
+members, so a hold invites nobody.
+
+The list of allowed decisions lives in ONE place (`CLIENT_DECISIONS`) and
+both the library and the route validate against it, so a fourth cannot
+arrive by being typed into a route. The constraint was rebuilt from the
+deployed list, keeping the portal's own `approve` and `question` — the same
+discipline as the audit entity-type rebuild that once dropped a value.
+
+**The action bar** is sticky at the foot of the set-up screen, carrying the
+count, what is still undecided, how many windows are about to be offered,
+and the one act. The confirm used to sit at the bottom of a long screen, so
+on a cohort of fifteen you made fifteen decisions and then went looking for
+the button. It also saves when nobody is being interviewed, because "none of
+these" is still an answer the recruiter needs.
+
+**Verified:** typecheck clean, 1,142 tests, production build clean.
+
+**Ose to run in tailr-staging:** `20260911090000_client_action_hold.sql`.
+
+**Left from the spec:** reminders on a schedule rather than on a click,
+rescheduling, video links, and invitation waves.
+
 ---
 
 _Last updated: 11 September 2026_

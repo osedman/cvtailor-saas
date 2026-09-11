@@ -49,7 +49,7 @@ interface CalendarStatus {
   connection: { provider: string; label: string; connectedAt: string } | null
   providers: Array<{ key: string; label: string; configured: boolean }>
 }
-type Choice = "interview" | "decline" | ""
+type Choice = "interview" | "hold" | "decline" | ""
 
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
 const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
@@ -91,7 +91,7 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
   const [short, setShort] = useState(false)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = useState(false)
-  const [done, setDone] = useState<{ interviewed: number; declined: number; offered: number } | null>(null)
+  const [done, setDone] = useState<{ interviewed: number; held: number; declined: number; offered: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -107,7 +107,16 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
       const body = (await s.json()) as { shortlist: Shortlist }
       setShortlist(body.shortlist)
       const initial: Record<string, Choice> = {}
-      for (const e of body.shortlist.entries) initial[e.ref] = e.action === "interview" || e.action === "approve" ? "interview" : e.action === "decline" ? "decline" : ""
+      for (const e of body.shortlist.entries) {
+        initial[e.ref] =
+          e.action === "interview" || e.action === "approve"
+            ? "interview"
+            : e.action === "hold"
+              ? "hold"
+              : e.action === "decline"
+                ? "decline"
+                : ""
+      }
       setChoices(initial)
       if (c.ok) setCalendar((await c.json()) as CalendarStatus)
       if (st.ok) {
@@ -128,6 +137,12 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
   }, [load])
 
   const chosen = useMemo(() => Object.entries(choices).filter(([, c]) => c === "interview").map(([ref]) => ref), [choices])
+  const held = useMemo(() => Object.values(choices).filter((c) => c === "hold").length, [choices])
+  const declined = useMemo(() => Object.values(choices).filter((c) => c === "decline").length, [choices])
+  const undecided = useMemo(
+    () => (shortlist?.entries ?? []).filter((e) => !e.action && !choices[e.ref]).length,
+    [shortlist, choices]
+  )
   const wanted = windowsWanted(chosen.length)
   // Read off the URL rather than useSearchParams so this page needs no
   // Suspense boundary — the same choice the workflow page makes.
@@ -206,7 +221,9 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
       const fresh = shortlist.entries.filter((e) => !e.action)
       const decisions = fresh
         .map((e) => ({ ref: e.ref, action: choices[e.ref] }))
-        .filter((d): d is { ref: string; action: "interview" | "decline" } => d.action === "interview" || d.action === "decline")
+        .filter((d): d is { ref: string; action: "interview" | "hold" | "decline" } =>
+          d.action === "interview" || d.action === "hold" || d.action === "decline"
+        )
       let written = 0
       if (decisions.length > 0) {
         const r = await fetch(`/api/hiring/roles/${roleId}/decisions`, {
@@ -253,11 +270,7 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
       void written
       void invited
       await loadBoard()
-      setDone({
-        interviewed: chosen.length,
-        declined: Object.values(choices).filter((c) => c === "decline").length,
-        offered,
-      })
+      setDone({ interviewed: chosen.length, held, declined, offered })
       announceRoleChanged()
     } catch {
       setError("Something went wrong. Nothing you had already confirmed is lost.")
@@ -331,7 +344,9 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                   <div className="ag-receipt-head">
                     <span className="ag-receipt-eyebrow">Confirmed</span>
                     <span className="ag-receipt-confirmed">
-                      {done.interviewed} to interview{done.declined ? `, ${done.declined} not for this role` : ""}
+                      {done.interviewed} invited to interview
+                      {done.held ? `, ${done.held} on hold` : ""}
+                      {done.declined ? `, ${done.declined} not for this role` : ""}
                       {done.offered ? `, ${done.offered} interview windows offered` : ", no windows offered yet"}.
                     </span>
                   </div>
@@ -369,11 +384,23 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                             </span>
                           </div>
                           {locked ? (
-                            <span className="ag-pill">{e.action === "decline" ? "Not for this role" : e.action === "question" ? "You asked a question" : "Interview"} · already decided</span>
+                            <span className="ag-pill">{e.action === "decline" ? "Not for this role" : e.action === "hold" ? "On hold" : e.action === "question" ? "You asked a question" : "Interview"} · already decided</span>
                           ) : (
                             <div className="agd-seg" role="group" aria-label={`Decision for ${e.ref}`}>
-                              <button type="button" aria-pressed={c === "interview"} onClick={() => setChoices((p) => ({ ...p, [e.ref]: c === "interview" ? "" : "interview" }))}>Interview</button>
-                              <button type="button" aria-pressed={c === "decline"} onClick={() => setChoices((p) => ({ ...p, [e.ref]: c === "decline" ? "" : "decline" }))}>Not for this role</button>
+                              {([
+                                ["interview", "Interview"],
+                                ["hold", "Hold"],
+                                ["decline", "Not for this role"],
+                              ] as const).map(([value, label]) => (
+                                <button
+                                  key={value}
+                                  type="button"
+                                  aria-pressed={c === value}
+                                  onClick={() => setChoices((p) => ({ ...p, [e.ref]: c === value ? "" : value }))}
+                                >
+                                  {label}
+                                </button>
+                              ))}
                             </div>
                           )}
                         </div>
@@ -381,7 +408,9 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                     })}
                   </div>
                   <p className="agd-aside" style={{ marginTop: 10 }}>
-                    Full evidence for each candidate is in the shortlist your recruiter sent you. "Not for this role" is a signal to your recruiter, not a removal.
+                    Full evidence for each candidate is in the shortlist your recruiter sent you. <b>Hold</b> keeps
+                    somebody in reserve without inviting them yet. Every one of these is a signal to your recruiter,
+                    never a removal, and nothing is sent to the candidate except an invitation to book.
                   </p>
                 </section>
 
@@ -525,18 +554,51 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                   )}
                 </section>
 
-                <section className="agd-band">
-                  {error && <p className="ag-banner" role="alert">{error}</p>}
-                  <div className="hm-brief-actions">
-                    <button type="button" className="agd-tbtn primary" disabled={submitting || (chosen.length === 0 && !Object.values(choices).includes("decline"))} onClick={() => void confirm()}>
-                      {submitting ? "Confirming…" : `Confirm ${chosen.length} to interview${picked.size ? ` and offer ${picked.size} windows` : ""}`}
-                    </button>
-                    <button type="button" className="agd-tbtn" onClick={() => router.push(`/hiring/roles/${roleId}`)}>Not now</button>
+                {error && (
+                  <section className="agd-band">
+                    <p className="ag-banner" role="alert">{error}</p>
+                  </section>
+                )}
+
+                {/*
+                  THE ACTION BAR (11 Sep 2026, Ose): persistent, carrying the
+                  count and the single act. The confirm used to sit at the
+                  bottom of a long screen, so on a cohort of fifteen you made
+                  fifteen decisions and then had to go looking for the button.
+                */}
+                <div className="hm-actionbar" role="region" aria-label="Invite your cohort">
+                  <div className="hm-actionbar-count">
+                    <strong>
+                      {chosen.length === 0
+                        ? "Nobody selected yet"
+                        : `${chosen.length} candidate${chosen.length === 1 ? "" : "s"} selected`}
+                    </strong>
+                    <span className="ag-meta">
+                      {[
+                        held > 0 && `${held} on hold`,
+                        declined > 0 && `${declined} not for this role`,
+                        undecided > 0 && `${undecided} still to decide`,
+                        picked.size > 0 && `${picked.size} window${picked.size === 1 ? "" : "s"} to offer`,
+                      ].filter(Boolean).join(" · ") || "Choose who you want to interview"}
+                    </span>
                   </div>
-                  <p className="agd-aside" style={{ marginTop: 8 }}>
-                    Your recruiter books each candidate into one of your windows; the candidate confirms; it lands in your diary.
-                  </p>
-                </section>
+                  <span className="ag-grow" />
+                  <button type="button" className="agd-tbtn" onClick={() => router.push(`/hiring/roles/${roleId}`)}>
+                    Not now
+                  </button>
+                  <button
+                    type="button"
+                    className="agd-tbtn primary"
+                    disabled={submitting || (chosen.length === 0 && held === 0 && declined === 0)}
+                    onClick={() => void confirm()}
+                  >
+                    {submitting
+                      ? "Sending…"
+                      : chosen.length === 0
+                        ? "Save these decisions"
+                        : `Invite ${chosen.length} to interview`}
+                  </button>
+                </div>
               </>
             )}
           </>

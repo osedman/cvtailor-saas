@@ -25,7 +25,18 @@ import { agencyAdmin, writeAudit } from "./db"
 import { offerSlot } from "./rounds"
 import type { HiringContext } from "./types"
 
-export type ClientDecisionAction = "interview" | "decline"
+/**
+ * The client's call on one shortlisted candidate.
+ *
+ * `hold` means "not this wave, but do not write them off" — the signal a
+ * client who is unsure would otherwise have to express as a decline, which
+ * is the wrong thing entirely. It is also what invitation waves run on: the
+ * held are the reserve. Like every other action here it is a signal on a
+ * submission, never a removal, and the candidate is not told.
+ */
+export type ClientDecisionAction = "interview" | "hold" | "decline"
+
+export const CLIENT_DECISIONS: ClientDecisionAction[] = ["interview", "hold", "decline"]
 
 export interface ShortlistEntry {
   ref: string
@@ -129,7 +140,7 @@ export async function recordClientDecisions(
   const skipped: string[] = []
   for (const d of decisions) {
     const entry = byRef.get(d.ref)
-    if (!entry || (d.action !== "interview" && d.action !== "decline")) {
+    if (!entry || !CLIENT_DECISIONS.includes(d.action)) {
       skipped.push(d.ref)
       continue
     }

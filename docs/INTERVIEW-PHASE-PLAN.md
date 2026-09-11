@@ -136,7 +136,10 @@ Foundation first, because everything downstream reads it:
    template. Feeds proposal, capacity and self-booking alike.
 2. **Capacity validation** against those rules, surfaced before invitations
    go out.
-3. **Hold**, the persistent action bar, and the cohort vocabulary.
+3. ~~**Hold**, the persistent action bar, and the cohort vocabulary.~~
+   **Built 11 Sep 2026.** Three decisions per candidate (interview · hold ·
+   decline, migration `20260911090000`), and a sticky bar carrying the count,
+   what is still undecided, and the single act.
 4. ~~**The cohort dashboard** for the client.~~ **Built 11 Sep 2026**, for
    both hats from one derivation. Statuses honestly mapped: "Selected" lives
    on the shortlist board before any round exists, and "Booked"/"Confirmed"

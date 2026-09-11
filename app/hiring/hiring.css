@@ -395,3 +395,27 @@
 .hm-capacity.ok { border-color: var(--ag-border); }
 .hm-capacity.tight { border-color: var(--ag-warn-mark); }
 .hm-capacity.short { border-color: var(--ag-coral); background: var(--ag-tint-1); }
+
+/* ── The action bar (11 Sep 2026) ─────────────────────────────────────────
+ * Persistent, because the confirm used to sit at the foot of a long screen:
+ * on a cohort of fifteen you made fifteen decisions and then went looking
+ * for the button. It carries the count and the single act. */
+.hm-actionbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--ag-border);
+  border-radius: var(--r-md);
+  background: var(--ag-paper);
+  box-shadow: 0 -6px 20px rgba(30, 24, 19, 0.08);
+}
+.hm-actionbar-count { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .hm-actionbar { transition: box-shadow 0.15s ease; }
+}
