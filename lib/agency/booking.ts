@@ -52,6 +52,8 @@ export interface BookingView {
   openWindows: Array<{ slotId: string; start: string; end: string }>
   /** True when this candidate still has to pick a time. */
   needsChoice: boolean
+  /** Whether they may move a time they already hold, and the reason if not. */
+  reschedule: { allowed: boolean; because: string }
 }
 
 function hashToken(raw: string): string {
@@ -80,7 +82,7 @@ async function loadByToken(admin: AgencyClient, rawToken: string) {
   const { data } = await admin
     .from("interview_rounds")
     .select(
-      "id, agency_id, role_id, candidate_id, contact_id, round_number, slot_id, scheduled_at, duration_minutes, meeting_url, status, candidate_response"
+      "id, agency_id, role_id, candidate_id, contact_id, round_number, slot_id, scheduled_at, duration_minutes, meeting_url, status, candidate_response, rescheduled_count"
     )
     .eq("booking_token_hash", hashToken(rawToken))
     .maybeSingle()
@@ -96,6 +98,7 @@ export async function peekBooking(rawToken: string): Promise<BookingView> {
       state: "unknown", company: "", agencyName: "", roundNumber: 0,
       scheduledAt: null, durationMinutes: 0, meetingUrl: null,
       openWindows: [], needsChoice: false,
+      reschedule: { allowed: false, because: "" },
     }
   }
 
@@ -112,9 +115,13 @@ export async function peekBooking(rawToken: string): Promise<BookingView> {
         ? "confirmed"
         : "invited"
 
-  // Nothing to choose once a time is held, declined or cancelled.
+  // Nothing to choose once a time is held, declined or cancelled — unless
+  // they are allowed to move it, in which case the alternatives are exactly
+  // the same list.
+  const reschedule = await mayReschedule(admin, round, new Date())
   const needsChoice = state === "invited" && !round.slot_id
-  const openWindows = needsChoice
+  const showWindows = needsChoice || (state === "confirmed" && reschedule.allowed)
+  const openWindows = showWindows
     ? await listOpenWindows(admin, round.agency_id as string, round.role_id as string)
     : []
 
@@ -129,7 +136,119 @@ export async function peekBooking(rawToken: string): Promise<BookingView> {
     meetingUrl: confirmed ? ((round.meeting_url as string) || null) : null,
     openWindows,
     needsChoice,
+    reschedule,
   }
+}
+
+/**
+ * May this candidate move their own interview?
+ *
+ * The policy is the client's (`reschedule_policy`), the allowance is a count
+ * (`reschedule_limit`), and `until_notice` means what the candidate was
+ * promised: up to the same notice period they were owed before it. Every
+ * refusal carries its reason, because "you cannot" with no explanation is
+ * the thing that makes somebody email a recruiter.
+ */
+async function mayReschedule(
+  admin: AgencyClient,
+  round: Record<string, unknown>,
+  now: Date
+): Promise<{ allowed: boolean; because: string }> {
+  if (round.status === "cancelled" || round.candidate_response !== "confirmed" || !round.scheduled_at) {
+    return { allowed: false, because: "" }
+  }
+  const { settings } = await getInterviewSettings(round.agency_id as string, round.role_id as string)
+  if (settings.reschedulePolicy === "none") {
+    return { allowed: false, because: "This interview cannot be moved online — reply to your recruiter if you need to." }
+  }
+  const used = (round.rescheduled_count as number) ?? 0
+  if (used >= settings.rescheduleLimit) {
+    return {
+      allowed: false,
+      because:
+        settings.rescheduleLimit === 0
+          ? "This interview cannot be moved online — reply to your recruiter if you need to."
+          : "You have already moved this interview. Your recruiter can help if something has changed.",
+    }
+  }
+  if (settings.reschedulePolicy === "until_notice") {
+    const cutoff = Date.parse(round.scheduled_at as string) - settings.minNoticeHours * 3_600_000
+    if (now.getTime() > cutoff) {
+      return { allowed: false, because: "It is too close to the interview to move it here — please reply to your recruiter." }
+    }
+  }
+  return { allowed: true, because: "" }
+}
+
+export type RescheduleOutcome = ClaimOutcome | "not_allowed"
+
+/**
+ * Move a confirmed interview to another window.
+ *
+ * Releasing and claiming are one operation on purpose. Releasing first would
+ * hand the old window to somebody else while this candidate is still mid-
+ * click, and a failed claim would leave them with nothing at all — so the
+ * new window is taken first, and only then is the old one let go.
+ */
+export async function rescheduleBooking(rawToken: string, slotId: string): Promise<RescheduleOutcome> {
+  const admin = agencyAdmin()
+  const round = await loadByToken(admin, rawToken)
+  if (!round) return "not_found"
+
+  const allowed = await mayReschedule(admin, round, new Date())
+  if (!allowed.allowed) return "not_allowed"
+
+  const open = await listOpenWindows(admin, round.agency_id as string, round.role_id as string)
+  const window = open.find((w) => w.slotId === slotId)
+  if (!window) return "not_open"
+
+  const previousSlot = round.slot_id as string
+  if (previousSlot === slotId) return "already_booked"
+
+  // Take the new window before letting the old one go: the other order can
+  // leave somebody with neither.
+  const { error } = await admin
+    .from("interview_rounds")
+    .update({
+      slot_id: slotId,
+      scheduled_at: window.start,
+      rescheduled_count: ((round.rescheduled_count as number) ?? 0) + 1,
+    })
+    .eq("id", round.id as string)
+    .eq("slot_id", previousSlot)
+  if (error) {
+    if ((error as { code?: string }).code === "23505") return "taken"
+    throw error
+  }
+
+  const { data: candidate } = await admin
+    .from("candidates")
+    .select("ref")
+    .eq("id", round.candidate_id as string)
+    .maybeSingle()
+  const ref = (candidate?.ref as string) ?? ""
+
+  await writeAudit(admin, {
+    agencyId: round.agency_id as string,
+    roleId: round.role_id as string,
+    candidateId: round.candidate_id as string,
+    actorId: null,
+    entityType: "round",
+    entityRef: ref,
+    action: "booking_rescheduled",
+    reason: "candidate moved their own interview",
+    toValue: { round_id: round.id, from_slot: previousSlot, to_slot: slotId },
+  })
+
+  await notify(admin, {
+    kind: "booking_answered",
+    agencyId: round.agency_id as string,
+    actorId: null,
+    roleId: round.role_id as string,
+    candidateRef: ref,
+  })
+
+  return "claimed"
 }
 
 /**
@@ -205,6 +324,11 @@ export async function claimBookingSlot(rawToken: string, slotId: string): Promis
       duration_minutes: settings.durationMinutes,
       candidate_response: "confirmed",
       candidate_responded_at: new Date().toISOString(),
+      // The client's standing joining link, if they gave one. Withheld from
+      // the doorway until confirmed either way — this only stores it.
+      ...(joiningLink(settings.locationKind, settings.locationDetail)
+        ? { meeting_url: joiningLink(settings.locationKind, settings.locationDetail) }
+        : {}),
     })
     .eq("id", round.id as string)
     .is("slot_id", null)
@@ -481,4 +605,20 @@ export function selfBookingHtml(o: {
     </p>
   </div>
 </body></html>`
+}
+
+
+/**
+ * The joining link, when the client gave one.
+ *
+ * Tailr does not mint Meet or Teams links: the calendar consent it asks for
+ * is read-only, and widening it to write events is a bigger question than a
+ * convenience. So a standing link the client pasted into their rules is
+ * carried through to the people they are meeting, and anything that is not a
+ * link stays a description.
+ */
+export function joiningLink(kind: string, detail: string): string {
+  if (kind !== "video") return ""
+  const trimmed = detail.trim()
+  return /^https:\/\/\S+$/i.test(trimmed) ? trimmed.slice(0, 500) : ""
 }

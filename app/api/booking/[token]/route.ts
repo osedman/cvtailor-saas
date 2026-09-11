@@ -4,7 +4,8 @@
  *
  * GET  → what the doorway renders
  * POST → { answer: 'confirmed' | 'declined' } to answer a fixed time,
- *         or { slotId } to CHOOSE one when the invitation left it open
+ *         { slotId } to CHOOSE one when the invitation left it open,
+ *         or { slotId, move: true } to move a time they already hold
  *
  * Every failure answers identically, so a guessed token learns nothing about
  * whether it nearly worked. Rate-limited on both verbs: an unauthenticated
@@ -13,7 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { claimBookingSlot, peekBooking, respondToBooking } from "@/lib/agency/booking"
+import { claimBookingSlot, peekBooking, rescheduleBooking, respondToBooking } from "@/lib/agency/booking"
 import { checkRateLimit, anonRateLimitId } from "@/lib/rate-limit"
 
 export const maxDuration = 15
@@ -48,11 +49,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     if (limited) return limited
 
     const { token } = await params
-    const body = (await req.json().catch(() => ({}))) as { answer?: unknown; slotId?: unknown }
+    const body = (await req.json().catch(() => ({}))) as { answer?: unknown; slotId?: unknown; move?: unknown }
 
-    // Self-booking: the invitation left the time open and they picked one.
+    // Self-booking: the invitation left the time open and they picked one,
+    // or they already hold one and are moving it.
     if (typeof body.slotId === "string" && body.slotId) {
-      const claim = await claimBookingSlot(token, body.slotId)
+      const claim = body.move === true
+        ? await rescheduleBooking(token, body.slotId)
+        : await claimBookingSlot(token, body.slotId)
+      if (claim === "not_allowed") {
+        return NextResponse.json({ ok: false, outcome: claim, booking: await peekBooking(token) }, { status: 403 })
+      }
       if (claim === "not_found") return notFound()
       // "Taken" is a normal answer, not an error: somebody was a second
       // quicker, and the doorway re-renders with that window gone.

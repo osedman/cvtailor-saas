@@ -30,10 +30,20 @@ export interface BoardMember {
   chase: boolean
 }
 
+export interface WaveView {
+  reserve: string[]
+  awaiting: number
+  openWindows: number
+  waveSize: number | null
+  nextReleaseAt: string | null
+  plan: { release: number; reason: string; remaining: number }
+}
+
 export interface BoardData {
   members: BoardMember[]
   openWindows: number
   now: string
+  wave?: WaveView
 }
 
 function whenText(iso: string | null, minutes: number): string {
@@ -52,6 +62,7 @@ export function CohortBoard({
   remindEndpoint,
   onChanged,
   offerMoreHref,
+  releaseEndpoint,
 }: {
   board: BoardData
   hat: "recruiter" | "client"
@@ -60,6 +71,8 @@ export function CohortBoard({
   onChanged: () => void
   /** Where the client goes to offer more windows. */
   offerMoreHref?: string
+  /** POST { release: true } sends the next wave. The client's act, not the recruiter's. */
+  releaseEndpoint?: string
 }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
@@ -89,6 +102,33 @@ export function CohortBoard({
     }
   }
 
+  async function release() {
+    if (!releaseEndpoint) return
+    setBusy("wave")
+    setNote(null)
+    try {
+      const res = await fetch(releaseEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ release: true }),
+      })
+      const body = await res.json().catch(() => ({}))
+      setNote(
+        Array.isArray(body?.invited) && body.invited.length > 0
+          ? `${body.invited.length} more invited to book.`
+          : typeof body?.sentence === "string"
+            ? body.sentence
+            : "Nobody new could be invited."
+      )
+      onChanged()
+    } catch {
+      setNote("That did not send.")
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const wave = board.wave
   const awaiting = board.members.filter((m) => m.status === "awaiting").length
   const stuck = board.members.filter((m) => m.status === "no_suitable_time").length
   const short = awaiting > board.openWindows
@@ -111,6 +151,32 @@ export function CohortBoard({
             </>
           )}
         </p>
+      )}
+
+      {/* The reserve: who is chosen but not yet invited, and what has to
+          happen before they are. Only shown when waves are actually in use. */}
+      {wave && wave.reserve.length > 0 && (
+        <div className="ag-cohort-wave">
+          <div>
+            <strong>
+              {wave.reserve.length} in reserve
+              {wave.waveSize ? ` · ${wave.waveSize} go out at a time` : ""}
+            </strong>
+            <span className="ag-meta" style={{ display: "block" }}>
+              {wave.plan.release > 0
+                ? `${wave.plan.release} can go out now.`
+                : wave.nextReleaseAt && Date.parse(wave.nextReleaseAt) > Date.now()
+                  ? `The last wave is still choosing. The next is due ${new Date(wave.nextReleaseAt).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}, or sooner if a window frees up.`
+                  : "Waiting on free windows."}
+            </span>
+          </div>
+          <span className="ag-grow" />
+          {hat === "client" && releaseEndpoint && wave.plan.release > 0 && (
+            <button className="ag-btn ag-btn-primary" disabled={busy === "wave"} onClick={() => void release()}>
+              {busy === "wave" ? "Inviting…" : `Invite ${wave.plan.release} more`}
+            </button>
+          )}
+        </div>
       )}
 
       {note && (
@@ -158,7 +224,7 @@ export function CohortBoard({
       <p className="ag-note" style={{ marginTop: 8 }}>
         {hat === "client"
           ? "Each candidate picks their own time from the windows you offered. A time taken disappears for everyone else."
-          : "Candidates book themselves from the client's windows. Nothing here seats anyone — sending a link again is the only act."}
+          : "Candidates book themselves from the client's windows, and the client decides when the next wave goes. Nothing here seats anyone — sending a link again is the only act."}
       </p>
     </div>
   )

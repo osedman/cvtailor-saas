@@ -45,9 +45,14 @@ describe("hold", () => {
   })
 
   it("only the interviewed are invited — a hold is not a cohort member", () => {
+    // The screen still separates them; since waves (11 Sep) the invitation
+    // itself is chosen by the planner, whose reserve is the interviewed
+    // alone, so the guarantee now lives there.
     const page = read("app/hiring/roles/[roleId]/interviews/page.tsx")
     expect(page).toMatch(/filter\(\(\[, c\]\) => c === "interview"\)/)
-    expect(page).toMatch(/candidateRefs: chosen/)
+    const waves = read("lib/agency/waves.ts")
+    expect(waves).toMatch(/\.eq\("action", "interview"\)/)
+    expect(waves).not.toMatch(/\.eq\("action", "hold"\)/)
   })
 })
 

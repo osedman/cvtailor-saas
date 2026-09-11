@@ -4049,6 +4049,54 @@ these" is still an answer the recruiter needs.
 **Left from the spec:** reminders on a schedule rather than on a click,
 rescheduling, video links, and invitation waves.
 
+## 🌊 11 Sep 2026 (night) — waves, scheduled reminders, rescheduling and joining links
+
+Ose: "build everything please with clean code." The rest of the interview
+spec, in one migration (`20260911100000`) and four small modules.
+
+**Waves** (`lib/agency/waves.ts`). A pure planner decides how many go out;
+everything else asks it. Capacity is always the binding constraint, never
+the wave size — inviting five into three windows recreates the exact race
+waves exist to prevent — and the reason a release was the size it was is
+shown rather than inferred. **Wave one is not a special case**: the first
+invitation is simply the first release, so a rule that caps later waves can
+never fail to apply to the first.
+
+Two deliberate lines. **No ranking**: the reserve keeps the order the client
+decided in, not a score Tailr invented. **Hold is not the reserve**: someone
+marked hold stays held, because auto-releasing them would override the
+judgement just recorded — the reserve is people the client said they want to
+interview who have not gone out yet.
+
+**Scheduled reminders** (`lib/agency/interview-reminders.ts`). A nudge to
+somebody still choosing, and a reminder the day before an interview they
+booked. Each stamps the round when it goes, and quiet is measured from the
+LAST contact rather than the invitation — without both, this is a machine
+for mailing people every hour. One unreachable address is counted, never
+thrown, so it cannot stop everybody else's.
+
+**Rescheduling** (`rescheduleBooking`). The candidate moves their own
+interview inside the client's policy and allowance. The new window is taken
+BEFORE the old is released, because the other order can leave somebody
+holding nothing at all. Every refusal names the next step; "you cannot" with
+no explanation is what makes a candidate email a recruiter.
+
+**Joining links.** A standing link the client pasted into their rules is
+carried through to the people they are meeting. Tailr does NOT mint Meet or
+Teams links: its calendar consent is deliberately read-only, and widening it
+to write events is a decision rather than a convenience. Anything that is
+not a link stays a description.
+
+All four hang off the cron, which now reports nudges, reminders and waves
+released. `releaseDueWaves` is deliberately dumb — it asks the planner about
+each live role and lets it answer zero, which is cheaper than keeping a
+schedule in sync with reality.
+
+**Verified:** typecheck clean, 1,165 tests, production build clean.
+
+**Ose to run in tailr-staging:** `20260911100000_waves_reminders_reschedule.sql`
+(and `20260911090000_client_action_hold.sql` if it has not gone yet).
+
 ---
 
 _Last updated: 11 September 2026_

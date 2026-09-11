@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAgencyContext } from "@/lib/agency/db"
 import { getCohortBoard, remindCohortMember } from "@/lib/agency/cohort"
+import { getWaveState, planRelease } from "@/lib/agency/waves"
 import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
@@ -27,7 +28,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
     const { roleId } = await params
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
-    return NextResponse.json(await getCohortBoard(auth.ctx, roleId))
+    const [board, wave] = await Promise.all([
+      getCohortBoard(auth.ctx, roleId),
+      getWaveState(auth.ctx.agencyId, roleId),
+    ])
+    const plan = planRelease({
+      reserveSize: wave.reserve.length,
+      awaiting: wave.awaiting,
+      openWindows: wave.openWindows,
+      waveSize: wave.waveSize,
+      waveStillRunning: wave.nextReleaseAt !== null && Date.parse(wave.nextReleaseAt) > Date.now(),
+    })
+    // The recruiter sees the wave, and still cannot release it: the cohort
+    // is the client's to grow.
+    return NextResponse.json({ ...board, wave: { ...wave, plan } })
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }

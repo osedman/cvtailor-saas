@@ -29,6 +29,12 @@ export interface InterviewSettings {
   bufferMinutes: number
   maxPerDay: number
   reschedulePolicy: ReschedulePolicy
+  /** How many go out at once. Null invites everyone; the rest are the reserve. */
+  waveSize: number | null
+  /** How long a wave has to answer before the next is released. */
+  waveReleaseHours: number
+  /** How many times one candidate may move their own interview. */
+  rescheduleLimit: number
 }
 
 export const DEFAULT_SETTINGS: InterviewSettings = {
@@ -42,6 +48,9 @@ export const DEFAULT_SETTINGS: InterviewSettings = {
   bufferMinutes: 15,
   maxPerDay: 4,
   reschedulePolicy: "until_notice",
+  waveSize: null,
+  waveReleaseHours: 48,
+  rescheduleLimit: 1,
 }
 
 const clamp = (n: unknown, lo: number, hi: number, fallback: number): number => {
@@ -81,5 +90,13 @@ export function normalise(input: unknown): InterviewSettings {
     reschedulePolicy: policies.includes(raw.reschedulePolicy as ReschedulePolicy)
       ? (raw.reschedulePolicy as ReschedulePolicy)
       : DEFAULT_SETTINGS.reschedulePolicy,
+    // Null is meaningful here — it means "no waves, invite everyone" — so it
+    // survives rather than falling back to a number.
+    waveSize:
+      raw.waveSize === null || raw.waveSize === undefined || raw.waveSize === ""
+        ? null
+        : clamp(raw.waveSize, 1, 50, 5),
+    waveReleaseHours: clamp(raw.waveReleaseHours, 1, 336, DEFAULT_SETTINGS.waveReleaseHours),
+    rescheduleLimit: clamp(raw.rescheduleLimit, 0, 10, DEFAULT_SETTINGS.rescheduleLimit),
   }
 }

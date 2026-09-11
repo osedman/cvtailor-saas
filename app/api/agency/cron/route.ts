@@ -19,6 +19,8 @@ import { agencyAdmin } from "@/lib/agency/db"
 import { sendOneNotice } from "@/lib/agency/notices"
 import { runQueuedMatchScans } from "@/lib/matching/scan"
 import { runQueuedTranscriptions } from "@/lib/agency/transcription"
+import { runInterviewReminders } from "@/lib/agency/interview-reminders"
+import { releaseDueWaves } from "@/lib/agency/waves"
 import {
   RECORDING_BUCKET,
   listRecordingsDueForDeletion,
@@ -57,6 +59,9 @@ async function run(req: NextRequest) {
     notices_failed: 0,
     match_scans_run: 0,
     transcriptions_run: 0,
+    interview_nudges: 0,
+    interview_reminders: 0,
+    waves_released: 0,
   }
 
   // ---- 1. Retention purge -----------------------------------
@@ -177,6 +182,17 @@ async function run(req: NextRequest) {
   // purpose.
   try {
     summary.transcriptions_run = await runQueuedTranscriptions()
+
+    // Interview reminders: nudges to people who have not booked, and the
+    // reminder before an interview they did. Each is stamped on the round so
+    // running this often cannot mail the same person twice.
+    const reminders = await runInterviewReminders()
+    summary.interview_nudges = reminders.nudged
+    summary.interview_reminders = reminders.reminded
+
+    // Waves due out: a reserve whose wave has had its time, or where a
+    // window has freed up. releaseWave does nothing when nothing is due.
+    summary.waves_released = await releaseDueWaves()
   } catch (e) {
     console.error("[agency-cron] transcription sweep threw:", e instanceof Error ? e.message : e)
   }

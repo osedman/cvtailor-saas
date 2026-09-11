@@ -1693,3 +1693,6 @@ a.ag-rh-next:hover { opacity: 0.86; }
   .ag-cohort-row { grid-template-columns: 1fr auto; row-gap: 8px; }
   .ag-cohort-act { grid-column: 1 / -1; justify-content: flex-start; }
 }
+
+/* The reserve waiting on the next wave. */
+.ag-cohort-wave { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px dashed var(--ag-line-2); border-radius: var(--r-sm); background: var(--ag-bg-2); }

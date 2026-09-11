@@ -31,6 +31,7 @@ type Booking = {
   meetingUrl: string | null
   openWindows: Array<{ slotId: string; start: string; end: string }>
   needsChoice: boolean
+  reschedule: { allowed: boolean; because: string }
 }
 
 function whenText(iso: string | null, minutes: number): string {
@@ -48,6 +49,7 @@ function whenText(iso: string | null, minutes: number): string {
 export default function BookingPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
   const [booking, setBooking] = useState<Booking | null>(null)
+  const [showMove, setShowMove] = useState(false)
   const [dead, setDead] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -116,14 +118,14 @@ export default function BookingPage({ params }: { params: Promise<{ token: strin
     )
   }
 
-  async function claim(slotId: string) {
+  async function claim(slotId: string, move = false) {
     setBusy(true)
     setError(null)
     try {
       const res = await fetch(`/api/booking/${encodeURIComponent(token)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slotId }),
+        body: JSON.stringify(move ? { slotId, move: true } : { slotId }),
       })
       const body = await res.json().catch(() => ({}))
       if (body?.booking) setBooking(body.booking as Booking)
@@ -246,7 +248,48 @@ export default function BookingPage({ params }: { params: Promise<{ token: strin
           </>
         )}
 
-        {booking.state === "confirmed" && (
+        {/* Moving a time they already hold. The policy and the allowance are
+            the client's (interview_settings); the doorway only ever shows
+            what those permit, and says why when they do not. */}
+        {booking.state === "confirmed" && booking.reschedule.allowed && showMove && (
+          <>
+            <p className="cs-eyebrow">Move your interview</p>
+            <h1 className="cs-title">Pick a different time.</h1>
+            <p className="cs-body">
+              Your current time stays yours until you choose another, so you cannot end up with none.
+            </p>
+            {error && (
+              <p className="cs-error" role="alert">
+                {error}
+              </p>
+            )}
+            {booking.openWindows.length === 0 ? (
+              <p className="cs-body">There are no other times free at the moment. Reply to your recruiter and they will sort it out.</p>
+            ) : (
+              <div className="bk-slots">
+                {booking.openWindows.map((w) => (
+                  <button key={w.slotId} className="bk-slot" disabled={busy} onClick={() => void claim(w.slotId, true)}>
+                    <span className="bk-slot-day">
+                      {new Date(w.start).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+                    </span>
+                    <span className="bk-slot-time">
+                      {new Date(w.start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                      {" – "}
+                      {new Date(w.end).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="cs-choice" style={{ marginTop: 14 }}>
+              <button className="cs-btn cs-btn-quiet" disabled={busy} onClick={() => setShowMove(false)}>
+                Keep the time I have
+              </button>
+            </div>
+          </>
+        )}
+
+        {booking.state === "confirmed" && !showMove && (
           <>
             <p className="cs-eyebrow">Confirmed</p>
             <h1 className="cs-title">You are booked in.</h1>
@@ -269,9 +312,18 @@ export default function BookingPage({ params }: { params: Promise<{ token: strin
                 </div>
               )}
             </dl>
+            {booking.reschedule.allowed ? (
+              <div className="cs-choice" style={{ marginTop: 14 }}>
+                <button className="cs-btn cs-btn-quiet" onClick={() => setShowMove(true)}>
+                  Move this interview
+                </button>
+              </div>
+            ) : booking.reschedule.because ? (
+              <p className="cs-small">{booking.reschedule.because}</p>
+            ) : null}
             <p className="cs-small">
-              The calendar file was attached to the email. If something changes, reply to that email
-              and {booking.agencyName} will rearrange it.
+              The calendar file was attached to the email. If anything else changes, reply to that
+              email and {booking.agencyName} will sort it out.
             </p>
           </>
         )}

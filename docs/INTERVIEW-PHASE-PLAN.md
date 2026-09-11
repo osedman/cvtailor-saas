@@ -147,4 +147,14 @@ Foundation first, because everything downstream reads it:
    booking · Booked · Write-up due · Interview complete · No suitable time ·
    Cancelled, plus a chase flag after 72 unanswered hours.
 5. **Self-booking from the open pool** — after conflict 1 is settled.
-6. **Reminders, rescheduling, video links, waves.**
+6. ~~**Reminders, rescheduling, video links, waves.**~~ **Built 11 Sep 2026**
+   (migration `20260911100000`). Waves: a reserve released when the last wave
+   has had its time or a window frees up, always bounded by capacity, with
+   wave one simply the first release. Reminders: a nudge to somebody who has
+   not booked and a reminder the day before one they did, each stamped on
+   the round so an hourly job cannot mail hourly. Rescheduling: the
+   candidate moves their own interview inside the client's policy, taking
+   the new window before releasing the old. Joining links: a standing link
+   the client gave is carried to the candidate — Tailr does not mint Meet or
+   Teams links, because its calendar consent is read-only and widening that
+   is a decision rather than a convenience.

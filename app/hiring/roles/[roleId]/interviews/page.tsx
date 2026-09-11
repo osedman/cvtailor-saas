@@ -91,7 +91,7 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
   const [short, setShort] = useState(false)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = useState(false)
-  const [done, setDone] = useState<{ interviewed: number; held: number; declined: number; offered: number } | null>(null)
+  const [done, setDone] = useState<{ interviewed: number; invited: number; held: number; declined: number; offered: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -254,23 +254,29 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
         offered = Array.isArray(b?.offered) ? b.offered.length : 0
         if (b?.failed) setError(`${offered} offered, then: ${b.failed.error}`)
       }
-      // The cohort: everyone chosen gets a link to pick their own time. The
-      // windows must land first — an invitation with nothing to choose from
-      // is worse than no invitation.
+      // The cohort goes out as a WAVE, and the first one is not a special
+      // case: the planner sizes it against the windows just offered, so
+      // nobody is invited into a room with no chair. The windows must land
+      // first — an invitation with nothing to choose from is worse than none.
       let invited = 0
+      let waveNote = ""
       if (chosen.length > 0) {
         const r = await fetch(`/api/hiring/roles/${roleId}/cohort`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ candidateRefs: chosen }),
+          body: JSON.stringify({ release: true }),
         })
         const b = await r.json().catch(() => ({}))
         if (Array.isArray(b?.invited)) invited = b.invited.length
+        if (typeof b?.remaining === "number" && b.remaining > 0) {
+          waveNote = `${b.remaining} waiting in reserve.`
+        }
       }
+      void waveNote
       void written
       void invited
       await loadBoard()
-      setDone({ interviewed: chosen.length, held, declined, offered })
+      setDone({ interviewed: chosen.length, invited, held, declined, offered })
       announceRoleChanged()
     } catch {
       setError("Something went wrong. Nothing you had already confirmed is lost.")
@@ -334,6 +340,7 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                   remindEndpoint={`/api/hiring/roles/${roleId}/cohort`}
                   onChanged={() => void loadBoard()}
                   offerMoreHref={`/hiring/roles/${roleId}/interviews#setup-when`}
+                  releaseEndpoint={`/api/hiring/roles/${roleId}/cohort`}
                 />
               </section>
             )}
@@ -344,7 +351,7 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                   <div className="ag-receipt-head">
                     <span className="ag-receipt-eyebrow">Confirmed</span>
                     <span className="ag-receipt-confirmed">
-                      {done.interviewed} invited to interview
+                      {done.invited} invited to book{done.invited < done.interviewed ? ` of ${done.interviewed} chosen` : ""}
                       {done.held ? `, ${done.held} on hold` : ""}
                       {done.declined ? `, ${done.declined} not for this role` : ""}
                       {done.offered ? `, ${done.offered} interview windows offered` : ", no windows offered yet"}.
@@ -469,6 +476,17 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                       </select>
                     </label>
                     <label className="hm-field">
+                      <span className="hm-field-label">Invite in waves of</span>
+                      <select
+                        className="ag-input"
+                        value={rules.waveSize ?? ""}
+                        onChange={(e) => setRule("waveSize", e.target.value ? Number(e.target.value) : null)}
+                      >
+                        <option value="">Everyone at once</option>
+                        {[3, 4, 5, 6, 8, 10].map((n) => <option key={n} value={n}>{n} at a time</option>)}
+                      </select>
+                    </label>
+                    <label className="hm-field">
                       <span className="hm-field-label">Notice a candidate gets</span>
                       <select className="ag-input" value={rules.minNoticeHours} onChange={(e) => setRule("minNoticeHours", Number(e.target.value))}>
                         {[0, 12, 24, 48, 72].map((n) => <option key={n} value={n}>{n === 0 ? "No minimum" : `${n} hours`}</option>)}
@@ -476,7 +494,9 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                     </label>
                   </div>
                   <p className="agd-aside" style={{ marginTop: 8 }}>
-                    Answer these once. Every candidate you invite is offered times that obey them, and your recruiter sees the same rules.
+                    Answer these once. Every candidate you invite is offered times that obey them, and your recruiter sees the same
+                    rules. Inviting in waves keeps ten people from racing for four windows: the rest wait, and go out when the first
+                    wave has had its time or a window frees up.
                   </p>
 
                   <div className="hm-setup-source">

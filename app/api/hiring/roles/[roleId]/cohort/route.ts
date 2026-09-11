@@ -9,6 +9,7 @@ import { requireHiringContext } from "@/lib/agency/client-auth"
 import type { HiringFailure } from "@/lib/agency/client-auth"
 import { listClientRoles } from "@/lib/agency/client-header"
 import { getCohortBoard, inviteCohort, remindCohortMember } from "@/lib/agency/cohort"
+import { getWaveState, planRelease, releaseWave } from "@/lib/agency/waves"
 import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 60
@@ -29,6 +30,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
     if (!tie) return NextResponse.json({ error: "Role not found" }, { status: 404 })
 
     const body = await req.json().catch(() => ({}))
+    // Releasing the next wave rather than naming people: the planner picks
+    // from the reserve, bounded by capacity.
+    if (body?.release === true) {
+      const outcome = await releaseWave(tie.agencyId, roleId, tie.contactId, auth.ctx.userId)
+      return NextResponse.json(outcome, { status: 201 })
+    }
+
     const refs = Array.isArray(body?.candidateRefs)
       ? (body.candidateRefs as unknown[]).filter((r): r is string => typeof r === "string").map((r) => r.slice(0, 20))
       : []
@@ -49,8 +57,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
     if (!auth.ok) return authFail(auth.failure)
     const tie = (await listClientRoles(auth.ctx)).find((t) => t.roleId === roleId)
     if (!tie) return NextResponse.json({ error: "Role not found" }, { status: 404 })
-    const board = await getCohortBoard({ agencyId: tie.agencyId, userId: auth.ctx.userId, role: "viewer" }, roleId)
-    return NextResponse.json(board)
+    const [board, wave] = await Promise.all([
+      getCohortBoard({ agencyId: tie.agencyId, userId: auth.ctx.userId, role: "viewer" }, roleId),
+      getWaveState(tie.agencyId, roleId),
+    ])
+    const plan = planRelease({
+      reserveSize: wave.reserve.length,
+      awaiting: wave.awaiting,
+      openWindows: wave.openWindows,
+      waveSize: wave.waveSize,
+      waveStillRunning: wave.nextReleaseAt !== null && Date.parse(wave.nextReleaseAt) > Date.now(),
+    })
+    return NextResponse.json({ ...board, wave: { ...wave, plan } })
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }

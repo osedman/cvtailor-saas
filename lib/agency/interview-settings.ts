@@ -37,6 +37,9 @@ function fromRow(row: Record<string, unknown>): InterviewSettings {
     bufferMinutes: row.buffer_minutes,
     maxPerDay: row.max_per_day,
     reschedulePolicy: row.reschedule_policy,
+    waveSize: row.wave_size,
+    waveReleaseHours: row.wave_release_hours,
+    rescheduleLimit: row.reschedule_limit,
   })
 }
 
@@ -87,6 +90,9 @@ export async function setInterviewSettings(
       buffer_minutes: settings.bufferMinutes,
       max_per_day: settings.maxPerDay,
       reschedule_policy: settings.reschedulePolicy,
+      wave_size: settings.waveSize,
+      wave_release_hours: settings.waveReleaseHours,
+      reschedule_limit: settings.rescheduleLimit,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "role_id" }

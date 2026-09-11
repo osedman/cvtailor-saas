@@ -53,6 +53,17 @@ export async function inviteCohort(
     .in("ref", refs)
   if (error) throw error
 
+  // Which wave this is. Derived from what has already gone out, never
+  // supplied — the same rule round numbers follow.
+  const { data: waves } = await admin
+    .from("interview_rounds")
+    .select("wave")
+    .eq("agency_id", agencyId)
+    .eq("role_id", roleId)
+    .order("wave", { ascending: false })
+    .limit(1)
+  const wave = ((waves?.[0]?.wave as number) ?? 0) + 1
+
   const found = new Map((candidates ?? []).map((c) => [c.ref as string, c.id as string]))
   for (const ref of refs) {
     if (!found.has(ref)) result.skipped.push({ candidateRef: ref, because: "not on this role" })
@@ -89,6 +100,7 @@ export async function inviteCohort(
         scheduled_at: null,
         status: "scheduled",
         candidate_response: "pending",
+        wave,
       })
       .select("id")
       .single()
@@ -106,7 +118,7 @@ export async function inviteCohort(
       entityType: "round",
       entityRef: ref,
       action: "cohort_invited",
-      toValue: { round_id: roundId, round_number: roundNumber, self_booking: true, invite_sent: sent.sent },
+      toValue: { round_id: roundId, round_number: roundNumber, wave, self_booking: true, invite_sent: sent.sent },
     })
 
     result.invited.push({ candidateRef: ref, sent: sent.sent, reason: sent.reason })
