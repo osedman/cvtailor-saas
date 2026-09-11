@@ -579,7 +579,7 @@ export default function ClientAccessPage() {
                 <ul style={{ margin: 0, paddingLeft: 18, fontSize: "var(--t-small)", color: "var(--ag-ink-2)", lineHeight: 1.65 }}>
                   <li>Post a brief for a role they want you to fill</li>
                   <li>Share the times they are free to interview</li>
-                  <li>See the interview rounds you have arranged with them</li>
+                  <li>See the interview rounds running with them</li>
                   <li>Record their decision after a round</li>
                 </ul>
               </div>
@@ -595,7 +595,7 @@ export default function ClientAccessPage() {
             </div>
             <div className="ag-card-body" style={{ borderTop: "1px solid var(--ag-border)" }}>
               <p className="ag-note" style={{ marginBottom: 8 }}>
-                Their side of Tailr shows only what has actually been created. Until a brief, an availability slot or an
+                Their side of Tailr shows only what has actually been created. Until a brief, an interview window or an
                 interview round exists, they see an empty screen — not a preview of one.
               </p>
               <p className="ag-note">

@@ -13,6 +13,7 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { SignOut } from "@/components/agency/sign-out"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
+import { RoleRail } from "@/components/agency/role-rail"
 import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "@/lib/agency/probes"
 import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey } from "@/lib/agency/steps"
@@ -822,6 +823,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         </button>
         <AgencySwitcher />
         <AgencyNav />
+        {/* Where this role is, above its steps: from the workflow there was
+            no rail route to Interviews or Close-out at all, only the phase
+            chips in the header (found 11 Sep 2026). */}
+        <RoleRail roleId={roleId} phase={phase} current="workflow" />
         {/* A named group, not more global nav: see .ag-rail-group. */}
         <div className="ag-rail-group">
           <div className="ag-rail-label">Shortlist workflow</div>
@@ -2327,7 +2332,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                       </div>
                                     </div>
                                   ))}
-                                  <p>Happy to walk through the ranking, or arrange first conversations directly.</p>
+                                  <p>Happy to walk through the ranking, or arrange next steps directly.</p>
                                   <p style={{ marginBottom: 0 }}>Best,<br />{agencyName}</p>
                                 </div>
                                 <button
@@ -2343,7 +2348,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                         disclosure.probes && r.probes[0] ? `To probe: ${r.probes[0]}` : "",
                                         "",
                                       ]),
-                                      "Happy to walk through the ranking, or arrange first conversations directly.", "",
+                                      "Happy to walk through the ranking, or arrange next steps directly.", "",
                                       "Best,", agencyName,
                                     ].filter(Boolean).join("\n")
                                     navigator.clipboard?.writeText(text)

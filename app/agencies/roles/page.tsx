@@ -100,7 +100,7 @@ export default function RolesListPage() {
           </div>
         </button>
         <AgencySwitcher />
-        <AgencyNav current="list" />
+        <AgencyNav current="roles" />
         <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Where everything is</div>

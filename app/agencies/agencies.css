@@ -1696,3 +1696,13 @@ a.ag-rh-next:hover { opacity: 0.86; }
 
 /* The reserve waiting on the next wave. */
 .ag-cohort-wave { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px dashed var(--ag-line-2); border-radius: var(--r-sm); background: var(--ag-bg-2); }
+
+/* A capability that is real but is no longer the flow — folded away so it
+ * is not mistaken for one. */
+.ag-fallback { border: 1px solid var(--ag-border); border-radius: var(--r-sm); padding: 12px 14px; background: var(--ag-bg-2); }
+.ag-fallback > summary { cursor: pointer; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+.ag-fallback[open] > summary { margin-bottom: 4px; color: var(--ag-ink-2); }
+
+/* The second nav group: the desk around the work, set apart so eight items
+ * read as two short lists rather than one long one. */
+.ag-nav-group { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ag-border); }

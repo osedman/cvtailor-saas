@@ -165,7 +165,9 @@ export async function withdrawSlot(ctx: HiringContext, slotId: string): Promise<
 }
 
 // ============================================================
-// Rounds — the recruiter books, because they own the process
+// Rounds — created by the cohort invitation, then booked by the candidate
+// (11 Sep 2026). scheduleRound below stays for the exception: somebody who
+// cannot use their own link.
 // ============================================================
 
 export interface OpenSlot {

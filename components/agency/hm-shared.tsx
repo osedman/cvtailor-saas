@@ -5,7 +5,7 @@
  * 23 Aug 2026, when the client side stopped being one long dashboard and
  * became a workspace with places: Dashboard, Interviews, a screen per role.
  *
- * One definition each for the round card, the availability widgets and the
+ * One definition each for the round card, the window widgets and the
  * nav, imported by every /hiring screen, so the write-up rule ("no artifact,
  * no progression") and the disclosure rules cannot fork between pages.
  *
@@ -66,9 +66,15 @@ export function HiringNav() {
   // A role page is a door opened from the dashboard's role rows, so the
   // dashboard stays lit there; before this the nav highlighted nothing on
   // /hiring/roles/:id or the brief form (found 3 Sep 2026).
+  //
+  // A role's OWN interviews screen is the cohort, and it belongs to
+  // Interviews rather than Home — it lit "Home" while a nav item literally
+  // named Interviews pointed elsewhere (found 11 Sep 2026). Matching is on
+  // the more specific path first, so the role's cohort wins over the role.
+  const onCohort = /^\/hiring\/roles\/[^/]+\/interviews/.test(pathname)
   const items = [
-    { href: "/hiring", label: "Home", also: ["/hiring/roles"] },
-    { href: "/hiring/interviews", label: "Interviews", also: [] as string[] },
+    { href: "/hiring", label: "Home", also: onCohort ? [] : ["/hiring/roles"] },
+    { href: "/hiring/interviews", label: "Interviews", also: onCohort ? [pathname] : [] },
   ]
   const briefOn = pathname.startsWith("/hiring/briefs")
   return (
@@ -166,102 +172,6 @@ export function SlotChip({ slot, onWithdraw }: { slot: HiringSlot; onWithdraw: (
   )
 }
 
-export function OfferTimes({ links, onDone }: { links: HiringLink[]; onDone: (changed: boolean) => void }) {
-  const [contactId, setContactId] = useState(links[0]?.contactId ?? "")
-  const [startsAt, setStartsAt] = useState("")
-  const [endsAt, setEndsAt] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  const recipient = links.find((l) => l.contactId === contactId) ?? links[0]
-
-  async function offer() {
-    setBusy(true)
-    setErr(null)
-    try {
-      const res = await fetch("/api/hiring/availability", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contactId,
-          // datetime-local has no zone; the browser's own offset is the one
-          // the person meant when they typed it.
-          startsAt: new Date(startsAt).toISOString(),
-          endsAt: new Date(endsAt).toISOString(),
-        }),
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        setErr(body.error || "Could not offer that time.")
-        return
-      }
-      onDone(true)
-    } catch {
-      setErr("Could not offer that time.")
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const ready = Boolean(startsAt && endsAt) && !busy
-
-  return (
-    <div className="agd-card hm-static hm-offer">
-      <div className="hm-offer-row">
-        {links.length > 1 && (
-          <label className="hm-field">
-            <span className="ag-field-label">Offer to</span>
-            <select
-              className="ag-input"
-              value={contactId}
-              onChange={(e) => setContactId(e.target.value)}
-            >
-              {links.map((l) => (
-                <option key={l.contactId} value={l.contactId}>
-                  {l.company ? `${l.agencyName} · ${l.company}` : l.agencyName}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <label className="hm-field">
-          <span className="ag-field-label">From</span>
-          <input
-            className="ag-input"
-            type="datetime-local"
-            value={startsAt}
-            onChange={(e) => setStartsAt(e.target.value)}
-            autoFocus
-          />
-        </label>
-        <label className="hm-field">
-          <span className="ag-field-label">Until</span>
-          <input
-            className="ag-input"
-            type="datetime-local"
-            value={endsAt}
-            onChange={(e) => setEndsAt(e.target.value)}
-          />
-        </label>
-        <button className="agd-tbtn primary" onClick={offer} disabled={!ready}>
-          {busy ? "Offering…" : "Offer this time"}
-        </button>
-        <button className="agd-tbtn" onClick={() => onDone(false)}>
-          Cancel
-        </button>
-      </div>
-      {err && (
-        <p className="hm-offer-err" role="alert">
-          {err}
-        </p>
-      )}
-      <p className="agd-aside">
-        {recipient ? <b>{recipient.agencyName}</b> : "Your recruiter"} can book one candidate into
-        this window. Nothing reaches your calendar until you offer the time.
-      </p>
-    </div>
-  )
-}
 
 // ── The round card ──────────────────────────────────────────────────────────
 

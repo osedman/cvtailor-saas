@@ -132,9 +132,11 @@ export async function getWaveState(agencyId: string, roleId: string): Promise<Wa
       .not("slot_id", "is", null),
   ])
 
-  const live = (rounds ?? []).filter((r) => r.status !== "cancelled")
-  const invitedIds = new Set(live.map((r) => r.candidate_id as string))
-  const awaiting = live.filter((r) => !r.slot_id).length
+  // OPEN, not merely live: somebody who has sat round one and been advanced
+  // is due another invitation, and they book that one themselves too.
+  const open = (rounds ?? []).filter((r) => r.status === "scheduled")
+  const invitedIds = new Set(open.map((r) => r.candidate_id as string))
+  const awaiting = open.filter((r) => !r.slot_id).length
   const heldSlots = new Set((taken ?? []).map((r) => r.slot_id as string))
   const openWindows = (slots ?? []).filter((s) => (!s.role_id || s.role_id === roleId) && !heldSlots.has(s.id as string)).length
 
@@ -159,7 +161,7 @@ export async function getWaveState(agencyId: string, roleId: string): Promise<Wa
   }
 
   // The last wave's clock runs from when it went out.
-  const lastInvite = live.map((r) => (r.created_at as string) ?? "").sort().at(-1) ?? null
+  const lastInvite = open.map((r) => (r.created_at as string) ?? "").sort().at(-1) ?? null
   const nextReleaseAt = lastInvite
     ? new Date(Date.parse(lastInvite) + settings.waveReleaseHours * 3_600_000).toISOString()
     : null

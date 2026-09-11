@@ -319,7 +319,7 @@ export default function AgencyHomePage() {
           forming a second list beside it — the first pass had both, with
           "Roles" and "Clients" appearing in each and meaning different things.
         */}
-        <AgencyNav current="roles" />
+        <AgencyNav current="today" />
 
         {data && (
           <div className="ag-active-role">

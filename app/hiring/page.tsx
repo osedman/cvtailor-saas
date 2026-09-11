@@ -731,7 +731,7 @@ export default function HiringDashboardPage() {
               ) : (
                 <EmptyBand
                   title="No interviews yet."
-                  body="Rounds your recruiter books appear on the Interviews screen, with the write-up and your decision on the same card — and that is where you offer the times you are free. Nothing moves on a candidate until you have had your say."
+                  body="Rounds appear on the Interviews screen, with the write-up and your decision on the same card — and that is where you offer the times you are free. Nothing moves on a candidate until you have had your say."
                 />
               )}
             </section>

@@ -4097,6 +4097,58 @@ schedule in sync with reality.
 **Ose to run in tailr-staging:** `20260911100000_waves_reminders_reschedule.sql`
 (and `20260911090000_client_action_hold.sql` if it has not gone yet).
 
+## 🧭 11 Sep 2026 (late) — the consistency pass: one model, said the same way everywhere
+
+Ose: finish the build, make the screens and flows logically sound, tidy both
+navigation bars, fix the UI still wrong in the flow. An audit of every screen
+and both navs found the build telling two stories. All of it fixed.
+
+**The one that mattered: round one was self-booked and round two was not.**
+`inviteCohort` skipped any candidate with a *live* round, and a completed
+round counts as live — so after an advance the next round fell back to the
+recruiter, and the ladder still said "Book round 2". Nothing was broken; the
+product simply disagreed with itself. Now an invitation is blocked only by an
+OPEN round, the reserve counts open rounds, and every round is self-booked.
+The ladder says ROUND N GOING OUT and waits on the candidate on both hats.
+
+**The recruiter's interviews screen was still a booking console** with the
+read-only board bolted above it. Booking somebody in yourself survives —
+the exception is real, a candidate with no email or one who rings — but it
+is folded into a labelled `<details>` that says when it is for, and the
+screen's copy no longer claims the recruiter seats anyone.
+
+**Two screens were dead ends.** The workflow and step 06 rendered the seven
+steps and no route to Interviews or Close-out at all. Both now carry
+`RoleRail`. Step 06's rail also hard-coded a ✓ on every step but its own, so
+it claimed progress the role may not have made; it shows numbers now,
+because that page does not know.
+
+**The hiring manager was being told they had interviews they did not have.**
+A cohort round carries `scheduled_at: null` until somebody picks, and
+"Coming up" counted those — rendering "No time set · Scheduled". It counts
+booked interviews now and says how many are still choosing.
+
+**Windows could be offered two ways**, one of them attached to no role and
+obeying none of the interview rules — no duration, no notice, no daily cap.
+That path is gone (`OfferTimes` deleted, 96 lines); `/hiring/interviews`
+shows what is offered and points at the role.
+
+**Both navs tidied.** The recruiter's eight flat items are two groups,
+Navigate and Your desk. The key/label inversion is fixed (`roles` meant
+Today). On the client's side, a role's own cohort screen lit "Home" while a
+nav item named Interviews pointed elsewhere; it lights Interviews now.
+
+**Copy swept** across both hats: fourteen places said the recruiter books,
+arranges or confirms times, including two module headers that contradicted
+the modules next to them.
+
+**A new guard** (`self-booking-consistency.test.ts`) scans every screen for
+"the recruiter books", pins the open-round rule, the honest counts and the
+rails, so the product cannot drift back into two stories.
+
+**Verified:** typecheck clean, 1,181 tests, production build clean. All four
+migrations confirmed applied on staging by effect.
+
 ---
 
 _Last updated: 11 September 2026_

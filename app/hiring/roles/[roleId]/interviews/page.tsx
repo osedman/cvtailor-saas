@@ -11,8 +11,7 @@
  * half again, spread across at least two working days — or, with no
  * calendar connected, proposes the same shape across a range of days they
  * pick. They untick what they do not want and confirm. Decisions and
- * windows land as one act, and the recruiter's next action becomes "book
- * round 1".
+ * windows land as one act, and the recruiter watches the board fill.
  *
  * Proposals are computed here, in the browser, because this is where the
  * hiring manager's time zone is known for free; the tokens never leave the

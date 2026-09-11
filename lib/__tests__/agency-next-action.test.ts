@@ -127,11 +127,13 @@ describe("the interview loop", () => {
     expect(s.party).toBe("client")
     expect(s.since).toBe("2026-09-03T12:00:00Z")
   })
-  it("advanced with a window open is the recruiter's round 1 to book", () => {
+  it("advanced with a window open means round 1 goes out for them to choose", () => {
+    // Since 11 Sep 2026 the candidate books every round, so nobody waits on
+    // a recruiter to seat them.
     const s = deriveSubState(facts({ ...base, openWindows: 2, lastWindowOfferedAt: "2026-09-03T14:00:00Z" }))
     expect(s.key).toBe("round-to-book")
-    expect(s.chip).toBe("ROUND 1 TO BOOK")
-    expect(s.party).toBe("recruiter")
+    expect(s.chip).toBe("ROUND 1 GOING OUT")
+    expect(s.party).toBe("candidate")
     expect(s.since).toBe("2026-09-03T14:00:00Z")
   })
   it("a pending invite waits on the candidate, by ref", () => {
@@ -164,8 +166,10 @@ describe("the interview loop", () => {
     const f = facts({ ...base, openWindows: 1, rounds: [round({ status: "completed", hasDebrief: true, decision: "advance", decidedAt: "2026-09-04T15:00:00Z" })] })
     const s = deriveSubState(f)
     expect(s.key).toBe("round-to-book")
-    expect(s.chip).toBe("ROUND 2 TO BOOK")
-    expect(nextAction(f, "recruiter", "r1").title).toBe("Book round 2 for CAN-03")
+    expect(s.chip).toBe("ROUND 2 GOING OUT")
+    // Round two is self-booked too: the recruiter watches, never seats.
+    expect(nextAction(f, "recruiter", "r1").title).toBe("Round 2 is going out to CAN-03")
+    expect(nextAction(f, "recruiter", "r1").mode).toBe("wait")
   })
   it("advance at the planned count is take to close-out — a plan, not a gate", () => {
     const f = facts({ ...base, rounds: [round({ roundNumber: 2, status: "completed", hasDebrief: true, decision: "advance", decidedAt: "2026-09-04T15:00:00Z" })] })
@@ -187,7 +191,7 @@ describe("the interview loop", () => {
   it("a cancelled booking is owed again", () => {
     const f = facts({ ...base, openWindows: 1, rounds: [round({ status: "cancelled" })] })
     expect(deriveSubState(f).key).toBe("round-to-book")
-    expect(deriveSubState(f).chip).toBe("ROUND 1 TO BOOK")
+    expect(deriveSubState(f).chip).toBe("ROUND 1 GOING OUT")
   })
   it("close-out outranks a write-up owed on another candidate", () => {
     const f = facts({

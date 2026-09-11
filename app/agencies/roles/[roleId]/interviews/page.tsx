@@ -10,7 +10,7 @@
  * /agencies/clients and /agencies/briefs.
  *
  * Two pickers, both live: who is on this role, and the windows the client has
- * actually offered from their own workspace. Booking one takes it off the
+ * actually offered from their own workspace. A candidate taking one removes it from the
  * board for everyone, so the copy says so before the button is pressed.
  *
  * THE AMBER NOTE IS NOT DECORATION, and it was rewritten on 20 Aug rather
@@ -278,7 +278,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Their diary</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>
-            Windows come from the client&apos;s own workspace. Booking one takes it off their
+            Windows come from the client&apos;s own workspace. A candidate taking one removes it from their
             board; cancelling gives it back.
           </div>
         </div>
@@ -290,6 +290,14 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
 
           {/* Scheduling, before the loop: who is booked and who has not
               chosen yet. Read-only by design — candidates seat themselves. */}
+          {board && board.members.length === 0 && (
+            <p className="ag-note" style={{ marginTop: 16 }}>
+              Nobody has been invited to interview yet. Your client chooses the cohort and offers
+              their windows from their own workspace; the candidates then pick their own times, and
+              they appear here as they do.
+            </p>
+          )}
+
           {board && board.members.length > 0 && (
             <section style={{ marginTop: 16 }} aria-labelledby="cohort-h">
               <p className="ag-field-label" id="cohort-h">The cohort · scheduling</p>
@@ -311,7 +319,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
               ? "Loading the client’s windows…"
               : slots.length > 0
                 ? `${client?.company || "Your client"} has offered ${slots.length} window${slots.length === 1 ? "" : "s"}. Pick who meets them — the time comes out of the client’s own diary, so booking one takes it off the board for everyone.`
-                : "Your client has not offered any times yet. They add them from their own workspace, and they appear here the moment they do."}
+                : "No windows are free right now. Your client offers them from their own workspace, and they appear here the moment they do."}
           </p>
 
           {role && (role.plannedRounds || role.startTarget) && (
@@ -320,7 +328,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
               {role.plannedRounds ? ` the client expects ${role.plannedRounds} round${role.plannedRounds === 1 ? "" : "s"}` : ""}
               {role.plannedRounds && role.startTarget ? " ·" : ""}
               {role.startTarget ? ` wants someone in seat: ${role.startTarget}` : ""}
-              . Their plan, not a gate — what you book is what counts.
+              . Their plan, not a gate — what the candidates book is what counts.
             </p>
           )}
 
@@ -438,9 +446,22 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
             )
           })()}
 
+          {/*
+            BOOKING ON SOMEBODY'S BEHALF IS THE EXCEPTION NOW (11 Sep 2026).
+            Candidates choose their own time from the client's windows, and
+            the recruiter's job on this screen is to see what has been
+            booked. This stays because the exception is real — a candidate
+            with no email, or one who rings instead — but it is folded away
+            so it is not mistaken for the flow.
+          */}
           {slots !== null && slots.length > 0 && (
-            <>
-              <p className="ag-field-label" id="book-area" style={{ marginTop: 28 }}>Book the next round</p>
+            <details className="ag-fallback" style={{ marginTop: 28 }}>
+              <summary id="book-area">Book somebody in yourself</summary>
+              <p className="ag-note" style={{ margin: "10px 0 14px" }}>
+                Only when a candidate cannot use their own link — no email address, or they rang you
+                instead. Everyone else picks from the windows above, and the window disappears for
+                the rest the moment they do.
+              </p>
               <div className="ag-book-grid">
                 <section aria-labelledby="who-meets">
                   <p className="ag-field-label" id="who-meets">Who meets them</p>
@@ -560,12 +581,15 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                   {busy ? "Booking…" : "Book this interview"}
                 </button>
               </div>
-            </>
+            </details>
           )}
 
+          {/* The cohort board at the top of this screen is the scheduling
+              view now; this list keeps what it does NOT show — the meeting
+              link, the consent state, and the per-round controls. */}
           {rounds.length > 0 && (
             <section style={{ marginTop: 28 }} aria-labelledby="booked">
-              <p className="ag-field-label" id="booked">Booked</p>
+              <p className="ag-field-label" id="booked">Round detail</p>
               <div className="ag-stack" style={{ gap: 10 }}>
                 {rounds.map((r) => (
                   <div key={r.id} className="ag-card">
@@ -679,7 +703,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                   </p>
                   <p className="ag-handoff-sub">
                     If the client has chosen someone, close-out collects references and builds the
-                    handover pack. If they have not, book another round above — the expected count
+                    handover pack. If they have not, the next round's invitation goes out on its own — the expected count
                     is their plan, never a limit, and nothing here removes anyone.
                   </p>
                 </div>

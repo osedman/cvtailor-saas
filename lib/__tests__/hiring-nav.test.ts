@@ -14,7 +14,14 @@ describe("HiringNav", () => {
   const fn = nav.slice(nav.indexOf("export function HiringNav"))
 
   it("keeps the dashboard lit on a role page", () => {
-    expect(fn).toMatch(/also: \["\/hiring\/roles"\]/)
+    expect(fn).toMatch(/\["\/hiring\/roles"\]/)
+  })
+
+  it("lights Interviews, not Home, on a role's own cohort screen", () => {
+    // It lit "Home" while a nav item literally named Interviews pointed
+    // somewhere else (found 11 Sep 2026).
+    expect(fn).toMatch(/const onCohort = /)
+    expect(fn).toMatch(/hiring\\\/roles\\\/\[\^\/\]\+\\\/interviews/)
   })
 
   it("marks the brief CTA current on the brief form", () => {

@@ -6,7 +6,7 @@
  * POST { candidateId, slotId, durationMinutes?, meetingUrl? } → book one.
  * PATCH { roundId, status } → complete or cancel; cancelling frees the slot.
  *
- * The recruiter schedules because they own the process and hold both sides.
+ * Booking on somebody's behalf: the exception, not the flow. Candidates book themselves (11 Sep 2026); this stays for the candidate who cannot.
  * The times themselves are the client's, offered from /hiring.
  *
  * Nothing here sets capture consent — see the header of lib/agency/rounds.

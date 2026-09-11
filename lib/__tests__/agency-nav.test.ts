@@ -16,14 +16,14 @@ import { tsCode } from "./helpers/source-scan"
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 
 const SCREENS: Array<[string, string]> = [
-  ["app/agencies/page.tsx", "roles"],
+  ["app/agencies/page.tsx", "today"],
   ["app/agencies/briefs/page.tsx", "briefs"],
   ["app/agencies/clients/page.tsx", "clients"],
   ["app/agencies/audit/page.tsx", "audit"],
   ["app/agencies/settings/page.tsx", "settings"],
   ["app/agencies/notifications/page.tsx", "notifications"],
   ["app/agencies/candidates/page.tsx", "candidates"],
-  ["app/agencies/roles/page.tsx", "list"],
+  ["app/agencies/roles/page.tsx", "roles"],
   ["app/agencies/candidates/[candidateId]/page.tsx", "candidates"],
 ]
 
@@ -108,7 +108,7 @@ describe("every agency screen uses the shared nav", () => {
     // opened four more bands. For MVP the dashboard is live roles and
     // nothing else, so there is nothing to expand into.
     const s = read("app/agencies/page.tsx")
-    expect(s).toMatch(/<AgencyNav current="roles" \/>/)
+    expect(s).toMatch(/<AgencyNav current="today" \/>/)
     expect(s).not.toMatch(/sections=\{\[/)
     expect(s).not.toMatch(/onSection=/)
   })

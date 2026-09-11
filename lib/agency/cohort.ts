@@ -70,8 +70,11 @@ export async function inviteCohort(
   }
 
   for (const [ref, candidateId] of found) {
-    // A live round already means they have been invited; two links to the
-    // same person is how somebody ends up holding two windows.
+    // An OPEN round means they have been invited and have not sat it yet;
+    // two links to the same person is how somebody ends up holding two
+    // windows. A round they have already sat does not block the next one —
+    // round two is self-booked exactly like round one, which is the whole
+    // point of candidates booking themselves (11 Sep 2026).
     const { data: existing } = await admin
       .from("interview_rounds")
       .select("id, round_number, status")
@@ -79,8 +82,8 @@ export async function inviteCohort(
       .eq("role_id", roleId)
       .eq("candidate_id", candidateId)
       .order("round_number", { ascending: false })
-    const live = (existing ?? []).find((r) => r.status !== "cancelled")
-    if (live) {
+    const open = (existing ?? []).find((r) => r.status === "scheduled")
+    if (open) {
       result.skipped.push({ candidateRef: ref, because: "already invited" })
       continue
     }

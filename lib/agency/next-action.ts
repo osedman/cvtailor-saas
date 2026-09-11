@@ -225,7 +225,10 @@ export function deriveSubState(f: RoleFacts): SubState {
     const count = unbooked.length + Math.max(0, firstRoundOwed)
     if (f.openWindows === 0)
       return { key: "windows-to-offer", chip: "WINDOWS TO OFFER", party: "client", since: since ?? f.submission.generatedAt, n: count, roundNumber: nextRound, candidateRef: first?.ref }
-    return { key: "round-to-book", chip: `ROUND ${nextRound} TO BOOK`, party: "recruiter", since: f.lastWindowOfferedAt ?? since, n: count, roundNumber: nextRound, candidateRef: first?.ref }
+    // Since 11 Sep 2026 the candidate books every round, not just the first,
+    // so nobody here waits on a recruiter to seat them — the invitation goes
+    // out and the candidate chooses.
+    return { key: "round-to-book", chip: `ROUND ${nextRound} GOING OUT`, party: "candidate", since: f.lastWindowOfferedAt ?? since, n: count, roundNumber: nextRound, candidateRef: first?.ref }
   }
 
   const writeUp = pick("write-up-due")
@@ -338,12 +341,12 @@ export function nextAction(f: RoleFacts, hat: Hat, roleId: string): NextAction {
         : { ...base, mode: "act", title: sub.n ? `Choose who to interview from ${plural(sub.m ?? sub.n, "candidate")}` : "Choose who to interview", detail: "Then offer times — we scan your calendar and propose them.", cta: { label: "Set up interviews", href: clientSetup } }
     case "windows-to-offer":
       return R
-        ? { ...base, mode: "wait", title: `${who.label} is offering interview times`, detail: `${plural(sub.n ?? 1, "round")} to book once their windows land.`, cta: { label: "Open interviews", href: interviews } }
+        ? { ...base, mode: "wait", title: `${who.label} is offering interview times`, detail: `${plural(sub.n ?? 1, "candidate")} waiting on windows to choose from.`, cta: { label: "Open interviews", href: interviews } }
         : { ...base, mode: "act", title: `Offer interview times for ${plural(sub.n ?? 1, "candidate")}`, detail: "We scan your calendar and propose windows sized to the candidates you chose.", cta: { label: "Offer times", href: clientSetup } }
     case "round-to-book":
       return R
-        ? { ...base, mode: "act", title: `Book round ${rn} for ${ref}`, detail: sub.n && sub.n > 1 ? `${sub.n} rounds to book. ${f.openWindows} open windows.` : `${f.openWindows} open windows.`, cta: { label: "Book the round", href: interviews } }
-        : { ...base, mode: "wait", title: "Your recruiter is booking the next round", detail: "Your open windows are on offer.", cta: { label: "Your diary", href: clientLoop } }
+        ? { ...base, mode: "wait", title: `Round ${rn} is going out to ${ref}`, detail: sub.n && sub.n > 1 ? `${sub.n} rounds to go out. ${f.openWindows} windows open for them to choose from.` : `${f.openWindows} windows open for them to choose from.`, cta: { label: "Open interviews", href: interviews } }
+        : { ...base, mode: "wait", title: `Round ${rn} is going out to ${ref}`, detail: "They pick their own time from your windows.", cta: { label: "Your cohort", href: clientSetup } }
     case "invited":
       return R
         ? { ...base, mode: "wait", title: `${ref} is confirming round ${rn}`, detail: "The booking invite is out.", cta: { label: "Open interviews", href: interviews } }
@@ -406,11 +409,11 @@ export function handoffFor(f: RoleFacts, hat: Hat, roleId: string): Handoff | nu
   const task = next.mode === "act" ? next.title : other.mode === "act" ? other.title : next.title
   switch (sub.key) {
     case "with-the-client":
-      return { confirmed: `Shortlist of ${f.submission?.submitted ?? 0} sent to ${client}. The interview workflow has started.`, owner, nextTask: task, then: `${client === "the client" ? "The client" : client} chooses who to interview and offers times; the recruiter books round 1.` }
+      return { confirmed: `Shortlist of ${f.submission?.submitted ?? 0} sent to ${client}. The interview workflow has started.`, owner, nextTask: task, then: `${client === "the client" ? "The client" : client} chooses who to interview and offers times; the candidates pick from them.` }
     case "windows-to-offer":
-      return { confirmed: `${client} advanced ${plural(sub.n ?? 1, "candidate")}.`, owner, nextTask: task, then: `${recruiter === "your recruiter" ? "Your recruiter" : recruiter} books round ${sub.roundNumber ?? 1} once times are offered.` }
+      return { confirmed: `${client} advanced ${plural(sub.n ?? 1, "candidate")}.`, owner, nextTask: task, then: "Each of them picks their own time from the windows offered." }
     case "round-to-book":
-      return { confirmed: sub.roundNumber && sub.roundNumber > 1 ? `Round ${sub.roundNumber - 1} decided: advance.` : `${client} offered interview times.`, owner, nextTask: task, then: "The candidate confirms; the round runs; the client writes it up." }
+      return { confirmed: sub.roundNumber && sub.roundNumber > 1 ? `Round ${sub.roundNumber - 1} decided: advance.` : `${client} offered interview times.`, owner, nextTask: task, then: "The candidate picks a time; the round runs; the client writes it up." }
     case "invited":
       return { confirmed: `Round ${sub.roundNumber ?? 1} booked for ${sub.candidateRef ?? "the candidate"}.`, owner, nextTask: task, then: "Once confirmed it sits in the client's diary." }
     case "booked":
@@ -418,7 +421,7 @@ export function handoffFor(f: RoleFacts, hat: Hat, roleId: string): Handoff | nu
     case "write-up-due":
       return { confirmed: `Round ${sub.roundNumber ?? 1} with ${sub.candidateRef ?? "the candidate"} has happened.`, owner, nextTask: task, then: "The write-up unlocks the round decision." }
     case "decision-due":
-      return { confirmed: `Round ${sub.roundNumber ?? 1} written up.`, owner, nextTask: task, then: "Advance books the next round; the last advance goes to close-out." }
+      return { confirmed: `Round ${sub.roundNumber ?? 1} written up.`, owner, nextTask: task, then: "Advancing sends the next round's invitation; the last advance goes to close-out." }
     case "take-to-close-out":
       return { confirmed: `${sub.candidateRef ?? "The candidate"} advanced after the final planned round.`, owner, nextTask: task, then: "References and the handover pack; then the role closes." }
     case "pack-generated":

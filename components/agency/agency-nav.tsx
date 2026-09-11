@@ -42,8 +42,8 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
 export type AgencyNavKey =
+  | "today"
   | "roles"
-  | "list"
   | "candidates"
   | "briefs"
   | "clients"
@@ -58,20 +58,27 @@ export interface AgencyNavSection {
   count?: number
 }
 
-const ITEMS: Array<{ key: AgencyNavKey; label: string; href: string }> = [
-  { key: "roles", label: "Today", href: "/agencies" },
+/**
+ * Two groups, because eight flat items is a list rather than a navigation
+ * (tidied 11 Sep 2026). The split is what a recruiter is doing: the work of
+ * filling roles, and the setup around it. Nothing was removed.
+ */
+type NavGroup = "work" | "desk"
+
+const ITEMS: Array<{ key: AgencyNavKey; label: string; href: string; group: NavGroup }> = [
+  { key: "today", label: "Today", href: "/agencies", group: "work" },
   // Today is the queue; Roles is the map. The dashboard's cards were the
   // only way to reach a role until 5 Sep 2026.
-  { key: "list", label: "Roles", href: "/agencies/roles" },
+  { key: "roles", label: "Roles", href: "/agencies/roles", group: "work" },
   // Candidates was a COUNT in the dashboard's section list and never a route,
   // so a person was reachable only through the role they were on. It is a
   // destination now — the count always implied one (22 Aug walk-through).
-  { key: "candidates", label: "Candidates", href: "/agencies/candidates" },
-  { key: "briefs", label: "Client briefs", href: "/agencies/briefs" },
-  { key: "clients", label: "Client access", href: "/agencies/clients" },
-  { key: "audit", label: "Audit log", href: "/agencies/audit" },
-  { key: "settings", label: "Settings", href: "/agencies/settings" },
-  { key: "notifications", label: "Notifications", href: "/agencies/notifications" },
+  { key: "candidates", label: "Candidates", href: "/agencies/candidates", group: "work" },
+  { key: "briefs", label: "Client briefs", href: "/agencies/briefs", group: "work" },
+  { key: "clients", label: "Client access", href: "/agencies/clients", group: "desk" },
+  { key: "audit", label: "Audit log", href: "/agencies/audit", group: "desk" },
+  { key: "settings", label: "Settings", href: "/agencies/settings", group: "desk" },
+  { key: "notifications", label: "Notifications", href: "/agencies/notifications", group: "desk" },
 ]
 
 export function AgencyNav({
@@ -105,45 +112,54 @@ export function AgencyNav({
     }
   }, [])
 
+  const groups: Array<{ key: NavGroup; label: string }> = [
+    { key: "work", label: "Navigate" },
+    { key: "desk", label: "Your desk" },
+  ]
+
   return (
     <div>
-      <div className="ag-rail-label">Navigate</div>
-      {ITEMS.map((item) => {
-        const isCurrent = item.key === current
-        return (
-          <div key={item.key}>
-            <button
-              className={`ag-step${isCurrent ? " on" : ""}`}
-              aria-current={isCurrent ? "page" : undefined}
-              onClick={isCurrent ? undefined : () => router.push(item.href)}
-            >
-              {item.label}
-              {item.key === "briefs" && waiting > 0 && (
-                <span className="ag-pill" style={{ marginLeft: 8 }}>
-                  {waiting}
-                </span>
-              )}
-            </button>
-            {isCurrent && sections && sections.length > 0 && (
-              <nav className="agd-nav ag-nav-sections" aria-label="On this page">
-                {sections.map((s) => (
-                  <button
-                    key={s.id}
-                    className={`agd-nav-item${activeSection === s.id ? " on" : ""}`}
-                    onClick={() => onSection?.(s.id)}
-                  >
-                    <span className="agd-nav-dot" />
-                    {s.label}
-                    {typeof s.count === "number" && s.count > 0 && (
-                      <span className="agd-nav-count">{s.count}</span>
-                    )}
-                  </button>
-                ))}
-              </nav>
-            )}
-          </div>
-        )
-      })}
+      {groups.map((group) => (
+        <div key={group.key} className={group.key === "desk" ? "ag-nav-group" : undefined}>
+          <div className="ag-rail-label">{group.label}</div>
+          {ITEMS.filter((item) => item.group === group.key).map((item) => {
+            const isCurrent = item.key === current
+            return (
+              <div key={item.key}>
+                <button
+                  className={`ag-step${isCurrent ? " on" : ""}`}
+                  aria-current={isCurrent ? "page" : undefined}
+                  onClick={isCurrent ? undefined : () => router.push(item.href)}
+                >
+                  {item.label}
+                  {item.key === "briefs" && waiting > 0 && (
+                    <span className="ag-pill" style={{ marginLeft: 8 }}>
+                      {waiting}
+                    </span>
+                  )}
+                </button>
+                {isCurrent && sections && sections.length > 0 && (
+                  <nav className="agd-nav ag-nav-sections" aria-label="On this page">
+                    {sections.map((s) => (
+                      <button
+                        key={s.id}
+                        className={`agd-nav-item${activeSection === s.id ? " on" : ""}`}
+                        onClick={() => onSection?.(s.id)}
+                      >
+                        <span className="agd-nav-dot" />
+                        {s.label}
+                        {typeof s.count === "number" && s.count > 0 && (
+                          <span className="agd-nav-count">{s.count}</span>
+                        )}
+                      </button>
+                    ))}
+                  </nav>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ))}
     </div>
   )
 }

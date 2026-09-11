@@ -25,7 +25,6 @@ import { SignOut } from "@/components/agency/sign-out"
 import {
   EmptyBand,
   HiringNav,
-  OfferTimes,
   RoundActions,
   RoundProgress,
   SlotChip,
@@ -37,7 +36,6 @@ type Screen = "loading" | "unauthed" | "not_linked" | "error" | "ready"
 export default function HiringInterviewsPage() {
   const [screen, setScreen] = useState<Screen>("loading")
   const [data, setData] = useState<HiringDashboard | null>(null)
-  const [offering, setOffering] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const reload = () => setRefresh((n) => n + 1)
 
@@ -83,11 +81,19 @@ export default function HiringInterviewsPage() {
     () => rounds.filter((r) => r.status === "completed" && !r.latest_decision),
     [rounds]
   )
+  // A round with no time on it is an INVITATION, not an interview: the
+  // candidate has been asked and has not picked yet. Counting those as
+  // "coming up" rendered them as "No time set · Scheduled" and told the
+  // client they had interviews they did not have (found 11 Sep 2026).
   const upcoming = useMemo(
     () =>
       rounds
-        .filter((r) => r.status === "scheduled")
+        .filter((r) => r.status === "scheduled" && r.scheduled_at)
         .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? "")),
+    [rounds]
+  )
+  const stillChoosing = useMemo(
+    () => rounds.filter((r) => r.status === "scheduled" && !r.scheduled_at).length,
     [rounds]
   )
   const decided = useMemo(() => rounds.filter((r) => r.latest_decision), [rounds])
@@ -153,7 +159,9 @@ export default function HiringInterviewsPage() {
                   ? `${owed.length} round${owed.length === 1 ? "" : "s"} need${owed.length === 1 ? "s" : ""} your say.`
                   : upcoming.length > 0
                     ? `${upcoming.length} interview${upcoming.length === 1 ? "" : "s"} coming up.`
-                    : "Nothing is waiting on you."}
+                    : stillChoosing > 0
+                      ? `${stillChoosing} candidate${stillChoosing === 1 ? " is" : "s are"} choosing a time.`
+                      : "Nothing is waiting on you."}
               </h1>
               <p className="agd-sub">
                 Meet the person, write up what happened, then advance or not. The write-up comes
@@ -216,7 +224,7 @@ export default function HiringInterviewsPage() {
               ) : (
                 <EmptyBand
                   title="No rounds yet."
-                  body="Once your recruiter books a candidate into one of your windows, the loop appears here — each candidate's rounds in order, with where it got to."
+                  body="Once the candidates book a candidate into one of your windows, the loop appears here — each candidate's rounds in order, with where it got to."
                 />
               )}
             </section>
@@ -237,8 +245,12 @@ export default function HiringInterviewsPage() {
                 </div>
               ) : (
                 <EmptyBand
-                  title="Nothing booked."
-                  body="Offer times below — your recruiter books candidates into the windows you give them, and the interviews appear here."
+                  title={stillChoosing > 0 ? "Nobody has picked a time yet." : "Nothing booked."}
+                  body={
+                    stillChoosing > 0
+                      ? `${stillChoosing} candidate${stillChoosing === 1 ? " has" : "s have"} been invited and ${stillChoosing === 1 ? "is" : "are"} choosing from your windows. Interviews appear here the moment they do.`
+                      : "Open a role and use Set up interviews — candidates pick their own time from the windows you offer, and the interviews appear here."
+                  }
                 />
               )}
             </section>
@@ -246,26 +258,25 @@ export default function HiringInterviewsPage() {
             <section className="agd-band" aria-labelledby="hm-avail">
               <div className="agd-eyebrow-row">
                 <h2 className="agd-eyebrow" id="hm-avail">
-                  Your availability
+                  Your interview windows
                 </h2>
                 <span className="agd-rule" />
-                <button
-                  className="agd-tbtn primary"
-                  onClick={() => setOffering(true)}
-                  disabled={links.length === 0}
-                >
-                  Offer times
-                </button>
+                <span className="agd-aside">offered from a role, so the rules apply</span>
               </div>
-              {offering && (
-                <OfferTimes
-                  links={links}
-                  onDone={(changed) => {
-                    setOffering(false)
-                    if (changed) reload()
-                  }}
-                />
-              )}
+              {/*
+                OFFERING MOVED TO THE ROLE (11 Sep 2026). Times were typed in
+                here by hand and attached to no role, which meant they obeyed
+                none of the interview rules — no duration, no notice period,
+                no daily cap — and a candidate could be offered a window the
+                role would never have proposed. Windows now come from the
+                role's own set-up screen, where they are proposed against the
+                calendar and checked for capacity. This section still shows
+                what is out there, and still lets a window be withdrawn.
+              */}
+              <p className="agd-aside" style={{ marginBottom: 10 }}>
+                To offer more times, open the role and use <b>Set up interviews</b> — the times are
+                proposed around your calendar and sized to the people you are seeing.
+              </p>
               {slots.length > 0 ? (
                 <div className="hm-slots">
                   {slots.map((slot) => (
@@ -275,7 +286,7 @@ export default function HiringInterviewsPage() {
               ) : (
                 <EmptyBand
                   title="No times offered."
-                  body="Windows you say you are free in appear here as chips, and drop out once your recruiter books one. Nothing is ever booked into your calendar without you offering the time first."
+                  body="Windows you say you are free in appear here as chips, and drop out once the candidates book one. Nothing is ever booked into your calendar without you offering the time first."
                 />
               )}
             </section>

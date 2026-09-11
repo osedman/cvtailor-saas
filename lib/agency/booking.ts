@@ -1,7 +1,7 @@
 /**
  * The candidate's side of an interview booking.
  *
- * The recruiter still picks the time — booking takes the slot off the client's
+ * The candidate picks the time (11 Sep 2026) — booking takes the slot off the client's
  * diary, and offering the candidate a menu would hold three of the client's
  * windows hostage while somebody thinks about it. What the candidate gets is
  * the right to confirm it, decline it, and put it in their calendar.

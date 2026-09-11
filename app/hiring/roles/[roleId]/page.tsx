@@ -185,7 +185,7 @@ export default function HiringRolePage({ params }: { params: Promise<{ roleId: s
               ) : (
                 <EmptyBand
                   title="No interviews on this role yet."
-                  body="When the shortlist arrives and you have offered times, your recruiter books the rounds and they appear here."
+                  body="When the shortlist arrives and you have offered times, the candidates book their own times and they appear here."
                 />
               )}
             </section>
