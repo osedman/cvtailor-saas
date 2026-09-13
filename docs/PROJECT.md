@@ -4284,9 +4284,54 @@ dropped, and requirements re-read per candidate.
 fresh checkout of origin/staging with the changes overlaid. The send bar was
 rendered in both states against the served stylesheet.
 
-**Next, signed off and not yet built:** the matched list as CARDS (Ose,
-13 Sep) with MISSING getting `.ag-dot.missing` instead of a pill at 55%
-opacity; then Wave 4's decisions-complete and proxy-hire.
+## 🃏 13 Sep 2026 (later still) — the matched list becomes cards
+
+Ose, on seeing it: the UI is bland. Card view, signed off on frame 04.
+
+**It was a stack of `.ag-check-row`** — the handover checklist's row — where
+the band, the state and every piece of evidence were the same neutral
+`.ag-pill`, no avatar, and the only thing separating evidence from its
+absence was `opacity: 0.55` set inline. "Strong match" and "R3 · missing"
+were the same object. This is the one screen where a person arrives from the
+consumer app rather than from a CV someone uploaded, and it looked like a
+debug view of one.
+
+**One person, one card, one state.** Three parts saying three different
+things: who they are and how well they matched; what they were matched
+against; what you can do about it. The avatar, the tier weights and the
+`.ag-dot` strength marks are the components the compare matrix and the client
+preview already use, so a person from the consumer app is finally described
+in the same language as a person from a CV.
+
+**MISSING gets the mark the product built for it.** `.ag-dot.missing` — a
+dashed empty ring — has existed all along; this screen was the one place not
+using it. An absence is drawn as an absence now, in a dashed chip at full
+opacity, and still says the word. A test fails if any evidence chip is dimmed
+again.
+
+**A band, never a number.** The design mock drew a score of 84; the payload
+does not carry one. `matched_people` projects `band` only — fit / strong /
+very strong — because "#1, #2, #3" implies a precision the score does not
+have. The mock was wrong and the build follows the payload; a test pins that
+`MatchedPerson` has no score field.
+
+**The grid:** `auto-fit` with a 280px minimum, so it drops to two then one
+with no breakpoint of its own; `flex: 1` on the body and `margin-top: auto`
+on the footer, so cards in a row are equal height and their actions line up
+however much evidence a person has. Measured against the served stylesheet:
+heights 257/257/257, no sideways scroll, missing chip `border-style: dashed`
+at `opacity: 1`.
+
+**Guards:** `matched-list.test.ts`, nine pins, five probe mutations all
+caught — missing faded again, the dashed border dropped, the footer
+unpinned, the strength dot removed, and cards reverted to checklist rows.
+
+**Verified:** typecheck clean, 1,213 tests, production build clean from a
+fresh checkout with the changes overlaid.
+
+**Next:** Wave 4's decisions-complete and proxy-hire. Proxy-hire is confirmed
+in shape — a placement recorded without an advance decision needs a stated
+reason, is audit-logged, and never auto-closes the role.
 
 ---
 

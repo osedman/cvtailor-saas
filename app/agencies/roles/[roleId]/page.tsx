@@ -1301,31 +1301,62 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           <p className="ag-note" style={{ margin: 0 }}>
                             Matched and chose to be seen. A row is what they consented to show: name, headline, band, the matched evidence. Their CV and contact details arrive only if they apply. Bands, never a ranking.
                           </p>
-                          {matched.people.map((p) => (
-                            <div key={p.recommendationId} className="ag-check-row" style={{ alignItems: "flex-start" }}>
-                              <div style={{ minWidth: 0, flex: 1 }}>
-                                <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
-                                  <span style={{ fontWeight: 600 }}>{p.name}</span>
-                                  <span className="ag-pill">{p.band} match</span>
-                                  {p.state === "invited" && <span className="ag-pill">Invited{p.invitedAt ? ` · ${new Date(p.invitedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</span>}
-                                  {p.state === "applied" && <span className="ag-pill">Applied · in your pool</span>}
+                          {/* CARDS, NOT ROWS (Ose, 13 Sep 2026). One person,
+                              one card, one state — and MISSING gets the mark
+                              the product built for it rather than a pill at
+                              55% opacity, which read as evidence turned down
+                              instead of evidence absent. */}
+                          <div className="ag-matched-grid">
+                            {matched.people.map((p) => (
+                              <article key={p.recommendationId} className="ag-matched-card">
+                                <div className="ag-matched-head">
+                                  <span className="ag-avatar">{initials(p.name)}</span>
+                                  <div className="ag-matched-who">
+                                    <div className="ag-matched-name">{p.name}</div>
+                                    {p.headline && <div className="ag-matched-headline">{p.headline}</div>}
+                                  </div>
+                                  {/* The band, never a number: matched_people
+                                      does not send the score to the browser. */}
+                                  <span className={`ag-band ${p.band === "very strong" ? "hi" : p.band === "strong" ? "med" : "lo"}`}>
+                                    {p.band}
+                                  </span>
                                 </div>
-                                {p.headline && <div className="ag-meta" style={{ marginTop: 2 }}>{p.headline}</div>}
-                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-                                  {p.evidence.map((e) => (
-                                    <span key={e.requirement_ref} className="ag-pill" title={e.quote ?? "MISSING — no evidence for this requirement"} style={e.strength === "missing" ? { opacity: 0.55 } : undefined}>
-                                      {e.requirement_ref} · {e.strength}
+                                <div className="ag-matched-body">
+                                  <span className="ag-field-label" style={{ marginBottom: 0 }}>Matched against</span>
+                                  <div className="ag-matched-evidence">
+                                    {p.evidence.map((e) => (
+                                      <span
+                                        key={e.requirement_ref}
+                                        className={`ag-ev ${e.strength}`}
+                                        title={e.quote ?? "MISSING — no evidence for this requirement"}
+                                      >
+                                        <span className={`ag-dot ${e.strength}`} />
+                                        {e.requirement_ref} {e.strength}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="ag-matched-foot">
+                                  {p.state === "invited" && (
+                                    <span className="ag-pill">
+                                      Invited{p.invitedAt ? ` · ${new Date(p.invitedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}
                                     </span>
-                                  ))}
+                                  )}
+                                  {p.state === "applied" && <span className="ag-pill">Applied · in your pool</span>}
+                                  <span className="ag-grow" />
+                                  {p.state !== "applied" && p.state !== "invited" && (
+                                    <button
+                                      className="ag-btn ag-btn-primary"
+                                      disabled={inviting === p.recommendationId || callerRole === "viewer"}
+                                      onClick={() => void invite(p.recommendationId)}
+                                    >
+                                      {inviting === p.recommendationId ? "Inviting…" : "Invite to apply"}
+                                    </button>
+                                  )}
                                 </div>
-                              </div>
-                              {p.state !== "applied" && p.state !== "invited" && (
-                                <button className="ag-btn ag-btn-primary" disabled={inviting === p.recommendationId || callerRole === "viewer"} onClick={() => void invite(p.recommendationId)}>
-                                  {inviting === p.recommendationId ? "Inviting…" : "Invite to apply"}
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                              </article>
+                            ))}
+                          </div>
                           {matched.bucket !== "none" && (
                             <p className="ag-note" style={{ margin: 0 }}>The scan also matched people who have not chosen to be seen. They stay a rounded count and are never listed.</p>
                           )}

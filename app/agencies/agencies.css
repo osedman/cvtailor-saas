@@ -1700,6 +1700,47 @@ a.ag-rh-next:hover { opacity: 0.86; }
   content: "✓"; color: var(--ag-coral-text); font-family: var(--ag-sans);
 }
 
+/* ── The matched list, as cards (13 Sep 2026) ─────────────────────────────
+ * The one screen where a person arrives from the consumer app. It used to be
+ * a stack of .ag-check-row — the handover checklist's row — where the band,
+ * the state and every piece of evidence were the same neutral .ag-pill, and
+ * the only thing separating evidence from its absence was opacity: 0.55 set
+ * inline. "Strong match" and "R3 · missing" were the same object.
+ *
+ * One person, one card, one state. Three parts that say three different
+ * things: who they are and how well they matched; what they were matched
+ * against; and what you can do about it. */
+.ag-matched-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.ag-matched-card { display: flex; flex-direction: column; background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); overflow: hidden; }
+/* Top-aligned, not centred: "very strong" is the widest band and squeezes
+ * the headline onto two lines in a narrow column, and a centred chip then
+ * floats against the middle of that block instead of sitting with the
+ * name it qualifies. */
+.ag-matched-head { display: flex; align-items: flex-start; gap: 12px; padding: 14px 14px 12px; border-bottom: 1px solid var(--ag-border); }
+.ag-matched-who { min-width: 0; flex: 1; }
+.ag-matched-name { font-size: var(--t-lead); font-weight: 600; color: var(--ag-ink); overflow-wrap: anywhere; }
+.ag-matched-headline { font-size: var(--t-small); color: var(--ag-ink-2); overflow-wrap: anywhere; }
+/* flex:1 here is what pins the footer to the bottom edge, so the actions on
+ * cards in a row line up however much evidence a person has. */
+.ag-matched-body { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; flex: 1; }
+.ag-matched-evidence { display: flex; flex-wrap: wrap; gap: 6px; }
+.ag-matched-foot { display: flex; align-items: center; gap: 10px; padding: 11px 14px 13px; background: var(--ag-cream); border-top: 1px solid var(--ag-border); margin-top: auto; }
+
+/* The band, never a number. matched_people does not send the score to the
+ * browser at all — "#1, #2, #3" implies a precision the score does not have,
+ * so the three tiers carry the same weights .ag-score uses and no digits. */
+.ag-band { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; border-radius: var(--r-sm); padding: 5px 9px; flex: none; white-space: nowrap; }
+.ag-band.hi { background: var(--ag-ink); color: var(--ag-paper); }
+.ag-band.med { background: var(--ag-cream); border: 1px solid var(--ag-line-2); color: var(--ag-ink); }
+.ag-band.lo { background: var(--ag-paper); border: 1px solid var(--ag-line-2); color: var(--ag-ink-3); }
+
+/* An evidence chip carries the strength mark the rest of the product uses.
+ * MISSING is drawn as an absence — a dashed chip around .ag-dot.missing's
+ * dashed empty ring — never as evidence turned down to 55% opacity. */
+.ag-ev { display: inline-flex; align-items: center; gap: 6px; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; border: 1px solid var(--ag-line-2); border-radius: var(--r-pill); padding: 3px 8px; color: var(--ag-ink); }
+.ag-ev.partial { color: var(--ag-warn); }
+.ag-ev.missing { border-style: dashed; color: var(--ag-ink-3); }
+
 /* The status rail on a dashboard role row (restored 10 Sep 2026). The row
  * keeps its three columns; the rail is a fourth child spanning all of them,
  * so it reads as the role's progress rather than a fourth column of text. */
