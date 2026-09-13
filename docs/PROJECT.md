@@ -4214,6 +4214,16 @@ stylesheet at desktop and at 1440 / 1024 / 768 / 480 / 375 / 320 — the step
 bar is one 52px line down to 480 and wraps to two below it, with nothing
 overflowing at any width. Contrast measured: 4.86:1, 16.29:1, 5.59:1, all AA.
 
+**Then Ose walked it on staging and the dossier read as stranded.** It hangs
+off a candidate which hangs off a role, and it was the one role screen with
+no crumb of its own — so with the desk collapsed it named neither parent.
+It carries `ROL-0000 / CAN-00 / Dossier` now, built to the shipped
+`.ag-crumb` pattern. The crumb comes from the ROUTE PARAMS, never the
+payload: a dossier that fails to load is exactly when being stranded costs
+something, so the labels degrade to "Role / Candidate" rather than the links
+disappearing. Same rule as the link up, and pinned by two tests that were
+probe-mutated.
+
 **Not verified by me:** the signed-in walk-through on staging. Local
 unauthenticated rendering reaches the role shell but not real role data.
 

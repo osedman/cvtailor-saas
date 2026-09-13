@@ -109,6 +109,30 @@ describe("every agency screen uses the shared nav", () => {
     expect(labels, `${path} renders ${labels} labelled groups of its own`).toBeLessThanOrEqual(1)
   })
 
+  it("the dossier is not stranded: it names the path the sidebar stopped naming", () => {
+    // Reported by Ose on 13 Sep 2026, the day the desk collapsed to one link:
+    // the dossier hangs off a candidate which hangs off a role, and it was
+    // the one role screen with no crumb of its own, so it had no way back to
+    // either. The header names the role; the crumb names the path.
+    const s = read("app/agencies/roles/[roleId]/candidates/[candidateId]/dossier/page.tsx")
+    expect(s).toMatch(/className="ag-crumbbar"/)
+    expect(s).toMatch(/workflowHref\(roleId\)/)
+    expect(s).toMatch(/\/agencies\/roles\/\$\{roleId\}\/candidates\/\$\{candidateId\}/)
+    expect(s).toMatch(/<b>Dossier<\/b>/)
+  })
+
+  it("the dossier crumb survives a dossier that will not load", () => {
+    // The crumb is built from the route params, never from the payload: a
+    // failed load is exactly when being stranded costs something, and the
+    // labels degrade to "Role" / "Candidate" rather than the links vanishing.
+    const s = read("app/agencies/roles/[roleId]/candidates/[candidateId]/dossier/page.tsx")
+    const crumb = s.slice(s.indexOf('className="ag-crumbbar"'), s.indexOf("<b>Dossier</b>"))
+    expect(crumb).toMatch(/d\?\.role\.ref \|\| "Role"/)
+    expect(crumb).toMatch(/d\?\.candidate\.ref \|\| "Candidate"/)
+    // Not wrapped in a truthiness gate on the payload.
+    expect(crumb).not.toMatch(/\{d && /)
+  })
+
   it("the seven steps render only where they are still the work", () => {
     // On Interviews, Close-out and the dossier the steps describe work that
     // is finished. They have never rendered there and must not start.

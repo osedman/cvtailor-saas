@@ -32,6 +32,7 @@ import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
 import { RoleHeader } from "@/components/agency/role-header"
 import { SignOut } from "@/components/agency/sign-out"
+import { workflowHref } from "@/lib/agency/phases"
 import type { Dossier, Layer, RequirementStrata } from "@/lib/agency/dossier"
 // Pure function, no server imports — safe in the browser, and the reason the
 // delta logic is unit-tested without mocking a single query.
@@ -126,6 +127,31 @@ export default function DossierPage({
       <main className="ag-main">
         <div className="ag-screen">
           <RoleHeader roleId={roleId} hat="recruiter" />
+
+          {/* The dossier hangs off a candidate, which hangs off a role, and
+              since the sidebar collapsed to a single link up it was the one
+              screen with no way back to either (Ose, 13 Sep 2026: "stranded").
+              The header names the role; this names the path.
+
+              It renders from the params, NOT from `d`, so it is still there
+              when the dossier fails to load — which is precisely when being
+              stranded costs something. The refs fill in once they arrive. */}
+          <div className="ag-crumbbar">
+            <span className="ag-crumb">
+              <button className="ag-crumb-link" onClick={() => router.push(workflowHref(roleId))}>
+                {d?.role.ref || "Role"}
+              </button>
+              {" / "}
+              <button
+                className="ag-crumb-link"
+                onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${candidateId}`)}
+              >
+                {d?.candidate.ref || "Candidate"}
+              </button>
+              {" / "}
+              <b>Dossier</b>
+            </span>
+          </div>
 
           {error && <p className="ag-banner" role="alert">{error}</p>}
           {!d && !error && <p className="ag-quiet" aria-live="polite">Loading…</p>}
