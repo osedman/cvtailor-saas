@@ -13,7 +13,6 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { SignOut } from "@/components/agency/sign-out"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
-import { RoleRail } from "@/components/agency/role-rail"
 import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "@/lib/agency/probes"
 import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey } from "@/lib/agency/steps"
@@ -822,11 +821,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
           </div>
         </button>
         <AgencySwitcher />
-        <AgencyNav />
-        {/* Where this role is, above its steps: from the workflow there was
-            no rail route to Interviews or Close-out at all, only the phase
-            chips in the header (found 11 Sep 2026). */}
-        <RoleRail roleId={roleId} phase={phase} current="workflow" />
+        <AgencyNav inRole />
         {/* A named group, not more global nav: see .ag-rail-group. */}
         <div className="ag-rail-group">
           <div className="ag-rail-label">Shortlist workflow</div>
@@ -869,8 +864,18 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       <main className="ag-main">
         <div className="ag-screen">
           {role && <RoleHeader roleId={roleId} hat="recruiter" />}
+          {/* ONE LINE, NOT TWO (13 Sep 2026). The eyebrow named the step and
+              the buttons moved between steps — the same subject, stacked as
+              two full-width bands, so the role header was followed by four
+              pieces of chrome before the box you are meant to paste a job
+              description into. They share a line now; nothing was removed.
+
+              Back / Next STAYS. Below 900px .ag-sidebar is display:none, so
+              on a phone these two buttons are the only way through the seven
+              steps — folding them away would strand the flow at that width. */}
           {role && (
-            <div className="ag-crumbbar" style={{ marginTop: -8 }}>
+            <div className="ag-crumbbar ag-stepbar" style={{ marginTop: -8 }}>
+              <p className="ag-step-eyebrow">Step {stepNumber(step)} · {stepLabel(step)}</p>
               <span className="ag-grow" />
               <button
                 className="ag-btn ag-btn-secondary"
@@ -887,9 +892,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 Next →
               </button>
             </div>
-          )}
-          {role && (
-            <p className="ag-step-eyebrow">Step {stepNumber(step)} · {stepLabel(step)}</p>
           )}
           {error && (
             <div className="ag-banner" style={{ marginBottom: 16 }}>

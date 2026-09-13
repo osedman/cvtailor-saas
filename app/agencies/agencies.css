@@ -1654,16 +1654,34 @@ a.ag-rh-next:hover { opacity: 0.86; }
 .ag-check-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px; border: 1px solid var(--ag-border); border-radius: var(--r-sm); background: var(--ag-paper); }
 .ag-pill.warn { border-color: var(--ag-warn-mark); color: var(--ag-warn); }
 
-/* ── Sidebar groups (10 Sep 2026) ─────────────────────────────────────────
- * Two lists live in the recruiter sidebar: where you work (AgencyNav) and
- * where this role is (the seven steps, or RoleRail). They were stacked with
- * identical styling, so the role's rail read as more global nav bolted to
- * the bottom — reported as "just wrong", and it was.
+/* ── Sidebar groups (10 Sep 2026, narrowed 13 Sep 2026) ───────────────────
+ * Two lists used to live in the recruiter sidebar: where you work
+ * (AgencyNav) and where this role is (the seven steps, or the role rail).
+ * They were stacked with identical styling, so the role's rail read as more
+ * global nav bolted to the bottom — reported as "just wrong", and it was.
  *
- * The role's list is now a named group with a rule above it and its label
- * carrying the role's accent, so the eye sees two lists, not one long one. */
+ * The role's list is a named group with a rule above it and its label
+ * carrying the role's accent, so the eye sees two lists, not one long one.
+ *
+ * Inside a role there is now only ONE such group — the seven steps — because
+ * the global list collapses to .ag-nav-up and the role rail is gone (the
+ * header's phase rail carried the same three destinations). */
 .ag-rail-group { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--ag-border); }
 .ag-rail-group > .ag-rail-label { color: var(--ag-coral-text); }
+
+/* ── The way up, inside a role (13 Sep 2026) ──────────────────────────────
+ * One link where eight used to be. It is the only global item on a role
+ * screen, so it carries the full ink weight rather than .ag-step's quieter
+ * ink-2 — it is a destination, not one option among a list. The arrow takes
+ * the accent because it is the part that says "out of here", and it is
+ * aria-hidden: the label already reads as a place. */
+.ag-nav-up { color: var(--ag-ink); font-weight: 500; }
+.ag-nav-up-arrow { color: var(--ag-coral-text); }
+
+/* The step bar: the eyebrow and Back / Next on one line (13 Sep 2026). The
+ * eyebrow keeps its own bottom margin for the screens where it stands alone;
+ * in here the bar's own padding does that job. */
+.ag-stepbar .ag-step-eyebrow { margin: 0; }
 
 /* The status rail on a dashboard role row (restored 10 Sep 2026). The row
  * keeps its three columns; the rail is a fourth child spanning all of them,

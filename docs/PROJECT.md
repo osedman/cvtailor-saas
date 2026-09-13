@@ -4149,6 +4149,74 @@ rails, so the product cannot drift back into two stories.
 **Verified:** typecheck clean, 1,181 tests, production build clean. All four
 migrations confirmed applied on staging by effect.
 
+## 🪜 13 Sep 2026 — one level at a time: the recruiter sidebar shows the level you are working at
+
+Signed off in Figma first (`03 · Navigation`, file `AWRRbEOX6rLsltutFDL3zs`),
+beside `01 · Three phases` and `02 · Role header`.
+
+**The sidebar showed four labelled lists and eighteen things to click** —
+Navigate, Your desk, This role and Shortlist workflow — on the screen whose
+one job is pasting a job description. Three individually-correct fixes made
+it: role screens gained the global nav (3 Sep, because Briefs / Clients /
+Audit / Settings were unreachable from it), the eight items became two groups
+(11 Sep), and the role rail arrived because Interviews and Close-out were a
+genuine dead end (11 Sep, later). **None of them is reverted.**
+
+**`AgencyNav` has two scopes now.** Desk screens are unchanged: Navigate +
+Your desk, eight items, current one marked. Inside a role the whole desk
+collapses to one link — **← All roles** — and every global destination stays
+one click from it, because it points at the level directly above a role.
+Your desk does not render inside a role at all.
+
+**The role's three phases are said once, in the header.** `RoleRail` and
+`PhaseRail` built the same three hrefs from the same `phaseHref`; the header
+also says which phase the role is IN, carries the sub-state, and is the only
+one of the two that survives below 900px, where `.ag-sidebar` is
+`display:none`. `RoleRail` is deleted (68 lines). The dossier's second role
+fetch went with it — it existed only to feed that rail.
+
+**The Client briefs count survives the collapse.** It is still the only thing
+that surfaces a brief waiting in another of your agencies (four sat unseen
+for a week). Inside a role it renders only when the count is above zero: the
+guarantee, without a permanently-silent row beside a single link up. One
+fetch, one component, both scopes.
+
+**The way up needs no data, on purpose.** `RoleHeader` renders nothing until
+its facts load and nothing at all if they fail — so the way ACROSS a role can
+be absent, and the way OUT must therefore never sit behind the same fetch.
+A test pins that.
+
+**The workflow screen's chrome went from four bands to three.** The step
+eyebrow and the Back / Next pair share one line (`.ag-stepbar`); they were
+always about the same thing. Back / Next stays — below 900px the sidebar is
+hidden, so on a phone those two buttons are the only way through the seven
+steps.
+
+**Counted, on the worst screen:** 4 labelled groups / 18 rail items → 1 group
+/ 11, seven of them the steps. On Interviews, close-out and the dossier: 0
+groups / 4.
+
+**The hiring-manager nav was read beside it and deliberately left alone.** It
+is desk-scope only, so it has no second level to collapse; both navs now say
+exactly one level at a time.
+
+**Guards re-pinned, then probe-mutated.** `agency-nav.test.ts` and
+`self-booking-consistency.test.ts` now pin the new mechanism — role scope, at
+most one labelled group per role screen, steps only where they are the work,
+no desk item in the role scope, the unconditional way up, and the briefs
+count. Six deliberate regressions were introduced one at a time and **all six
+failed the suite**, so the pins are load-bearing rather than decorative.
+
+**Verified:** typecheck clean, 1,191 tests, production build clean with
+placeholder env. The new CSS was confirmed in the SERVED chunk, not just on
+disk. The role sidebar was rendered from the real server HTML with the real
+stylesheet at desktop and at 1440 / 1024 / 768 / 480 / 375 / 320 — the step
+bar is one 52px line down to 480 and wraps to two below it, with nothing
+overflowing at any width. Contrast measured: 4.86:1, 16.29:1, 5.59:1, all AA.
+
+**Not verified by me:** the signed-in walk-through on staging. Local
+unauthenticated rendering reaches the role shell but not real role data.
+
 ---
 
-_Last updated: 11 September 2026_
+_Last updated: 13 September 2026_

@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * The recruiter sidebar's navigation — ONE list, every screen.
+ * The recruiter sidebar's navigation — ONE component, TWO scopes.
  *
  * It was hand-rolled five times and had drifted: the briefs page offered
  * Roles / Client access / Audit log while its siblings also offered Settings
@@ -25,17 +25,28 @@
  * item already routes to — the same destination named twice, and the second
  * name led nowhere new. A page's item IS the way back to its top.
  *
+ * ONE LEVEL AT A TIME (13 Sep 2026). Role screens used to render this whole
+ * list with no current item, and then the role's own rail, and then the seven
+ * steps: four labelled groups and eighteen things to click on a screen whose
+ * job is pasting a job description. Inside a role the desk COLLAPSES to a
+ * single link up, so the rail shows the level you are working at rather than
+ * every level at once. Nothing became unreachable — every global destination
+ * is one click from that link, which is the level directly above a role.
+ *
+ * Three separate, individually-correct fixes made the pile-up (role screens
+ * gained this nav on 3 Sep because Briefs / Clients / Audit / Settings were
+ * unreachable from it; the eight items became two groups on 11 Sep; the role
+ * rail arrived later that day because Interviews and Close-out were a genuine
+ * dead end). None of them is reverted here. The role's three phases live in
+ * the role header, which already says which one is current — and which is the
+ * only rail that survives below 900px, where .ag-sidebar is display:none.
+ *
  * The Briefs count is deliberately cross-agency: a brief waiting in another
  * of your agencies is still waiting on you, and the badge is the only thing
- * that says so before you have thought to switch.
- *
- * ROLE SCREENS RENDER IT WITH NO CURRENT ITEM (3 Sep 2026). The workflow,
- * candidate detail, interviews, close-out and dossier pages are inside a
- * role, which is not a global place — so nothing here is "current" there,
- * and the role's own rail (RoleRail, or the seven steps) sits underneath.
- * Before this, those pages hand-rolled a "Navigate" list each, and two of
- * them offered no route navigation at all: Briefs, Clients, Audit and
- * Settings were unreachable from the screen recruiters spend most time on.
+ * that says so before you have thought to switch. That is why it survives the
+ * collapse — inside a role it renders only when something is actually
+ * waiting, so the guarantee holds without a permanently-silent row sitting
+ * next to a single back link.
  */
 
 import { useEffect, useState } from "react"
@@ -81,11 +92,16 @@ const ITEMS: Array<{ key: AgencyNavKey; label: string; href: string; group: NavG
   { key: "notifications", label: "Notifications", href: "/agencies/notifications", group: "desk" },
 ]
 
+/** Where "up" goes from inside a role: the level directly above it. */
+const UP = ITEMS.find((i) => i.key === "roles")!
+const BRIEFS = ITEMS.find((i) => i.key === "briefs")!
+
 export function AgencyNav({
   current,
   sections,
   onSection,
   activeSection,
+  inRole,
 }: {
   /** Omit on role-scoped screens: nothing global is current inside a role. */
   current?: AgencyNavKey
@@ -93,6 +109,8 @@ export function AgencyNav({
   sections?: AgencyNavSection[]
   onSection?: (id: string) => void
   activeSection?: string
+  /** Role scope: the desk collapses to one link up. */
+  inRole?: boolean
 }) {
   const router = useRouter()
   const [waiting, setWaiting] = useState(0)
@@ -111,6 +129,37 @@ export function AgencyNav({
       live = false
     }
   }, [])
+
+  const briefsBadge = waiting > 0 && (
+    <span className="ag-pill" style={{ marginLeft: 8 }}>
+      {waiting}
+    </span>
+  )
+
+  if (inRole) {
+    return (
+      <div>
+        {/* Unconditional, and it needs no data. The role header renders
+            nothing until its facts load and nothing at all if they fail, so
+            the way OUT of a role must never depend on it. */}
+        <button className="ag-step ag-nav-up" onClick={() => router.push(UP.href)}>
+          <span className="ag-nav-up-arrow" aria-hidden="true">
+            ←
+          </span>
+          All roles
+        </button>
+        {/* The one desk item that is about something waiting rather than
+            somewhere to go, so it earns a row inside a role — but only while
+            it has something to say. */}
+        {waiting > 0 && (
+          <button className="ag-step" onClick={() => router.push(BRIEFS.href)}>
+            {BRIEFS.label}
+            {briefsBadge}
+          </button>
+        )}
+      </div>
+    )
+  }
 
   const groups: Array<{ key: NavGroup; label: string }> = [
     { key: "work", label: "Navigate" },
@@ -132,11 +181,7 @@ export function AgencyNav({
                   onClick={isCurrent ? undefined : () => router.push(item.href)}
                 >
                   {item.label}
-                  {item.key === "briefs" && waiting > 0 && (
-                    <span className="ag-pill" style={{ marginLeft: 8 }}>
-                      {waiting}
-                    </span>
-                  )}
+                  {item.key === "briefs" && briefsBadge}
                 </button>
                 {isCurrent && sections && sections.length > 0 && (
                   <nav className="agd-nav ag-nav-sections" aria-label="On this page">

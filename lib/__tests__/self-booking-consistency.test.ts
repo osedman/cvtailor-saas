@@ -89,8 +89,19 @@ describe("no role screen is a dead end", () => {
     "app/agencies/roles/[roleId]/candidates/[candidateId]/page.tsx",
     "app/agencies/roles/[roleId]/interviews/page.tsx",
     "app/agencies/roles/[roleId]/close-out/page.tsx",
-  ])("%s can reach the role's other phases", (p) => {
-    expect(read(p)).toMatch(/<RoleRail/)
+    "app/agencies/roles/[roleId]/candidates/[candidateId]/dossier/page.tsx",
+  ])("%s reaches the role's other phases, and gets back out", (p) => {
+    const s = read(p)
+    // ACROSS: the header's phase rail. The sidebar's role rail carried the
+    // same three destinations from the same phaseHref until 13 Sep 2026; the
+    // header kept the job because it also says which phase the role is IN,
+    // and because .ag-sidebar is display:none below 900px — on a phone the
+    // header rail was always the only one there.
+    expect(s).toMatch(/<RoleHeader roleId=\{roleId\} hat="recruiter" \/>/)
+    // OUT: a link up that needs no data. RoleHeader renders nothing until its
+    // facts load and nothing at all if they fail, so the way out of a role
+    // must not depend on the same fetch that draws the way across.
+    expect(s).toMatch(/<AgencyNav inRole \/>/)
   })
 
   it("the step rail never claims progress the page cannot know about", () => {

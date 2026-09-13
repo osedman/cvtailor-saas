@@ -19,7 +19,6 @@ import { CandidatePlacement } from "@/components/agency/candidate-placement"
 import { SignOut } from "@/components/agency/sign-out"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
-import { RoleRail } from "@/components/agency/role-rail"
 
 interface Requirement { id: string; ref: string; text: string; weight: string; category?: string }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; salary_text?: string; redacted: boolean }
@@ -145,12 +144,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ role
           </div>
         </button>
         <AgencySwitcher />
-        <AgencyNav />
-        {/* Where this role is. From here there was no rail route to
-            Interviews or Close-out at all (found 11 Sep 2026). The phase is
-            null because this page does not hold it — the rail still links,
-            it just does not claim the shortlist is finished. */}
-        <RoleRail roleId={roleId} phase={null} current="workflow" />
+        <AgencyNav inRole />
         {/* A named group, not more global nav: see .ag-rail-group. */}
         <div className="ag-rail-group">
           <div className="ag-rail-label">Shortlist workflow</div>

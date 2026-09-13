@@ -29,11 +29,9 @@ import { useRouter } from "next/navigation"
 import { use } from "react"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
-import { RoleRail } from "@/components/agency/role-rail"
 import { InterviewCapture } from "@/components/agency/interview-capture"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
 import { CohortBoard, type BoardData } from "@/components/agency/cohort-board"
-import { type PhaseKey } from "@/lib/agency/phases"
 import { SignOut } from "@/components/agency/sign-out"
 
 interface Candidate {
@@ -95,7 +93,6 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
   const [meetingUrl, setMeetingUrl] = useState("")
   const [duration, setDuration] = useState(45)
   const [busy, setBusy] = useState(false)
-  const [phase, setPhase] = useState<PhaseKey | null>(null)
   const [error, setError] = useState<string | null>(null)
   // The consent link, surfaced once. If the email fails the recruiter still
   // has something to send — the ask has to reach a real person either way.
@@ -127,7 +124,6 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
       if (roleRes.status === 401) return router.push("/agencies")
       if (roleRes.ok) {
         const body = await roleRes.json()
-        setPhase((body?.phase as PhaseKey | null) ?? null)
         if (body?.role)
           setRole({
             ref: body.role.ref,
@@ -272,8 +268,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
           </div>
         </button>
         <AgencySwitcher />
-        <AgencyNav />
-        <RoleRail roleId={roleId} phase={phase} current="interviews" />
+        <AgencyNav inRole />
         <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Their diary</div>

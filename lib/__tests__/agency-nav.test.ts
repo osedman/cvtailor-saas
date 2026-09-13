@@ -28,10 +28,15 @@ const SCREENS: Array<[string, string]> = [
 ]
 
 /**
- * Screens INSIDE a role. They render the same global nav with no current
- * item (nothing global is current inside a role) and the role's own rail
- * underneath. Seven of these hand-rolled a "Navigate" list each until
- * 3 Sep 2026, and two offered no route navigation at all.
+ * Screens INSIDE a role. They render the global nav in ROLE SCOPE: the eight
+ * desk destinations collapse to a single link up, because a role is a level
+ * below the desk and does not need every level listed while you are in one.
+ *
+ * Seven of these hand-rolled a "Navigate" list each until 3 Sep 2026, and two
+ * offered no route navigation at all — which is why the nav arrived here in
+ * the first place. Nothing about that is reverted: every global destination
+ * is still one click from the link up, which points at the level directly
+ * above a role.
  */
 const ROLE_SCREENS = [
   "app/agencies/roles/[roleId]/page.tsx",
@@ -73,16 +78,49 @@ describe("every agency screen uses the shared nav", () => {
     }
   })
 
-  it.each(ROLE_SCREENS)("%s renders the global nav, with no current item", (path) => {
+  it.each(ROLE_SCREENS)("%s collapses the desk to a single link up", (path) => {
     const s = read(path)
-    expect(s).toMatch(/<AgencyNav \/>/)
+    expect(s).toMatch(/<AgencyNav inRole \/>/)
+    // The desk-scope call renders eight destinations in two labelled groups.
+    // Inside a role that is the pile-up this rule exists to prevent.
+    expect(s).not.toMatch(/<AgencyNav \/>/)
     expect(s).toMatch(/<AgencySwitcher \/>/)
     // The role header carries the phase rail, the owner and the next action.
     expect(s).toMatch(/<RoleHeader roleId=\{roleId\} hat="recruiter" \/>/)
     expect(s).not.toMatch(/<PhaseRail/)
+    // The role's own sidebar rail is GONE (13 Sep 2026). It carried the same
+    // three destinations as the header's phase rail, built from the same
+    // phaseHref — and the header also says which phase the role is IN, and
+    // is the only one of the two that survives below 900px, where
+    // .ag-sidebar is display:none. Two rails, one job; the header kept it.
+    expect(s).not.toMatch(/<RoleRail/)
     expect(/ag-rail-label">Navigate</.test(s), `${path} still hand-rolls a Navigate rail`).toBe(false)
     const rolled = /className="ag-step[^"]*"\s+onClick=\{\(\) => router\.push\("\/agencies/.test(s)
     expect(rolled, `${path} still hand-rolls nav buttons`).toBe(false)
+  })
+
+  it.each(ROLE_SCREENS)("%s shows at most one labelled group of its own", (path) => {
+    // NEVER MORE THAN TWO LABELLED GROUPS AT ONCE. Desk screens spend both on
+    // Navigate + Your desk; inside a role the desk is one unlabelled link, so
+    // the only group a role screen may render is the seven steps. The
+    // workflow screen carried four at once, which is the whole bug.
+    const s = tsCode(read(path))
+    const labels = [...s.matchAll(/className="ag-rail-label"/g)].length
+    expect(labels, `${path} renders ${labels} labelled groups of its own`).toBeLessThanOrEqual(1)
+  })
+
+  it("the seven steps render only where they are still the work", () => {
+    // On Interviews, Close-out and the dossier the steps describe work that
+    // is finished. They have never rendered there and must not start.
+    const FLOW = [
+      "app/agencies/roles/[roleId]/page.tsx",
+      "app/agencies/roles/[roleId]/candidates/[candidateId]/page.tsx",
+    ]
+    for (const path of ROLE_SCREENS) {
+      const s = tsCode(read(path))
+      const hasSteps = /ag-rail-label">Shortlist workflow</.test(s)
+      expect(hasSteps, `${path} steps present`).toBe(FLOW.includes(path))
+    }
   })
 
   it.each(ROLE_SCREENS)("%s never links the role bare", (path) => {
@@ -100,7 +138,11 @@ describe("every agency screen uses the shared nav", () => {
     // The workflow page IS the destination; every other role screen reaches
     // it through the role rail (which builds its href with workflowHref) or
     // through the helper directly.
-    if (!isWorkflow) expect(/workflowHref\(|<RoleRail /.test(s), `${path} has no way into the workflow`).toBe(true)
+    // RoleRail was the third way in and is gone. What is left is the page's
+    // own helper (candidate detail's step rail) or the header's phase rail,
+    // whose shortlist chip is phaseHref -> workflowHref — pinned by value in
+    // agency-phases.test.ts, so the chain holds end to end.
+    if (!isWorkflow) expect(/workflowHref\(|<RoleHeader /.test(s), `${path} has no way into the workflow`).toBe(true)
   })
 
   it("the dashboard has no expanding sections at all (10 Sep 2026)", () => {
@@ -152,6 +194,38 @@ describe("the nav itself", () => {
   it("a failed count renders no badge rather than breaking the page", () => {
     expect(nav).toMatch(/\.catch\(\(\) => \{\}\)/)
     expect(nav).toMatch(/waiting > 0 &&/)
+  })
+
+  it("the role scope is a way up, and nothing from the desk", () => {
+    const roleScope = nav.slice(nav.indexOf("if (inRole)"), nav.indexOf("const groups"))
+    expect(roleScope).toMatch(/ag-nav-up/)
+    expect(roleScope).toMatch(/UP\.href/)
+    // Client access, Audit log, Settings and Notifications are desk-level and
+    // have no business on a role screen.
+    for (const desk of ["clients", "audit", "settings", "notifications", "today", "candidates"]) {
+      expect(roleScope, `${desk} leaked into the role scope`).not.toContain(`"${desk}"`)
+    }
+  })
+
+  it("the way up needs no data, because the header's does", () => {
+    // RoleHeader renders nothing until its facts load and nothing at all if
+    // they fail. So the phase rail can be absent — and the way OUT of a role
+    // must therefore never sit behind a fetch or a truthiness check.
+    const roleScope = nav.slice(nav.indexOf("if (inRole)"), nav.indexOf("const groups"))
+    const up = roleScope.slice(roleScope.indexOf("ag-nav-up"))
+    expect(up.slice(0, 200)).not.toMatch(/waiting|loading|\?\?/)
+  })
+
+  it("the briefs count survives the collapse, on the terms that make it honest", () => {
+    // The badge is the only thing that surfaces a brief waiting in ANOTHER of
+    // your agencies — four sat unseen for a week. Inside a role it renders
+    // only when the count is above zero: the guarantee without a row that
+    // mostly says nothing sitting beside a single link up.
+    const roleScope = nav.slice(nav.indexOf("if (inRole)"), nav.indexOf("const groups"))
+    expect(roleScope).toMatch(/waiting > 0 &&/)
+    expect(roleScope).toMatch(/BRIEFS\.href/)
+    // One fetch, one component, both scopes — there is no second copy to drift.
+    expect([...nav.matchAll(/fetch\("\/api\/agency\/briefs/g)]).toHaveLength(1)
   })
 })
 

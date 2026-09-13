@@ -25,11 +25,9 @@ import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
-import { RoleRail } from "@/components/agency/role-rail"
 import { SignOut } from "@/components/agency/sign-out"
 import { RoleHeader } from "@/components/agency/role-header"
 import { CandidateReferences, type ReferenceListRow } from "@/components/agency/candidate-references"
-import { type PhaseKey } from "@/lib/agency/phases"
 import type { ChecklistItem } from "@/lib/agency/handover-checklist"
 import type { HandoverSnapshot } from "@/lib/agency/handover"
 
@@ -77,7 +75,6 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   const [deliveredTo, setDeliveredTo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [phase, setPhase] = useState<PhaseKey | null>(null)
   // The handover checklist for the chosen candidate. The server refuses
   // delivery while anything is open; this is the same list, shown.
   const [checklist, setChecklist] = useState<ChecklistItem[] | null>(null)
@@ -137,7 +134,6 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
       if (roleRes.status === 401) return router.push("/agencies")
       if (roleRes.ok) {
         const body = await roleRes.json()
-        setPhase((body?.phase as PhaseKey | null) ?? null)
         if (body?.role) {
           setRole({
             ref: body.role.ref,
@@ -262,8 +258,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
           </div>
         </button>
         <AgencySwitcher />
-        <AgencyNav />
-        <RoleRail roleId={roleId} phase={phase} current="close-out" />
+        <AgencyNav inRole />
         <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>When the hire is made</div>

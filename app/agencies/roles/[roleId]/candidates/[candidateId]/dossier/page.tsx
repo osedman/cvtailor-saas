@@ -30,9 +30,7 @@ import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
-import { RoleRail } from "@/components/agency/role-rail"
 import { RoleHeader } from "@/components/agency/role-header"
-import type { PhaseKey } from "@/lib/agency/phases"
 import { SignOut } from "@/components/agency/sign-out"
 import type { Dossier, Layer, RequirementStrata } from "@/lib/agency/dossier"
 // Pure function, no server imports — safe in the browser, and the reason the
@@ -72,21 +70,12 @@ export default function DossierPage({
   const { roleId, candidateId } = use(params)
   const router = useRouter()
   const [dossier, setDossier] = useState<Dossier | null>(null)
-  // The phase comes from the role route, not the dossier's: a second small
-  // read so the rail here says the same thing as every other role screen.
-  const [phase, setPhase] = useState<PhaseKey | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** Which round's delta is on screen. Null = the whole dossier. */
   const [deltaRound, setDeltaRound] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     try {
-      // Best effort and separate: a failed phase read leaves the rail blank
-      // (it renders nothing on null) and must not take the dossier with it.
-      fetch(`/api/agency/roles/${roleId}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((b) => setPhase((b?.phase as PhaseKey | null) ?? null))
-        .catch(() => {})
       const res = await fetch(`/api/agency/roles/${roleId}/candidates/${candidateId}/dossier`)
       if (res.status === 401) return router.push("/agencies")
       if (!res.ok) {
@@ -123,8 +112,7 @@ export default function DossierPage({
           </div>
         </button>
         <AgencySwitcher />
-        <AgencyNav />
-        <RoleRail roleId={roleId} phase={phase} current={null} leaf="Dossier" />
+        <AgencyNav inRole />
         <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Earned, not assumed</div>

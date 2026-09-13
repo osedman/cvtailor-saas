@@ -275,11 +275,17 @@ eighth step.
    seven screens' structure and copy.
 2. `mockups/agency-dashboard-v2.html` — approved dashboard.
 3. Figma "Tailr — Hiring Manager Concept" — everything from 12 Aug onward.
-   As of 4 Sep the file has ONE page (`00 · Concept map`) holding three
-   frames: the hiring-loop map, `01 · Three phases` (222:2, approved), and
-   `02 · Role header` (300:2, awaiting Ose's sign-off — the ownership strip,
-   sub-state chips and next action of `docs/B2B-SMOOTH-FLOW-PLAN.md` Wave 1).
+   As of 13 Sep the file has ONE page (`00 · Concept map`) holding FOUR
+   frames: the hiring-loop map (3:2), `01 · Three phases` (222:2, approved),
+   `02 · Role header` (300:2 — the ownership strip, sub-state chips and next
+   action of `docs/B2B-SMOOTH-FLOW-PLAN.md` Wave 1), and `03 · Navigation ·
+   one level at a time, with a way up` (334:2, approved 13 Sep — the two nav
+   scopes, the death of RoleRail, the folded step bar).
    The ~12 frames listed above are NOT in the file; do not trust that list.
+   **Match the house style when adding one:** 1840 wide, VERTICAL auto-layout,
+   64 padding, 36 gap, fill `#f9f6f0`; bands are FILL-width, `#fdfcf9`, 1px
+   `#eee6da`, radius 16. Eyebrow Geist Mono Medium 11 `#dc4f33` +6% tracking;
+   headline Fraunces SemiBold 42 `#1e1813`; body Geist 15/150% `#6b615a`.
 
 **Theme:** recruiter dashboard + all `/hiring` = **dark**, scoped by
 `.ag-app:has(.agd-main)`. The seven workflow screens and the adjunct recruiter

@@ -19,7 +19,6 @@ import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
-import { RoleRail } from "@/components/agency/role-rail"
 import { SignOut } from "@/components/agency/sign-out"
 import { CandidateCompliance } from "@/components/agency/candidate-compliance"
 import { CandidatePlacement } from "@/components/agency/candidate-placement"
@@ -127,7 +126,6 @@ export default function CandidateFilePage({
         </button>
         <AgencySwitcher />
         <AgencyNav current="candidates" />
-        {role && <RoleRail roleId={role.id} phase={phase} current={null} />}
         <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>What this screen is</div>
