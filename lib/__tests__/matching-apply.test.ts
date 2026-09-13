@@ -89,6 +89,27 @@ describe("what the apply path must never do", () => {
     expect(migration).toMatch(/already settled/)
   })
 
+  it("the Candidate source union matches the CHECK constraint, value for value", () => {
+    // The union omitted "matched" while the apply path was already writing it
+    // and five rows on staging already carried it — a declared type that
+    // disagreed with Postgres. Derived from the migration now, so the two
+    // cannot drift apart again without this failing.
+    const migration = readFileSync(
+      join(process.cwd(), "supabase/migrations/20260815090000_quiet_matching.sql"),
+      "utf8",
+    )
+    const check = /check \(source in \(([^)]*)\)\)/.exec(migration)
+    expect(check, "candidates_source_check not found in the migration").toBeTruthy()
+    const fromSql = (check![1].match(/'([^']+)'/g) ?? []).map((v) => v.slice(1, -1)).sort()
+
+    const types = readFileSync(join(process.cwd(), "lib/agency/types.ts"), "utf8")
+    const decl = /\n  source: ([^\n]+)\n/.exec(types)
+    expect(decl, "Candidate.source declaration not found").toBeTruthy()
+    const fromTs = (decl![1].match(/"([^"]+)"/g) ?? []).map((v) => v.slice(1, -1)).sort()
+
+    expect(fromTs).toEqual(fromSql)
+  })
+
   it("evidence crosses with origin 'matched', not 'tailr_profile'", () => {
     // Different consent, different word — the audit trail must tell
     // enrichment and self-application apart.

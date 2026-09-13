@@ -81,7 +81,17 @@ export interface Candidate {
   years: number | null
   location: string
   salary_text: string
-  source: "upload" | "paste" | "ats" | "referral" | "tailr_profile"
+  /**
+   * Mirrors candidates_source_check in 20260815090000_quiet_matching.sql.
+   *
+   * "matched" is the one the apply path actually writes — a person who
+   * found the role through consumer matching and applied themselves
+   * (20260816120000_apply_matched.sql). It was missing from this union
+   * while five rows on staging already carried it, so the declared type
+   * disagreed with both Postgres and reality; nothing switched on it
+   * exhaustively, which is the only reason it never bit.
+   */
+  source: "upload" | "paste" | "ats" | "referral" | "tailr_profile" | "matched"
   source_detail: string
   ingested_at: string
   retention_expires_at: string | null
