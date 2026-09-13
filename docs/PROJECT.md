@@ -4227,6 +4227,67 @@ probe-mutated.
 **Not verified by me:** the signed-in walk-through on staging. Local
 unauthenticated rendering reaches the role shell but not real role data.
 
+## 📤 13 Sep 2026 (later) — step 07: a completed state that was still armed
+
+Designed in Figma first (`04 · The submission screen, and the matched list`,
+frame 347:2) and signed off. Three faults, found by reading the screen and
+the route rather than by guessing.
+
+**“Sent” was a live button.** After a successful send the primary still read
+`✓ Submission sent` and was still ENABLED — disabled only while busy or on an
+empty shortlist — so the instant a send finished it was clickable again, and
+a second click minted a second snapshot, fresh portal links and another email
+to the client. The route's only refusal is the right-to-represent gate;
+nothing anywhere said "already sent". The primary stops existing once its job
+is done: what replaces it is `.ag-sent-chip`, a fact with no pointer and no
+hover, and the only primary left on the screen is the handoff card's "Go to
+interviews". Re-sending survives as a secondary that opens an alertdialog
+naming exactly what it will do.
+
+**And it was worse after a reload.** `snap` is only populated by a send in
+THIS session, so a role that had already gone to the client came back with
+`snap === null` and offered a live "Send to client" as though nothing had
+happened. `alreadySent` consults the derived phase as well.
+
+**Typing the introduction was the slowest thing on the screen.** The pane's
+derived lists were computed inside its render IIFE and `intro` is component
+state, so every keystroke rebuilt every row: a Map lookup per candidate per
+must-have, a requirements filter per candidate for gaps, and `resolveProbes`
+per candidate. They are memoised at component level now, and `intro` is
+deliberately not a dependency of any of them.
+
+**The submission route rescored one candidate at a time** — roughly four
+sequential round-trip waves each, so ten candidates meant forty waves in
+series against `maxDuration = 60`, and `MAX_CANDIDATES_PER_ROLE` is meant to
+go to fifty. It runs through a bounded pool of five now, writing results back
+at their own index so the pre-sort ordering (and therefore ties) is identical
+to the sequential version. Requirements are role-level and were re-read once
+per candidate; the route already holds them and passes them in.
+
+**One fix in the design was NOT built, and the frame says so.** The plan had
+the route's second read of candidate / evidence / reviews collapsed into the
+rescore's. Reading the two queries properly showed they fetch DIFFERENT
+COLUMNS of the same rows, so collapsing them means widening a helper four
+other callers share — they would all start pulling `call_answers` they never
+use. Left alone, and recorded rather than quietly dropped.
+
+**Also corrected:** `Candidate.source` omitted `"matched"` while the CHECK
+constraint has allowed it since `20260815090000` and five rows on staging
+carry it. The union is derived from the migration by a test now.
+
+**Guards:** `submission-step.test.ts`, ten pins, all six probe mutations
+caught — armed primary restored, `intro` re-added as a dependency, the
+reload gate narrowed, the sequential loop restored, the purge-race guard
+dropped, and requirements re-read per candidate.
+
+**Verified:** typecheck clean, 1,204 tests, production build clean from a
+fresh checkout of origin/staging with the changes overlaid. The send bar was
+rendered in both states against the served stylesheet.
+
+**Next, signed off and not yet built:** the matched list as CARDS (Ose,
+13 Sep) with MISSING getting `.ag-dot.missing` instead of a pill at 55%
+opacity; then Wave 4's decisions-complete and proxy-hire.
+
 ---
 
 _Last updated: 13 September 2026_

@@ -32,6 +32,22 @@ interface Role { id: string; ref: string; title: string; company: string; compan
 interface ClientOption { contactId: string; company: string; fullName: string }
 interface MatchedPerson { recommendationId: string; name: string; headline: string; band: string; evidence: Array<{ requirement_ref: string; strength: string; quote: string | null }>; state: string; invitedAt: string | null; appliedAt: string | null }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; salary_text?: string; source?: string; source_detail?: string; cv_storage_path?: string | null; parse_status: string; duplicate_of: string | null }
+/**
+ * One normalised shape, three containers. Before you send it is built from
+ * live state; after you send it is read back out of the frozen snapshot, so
+ * the preview stops being a guess and becomes the thing the client received.
+ *
+ * It lives at module scope because the value built from it is memoised: it
+ * used to be declared and rebuilt inside the submission pane's IIFE, which
+ * meant every keystroke in the introduction rebuilt every row.
+ */
+type SubmissionRow = {
+  key: string; ref: string; name: string; title: string; years: number | null; location: string
+  overall: number; confidence: number; reviewed: boolean; narrative: string
+  musts: Array<{ text: string; strength: string; quote: string | null }>
+  gaps: string[]; probes: string[]; comp: string; availability: string
+}
+
 interface Score {
   candidate_id: string; overall: number; must_have_hit: number; must_have_total: number
   original_overall: number | null; confidence_level: number; effective: Record<string, string>
@@ -147,6 +163,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [removing, setRemoving] = useState<string | null>(null)
   const [removeBusy, setRemoveBusy] = useState(false)
   const [representAsk, setRepresentAsk] = useState<{ refs: string[]; format: string } | null>(null)
+  /** The deliberate second send. Never a default; see the send bar below. */
+  const [resendAsk, setResendAsk] = useState(false)
   const [paste, setPaste] = useState("")
   const [jdUrl, setJdUrl] = useState("")
   const [extractResult, setExtractResult] = useState<{ requirements: number; constraints: number; filled: string[] } | null>(null)
@@ -789,6 +807,65 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     () => [...candidates].sort((a, b) => (scores[b.id]?.overall ?? 0) - (scores[a.id]?.overall ?? 0)),
     [candidates, scores]
   )
+
+  /**
+   * Step 07's derived lists, memoised (13 Sep 2026).
+   *
+   * They were computed inside the pane's render IIFE, so they rebuilt on
+   * EVERY render — and `intro` is component state, so writing the client
+   * introduction rebuilt every row on every keystroke: a Map lookup per
+   * candidate per must-have, a requirements filter per candidate for gaps,
+   * and resolveProbes per candidate. Typing was the slowest thing on the
+   * screen that exists to be typed on.
+   *
+   * `intro` is deliberately not a dependency of any of these.
+   */
+  const submissionSnap = submissionResult?.snapshot ?? null
+  const submissionShortlisted = useMemo(
+    () => rankedCandidates.filter((c) => decisions[c.id] === "shortlist"),
+    [rankedCandidates, decisions]
+  )
+  const submissionHeld = useMemo(
+    () => rankedCandidates.filter((c) => decisions[c.id] === "hold"),
+    [rankedCandidates, decisions]
+  )
+  const submissionMusts = useMemo(() => requirements.filter((r) => r.weight === "must"), [requirements])
+  const submissionRows = useMemo<SubmissionRow[]>(
+    () =>
+      submissionSnap
+        ? submissionSnap.shortlisted.map((e) => ({
+            key: e.ref, ref: e.ref, name: e.full_name, title: e.current_title ?? "", years: e.years,
+            location: e.location ?? "", overall: e.overall, confidence: e.confidence_level,
+            reviewed: e.reviewed, narrative: e.narrative,
+            musts: e.strengths.map((s) => ({ text: s.requirement, strength: "strong", quote: s.quote })),
+            gaps: e.gaps.map((g) => g.requirement),
+            probes: e.probe_areas ?? [],
+            comp: e.salary_confirm ?? "", availability: e.availability ?? "",
+          }))
+        : submissionShortlisted.map((c) => {
+            const sc = scores[c.id]
+            const rv = reviews[c.id]
+            return {
+              key: c.id, ref: c.ref, name: c.full_name, title: c.current_title ?? "", years: c.years,
+              location: c.location ?? "", overall: sc?.overall ?? 0, confidence: sc?.confidence_level ?? 2,
+              reviewed: rv?.status === "reviewed", narrative: rv?.notes ?? "",
+              musts: submissionMusts.map((r) => ({
+                text: r.text,
+                strength: effectiveStrength(c.id, r.id),
+                quote: evidenceAt(c.id, r.id)?.quote ?? null,
+              })),
+              gaps: requirements.filter((r) => effectiveStrength(c.id, r.id) === "missing").map((r) => r.text),
+              probes: Object.keys(rv?.call_answers ?? {}).length > 0
+                ? resolveProbes(Object.keys(rv!.call_answers!), requirements).map((p) => p.text)
+                : requirements
+                    .filter((r) => r.weight !== "nice" && ["missing", "partial"].includes(effectiveStrength(c.id, r.id)))
+                    .map((r) => r.text),
+              comp: c.salary_text ?? "", availability: rv?.availability ?? "",
+            }
+          }),
+    [submissionSnap, submissionShortlisted, submissionMusts, requirements, scores, reviews, effectiveStrength, evidenceAt]
+  )
+
 
   function setProbe(candidateId: string, id: string, value: string | null) {
     const current = reviews[candidateId]?.call_answers ?? {}
@@ -2030,55 +2107,22 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
           })()}
 
           {role && step === "submission" && (() => {
-            const shortlistedList = rankedCandidates.filter((c) => decisions[c.id] === "shortlist")
-            const heldList = rankedCandidates.filter((c) => decisions[c.id] === "hold")
-            const snap = submissionResult?.snapshot ?? null
+            // Every list here is memoised at component level — see
+            // submissionRows. Nothing in this IIFE may derive from `intro`.
+            const shortlistedList = submissionShortlisted
+            const heldList = submissionHeld
+            const snap = submissionSnap
             const recipients = contacts.filter((c) => chosenContacts.includes(c.id))
-            const musts = requirements.filter((r) => r.weight === "must")
-
+            const musts = submissionMusts
+            const rows = submissionRows
             /**
-             * One normalised shape, three containers. Before you send, it is
-             * built from live state; after you send, it is read back out of
-             * the frozen snapshot, so the preview stops being a guess and
-             * becomes the thing the client actually received.
+             * Derived, not from this session alone. `snap` is only populated
+             * by a send in THIS session, so after a reload a role that has
+             * already gone to the client had `snap === null` and the bar
+             * offered a live "Send to client" as though nothing had happened.
+             * The phase survives the reload; both are consulted.
              */
-            type Row = {
-              key: string; ref: string; name: string; title: string; years: number | null; location: string
-              overall: number; confidence: number; reviewed: boolean; narrative: string
-              musts: Array<{ text: string; strength: string; quote: string | null }>
-              gaps: string[]; probes: string[]; comp: string; availability: string
-            }
-            const rows: Row[] = snap
-              ? snap.shortlisted.map((e) => ({
-                  key: e.ref, ref: e.ref, name: e.full_name, title: e.current_title ?? "", years: e.years,
-                  location: e.location ?? "", overall: e.overall, confidence: e.confidence_level,
-                  reviewed: e.reviewed, narrative: e.narrative,
-                  musts: e.strengths.map((s) => ({ text: s.requirement, strength: "strong", quote: s.quote })),
-                  gaps: e.gaps.map((g) => g.requirement),
-                  probes: e.probe_areas ?? [],
-                  comp: e.salary_confirm ?? "", availability: e.availability ?? "",
-                }))
-              : shortlistedList.map((c) => {
-                  const s = scores[c.id]
-                  const rv = reviews[c.id]
-                  return {
-                    key: c.id, ref: c.ref, name: c.full_name, title: c.current_title ?? "", years: c.years,
-                    location: c.location ?? "", overall: s?.overall ?? 0, confidence: s?.confidence_level ?? 2,
-                    reviewed: rv?.status === "reviewed", narrative: rv?.notes ?? "",
-                    musts: musts.map((r) => ({
-                      text: r.text,
-                      strength: effectiveStrength(c.id, r.id),
-                      quote: evidenceAt(c.id, r.id)?.quote ?? null,
-                    })),
-                    gaps: requirements.filter((r) => effectiveStrength(c.id, r.id) === "missing").map((r) => r.text),
-                    probes: Object.keys(reviews[c.id]?.call_answers ?? {}).length > 0
-                      ? resolveProbes(Object.keys(reviews[c.id]!.call_answers!), requirements).map((p) => p.text)
-                      : requirements
-                          .filter((r) => r.weight !== "nice" && ["missing", "partial"].includes(effectiveStrength(c.id, r.id)))
-                          .map((r) => r.text),
-                    comp: c.salary_text ?? "", availability: rv?.availability ?? "",
-                  }
-                })
+            const alreadySent = Boolean(snap) || (phase !== null && phase !== "shortlist")
 
             return (
               <>
@@ -2091,15 +2135,44 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       Choose what the client sees. Your reasoning travels with the shortlist, so the hiring manager can audit every judgement instead of trusting a number.
                     </p>
                   </div>
+                  {/* A COMPLETED STATE MUST NOT BE ARMED (13 Sep 2026).
+                      This was one primary that read "✓ Submission sent" and
+                      stayed enabled — disabled only while busy or on an empty
+                      shortlist — so the moment a send finished it was
+                      clickable again, and a second click minted a second
+                      snapshot, fresh portal links and another email to the
+                      client. The route's only refusal is the right-to-
+                      represent gate; nothing anywhere said "already sent".
+
+                      Once it has gone, the primary stops existing. What
+                      replaces it is a fact, and the only primary left on the
+                      screen is the handoff card's "Go to interviews". */}
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <button className="ag-btn" onClick={() => setStep("compare")}>Back to compare</button>
-                    <button
-                      className="ag-btn ag-btn-primary"
-                      onClick={() => generateSubmission(previewFormat)}
-                      disabled={shortlisted === 0 || busy !== null}
-                    >
-                      {busy === "submission" ? <><span className="ag-spin" /> Sending</> : snap ? "✓ Submission sent" : "Send to client"}
-                    </button>
+                    {alreadySent ? (
+                      <>
+                        <span className="ag-sent-chip" role="status">
+                          {snap
+                            ? `Sent ${new Date(snap.generated_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
+                            : "Sent"}
+                        </span>
+                        <button
+                          className="ag-btn ag-btn-secondary"
+                          disabled={shortlisted === 0 || busy !== null}
+                          onClick={() => setResendAsk(true)}
+                        >
+                          {busy === "submission" ? <><span className="ag-spin" /> Sending</> : "Send again…"}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="ag-btn ag-btn-primary"
+                        onClick={() => generateSubmission(previewFormat)}
+                        disabled={shortlisted === 0 || busy !== null}
+                      >
+                        {busy === "submission" ? <><span className="ag-spin" /> Sending</> : "Send to client"}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -2107,7 +2180,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     the completion survives a reload. A recruiter who comes back
                     tomorrow should still be told phase one is closed rather than
                     seeing a bare "Send to client" as though nothing happened. */}
-                {(snap || (phase !== null && phase !== "shortlist")) && (
+                {alreadySent && (
                   <div className="ag-handoff" role="status">
                     <div className="ag-handoff-body">
                       <p className="ag-handoff-title">
@@ -2126,6 +2199,34 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     >
                       Go to interviews →
                     </button>
+                  </div>
+                )}
+
+                {resendAsk && (
+                  <div className="ag-card" style={{ marginBottom: 16, borderColor: "var(--ag-warn)" }} role="alertdialog" aria-labelledby="resend-title">
+                    <div className="ag-card-body" style={{ padding: 18 }}>
+                      <div id="resend-title" style={{ fontWeight: 600, marginBottom: 6 }}>
+                        This shortlist has already gone to {role.company || "your client"}.
+                      </div>
+                      <p className="ag-note" style={{ margin: "0 0 6px" }}>
+                        Sending again does not replace what they have. It generates a second
+                        snapshot from today&apos;s evidence, mints fresh portal links, and emails
+                        your recipients a second time. The copy they already hold stays exactly as
+                        it was. This is recorded against your name.
+                      </p>
+                      <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+                        <button
+                          className="ag-btn ag-btn-primary"
+                          disabled={busy !== null}
+                          onClick={() => { setResendAsk(false); void generateSubmission(previewFormat) }}
+                        >
+                          Send a second submission
+                        </button>
+                        <button className="ag-btn ag-btn-secondary" disabled={busy !== null} onClick={() => setResendAsk(false)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
 

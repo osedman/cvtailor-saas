@@ -1683,6 +1683,23 @@ a.ag-rh-next:hover { opacity: 0.86; }
  * in here the bar's own padding does that job. */
 .ag-stepbar .ag-step-eyebrow { margin: 0; }
 
+/* ── The sent state on step 07 (13 Sep 2026) ──────────────────────────────
+ * A fact, not a control. It replaces the primary that used to read
+ * "✓ Submission sent" while still being wired to the send — so the shape
+ * must not read as a button: no pointer, no hover, no press. It sits at the
+ * same optical weight as the secondary beside it. */
+.ag-sent-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--ag-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--ag-ink-2); background: var(--ag-cream);
+  border: 1px solid var(--ag-line-2); border-radius: var(--r-pill);
+  padding: 7px 12px; cursor: default; user-select: none;
+}
+.ag-sent-chip::before {
+  content: "✓"; color: var(--ag-coral-text); font-family: var(--ag-sans);
+}
+
 /* The status rail on a dashboard role row (restored 10 Sep 2026). The row
  * keeps its three columns; the rail is a fourth child spanning all of them,
  * so it reads as the role's progress rather than a fourth column of text. */

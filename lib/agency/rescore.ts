@@ -29,11 +29,23 @@ interface ScoringState {
   reviewId: string | null
 }
 
-/** Load everything that feeds a candidate's score from the database. */
+/** The role-level slice of a candidate's scoring inputs. */
+export type ScoringRequirements = Array<{ id: string; ref: string; weight: Weight }>
+
+/**
+ * Load everything that feeds a candidate's score from the database.
+ *
+ * `presetRequirements` exists because requirements are ROLE-level and
+ * identical for every candidate on the role, yet this read runs once per
+ * candidate. A caller looping over a shortlist — the submission route, which
+ * already loads them once at the top — passes them in rather than making us
+ * fetch the same rows N times. Omit it and nothing changes.
+ */
 export async function loadScoringState(
   admin: AgencyClient,
   agencyId: string,
-  candidateId: string
+  candidateId: string,
+  presetRequirements?: ScoringRequirements
 ): Promise<ScoringState> {
   const { data: candidate, error: candError } = await admin
     .from("candidates")
@@ -45,13 +57,22 @@ export async function loadScoringState(
     throw new AgencyAccessError("candidate not found in caller's agency")
   }
 
-  const [{ data: requirements }, { data: evidence }, { data: review }, { data: breakdown }] =
+  const requirementsPromise: Promise<ScoringRequirements> = presetRequirements
+    ? Promise.resolve(presetRequirements)
+    // Supabase query builders are thenable but not Promises, so wrap before
+    // .then() — otherwise this branch is a PromiseLike and the union with
+    // Promise.resolve() above will not type.
+    : Promise.resolve(
+        admin
+          .from("requirements")
+          .select("id, ref, weight")
+          .eq("role_id", candidate.role_id)
+          .order("sort_order")
+      ).then((r) => (r.data ?? []) as ScoringRequirements)
+
+  const [requirements, { data: evidence }, { data: review }, { data: breakdown }] =
     await Promise.all([
-      admin
-        .from("requirements")
-        .select("id, ref, weight")
-        .eq("role_id", candidate.role_id)
-        .order("sort_order"),
+      requirementsPromise,
       admin
         .from("candidate_evidence")
         .select("requirement_id, strength")
@@ -97,7 +118,7 @@ export async function loadScoringState(
     reviewId: review?.id ?? null,
     originalOverall: breakdown?.original_overall ?? null,
     input: {
-      requirements: (requirements ?? []) as Array<{ id: string; ref: string; weight: Weight }>,
+      requirements,
       evidence: evidenceMap,
       overrides,
       baselines,
@@ -114,9 +135,10 @@ export async function loadScoringState(
 export async function recomputeAndStore(
   admin: AgencyClient,
   agencyId: string,
-  candidateId: string
+  candidateId: string,
+  presetRequirements?: ScoringRequirements
 ): Promise<ScoreResult & { inputs_hash: string; original_overall: number | null }> {
-  const state = await loadScoringState(admin, agencyId, candidateId)
+  const state = await loadScoringState(admin, agencyId, candidateId, presetRequirements)
   const score = computeScore(state.input)
   const hash = inputsHash(state.input)
 
