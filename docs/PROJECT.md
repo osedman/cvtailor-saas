@@ -4499,6 +4499,53 @@ disagreeing with apply, and `joinFound` defaulting to a guess.
 applied; the code is built and NOT yet pushed, because `/found` selects the
 new column and would break without it.
 
+## 🧲 14 Sep 2026 — the stale CV draft (mechanism A), and the pair is closed
+
+The other half of the stale-CV report, and it was three faults in one effect
+pair rather than the one "race" the note described.
+
+**The filename led the text into storage.** `parseFile` wrote
+`cvtailor:cv-filename` the instant an upload parsed; the text waited out an
+800ms debounce. Upload a new CV over an old one and reload inside that window
+and the editor came back showing the NEW file's name above the OLD file's
+text — a document mislabelled as the one that replaced it, which you would
+then tailor and send. The label led the content, so the lie was invisible.
+One writer now, and it writes both keys or clears both.
+
+**Nothing flushed.** A reload, a back-navigation or a closed tab inside those
+800ms discarded everything typed since the last write, and the restore then
+brought back the previous CV as though nothing had happened. Flushed on
+`pagehide` (which fires where `unload` does not on mobile Safari), on
+`visibilitychange` to hidden, and on unmount.
+
+**The guard was dead code.** `if (saved && !cvText)` with empty deps can only
+ever see the first render's `cvText`, which the parent always initialises to
+`""`. It read like protection and never was. It reads a ref now.
+
+**🐛 And the first version of this fix could delete the CV it was protecting.**
+Making the exit flush write unconditionally meant an unmount BEFORE the
+restore had committed — React StrictMode double-invokes effects on mount, and
+a fast navigation does the same in production — would flush an empty editor
+and remove the saved draft. `persistCvNow(allowClear)` is the asymmetry: the
+debounce may clear, because 800ms of an empty field is someone meaning it;
+the exit path may not. **A flush rescues work; it must never be able to
+destroy it.** Caught by testing the fix in a browser rather than reasoning
+about it.
+
+**Verified in the running app, not only by scan:** `pagehide` at 120ms
+rescued an edit storage did not yet hold; pasting a different CV removed the
+stale filename; a fast exit with an empty editor left a seeded CV untouched;
+a settled clear still cleared; text and filename restored together.
+
+**Guards:** `cv-draft-persistence.test.ts`, six pins, six probe mutations,
+all caught. No DOM test environment exists in this repo (vitest runs `node`),
+so these are source scans — the browser run is the behavioural evidence.
+
+**Verified:** typecheck clean, 1,248 tests.
+
+**Both stale-CV mechanisms are now closed.** B retired the tailored CV when
+the evidence bank moved; A stops the draft itself going stale or mislabelled.
+
 ---
 
 _Last updated: 14 September 2026_

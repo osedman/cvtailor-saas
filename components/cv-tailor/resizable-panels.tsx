@@ -115,12 +115,58 @@ export function ResizablePanels({
   const jdLockNoteId = useId()
   const jobUrlFieldId = useId()
 
-  // Restore CV from localStorage on mount
+  /**
+   * THE CV AND ITS FILENAME ARE ONE FACT, WRITTEN AT ONE MOMENT (14 Sep 2026).
+   *
+   * They used to be written at different times: parseFile stored the filename
+   * the instant an upload parsed, while the text waited out an 800ms debounce.
+   * Upload a new CV over an old one and reload inside that window and the
+   * editor came back showing the NEW file's name above the OLD file's text —
+   * a document mislabelled as one you had just replaced, which you would then
+   * tailor and send. The label led the content, so the lie was invisible.
+   *
+   * One writer now, and it writes both keys or clears both.
+   */
+  const latestCv = useRef<{ text: string; name: string | null }>({ text: cvText, name: cvFileName })
+  useEffect(() => {
+    latestCv.current = { text: cvText, name: cvFileName }
+  }, [cvText, cvFileName])
+
+  /**
+   * `allowClear` is the whole asymmetry, and it is not decoration.
+   *
+   * The debounced path MAY clear: the field has been empty for 800ms and the
+   * person meant it. The exit path may NOT. An unmount can happen before the
+   * restore above has committed — React StrictMode double-invokes effects on
+   * mount, and a fast navigation does the same thing in production — and at
+   * that moment the live text is still "". A flush that cleared would then
+   * delete the very CV it exists to protect. A flush rescues work; it must
+   * never be able to destroy it.
+   */
+  const persistCvNow = useCallback((allowClear: boolean) => {
+    try {
+      const { text, name } = latestCv.current
+      if (text) {
+        localStorage.setItem("cvtailor:cv", text)
+        if (name) localStorage.setItem("cvtailor:cv-filename", name)
+        else localStorage.removeItem("cvtailor:cv-filename")
+      } else if (allowClear) {
+        localStorage.removeItem("cvtailor:cv")
+        localStorage.removeItem("cvtailor:cv-filename")
+      }
+    } catch {}
+  }, [])
+
+  // Restore on mount, from whatever that one writer last committed.
   useEffect(() => {
     try {
       const saved = localStorage.getItem("cvtailor:cv")
       const savedName = localStorage.getItem("cvtailor:cv-filename")
-      if (saved && !cvText) {
+      // Read through the ref, not the enclosing render's `cvText`. With empty
+      // deps that closure can only ever hold the first render's value, which
+      // the parent always initialises to "" — so the old `!cvText` guard was
+      // dead code that read like protection.
+      if (saved && !latestCv.current.text) {
         setCvText(saved)
         if (savedName) setCvFileName(savedName)
         setRestoredFromStorage(true)
@@ -129,20 +175,34 @@ export function ResizablePanels({
     } catch {}
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Persist CV to localStorage (debounced)
+  // Debounced, because writing on every keystroke of a 30,000-char CV is
+  // wasteful — not because a delay is wanted.
   useEffect(() => {
-    const t = setTimeout(() => {
-      try {
-        if (cvText) {
-          localStorage.setItem("cvtailor:cv", cvText)
-        } else {
-          localStorage.removeItem("cvtailor:cv")
-          localStorage.removeItem("cvtailor:cv-filename")
-        }
-      } catch {}
-    }, 800)
+    const t = setTimeout(() => persistCvNow(true), 800)
     return () => clearTimeout(t)
-  }, [cvText])
+  }, [cvText, cvFileName, persistCvNow])
+
+  /**
+   * And the debounce must never be the reason work is lost. A reload, a
+   * back-navigation or a closed tab inside those 800ms used to discard
+   * whatever had been typed since the last write; the restore then brought
+   * back the previous CV as though nothing had happened. Flushed on the way
+   * out instead — pagehide fires where unload does not on mobile Safari, and
+   * visibilitychange covers a tab discarded in the background.
+   */
+  useEffect(() => {
+    const flush = () => persistCvNow(false)
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flush()
+    }
+    window.addEventListener("pagehide", flush)
+    document.addEventListener("visibilitychange", onHide)
+    return () => {
+      window.removeEventListener("pagehide", flush)
+      document.removeEventListener("visibilitychange", onHide)
+      flush()
+    }
+  }, [persistCvNow])
 
   const handleMouseDown = useCallback(() => setIsDragging(true), [])
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -173,7 +233,8 @@ export function ResizablePanels({
       if (!res.ok) throw new Error(data.error)
       setCvText(data.text)
       setCvFileName(file.name)
-      localStorage.setItem("cvtailor:cv-filename", file.name)
+      // Deliberately NOT written here any more: the filename leading the text
+      // into storage is what produced a new name above an old document.
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to parse file")
     } finally {
