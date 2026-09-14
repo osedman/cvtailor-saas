@@ -4600,6 +4600,105 @@ All seeded rows carry `source_detail = 'SEEDED FIXTURE 14 Sep 2026 — not a
 real person'` and `o.oifoh+seed-*@gmail.com` addresses, so they are trivially
 identifiable and reach nobody but Ose.
 
+## 🔬 14 Sep 2026 (night) — the evidence card, and step 06 as a modal that keeps its address
+
+Both from frame 06 and frame 07, signed off first.
+
+### The evidence card
+
+Step 04 is where a recruiter overrides the machine's read of a person. The
+control for it was **four unlabelled coloured circles** whose meaning lived in
+a legend above ten cards, gone by the second one — a WCAG 1.4.1 problem on
+the most consequential control in the product. The quote that ties the
+judgement to something the person said was `t-small`, italic, `ink-3`: the
+palest text on the card.
+
+**The legend is deleted, because every option now carries its own name and
+its own weight** — STRONG 1.0 / TRANSFERABLE 0.7 / PARTIAL 0.4 / MISSING 0.0.
+The information that used to scroll away lives where the decision is made.
+The quote is body size, full ink, in real quotation marks with its source as
+a label beneath. An override says *"Tailr read this as partial. You marked it
+strong."* instead of `was partial · now strong` in 10px mono.
+
+**The weights had three copies and now have one.** `STRENGTH_VALUE` was
+private to `scoring.ts` and the legend hardcoded the numbers again in JSX, so
+the UI could have told a recruiter a requirement was worth 0.7 while the
+score used something else. `lib/agency/strengths.ts` is the single
+definition, server-import-free because `scoring.ts` imports `crypto` — the
+same rule as `phases.ts` and `settings-limits.ts`. The page's private copy of
+the strength ORDER went with it.
+
+Measured against the served stylesheet: one row at 600px, wrapping to two at
+360px with the words intact, never falling back to colour. 44px targets under
+`@media (pointer: coarse)` only — ten requirements × four options is a lot of
+vertical rhythm to spend on a device that does not need it.
+
+### Candidate detail, in two places
+
+Opening somebody from compare should not cost you your place in compare. What
+it must not cost is the URL: step 06 is one of the seven, it is the evidence
+record for a named person, and it is the screen most likely to be sent to a
+colleague. A state-only modal would have broken deep linking, back behaviour
+(severity HIGH) and "modals must not be used for primary navigation flows" —
+and this codebase has the scar, step 06 having once fallen out of a
+pane-derived rail and gone missing for four days.
+
+So: **one component, one URL, two entrances.** The evidence moved to
+`components/agency/candidate-detail.tsx`; the page became a 75-line shell.
+`@modal/(.)candidates/[candidateId]` intercepts navigation from inside the
+flow and renders it over the pane, which stays mounted and scrolled. A cold
+load, a refresh or somebody else's link misses the intercept and gets the
+page. **The app's first parallel route** — `default.tsx` returns null,
+without which the slot 404s the whole route on a hard load.
+
+Escape, backdrop and Back all close it; Back works because this is a real
+navigation. Focus moves into the panel and returns to the row that opened it.
+Below 900px it becomes a bottom sheet, because the sidebar is already
+`display:none` there and a centred dialog would be a full screen pretending
+otherwise.
+
+**Three guards broke and were right to.** They asserted the page file
+contained `<RoleHeader>`, which had moved. The guarantee had not gone — the
+file had. `screenSource()` in the scan helper now reads a screen as
+everything that draws it, with one place naming the delegation.
+
+**🐛 And `var(--ag-bg)` does not exist in this stylesheet.** The panel was
+transparent and had no radius. Caught by measuring computed styles in a
+browser rather than reading the CSS back; a test now fails if `var(--ag-bg)`
+appears anywhere.
+
+**Two harness artefacts, both nearly mistaken for bugs.** `.ag-app` is
+`display: flex`, so a test wrapper with an explicit width shrinks to content;
+and the design tokens are scoped to `.ag-app`, so anything rendered outside
+it computes every `var()` to nothing. Both looked exactly like broken CSS.
+The lesson is the harness must reproduce the real ancestor chain, not just
+the element.
+
+**Guards:** `candidate-detail-modal.test.ts` (14 pins) and the sourcing-step
+pins; thirteen probe mutations across the two, all caught.
+
+### 🐛 And a sticky column was crushing its cards
+
+Reported mid-session as "the UI is broken": on step 07 the disclosure list
+was sliced mid-row and the recipients form was cut off below Name.
+
+`.ag-sub-side` and `.ag-det-side` are flex COLUMNS with a `max-height` and
+`overflow-y: auto`. Flex items shrink before their container overflows, and
+`.ag-card` is `overflow: hidden` — so every card was squeezed shorter than
+its content and sliced it, while the column never scrolled. The scrollbar had
+been there the whole time with nothing to do.
+
+**Pre-existing since the staging root (11 Aug), not from this session's work**
+— it only became visible once those columns held enough content to overflow,
+which today's seeding did. `> * { flex: none; }` on both; measured after:
+no card clips, and the column scrolls 1090px of content in a 573px box.
+`.ag-det-side` matters twice now, since candidate detail also renders inside
+the modal.
+
+**Verified:** typecheck clean, 1,270 tests, production build clean — the
+build output lists both `/agencies/roles/[roleId]/(.)candidates/[candidateId]`
+and the real page, which is the intercept registering.
+
 ---
 
 _Last updated: 14 September 2026_

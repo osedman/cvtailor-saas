@@ -9,7 +9,7 @@
 import { describe, it, expect } from "vitest"
 import { readFileSync, readdirSync, statSync } from "fs"
 import { join } from "path"
-import { tsCode } from "./helpers/source-scan"
+import { tsCode, screenSource } from "./helpers/source-scan"
 
 const ROOT = process.cwd()
 const read = (p: string) => tsCode(readFileSync(join(ROOT, p), "utf8"))
@@ -91,7 +91,7 @@ describe("no role screen is a dead end", () => {
     "app/agencies/roles/[roleId]/close-out/page.tsx",
     "app/agencies/roles/[roleId]/candidates/[candidateId]/dossier/page.tsx",
   ])("%s reaches the role's other phases, and gets back out", (p) => {
-    const s = read(p)
+    const s = screenSource(p)
     // ACROSS: the header's phase rail. The sidebar's role rail carried the
     // same three destinations from the same phaseHref until 13 Sep 2026; the
     // header kept the job because it also says which phase the role is IN,

@@ -154,3 +154,34 @@ describe("fifty candidates, and what had to be true first", () => {
     expect(apply).not.toMatch(/MAX_CANDIDATES_PER_ROLE/)
   })
 })
+
+describe("a sticky column scrolls; it does not crush its cards", () => {
+  /**
+   * Reported 14 Sep 2026 as "the UI is broken": on step 07 the disclosure
+   * list was sliced mid-row and the recipients form was cut off below the
+   * Name field.
+   *
+   * .ag-sub-side and .ag-det-side are flex COLUMNS with a max-height and
+   * overflow-y: auto. Flex items shrink before their container overflows, and
+   * .ag-card is overflow:hidden — so every card was squeezed shorter than its
+   * content and sliced it, and the column never scrolled. The scrollbar was
+   * there the whole time and had nothing to do.
+   *
+   * Pre-existing since the staging root; it only became visible once those
+   * columns held enough content to overflow.
+   */
+  const css = readFileSync(join(process.cwd(), "app/agencies/agencies.css"), "utf8")
+
+  it.each(["ag-sub-side", "ag-det-side"])("%s children do not shrink", (sel) => {
+    const rule = new RegExp(`\\.${sel} > \\* \\{ flex: none; \\}`)
+    expect(css, `${sel} children can still be squeezed`).toMatch(rule)
+  })
+
+  it("the columns still scroll, which is the point of not shrinking", () => {
+    for (const sel of ["ag-sub-side", "ag-det-side"]) {
+      const decl = css.slice(css.indexOf(`.${sel} {`))
+      expect(decl.slice(0, 220), sel).toMatch(/overflow-y: auto/)
+      expect(decl.slice(0, 220), sel).toMatch(/max-height/)
+    }
+  })
+})

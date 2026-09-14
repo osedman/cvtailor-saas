@@ -398,11 +398,88 @@
 
 /* An override is a claim you are making over the machine's: it gets a border
  * and a wash, and states plainly what it changed. */
-.ag-ev-card { border: 1px solid var(--ag-border); background: var(--ag-paper); border-radius: var(--r-sm); padding: 12px; transition: border-color 0.14s, background 0.14s; }
+/* ── The evidence card (rebuilt 14 Sep 2026) ──────────────────────────────
+ * This is where a recruiter overrides the machine's read of a person, on the
+ * strength of something that person said. It used to put the quote in the
+ * lightest ink in the system and the control in four unlabelled circles.
+ * The quote is the object now; the control says what it means. */
+.ag-ev-card { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--ag-border); background: var(--ag-paper); border-radius: var(--r-sm); padding: 13px 14px; transition: border-color 0.14s, background 0.14s; }
 .ag-ev-card[data-override="true"] { border-color: var(--ag-coral); background: var(--ag-tint-1); }
-.ag-ev-main { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
-.ag-ev-quote { font-size: var(--t-small); font-style: italic; color: var(--ag-ink-3); border-left: 2px solid var(--ag-line-2); padding-left: 8px; margin-top: 2px; line-height: 1.5; }
-.ag-ev-was { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: normal; color: var(--ag-coral-deep); }
+.ag-ev-head { display: flex; align-items: baseline; gap: 7px; }
+.ag-ev-mine { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); }
+.ag-ev-req { margin: 0; font-size: var(--t-body); font-weight: 500; line-height: 1.45; }
+
+/* Body size, full ink, a real quotation. It was t-small italic ink-3 — the
+ * palest text on a card whose whole purpose is this sentence. */
+.ag-ev-quote { margin: 2px 0 0; font-size: var(--t-body); color: var(--ag-ink); border-left: 2px solid var(--ag-coral); padding-left: 10px; line-height: 1.55; }
+.ag-ev-quote::before { content: "\201C"; }
+.ag-ev-quote::after { content: "\201D"; }
+.ag-ev-cite { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); padding-left: 12px; }
+
+/* Wraps to two rows rather than shrinking to icons: the words are the fix.
+ * Individual chips, not a segmented control, because a segmented control
+ * with a wrapped row has no honest border radius. */
+.ag-ev-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.ag-ev-pick button {
+  flex: 1 1 130px; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 38px; padding: 8px 10px; cursor: pointer;
+  border: 1px solid var(--ag-line-2); border-radius: var(--r-sm); background: var(--ag-paper);
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; color: var(--ag-ink-2);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.ag-ev-pick button:hover { background: var(--ag-bg-2); border-color: var(--ag-ink-3); }
+.ag-ev-pick button.on { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); }
+.ag-ev-pick-weight { color: var(--ag-ink-3); }
+.ag-ev-pick button.on .ag-ev-pick-weight { color: var(--ag-tint-2); }
+.ag-ev-pick button.on .ag-dot.missing { border-color: var(--ag-tint-2); }
+
+/* A person disagreeing with the machine about another person, said in a
+ * sentence rather than in ten pixels of mono. */
+.ag-ev-said { margin: 2px 0 0; font-size: var(--t-small); color: var(--ag-coral-deep); line-height: 1.5; }
+
+/* 38px is comfortable for a mouse and under the 44px floor for a finger.
+ * Raised where the pointer is actually coarse rather than everywhere: ten
+ * requirements times four options is a lot of vertical rhythm to spend on a
+ * device that does not need it. */
+@media (pointer: coarse) {
+  .ag-ev-pick button { min-height: 44px; }
+}
+
+/* ── The intercepted candidate modal (14 Sep 2026) ────────────────────────
+ * position: fixed, so the slot never becomes a third column in .ag-app's
+ * flex row. The scrim is strong enough to isolate the panel — a weak scrim
+ * leaves the pane behind competing with the evidence you opened. */
+.ag-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-start; justify-content: center; padding: 40px 24px; }
+.ag-modal-scrim { position: absolute; inset: 0; background: rgba(30, 24, 19, 0.52); }
+.ag-modal-panel {
+  position: relative; display: flex; flex-direction: column;
+  width: min(1100px, 100%); max-height: calc(100vh - 80px);
+  /* cream, the same ground the screens sit on: the panel holds a page's
+   * content, so it should read as a page and not as a floating card. */
+  background: var(--ag-cream); border: 1px solid var(--ag-border);
+  border-radius: var(--r-md); box-shadow: 0 24px 60px rgba(30, 24, 19, 0.28);
+  overflow: hidden;
+}
+.ag-modal-panel:focus { outline: none; }
+.ag-modal-bar { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--ag-border); background: var(--ag-paper); flex: none; }
+/* The evidence scrolls, the bar does not — Close is always reachable. */
+.ag-modal-body { overflow-y: auto; overscroll-behavior: contain; padding: 20px 24px 28px; }
+
+/* Below 900px the sidebar is already gone and a centred dialog would be a
+ * full screen pretending not to be. It becomes a sheet off the bottom
+ * instead, which is what that shape actually is. */
+@media (max-width: 900px) {
+  .ag-modal { align-items: flex-end; padding: 0; }
+  .ag-modal-panel { width: 100%; max-height: 92vh; border-radius: var(--r-md) var(--r-md) 0 0; border-bottom: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ag-modal-panel { animation: ag-modal-in 180ms ease-out; }
+  .ag-modal-scrim { animation: ag-modal-fade 180ms ease-out; }
+}
+@keyframes ag-modal-in { from { opacity: 0; transform: translateY(8px) scale(0.99); } to { opacity: 1; transform: none; } }
+@keyframes ag-modal-fade { from { opacity: 0; } to { opacity: 1; } }
 .ag-unevidenced { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--ag-border); font-size: var(--t-small); }
 .ag-unevidenced:last-child { border-bottom: none; }
 
@@ -761,6 +838,14 @@
  * beside the preview they govern. */
 .ag-sub-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
 .ag-sub-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); overflow-y: auto; }
+/* A flex column with a max-height shrinks its ITEMS before it ever overflows,
+ * and .ag-card is overflow:hidden — so a squeezed card slices its own content
+ * and the column never scrolls. Reported 14 Sep 2026 as "the UI is broken":
+ * the disclosure list and the recipients form were cut mid-row. The children
+ * keep their natural height; the COLUMN does the scrolling, which is what
+ * overflow-y was there for. The wrapped-row variants below re-set flex on
+ * purpose and still win, being later. */
+.ag-sub-side > * { flex: none; }
 .ag-frozen-note { font-family: var(--ag-mono); font-size: var(--t-caption); letter-spacing: normal; color: var(--ag-coral-deep); background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); border-radius: var(--r-sm); padding: 8px 12px; }
 .ag-cfp-intro-frozen { margin: 12px 0 0; font-size: var(--t-body); line-height: 1.6; color: var(--ag-paper); opacity: 0.92; }
 .ag-cfp-probes { margin: 0; padding: 0; list-style: none; }
@@ -783,6 +868,14 @@
 /* ---------- candidate detail (step 06), to the prototype ---------- */
 .ag-det-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
 .ag-det-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); overflow-y: auto; }
+/* A flex column with a max-height shrinks its ITEMS before it ever overflows,
+ * and .ag-card is overflow:hidden — so a squeezed card slices its own content
+ * and the column never scrolls. Reported 14 Sep 2026 as "the UI is broken":
+ * the disclosure list and the recipients form were cut mid-row. The children
+ * keep their natural height; the COLUMN does the scrolling, which is what
+ * overflow-y was there for. The wrapped-row variants below re-set flex on
+ * purpose and still win, being later. */
+.ag-det-side > * { flex: none; }
 .ag-det-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
 /* One line per requirement, opening to its source. Compact so nine of them

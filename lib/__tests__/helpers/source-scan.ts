@@ -20,3 +20,31 @@ export const tsCode = (src: string): string =>
 
 /** SQL with `--` line comments removed. */
 export const sqlCode = (src: string): string => src.replace(/^\s*--.*$/gm, "")
+
+/**
+ * Everything that draws one screen, not just its page file.
+ *
+ * Candidate detail stopped being a single file on 14 Sep 2026: it renders as
+ * a PAGE (its own sidebar and role header) and as a MODAL over compare, so
+ * the evidence itself moved into components/agency/candidate-detail.tsx and
+ * the page became a shell. Three guards broke that day — role header
+ * present, no dead end, nav in role scope — not because any guarantee had
+ * gone, but because they were reading one of the two files.
+ *
+ * A screen is what renders, not what the route file happens to contain. Use
+ * this wherever a guard asserts "this screen shows X".
+ */
+const DELEGATES: Record<string, string[]> = {
+  "app/agencies/roles/[roleId]/candidates/[candidateId]/page.tsx": [
+    "components/agency/candidate-detail.tsx",
+  ],
+}
+
+export const screenSource = (path: string): string => {
+  // Required lazily so the pure string helpers above stay importable
+  // anywhere, including from code that has no filesystem.
+  const { readFileSync } = require("fs") as typeof import("fs")
+  const { join } = require("path") as typeof import("path")
+  const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
+  return [path, ...(DELEGATES[path] ?? [])].map(read).join("\n")
+}

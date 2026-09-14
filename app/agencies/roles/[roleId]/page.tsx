@@ -16,6 +16,7 @@ import { AgencyNav } from "@/components/agency/agency-nav"
 import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "@/lib/agency/probes"
 import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey, isSourcingStep } from "@/lib/agency/steps"
+import { STRENGTHS, strengthWeightLabel } from "@/lib/agency/strengths"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
 import { roleLandingPath, type PhaseKey } from "@/lib/agency/phases"
 import {
@@ -111,7 +112,6 @@ interface Review { candidate_id: string; status: string; communication: number |
 interface Evidence { candidate_id: string; requirement_id: string; strength: string; quote: string | null; source_cite?: string }
 
 type Strength = "strong" | "transferable" | "partial" | "missing"
-const STRENGTHS: Strength[] = ["strong", "transferable", "partial", "missing"]
 const WEIGHT_ORDER: Record<string, "must" | "important" | "nice"> = { must: "important", important: "nice", nice: "must" }
 const GROUPS: Array<{ weight: "must" | "important" | "nice"; label: string; hint: string }> = [
   { weight: "must", label: "Must have", hint: "Weight about 45% of the score. Zero here is a hard fail." },
@@ -1772,13 +1772,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         </span>
                       </div>
                       <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
-                        <div className="ag-legend" style={{ marginBottom: 4 }}>
-                          <span className="ag-field-label" style={{ marginBottom: 0, marginRight: 4 }}>Legend</span>
-                          <span><span className="ag-dot strong" /> Strong evidence — 1.0</span>
-                          <span><span className="ag-dot transferable" /> Transferable — 0.7</span>
-                          <span><span className="ag-dot partial" /> Partial — 0.4</span>
-                          <span><span className="ag-dot missing" /> Missing — 0.0</span>
-                        </div>
                         {requirements.map((req) => {
                           const parsed = parsedStrength(active.id, req.id)
                           const current = effectiveStrength(active.id, req.id)
@@ -1786,40 +1779,46 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           const ev = evidenceAt(active.id, req.id)
                           return (
                             <div key={req.id} className="ag-ev-card" data-override={isOverride}>
-                              <div className="ag-ev-main">
-                                <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-                                  <span style={{ display: "flex", gap: 7, alignItems: "baseline" }}>
-                                    <span className="ag-meta">{req.ref}</span>
-                                    <span className="ag-mx-weight" data-must={req.weight === "must"}>{req.weight}</span>
-                                  </span>
-                                  <span style={{ fontSize: 13, fontWeight: 500 }}>{req.text}</span>
-                                  {ev?.quote && (
-                                    <span className="ag-ev-quote">
-                                      {ev.quote}
-                                      {ev.source_cite && <span className="ag-meta" style={{ fontStyle: "normal" }}> — {ev.source_cite}</span>}
-                                    </span>
-                                  )}
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flex: "none" }}>
-                                  <div className="ag-seg" role="group" aria-label={`Strength for ${req.ref}`}>
-                                    {STRENGTHS.map((s) => (
-                                      <button
-                                        key={s}
-                                        title={s}
-                                        aria-label={s}
-                                        aria-pressed={current === s}
-                                        className={current === s ? "on" : ""}
-                                        onClick={() => setOverride(active.id, req.id, current === s ? null : s)}
-                                      >
-                                        <span className={`ag-dot ${s}`} />
-                                      </button>
-                                    ))}
-                                  </div>
-                                  {isOverride && (
-                                    <span className="ag-ev-was">was {parsed} · now {current}</span>
-                                  )}
-                                </div>
+                              <div className="ag-ev-head">
+                                <span className="ag-meta">{req.ref}</span>
+                                <span className="ag-mx-weight" data-must={req.weight === "must"}>{req.weight}</span>
+                                <span className="ag-grow" />
+                                {isOverride && <span className="ag-ev-mine">Your call · attributed</span>}
                               </div>
+                              <p className="ag-ev-req">{req.text}</p>
+                              {/* The quote is the object, not a footnote: it is the
+                                  only thing tying this judgement to a sentence the
+                                  person actually said. */}
+                              {ev?.quote && (
+                                <>
+                                  <blockquote className="ag-ev-quote">{ev.quote}</blockquote>
+                                  <span className="ag-ev-cite">From the {ev.source_cite || "CV"}</span>
+                                </>
+                              )}
+                              {/* Each option carries its own name AND its own weight,
+                                  so there is no legend to scroll away from and meaning
+                                  never rests on telling a filled dot from a hollow one
+                                  (WCAG 1.4.1). Wraps to two rows when narrow; it must
+                                  never fall back to colour alone. */}
+                              <div className="ag-ev-pick" role="group" aria-label={`Strength for ${req.ref}`}>
+                                {STRENGTHS.map((s) => (
+                                  <button
+                                    key={s}
+                                    aria-pressed={current === s}
+                                    className={current === s ? "on" : ""}
+                                    onClick={() => setOverride(active.id, req.id, current === s ? null : s)}
+                                  >
+                                    <span className={`ag-dot ${s}`} />
+                                    <span className="ag-ev-pick-name">{s}</span>
+                                    <span className="ag-ev-pick-weight">{strengthWeightLabel(s)}</span>
+                                  </button>
+                                ))}
+                              </div>
+                              {isOverride && (
+                                <p className="ag-ev-said">
+                                  Tailr read this as {parsed}. You marked it {current}.
+                                </p>
+                              )}
                             </div>
                           )
                         })}

@@ -11,9 +11,12 @@
 import { describe, it, expect } from "vitest"
 import { readFileSync, existsSync } from "fs"
 import { join } from "path"
-import { tsCode } from "./helpers/source-scan"
+import { tsCode, screenSource } from "./helpers/source-scan"
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
+// A screen is what renders, not what its route file contains — candidate
+// detail is a shell plus an extracted component since 14 Sep 2026.
+const screen = (p: string) => screenSource(p)
 
 const SCREENS: Array<[string, string]> = [
   ["app/agencies/page.tsx", "today"],
@@ -79,7 +82,7 @@ describe("every agency screen uses the shared nav", () => {
   })
 
   it.each(ROLE_SCREENS)("%s collapses the desk to a single link up", (path) => {
-    const s = read(path)
+    const s = screen(path)
     expect(s).toMatch(/<AgencyNav inRole \/>/)
     // The desk-scope call renders eight destinations in two labelled groups.
     // Inside a role that is the pile-up this rule exists to prevent.
@@ -166,7 +169,7 @@ describe("every agency screen uses the shared nav", () => {
     // own helper (candidate detail's step rail) or the header's phase rail,
     // whose shortlist chip is phaseHref -> workflowHref — pinned by value in
     // agency-phases.test.ts, so the chain holds end to end.
-    if (!isWorkflow) expect(/workflowHref\(|<RoleHeader /.test(s), `${path} has no way into the workflow`).toBe(true)
+    if (!isWorkflow) expect(/workflowHref\(|<RoleHeader /.test(screen(path)), `${path} has no way into the workflow`).toBe(true)
   })
 
   it("the dashboard has no expanding sections at all (10 Sep 2026)", () => {

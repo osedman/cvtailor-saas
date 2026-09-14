@@ -9,15 +9,10 @@
 
 import { createHash } from "crypto"
 import type { Strength, Weight } from "./types"
+// One definition, shared with the client — see strengths.ts.
+import { STRENGTH_VALUE } from "./strengths"
 
 export const ENGINE_VERSION = "v1"
-
-const STRENGTH_VALUE: Record<Strength, number> = {
-  strong: 1.0,
-  transferable: 0.7,
-  partial: 0.4,
-  missing: 0.0,
-}
 
 const WEIGHT_MULTIPLIER: Record<Weight, number> = {
   must: 3,

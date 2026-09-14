@@ -7,7 +7,7 @@
 import { describe, it, expect } from "vitest"
 import { readFileSync } from "fs"
 import { join } from "path"
-import { tsCode } from "./helpers/source-scan"
+import { tsCode, screenSource } from "./helpers/source-scan"
 
 const read = (p: string) => tsCode(readFileSync(join(process.cwd(), p), "utf8"))
 
@@ -63,7 +63,9 @@ describe("the header renders where the plan says", () => {
     "app/agencies/roles/[roleId]/close-out/page.tsx",
     "app/agencies/roles/[roleId]/candidates/[candidateId]/dossier/page.tsx",
   ])("%s — recruiter", (p) => {
-    const src = read(p)
+    // screenSource, not read: candidate detail is a shell plus an extracted
+    // component since 14 Sep 2026, and the header lives in the component.
+    const src = screenSource(p)
     expect(src).toMatch(/<RoleHeader roleId=\{roleId\} hat="recruiter" \/>/)
     // The header owns the owner select now; the sidebar box that held it goes.
     expect(src).not.toMatch(/ag-active-role/)
