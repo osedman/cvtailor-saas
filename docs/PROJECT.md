@@ -4546,6 +4546,60 @@ so these are source scans — the browser run is the behavioural evidence.
 **Both stale-CV mechanisms are now closed.** B retired the tailored CV when
 the evidence bank moved; A stops the draft itself going stale or mislabelled.
 
+## 🌱 14 Sep 2026 — staging seeded for the walk-through, and a due notice suppressed
+
+**An Art 14 notice was sitting due, to a real third party.** CAN-01 on
+ROL-2413, `scheduled_for` 12 Sep, recipient not one of Ose's aliases — the
+August incident live again. Verified before touching it: nothing has ever
+been sent from that table (`sent_at` null on every row), the row had not been
+updated since it was created on 5 Sep, so the daily cron has not processed it
+— consistent with Vercel crons running only on Production while staging is a
+branch deploy. The `sendEmail` allowlist guard also sits before the network
+call and would have refused the address. Two contingent facts, and the
+established remedy is data: suppressed with `suppression_list`, matching the
+other nine. **Zero notices are now scheduled.**
+
+**Correction to a claim made in the same breath:** seeding candidates by SQL
+does NOT schedule notices. `agency.candidates` carries only an updated_at
+trigger; Art 14 notices are created in `ingestCandidate`, in application
+code. The risk of seeding was lower than stated.
+
+**ROL-2411 (AI & Automation Consultant, 10 requirements, previously empty)**
+now carries four candidates spanning the range the screens need:
+
+| | overall | musts | coverage | confidence |
+|---|---|---|---|---|
+| CAN-01 Priya Raman | 94 | 5/5 | 100% | 4 |
+| CAN-02 Marcus Bell | 56 | 3/5 | 80% | 3 |
+| CAN-03 Ada Okonkwo | 30 | 0/5 | 50% | 2 |
+| CAN-04 Tom Vance | 18 | 1/5 | 30% | 1 |
+
+**Every quote traces to its own candidate's CV, and the database proved it
+before writing.** Each candidate has real `cv_text`; the seed built the
+evidence in a temp table, then refused to insert unless
+`position(quote in cv_text) > 0` for all forty rows. Nothing was invented
+relative to source, which is the one shortcut this table cannot take. Scores
+are DERIVED from that evidence rather than typed, so the numbers and the
+cards cannot disagree; `inputs_hash` is deliberately `seed-14sep-not-a-real-
+hash` and the first real action recomputes it.
+
+**Two prerequisites were missing and are now fixed.** No role had a
+`contact_id` at all, so Ose could not act as hiring manager anywhere and
+"That's all my decisions" could never have rendered — ROL-2411 now points at
+the linked Meridian Health contact. And the button is gated on a round
+existing, so one completed round sits on CAN-01 with `slot_id` null: a round
+that exists, not one anybody booked.
+
+**Ready to walk:** the shortlist workflow (steps 02–07 render from real
+evidence), proxy-hire (no candidate on the role has an advance decision, so
+any placement demands a reason), decisions-complete (HM hat on ROL-2411), and
+the matched cards — `agency.matched_people` returns a row already, now that
+one account has `discoverable` on.
+
+All seeded rows carry `source_detail = 'SEEDED FIXTURE 14 Sep 2026 — not a
+real person'` and `o.oifoh+seed-*@gmail.com` addresses, so they are trivially
+identifiable and reach nobody but Ose.
+
 ---
 
 _Last updated: 14 September 2026_
