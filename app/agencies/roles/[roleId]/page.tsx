@@ -15,7 +15,7 @@ import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
 import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "@/lib/agency/probes"
-import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey } from "@/lib/agency/steps"
+import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey, isSourcingStep } from "@/lib/agency/steps"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
 import { roleLandingPath, type PhaseKey } from "@/lib/agency/phases"
 import {
@@ -2747,8 +2747,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             No count anywhere in this card. Scan liveness is shown instead:
             without it "found nobody", "found people who haven't applied" and
             "the scan is broken" are indistinguishable.
+
+            AND IT STOPS AT STEP 04 (14 Sep 2026). "Below the step content on
+            every step" overcorrected for the invisibility above: publishing
+            is a SOURCING decision, and from screening onwards the recruiter
+            is judging the people they already have. isSourcingStep is the
+            rule, and it keeps intake so the capability stays discoverable.
           */}
-          {role && (
+          {role && isSourcingStep(step) && (
           <div className="ag-card" style={{ marginTop: 20 }}>
             <div className="ag-card-head">
               <span className="ag-card-title">Publish for Tailr matching</span>
