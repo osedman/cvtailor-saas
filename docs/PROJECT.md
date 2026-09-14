@@ -4413,6 +4413,30 @@ reading them back:**
 - Every probe ran inside a transaction that aborts; confirmed afterwards
   that no completion row and no flagged placement persisted.
 
+## 📈 14 Sep 2026 (later) — MAX_CANDIDATES_PER_ROLE to 50
+
+Held at 10 by exactly one thing, and it was not the mail side (closure mail
+has batched at 50 and paced since August). It was the submission route
+rescoring the shortlist one candidate at a time — roughly four sequential
+round-trip waves each, so fifty would have been about two hundred waves in
+series against that route's `maxDuration = 60`. The bounded pool shipped
+earlier today makes fifty ~40 waves instead.
+
+The cap governs what a RECRUITER may upload. It deliberately does not cap
+people who apply to themselves through consumer matching: applying is the
+candidate's own act, and a recruiter's upload budget must never silence it.
+`lib/matching/apply.ts` still does not import it and a test keeps it so.
+
+**The cap and the pool are pinned together**, because they are one decision:
+if the pool ever goes back to sequential, fifty is unsafe again.
+
+**A pin of mine was too loose, and probing caught it.** `CONCURRENCY = 1` is
+the sequential loop wearing a pool's clothes, and a `\d+` scan waved it
+through. The test reads the value now and asserts it is above one. Probed at
+1 and at 0; both fail.
+
+**Verified:** typecheck clean, 1,234 tests.
+
 ---
 
 _Last updated: 14 September 2026_

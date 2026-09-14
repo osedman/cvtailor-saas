@@ -17,7 +17,24 @@ import { errorMessage } from "@/lib/error-message"
 export const maxDuration = 300
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024
-const MAX_CANDIDATES_PER_ROLE = 10
+/**
+ * Raised from 10 to 50 on 14 Sep 2026.
+ *
+ * It was held at 10 by ONE thing: the submission route rescored the
+ * shortlist one candidate at a time — roughly four sequential round-trip
+ * waves each — so fifty candidates would have meant about two hundred waves
+ * in series against that route's maxDuration of 60. That loop is a bounded
+ * pool of five now, so fifty is ~40 waves rather than ~200.
+ *
+ * The mail side was already clear: closure mail batches at 50 and paces.
+ *
+ * This caps what a RECRUITER may upload to a role. It deliberately does not
+ * cap people who apply to themselves through consumer matching — applying is
+ * the candidate's own act and a recruiter's upload budget must never silence
+ * it. lib/matching/apply.ts does not import this, and a test keeps it that
+ * way.
+ */
+const MAX_CANDIDATES_PER_ROLE = 50
 
 export async function GET(
   _req: NextRequest,

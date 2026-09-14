@@ -135,9 +135,9 @@ export async function POST(
      *
      * This ran one candidate after another until 13 Sep 2026 — roughly four
      * sequential round-trip waves each, so ten candidates meant forty waves
-     * in series against maxDuration 60, and MAX_CANDIDATES_PER_ROLE is meant
-     * to go to fifty. It runs through a bounded pool now: still every
-     * candidate, still the same work, just not one at a time.
+     * in series against maxDuration 60. It runs through a bounded pool now:
+     * still every candidate, still the same work, just not one at a time —
+     * which is what let MAX_CANDIDATES_PER_ROLE go to fifty on 14 Sep 2026.
      *
      * Results are written back at their own index rather than pushed, so the
      * pre-sort ordering is identical to the sequential version — entries is

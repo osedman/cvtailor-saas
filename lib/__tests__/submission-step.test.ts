@@ -123,3 +123,34 @@ describe("the submission route does not rescore one at a time", () => {
     expect(rescore).toMatch(/presetRequirements\s*\n?\s*\? Promise\.resolve\(presetRequirements\)/)
   })
 })
+
+describe("fifty candidates, and what had to be true first", () => {
+  const route = read(ROUTE)
+  const candidates = read("app/api/agency/roles/[roleId]/candidates/route.ts")
+
+  it("the recruiter cap is 50", () => {
+    expect(candidates).toMatch(/const MAX_CANDIDATES_PER_ROLE = 50/)
+  })
+
+  it("the cap only moved because the rescore stopped being sequential", () => {
+    // These two belong together: at one candidate at a time, fifty would have
+    // been ~200 sequential round-trip waves against maxDuration 60. If the
+    // pool ever goes back, the cap is unsafe again — so the pool is pinned
+    // here as well as in its own test, deliberately.
+    expect(route).not.toMatch(/for \(const decision of shortlisted\)/)
+    // Not just "a number is present": CONCURRENCY = 1 IS the sequential loop
+    // wearing a pool's clothes, and a \d+ scan waves it through. Found by
+    // probe-mutation, which is the only reason this reads the value.
+    const n = /const CONCURRENCY = (\d+)/.exec(route)
+    expect(n, "CONCURRENCY is not declared").toBeTruthy()
+    expect(Number(n![1]), "a pool of one is sequential").toBeGreaterThan(1)
+    expect(route).toMatch(/export const maxDuration = 60/)
+  })
+
+  it("applying to yourself is still not capped by the recruiter's budget", () => {
+    // A person applying through consumer matching is doing their own act.
+    // A recruiter's upload budget must never silence it, at 10 or at 50.
+    const apply = read("lib/matching/apply.ts")
+    expect(apply).not.toMatch(/MAX_CANDIDATES_PER_ROLE/)
+  })
+})
