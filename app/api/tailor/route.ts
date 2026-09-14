@@ -9,6 +9,8 @@ import { loadProvenSkills } from '@/lib/roadmap-store'
 import { sanitizeDeep } from '@/lib/sanitize'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { loadTailorBrief, type TailorBrief } from '@/lib/matching/tailor-brief'
+import { profileHash } from '@/lib/matching/scan-core'
+import type { EvidenceRow } from '@/lib/career-arc-ledger'
 import { errorMessage } from '@/lib/error-message'
 
 export const maxDuration = 300
@@ -31,11 +33,21 @@ async function linkRecommendation(
   if (!brief || !historyId) return false
   try {
     const admin = createAdminClient()
+    // Both sides of what produced this tailored CV, not just the role's.
+    // Without the source hash, updating an evidence bank retired nothing and
+    // applying sent a document built from a bank that no longer existed.
+    const { data: bank } = await admin
+      .from('career_evidence')
+      .select('id, category, claim, source_role, source_company, source_span, cv_line, pinned, hidden, rephrased_text, sort_order')
+      .eq('user_id', userId)
+      .eq('hidden', false)
+
     const { error } = await admin
       .from('role_recommendations')
       .update({
         tailor_history_id: historyId,
         tailored_against_hash: brief.requirementsHash,
+        tailored_source_hash: profileHash((bank ?? []) as EvidenceRow[]),
       })
       .eq('id', brief.recommendationId)
       .eq('user_id', userId)

@@ -35,7 +35,7 @@ import {
 } from "@/lib/agency/scoring"
 import type { Strength, Weight } from "@/lib/agency/types"
 import type { EvidenceRow } from "@/lib/career-arc-ledger"
-import { buildProfileText, requirementsHash } from "./scan-core"
+import { buildProfileText, requirementsHash, profileHash, tailoredSourceStillMatches } from "./scan-core"
 import { CONSENT_COPY_VERSION } from "./limits"
 
 interface LiveRequirement {
@@ -114,7 +114,7 @@ async function loadApplyContext(userId: string, recommendationId: string) {
   const { data: rec, error: recErr } = await pub
     .from("role_recommendations")
     .select(
-      "id, user_id, published_role_id, state, score, score_breakdown, evidence, tailor_history_id, tailored_against_hash"
+      "id, user_id, published_role_id, state, score, score_breakdown, evidence, tailor_history_id, tailored_against_hash, tailored_source_hash"
     )
     .eq("id", recommendationId)
     .maybeSingle()
@@ -147,12 +147,20 @@ async function loadApplyContext(userId: string, recommendationId: string) {
   }
 
   // The tailored CV, if one was produced for THIS version of the role.
-  // Honoured only while the hash it was tailored against equals the
-  // snapshot's current hash — a republish with changed requirements retires
-  // it silently (the /found button reverts to "Tailor my CV"), because
-  // sending a document tailored to requirements that no longer exist would
-  // not be what anyone meant. Ownership is re-proven here rather than
-  // trusted from the link.
+  // Honoured only while BOTH sides of what produced it still hold.
+  //
+  // The role side was always checked: a republish with changed requirements
+  // retires the tailored CV silently (the /found button reverts to "Tailor
+  // my CV"), because sending a document tailored to requirements that no
+  // longer exist would not be what anyone meant.
+  //
+  // The person side was not checked at all until 14 Sep 2026, so someone who
+  // updated their evidence bank and then applied to a role they tailored
+  // last week sent a document built from a bank that no longer existed —
+  // while /found still called it tailored. The source check is below, after
+  // the bank is in hand.
+  //
+  // Ownership is re-proven here rather than trusted from the link.
   const wantTailored =
     rec.tailor_history_id != null &&
     rec.tailored_against_hash === snapshot.requirements_hash
@@ -178,8 +186,24 @@ async function loadApplyContext(userId: string, recommendationId: string) {
         : Promise.resolve({ data: null }),
     ])
 
-  const tailoredCv = ((historyRow?.result as { tailoredCV?: string } | null)?.tailoredCV ?? "").trim()
-  const bankText = buildProfileText((bank ?? []) as EvidenceRow[])
+  const bankRows = (bank ?? []) as EvidenceRow[]
+  const bankText = buildProfileText(bankRows)
+
+  /**
+   * The person side. The history row is fetched on the role check alone
+   * (one read, and only when a tailored CV was ever linked) and discarded
+   * here if the evidence it was made from has moved. Retiring it costs a
+   * wasted read in the stale case; getting it wrong costs an employer a
+   * document that does not describe the applicant any more.
+   */
+  const sourceCurrent = profileHash(bankRows)
+  const sourceHolds = tailoredSourceStillMatches(
+    rec.tailored_source_hash as string | null,
+    sourceCurrent
+  )
+  const tailoredCv = sourceHolds
+    ? ((historyRow?.result as { tailoredCV?: string } | null)?.tailoredCV ?? "").trim()
+    : ""
 
   // The tailored CV replaces the bank render — never both (signed off 16
   // Aug). The bank render remains the fallback so applying still works for

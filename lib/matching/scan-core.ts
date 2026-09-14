@@ -83,6 +83,27 @@ export function profileHash(evidence: EvidenceRow[]): string {
 }
 
 /**
+ * Does a stored tailored CV still correspond to the person it was made from?
+ *
+ * role_recommendations.tailored_against_hash fingerprints the ROLE, and a
+ * republish with changed requirements correctly retires the tailored CV.
+ * Nothing fingerprinted the PERSON, so updating an evidence bank retired
+ * nothing and applying sent a document built from a bank that no longer
+ * existed. This is the second half of that pair.
+ *
+ * NULL or empty means the link predates tailored_source_hash: not provable,
+ * so not honoured. Conservative on purpose — the alternative is sending an
+ * employer a document we cannot show is current, and re-tailoring identical
+ * inputs is a free cache hit on /api/tailor's input_hash.
+ */
+export function tailoredSourceStillMatches(
+  stored: string | null | undefined,
+  current: string
+): boolean {
+  return typeof stored === "string" && stored.length > 0 && stored === current
+}
+
+/**
  * Stable identity for a role's requirement set, same reasoning.
  *
  * THE canonicalisation. Its output is stored in published_roles and

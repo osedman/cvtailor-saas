@@ -4437,6 +4437,68 @@ through. The test reads the value now and asserts it is above one. Probed at
 
 **Verified:** typecheck clean, 1,234 tests.
 
+## 🧵 14 Sep 2026 — the stale tailored CV (mechanism B)
+
+**The bug.** `role_recommendations.tailor_history_id` points at a tailor RUN,
+and applying sent that run's document guarded only by
+
+    rec.tailored_against_hash === snapshot.requirements_hash
+
+which fingerprints **the role**. Republish with changed requirements and the
+tailored CV retires correctly. Change **the person** and nothing happened: a
+user who updated their evidence bank and then applied to a role they tailored
+last week sent a document built from a bank that no longer existed — and
+`/found` still called it tailored, because the card applied the same one-sided
+check. The screen promised a document the send would not use.
+
+One axis was guarded; there were always two.
+
+**The fix.** `role_recommendations.tailored_source_hash` stores the person
+side at link time, and both must match. `profileHash` already existed in
+`scan-core.ts` for the scan's skip-on-unchanged, already tested, so it is
+reused rather than reimplemented — a second copy is how ROL-2403's apply
+409'd forever, on hashes that differed only in invisible separator bytes.
+
+`/found` reads the bank once for the list and passes the hash into
+`joinFound`, which keeps it a pure join. Its default is `""`, which fails the
+comparison, so a caller that supplies nothing gets not-tailored rather than a
+guess.
+
+**What this deliberately cannot cover.** The CV a user pastes into the tailor
+screen is never stored server-side — it lives in their browser and arrives
+per run — so "they pasted a different CV and did not re-tailor" is not
+knowable here and no column can make it so. That axis is handled by
+disclosure, which already exists: `/found` names the day the tailored CV was
+saved ("12 Sep, edits included"). **Mechanism A, the localStorage restore
+race, is still open and is a different fix.**
+
+**NULL means unprovable, and is not honoured.** Links made before the column
+fall back to the evidence bank until the person tailors again. That is the
+conservative direction on a document that goes to an employer, and
+re-tailoring identical inputs is a free cache hit on `/api/tailor`'s
+`input_hash`. It does mean every existing tailored link on staging reverts to
+"Tailor my CV" once this ships.
+
+**No grant work was needed and none was done:** the client UPDATE grant on
+that table is column-scoped to `(state, seen_at, dismissed_at)`, so a new
+column is unwritable by `authenticated` the moment it exists. A test pins
+both halves of that.
+
+**A scan of mine matched its own documentation.** The test asserting the
+migration grants nothing failed on the migration's own comment explaining
+why no grant is needed. It strips comments with `sqlCode` now — the trap
+this repo has shipped once before.
+
+**Guards:** five probe mutations, all caught — apply ignoring the person
+side, the check short-circuited, NULL counting as provable, `/found`
+disagreeing with apply, and `joinFound` defaulting to a guess.
+
+**Verified:** typecheck clean, 1,242 tests.
+
+**Open:** `20260914140000_tailored_source_hash.sql` is written and NOT yet
+applied; the code is built and NOT yet pushed, because `/found` selects the
+new column and would break without it.
+
 ---
 
 _Last updated: 14 September 2026_

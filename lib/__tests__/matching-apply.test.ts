@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest"
 import { readFileSync } from "fs"
 import { join } from "path"
+import { sqlCode } from "./helpers/source-scan"
 import { buildAgencyEvidence } from "@/lib/matching/apply"
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
@@ -136,5 +137,57 @@ describe("what the apply path must never do", () => {
   it("someone else's recommendation reads as not found, not forbidden", () => {
     // Its existence is itself information.
     expect(lib).toMatch(/rec\.user_id !== userId\) return \{ failure: "not_found" as const \}/)
+  })
+})
+
+describe("the tailored CV retires when EITHER side moves", () => {
+  /**
+   * The bug, 22 Aug -> 14 Sep 2026. tailor_history_id points at a tailor RUN
+   * and applying sent that run's document, guarded only by
+   * tailored_against_hash — which fingerprints THE ROLE. Change the PERSON
+   * and nothing happened: someone who updated their evidence bank and then
+   * applied to a role they tailored last week sent a document built from a
+   * bank that no longer existed, while /found still called it tailored.
+   */
+  const lib = readFileSync(join(process.cwd(), "lib/matching/apply.ts"), "utf8")
+
+  it("reads the person side as well as the role side", () => {
+    expect(lib).toMatch(/tailored_source_hash/)
+    expect(lib).toMatch(/const sourceHolds = tailoredSourceStillMatches\(/)
+  })
+
+  it("discards the tailored CV when the bank has moved", () => {
+    // Not "skips the fetch" — discards the RESULT. The history row is read
+    // on the role check alone, so the guard has to bite at the point the
+    // document is chosen.
+    expect(lib).toMatch(/const tailoredCv = sourceHolds\s*\n?\s*\?/)
+  })
+
+  it("hashes what is rendered, through the one definition", () => {
+    // profileHash already existed for the scan's skip-on-unchanged and is
+    // tested there. A second implementation is how ROL-2403's apply 409'd
+    // forever — copies that differ only in invisible separator bytes.
+    expect(lib).toMatch(/profileHash\(bankRows\)/)
+    expect(lib).toMatch(/from "\.\/scan-core"/)
+    const core = readFileSync(join(process.cwd(), "lib/matching/scan-core.ts"), "utf8")
+    expect((core.match(/export function profileHash/g) ?? []).length).toBe(1)
+  })
+
+  it("an unprovable link is not honoured", () => {
+    const core = readFileSync(join(process.cwd(), "lib/matching/scan-core.ts"), "utf8")
+    const fn = core.slice(core.indexOf("export function tailoredSourceStillMatches"))
+    expect(fn.slice(0, 300)).toMatch(/typeof stored === "string" && stored\.length > 0 && stored === current/)
+  })
+
+  it("the column is unwritable by the client, and nothing new was granted", () => {
+    const quiet = readFileSync(join(process.cwd(), "supabase/migrations/20260815090000_quiet_matching.sql"), "utf8")
+    // Column-scoped UPDATE is what makes a new column safe by default.
+    expect(quiet).toMatch(/grant update \(state, seen_at, dismissed_at\) on public\.role_recommendations to authenticated/)
+    // Comments stripped: this migration's own header explains WHY no grant
+    // is needed, so a raw scan matches its own documentation — the exact
+    // trap this repo has already shipped once.
+    const mig = sqlCode(readFileSync(join(process.cwd(), "supabase/migrations/20260914140000_tailored_source_hash.sql"), "utf8"))
+    expect(mig).toMatch(/add column if not exists tailored_source_hash text/)
+    expect(mig).not.toMatch(/grant /i)
   })
 })

@@ -62,6 +62,9 @@ describe("joinFound · the tailored flag", () => {
     evidence: [],
     tailor_history_id: "hist-1",
     tailored_against_hash: "hash-a",
+    // The person side, added 14 Sep 2026. A tailored CV is made from a role
+    // AND a bank; only the role was ever fingerprinted.
+    tailored_source_hash: "src-a",
   }
   const role = {
     id: "pub-1",
@@ -78,18 +81,39 @@ describe("joinFound · the tailored flag", () => {
   }
   const savedAt = new Map([["hist-1", "2026-08-16T11:00:00Z"]])
 
-  it("shows tailored while the hash still matches", () => {
-    const [f] = joinFound([rec], [role], savedAt)
+  it("shows tailored while BOTH hashes still match", () => {
+    const [f] = joinFound([rec], [role], savedAt, "src-a")
     expect(f.tailored).toEqual({ savedAt: "2026-08-16T11:00:00Z" })
   })
 
   it("a republished role (hash changed) honestly reverts to not-tailored", () => {
-    const [f] = joinFound([rec], [{ ...role, requirements_hash: "hash-b" }], savedAt)
+    const [f] = joinFound([rec], [{ ...role, requirements_hash: "hash-b" }], savedAt, "src-a")
+    expect(f.tailored).toBeNull()
+  })
+
+  it("an evidence bank that has moved since reverts to not-tailored", () => {
+    // The bug this closes: the role was unchanged, so the old one-sided
+    // check still said "tailored" while apply fell back to the bank render.
+    // The card was promising a document the send would not use.
+    const [f] = joinFound([rec], [role], savedAt, "src-b")
+    expect(f.tailored).toBeNull()
+  })
+
+  it("a link made before source tracking is not honoured", () => {
+    // NULL is not provable, and the conservative direction on a document
+    // that goes to an employer is to fall back to the bank render.
+    const { tailored_source_hash: _drop, ...older } = rec
+    const [f] = joinFound([older], [role], savedAt, "src-a")
+    expect(f.tailored).toBeNull()
+  })
+
+  it("a caller that supplies no source hash gets not-tailored, never a guess", () => {
+    const [f] = joinFound([rec], [role], savedAt)
     expect(f.tailored).toBeNull()
   })
 
   it("a deleted tailor_history row reads as never-tailored, not as an error", () => {
-    const [f] = joinFound([rec], [role], new Map())
+    const [f] = joinFound([rec], [role], new Map(), "src-a")
     expect(f.tailored).toBeNull()
   })
 })

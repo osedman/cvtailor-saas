@@ -21,6 +21,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { ConsentSubject } from "./limits"
 import type { Weight } from "@/lib/agency/types"
+import type { EvidenceRow } from "@/lib/career-arc-ledger"
+import { profileHash, tailoredSourceStillMatches } from "./scan-core"
 
 export interface FoundRequirement {
   ref: string
@@ -69,6 +71,7 @@ interface RecRow {
   evidence: Array<{ requirement_ref: string; strength: string; quote: string | null }>
   tailor_history_id?: string | null
   tailored_against_hash?: string | null
+  tailored_source_hash?: string | null
   invited_at?: string | null
 }
 
@@ -99,7 +102,17 @@ export type TailoredSavedAt = Map<string, string>
 export function joinFound(
   recs: RecRow[],
   roles: RoleRow[],
-  tailoredSavedAt: TailoredSavedAt = new Map()
+  tailoredSavedAt: TailoredSavedAt = new Map(),
+  /**
+   * The person's evidence-bank hash as it is NOW. Passed in rather than
+   * computed here so this stays a pure join, and so the caller reads the
+   * bank once for the whole list.
+   *
+   * Default "" means "not supplied", which fails tailoredSourceStillMatches
+   * and reports every link as not-tailored. That is the safe default for a
+   * card whose only job is to say what the apply will send.
+   */
+  currentSourceHash = ""
 ): FoundRole[] {
   const roleById = new Map(roles.map((r) => [r.id, r]))
   const out: FoundRole[] = []
@@ -131,7 +144,12 @@ export function joinFound(
     // readable (deleted history reads as never-tailored, not as an error).
     const savedAt = rec.tailor_history_id ? tailoredSavedAt.get(rec.tailor_history_id) : undefined
     const tailored =
-      savedAt && role.requirements_hash && rec.tailored_against_hash === role.requirements_hash
+      savedAt &&
+      role.requirements_hash &&
+      rec.tailored_against_hash === role.requirements_hash &&
+      // Both sides, same rule apply uses — otherwise this card promises a
+      // document the send will not use.
+      tailoredSourceStillMatches(rec.tailored_source_hash, currentSourceHash)
         ? { savedAt }
         : null
 
@@ -173,7 +191,7 @@ export async function listFound(
     db
       .from("role_recommendations")
       .select(
-        "id, published_role_id, state, score, created_at, evidence, tailor_history_id, tailored_against_hash, invited_at"
+        "id, published_role_id, state, score, created_at, evidence, tailor_history_id, tailored_against_hash, tailored_source_hash, invited_at"
       ),
     db.from("match_preferences").select("matching_opt_in").maybeSingle(),
   ])
@@ -182,6 +200,26 @@ export async function listFound(
   const recRows = (recs ?? []) as RecRow[]
   let roleRows: RoleRow[] = []
   const savedAt: TailoredSavedAt = new Map()
+
+  /**
+   * The person side of every tailored link, computed once for the list.
+   *
+   * This card must agree with what apply will actually send. It used to
+   * check only the ROLE's hash, so a bank that had moved since tailoring
+   * left the card saying "tailored" while apply fell back to the bank
+   * render — the screen promising a document the send would not use.
+   */
+  let sourceCurrent = ""
+  if (recRows.some((r) => r.tailor_history_id)) {
+    const { data: bank } = await db
+      .from("career_evidence")
+      .select(
+        "id, category, claim, source_role, source_company, source_span, cv_line, pinned, hidden, rephrased_text, sort_order"
+      )
+      .eq("hidden", false)
+    sourceCurrent = profileHash((bank ?? []) as EvidenceRow[])
+  }
+
   if (recRows.length > 0) {
     const historyIds = [
       ...new Set(recRows.map((r) => r.tailor_history_id).filter(Boolean)),
@@ -205,7 +243,7 @@ export async function listFound(
   }
 
   return {
-    found: joinFound(recRows, roleRows, savedAt),
+    found: joinFound(recRows, roleRows, savedAt, sourceCurrent),
     matchingOn: Boolean(pref?.matching_opt_in),
   }
 }
