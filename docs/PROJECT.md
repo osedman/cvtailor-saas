@@ -4334,6 +4334,85 @@ fresh checkout with the changes overlaid.
 in shape — a placement recorded without an advance decision needs a stated
 reason, is audit-logged, and never auto-closes the role.
 
+## ⚖️ 14 Sep 2026 — Wave 4: the two facts the loop was inferring
+
+Designed in Figma first (`05 · Wave 4`, frame 354:2) and signed off. Both
+items were the same mistake in different places: the product decided
+something important by reading around the edge of it.
+
+**The plan was being used as a gate.** `next-action.ts:179` fired "take to
+close-out" when the last completed round decided advance at or beyond
+`planned_rounds` — and the same file's header calls the plan "a plan, never
+a gate". A client who decided early was told to keep going; one who wanted
+an extra round was told to close out. The measure the plan asks for,
+submission → all decisions, had no end timestamp to measure to.
+
+There is a rung ABOVE the derived one now, never instead of it: when the
+client has said they are finished, that fact answers and `since` is the
+moment they said so. The derivation is untouched underneath, so a role whose
+client never presses the button behaves exactly as before. The receipt knows
+which of the two it came from and does not invent a name — the client said
+they were finished, not who they picked.
+
+`agency.role_decision_completions` is append-only, newest wins, the shape
+`round_decisions` already uses. A withdrawal resolves to NULL rather than to
+a timestamp, so a reopened role falls back to the derived rung on its own
+with no second state to keep in sync. It closes nothing.
+
+**A placement could be money recorded against a stranger.**
+`lib/agency/placements.ts` read no decisions at all, so a fee, a rebate
+window and a start date could be recorded for a candidate nobody ever
+advanced. That happens legitimately — clients hire off-process — so the
+route DERIVES whether an advance decision exists at write time and asks for
+a reason only when it does not. The recruiter never ticks a box claiming it.
+The audit log distinguishes the two. `outside_process` joins the compliance
+columns under the existing never-filters scan: a fact about how a hire
+happened, never a mark against a person.
+
+### 🐛 The first migration applied cleanly and shipped two holes
+
+Both found by probing the deployed schema, neither visible in the SQL.
+
+**The CHECK passed on NULL, in the direction that mattered.**
+`(outside_process = true and length(trim(outside_process_reason)) > 0)` is
+NULL when the reason is NULL — and a CHECK refuses only on FALSE. So the
+flag could be set with no reason at all, which is the single thing it
+existed to prevent. The other direction refused correctly, which is exactly
+why it looked like it worked. Probed both ways: refused-flag-without-reason
+was `f`, refused-reason-without-flag was `t`. `coalesce` fixes it.
+
+**service_role could not write the new table.** It was created with `grant
+select to authenticated` and nothing else. `placements`, `round_decisions`
+and `candidate_compliance` all carry an explicit service_role grant; the new
+one carried none, so every write would have failed at runtime while the
+mocked tests stayed green. **This project has now shipped that fault three
+times** — the rule "verify grants by attempting the write AS THE ROLE" is
+there for a reason and reading the SQL back is not the same thing.
+
+Repair: `20260914090000_wave4_repair_grants_and_null_safety.sql`.
+
+**A guard shipped with a blind spot too, and probing caught it.** The link
+proof was pinned with "this string appears in the file" — which passed while
+the WRITER's copy was replaced with `true`, because the READER's copy still
+matched. It asserts both doors separately now. Nine probe mutations across
+Wave 4; eight caught first time, the ninth is why there are nine.
+
+**Verified:** typecheck clean, 1,231 tests, production build clean. Schema
+objects confirmed against the deployed database, not the migration file.
+
+**Both migrations applied to tailr-staging and verified BY EFFECT, not by
+reading them back:**
+
+- The repaired constraint refuses all three bad shapes — flag without a
+  reason (which the first version accepted), reason without the flag, and a
+  whitespace-only reason — and still ACCEPTS a valid pair, so it is refusing
+  the right things rather than everything.
+- `service_role` can insert into `role_decision_completions`, attempted AS
+  service_role inside a rolled-back block rather than by reading the grant
+  table. That is the check this project had skipped three times.
+- Every probe ran inside a transaction that aborts; confirmed afterwards
+  that no completion row and no flagged placement persisted.
+
 ---
 
-_Last updated: 13 September 2026_
+_Last updated: 14 September 2026_

@@ -38,6 +38,8 @@ interface Placement {
   rebateUntil: string | null
   inRebateWindow: boolean
   fellThroughReason: string
+  outsideProcess: boolean
+  outsideProcessReason: string
   notes: string
 }
 
@@ -70,6 +72,15 @@ export function CandidatePlacement({
   const [feeValue, setFeeValue] = useState("")
   const [rebateWeeks, setRebateWeeks] = useState("")
   const [reason, setReason] = useState("")
+  /**
+   * Whether the client ever advanced this person on this role, from the same
+   * GET. The route refuses a placement without a reason when they did not —
+   * this is only so the ask arrives BEFORE the form is filled rather than as
+   * a rejection after it. Optimistic default: assume advanced, so a failed
+   * read never invents an accusation.
+   */
+  const [advanceDecision, setAdvanceDecision] = useState(true)
+  const [outsideReason, setOutsideReason] = useState("")
 
   const hydrate = useCallback((p: Placement | null) => {
     setPlacement(p)
@@ -80,13 +91,18 @@ export function CandidatePlacement({
     setFeeValue(p.feeValue == null ? "" : String(p.feeValue))
     setRebateWeeks(p.rebateWeeks == null ? "" : String(p.rebateWeeks))
     setReason(p.fellThroughReason ?? "")
+    setOutsideReason(p.outsideProcessReason ?? "")
   }, [])
 
   useEffect(() => {
     ;(async () => {
       try {
         const res = await fetch(`/api/agency/candidates/${candidateId}/placement`)
-        if (res.ok) hydrate((await res.json()).placement ?? null)
+        if (res.ok) {
+          const body = await res.json()
+          hydrate(body.placement ?? null)
+          if (typeof body.advanceDecision === "boolean") setAdvanceDecision(body.advanceDecision)
+        }
       } finally {
         setLoaded(true)
       }
@@ -106,6 +122,7 @@ export function CandidatePlacement({
           feeValue: feeValue === "" ? null : Number(feeValue),
           rebateWeeks: rebateWeeks === "" ? null : Number(rebateWeeks),
           fellThroughReason: reason,
+          outsideProcessReason: outsideReason,
         }),
       })
       const body = await res.json()
@@ -119,7 +136,7 @@ export function CandidatePlacement({
     } finally {
       setBusy(false)
     }
-  }, [candidateId, status, startDate, feePercent, feeValue, rebateWeeks, reason, hydrate])
+  }, [candidateId, status, startDate, feePercent, feeValue, rebateWeeks, reason, outsideReason, hydrate])
 
   if (!loaded) return null
 
@@ -181,6 +198,26 @@ export function CandidatePlacement({
                 </button>
               ))}
             </div>
+
+            {/* A HIRE THAT SKIPPED THE LOOP SAYS SO (14 Sep 2026). The route
+                derives this — the recruiter never ticks a box claiming it.
+                Shown only where the trail is actually missing, so a normal
+                placement is recorded with no extra field and no friction. */}
+            {!advanceDecision && (
+              <label className="ag-stack ag-outside-ask" style={{ gap: 4 }}>
+                <span className="ag-meta">This candidate has no advance decision on this role.</span>
+                <input
+                  className="ag-input"
+                  value={outsideReason}
+                  onChange={(e) => setOutsideReason(e.target.value)}
+                  placeholder="Client interviewed them directly after our introduction"
+                />
+                <span className="ag-note" style={{ color: "var(--ag-ink-3)" }}>
+                  Recording it is fine — clients hire off-process. Say how it happened and it
+                  travels with the record. This describes the hire, never the person.
+                </span>
+              </label>
+            )}
 
             {status === "fell_through" && (
               <label className="ag-stack" style={{ gap: 4 }}>

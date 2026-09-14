@@ -22,6 +22,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/server"
+import { latestCompletions } from "./decision-completions"
 import { agencyAdmin } from "./db"
 import type { AgencyContext } from "./types"
 import { derivePhase } from "./phases"
@@ -234,6 +235,10 @@ export async function getRoleFactsBatch(
   const takenSlotIds = new Set((takenSlots.data ?? []).map((r) => r.slot_id as string))
   const freeSlots = (slots.data ?? []).filter((s) => !takenSlotIds.has(s.id as string))
 
+  // One read for the batch, not one per role — see the note at the top of
+  // this file about the N+1 this module exists to prevent.
+  const completions = await latestCompletions(admin, ctx.agencyId, ids)
+
   for (const role of roleRows) {
     const roleId = role.id as string
 
@@ -325,6 +330,7 @@ export async function getRoleFactsBatch(
       failures,
       reviewed: reviewed.length,
       undecided,
+      decisionsCompleteAt: completions.get(roleId) ?? null,
       submission: submissionFacts,
       openWindows: openSlots.length,
       lastWindowOfferedAt,

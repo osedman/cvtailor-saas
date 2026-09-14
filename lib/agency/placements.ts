@@ -20,6 +20,15 @@
  *   recruiter's deliberate act because it starts the retention clock. A
  *   role can also place more than one person, so an automatic close would
  *   be wrong as often as it was right.
+ *
+ * - A HIRE THAT SKIPPED THE LOOP SAYS SO (14 Sep 2026). Until now this
+ *   module read no decisions at all, so a placement — the fee, the rebate
+ *   window, the start date — could be recorded against a candidate nobody
+ *   ever advanced, silently. That happens legitimately: the client hires
+ *   someone you introduced, off-process. It is not an error to record, it
+ *   is an error not to say so. Whether an advance decision exists is
+ *   DERIVED here at write time, never typed by the recruiter; the reason is
+ *   asked for only when the trail is actually missing.
  */
 
 import { agencyAdmin, writeAudit, assertWriter, AgencyAccessError } from "./db"
@@ -47,6 +56,8 @@ export interface PlacementInput {
   rebateWeeks?: number | null
   fellThroughReason?: string
   notes?: string
+  /** Required only when the candidate has no advance decision on this role. */
+  outsideProcessReason?: string
 }
 
 export interface PlacementView {
@@ -65,6 +76,11 @@ export interface PlacementView {
   feeValue: number | null
   currency: string
   rebateWeeks: number | null
+  /** This hire did not come through the interview loop. A fact about how it
+   *  happened, never a judgement about the person: it must not filter, rank
+   *  or sort anyone, exactly as 'declined' must not. */
+  outsideProcess: boolean
+  outsideProcessReason: string
   /** Derived, never stored: start_date + rebate_weeks. Null when either is. */
   rebateUntil: string | null
   /** Whether that window is still open as of now. */
@@ -73,6 +89,41 @@ export interface PlacementView {
 }
 
 const cap = (v: string | null | undefined, n: number) => (v ?? "").trim().slice(0, n)
+
+/**
+ * Did the client ever advance this candidate on this role?
+ *
+ * Read from round_decisions through the candidate's own rounds. 'advance' is
+ * the only value that means "take them forward" — hold and decline do not,
+ * and a candidate with no rounds at all has no advance decision either.
+ *
+ * Exported so the screen can ask the same question BEFORE the recruiter
+ * starts filling the form, rather than being refused after it.
+ */
+export async function hasAdvanceDecision(
+  admin: ReturnType<typeof agencyAdmin>,
+  agencyId: string,
+  roleId: string,
+  candidateId: string
+): Promise<boolean> {
+  const { data: rounds } = await admin
+    .from("interview_rounds")
+    .select("id")
+    .eq("agency_id", agencyId)
+    .eq("role_id", roleId)
+    .eq("candidate_id", candidateId)
+  const roundIds = (rounds ?? []).map((r) => r.id as string)
+  if (roundIds.length === 0) return false
+
+  const { data: decisions } = await admin
+    .from("round_decisions")
+    .select("decision")
+    .eq("agency_id", agencyId)
+    .in("round_id", roundIds)
+    .eq("decision", "advance")
+    .limit(1)
+  return (decisions ?? []).length > 0
+}
 
 /** start_date + rebate_weeks, computed rather than stored so a corrected
  *  start date cannot leave a stale window behind. */
@@ -108,6 +159,8 @@ function shape(row: Record<string, unknown>, candidate: { ref?: string; name?: s
     feeValue: row.fee_value == null ? null : Number(row.fee_value),
     currency: (row.currency as string) ?? "GBP",
     rebateWeeks,
+    outsideProcess: Boolean(row.outside_process),
+    outsideProcessReason: (row.outside_process_reason as string | null) ?? "",
     rebateUntil: win.until,
     inRebateWindow: win.open && row.status === "started",
     notes: (row.notes as string) ?? "",
@@ -156,6 +209,24 @@ export async function setPlacement(
     .eq("candidate_id", candidateId)
     .maybeSingle()
 
+  /**
+   * Derived, never typed. The recruiter does not tick a box saying "this was
+   * off-process" — the route works out whether the client ever advanced this
+   * person and asks for a reason only when it did not.
+   */
+  const advanced = await hasAdvanceDecision(
+    admin,
+    ctx.agencyId,
+    candidate.role_id as string,
+    candidateId
+  )
+  const outsideReason = cap(input.outsideProcessReason, MAX_REASON)
+  if (!advanced && !outsideReason) {
+    throw new AgencyAccessError(
+      "this candidate has no advance decision on this role — say how the hire happened, and it travels with the record"
+    )
+  }
+
   const now = new Date().toISOString()
   const stamped: Record<string, unknown> = {
     agency_id: ctx.agencyId,
@@ -168,6 +239,10 @@ export async function setPlacement(
     currency: cap(input.currency, 8) || "GBP",
     rebate_weeks: input.rebateWeeks ?? null,
     fell_through_reason: input.status === "fell_through" ? cap(input.fellThroughReason, MAX_REASON) : "",
+    // placement_reason_iff_outside is enforced in both directions, so the
+    // reason must be NULL — not "" — whenever the flag is false.
+    outside_process: !advanced,
+    outside_process_reason: advanced ? null : outsideReason,
     notes: cap(input.notes, MAX_NOTES),
     updated_at: now,
   }
@@ -196,7 +271,11 @@ export async function setPlacement(
     actorId: ctx.userId,
     entityType: "candidate",
     entityRef: (candidate.ref as string) ?? "",
-    action: existing ? "placement_updated" : "placement_recorded",
+    action: existing
+      ? "placement_updated"
+      : !advanced
+        ? "placement_recorded_outside_process"
+        : "placement_recorded",
     fromValue: existing ? { status: existing.status, fee_value: existing.fee_value } : null,
     // Money and dates are the point of this record, so they are IN the audit
     // trail deliberately — unlike a compliance note, a fee is the agency's

@@ -15,7 +15,7 @@
  * disclosure filter in lib/agency/client-auth.ts.
  */
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { HiringLink, HiringRound, HiringSlot, RoundDecision } from "@/lib/agency/types"
@@ -392,5 +392,104 @@ export function RoundProgress({ rounds, planned }: { rounds: HiringRound[]; plan
         )
       })}
     </span>
+  )
+}
+
+/**
+ * "That's all my decisions" — the client's own statement that they have
+ * finished deciding on a role.
+ *
+ * The product used to infer this from the round count against planned_rounds
+ * (next-action.ts), which is a plan and not a gate: a client who decided
+ * early was told to keep going, and one who wanted an extra round was told
+ * to close out. This is the fact that outranks that inference.
+ *
+ * It closes nothing. The role stays open, the recruiter can still add a
+ * candidate, and the retention clock does not start — closing is the
+ * recruiter's act. Reopening is one click and writes a row of its own, so
+ * the record keeps the whole sequence of minds changed.
+ */
+export function DecisionsComplete({ roleId }: { roleId: string }) {
+  const [completeAt, setCompleteAt] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState("")
+
+  const url = `/api/hiring/roles/${roleId}/decisions-complete`
+
+  useEffect(() => {
+    let live = true
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => {
+        if (live && b) setCompleteAt(b.completeAt ?? null)
+      })
+      .catch(() => {})
+      .finally(() => live && setLoaded(true))
+    return () => {
+      live = false
+    }
+  }, [url])
+
+  async function send(action: "completed" | "withdrawn") {
+    setBusy(true)
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, note }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body?.error || "That did not save.")
+      setCompleteAt(action === "completed" ? body.completion.at : null)
+      setNote("")
+    } catch {
+      /* the band stays as it was rather than claiming something it did not do */
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!loaded) return null
+
+  return (
+    <section className="agd-band" aria-labelledby="hm-decisions-complete">
+      <div className="agd-eyebrow-row">
+        <h2 className="agd-eyebrow" id="hm-decisions-complete">Your decisions</h2>
+        <span className="agd-rule" />
+      </div>
+      {completeAt ? (
+        <>
+          <p className="agd-sub" style={{ marginBottom: 10 }} role="status">
+            You told your recruiter you had finished deciding on{" "}
+            {new Date(completeAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.
+            They are taking it to close-out. Nothing is closed, and you can still change your mind.
+          </p>
+          <button className="agd-tbtn" disabled={busy} onClick={() => void send("withdrawn")}>
+            {busy ? "Reopening…" : "Actually, I am not finished"}
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="agd-sub" style={{ marginBottom: 10 }}>
+            When you have decided on everyone you want to, say so and your recruiter can take it
+            to close-out. It does not close the role, and you can undo it.
+          </p>
+          <div className="ag-stack" style={{ gap: 8 }}>
+            <input
+              className="ag-input"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Anything you want your recruiter to know (optional)"
+            />
+            <span>
+              <button className="agd-tbtn primary" disabled={busy} onClick={() => void send("completed")}>
+                {busy ? "Saving…" : "That's all my decisions"}
+              </button>
+            </span>
+          </div>
+        </>
+      )}
+    </section>
   )
 }

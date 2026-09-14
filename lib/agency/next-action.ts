@@ -77,6 +77,14 @@ export interface RoleFacts {
   reviewed: number
   /** Reviewed with no recruiter decision. */
   undecided: number
+  /**
+   * When the client said they had finished deciding, or null.
+   *
+   * Null covers both "never said" and "said, then reopened" — a withdrawal
+   * resolves to null in latestCompletions, so a reopened role falls back to
+   * the derived rung with nothing to clean up.
+   */
+  decisionsCompleteAt: string | null
   submission: {
     generatedAt: string
     /** Candidates in the snapshot. */
@@ -210,6 +218,33 @@ export function deriveSubState(f: RoleFacts): SubState {
   const states = [...byCandidate.entries()].map(([ref, rounds]) => ({ ref, state: loopState(rounds, f.plannedRounds)! }))
 
   const pick = (kind: LoopState["kind"]) => states.find((s) => s.state.kind === kind)
+
+  /**
+   * A FACT OUTRANKS AN INFERENCE (14 Sep 2026).
+   *
+   * Below this, "take to close-out" is derived from the last completed round
+   * reaching plannedRounds — a plan this file's own header calls "never a
+   * gate". When the client has SAID they are finished, that is the better
+   * fact: it comes first, and `since` is the moment they said so rather than
+   * the moment some round happened to end.
+   *
+   * The derived rung is untouched underneath. A role whose client never
+   * presses the button behaves exactly as it did before.
+   */
+  if (f.decisionsCompleteAt) {
+    const done = pick("close-out")
+    return {
+      key: "take-to-close-out",
+      chip: "TAKE TO CLOSE-OUT",
+      party: "recruiter",
+      since: f.decisionsCompleteAt,
+      // Named when there is an obvious candidate, absent when there is not:
+      // the client said they were finished, not who they picked. Who got the
+      // job is the placement, and this must never pretend to know it.
+      candidateRef: done?.ref,
+      roundNumber: done?.state.kind === "close-out" ? done.state.round.roundNumber : undefined,
+    }
+  }
 
   const closeOut = pick("close-out")
   if (closeOut && closeOut.state.kind === "close-out")
@@ -423,7 +458,17 @@ export function handoffFor(f: RoleFacts, hat: Hat, roleId: string): Handoff | nu
     case "decision-due":
       return { confirmed: `Round ${sub.roundNumber ?? 1} written up.`, owner, nextTask: task, then: "Advancing sends the next round's invitation; the last advance goes to close-out." }
     case "take-to-close-out":
-      return { confirmed: `${sub.candidateRef ?? "The candidate"} advanced after the final planned round.`, owner, nextTask: task, then: "References and the handover pack; then the role closes." }
+      // Two ways in, and the receipt must not claim the wrong one. With no
+      // candidateRef the client SAID they were finished; with one, it was
+      // derived from the rounds.
+      return {
+        confirmed: sub.candidateRef
+          ? `${sub.candidateRef} advanced after the final planned round.`
+          : `${client} has finished deciding.`,
+        owner,
+        nextTask: task,
+        then: "References and the handover pack; then the role closes.",
+      }
     case "pack-generated":
       return { confirmed: "Handover pack generated.", owner, nextTask: task, then: "Handing over ends Tailr's part; closing starts the retention clock." }
     case "handed-over":

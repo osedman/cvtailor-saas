@@ -19,6 +19,7 @@ import { use, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { SignOut } from "@/components/agency/sign-out"
 import {
+  DecisionsComplete,
   EmptyBand,
   HiringNav,
   RoundActions,
@@ -205,6 +206,11 @@ export default function HiringRolePage({ params }: { params: Promise<{ roleId: s
                 </div>
               </section>
             )}
+
+            {/* After the rounds, because it is about what they add up to.
+                Only once a shortlist exists — there is nothing to have
+                finished deciding on before that. */}
+            {byCandidate.size > 0 && <DecisionsComplete roleId={roleId} />}
 
             <p className="agd-foot">
               <b>NOTE</b>

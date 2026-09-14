@@ -31,6 +31,7 @@ function facts(over: Partial<RoleFacts> = {}): RoleFacts {
     failures: 0,
     reviewed: 0,
     undecided: 0,
+  decisionsCompleteAt: null,
     submission: null,
     openWindows: 0,
     lastWindowOfferedAt: null,

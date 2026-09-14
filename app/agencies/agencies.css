@@ -1741,6 +1741,11 @@ a.ag-rh-next:hover { opacity: 0.86; }
 .ag-ev.partial { color: var(--ag-warn); }
 .ag-ev.missing { border-style: dashed; color: var(--ag-ink-3); }
 
+/* The off-process ask on the placement card (14 Sep 2026). Tinted because it
+ * is asking for something, not warning about someone: a client hiring
+ * off-process is ordinary, and the copy must not read as an accusation. */
+.ag-outside-ask { border: 1px solid var(--ag-tint-2); background: var(--ag-tint-1); border-radius: var(--r-sm); padding: 12px 14px; }
+
 /* The status rail on a dashboard role row (restored 10 Sep 2026). The row
  * keeps its three columns; the rail is a fourth child spanning all of them,
  * so it reads as the role's progress rather than a fourth column of text. */

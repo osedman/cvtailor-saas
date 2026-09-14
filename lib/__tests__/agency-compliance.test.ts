@@ -232,8 +232,16 @@ describe("the vocabulary has exactly one definition", () => {
   })
 })
 
-describe("compliance never filters a candidate", () => {
-  it("no agency source narrows a query or a list by any compliance column", () => {
+describe("a fact about someone never filters them", () => {
+  /**
+   * Extended 14 Sep 2026 to cover agency.placements.outside_process — the
+   * flag that says a hire did not come through the interview loop. It is a
+   * fact about HOW A HIRE HAPPENED, not a mark against the person, and it
+   * falls under exactly the rule the compliance columns already do. One
+   * scan, one definition: a second copy of this walk would be the thing
+   * that drifts.
+   */
+  it("no agency source narrows a query or a list by any such column", () => {
     const walk = (dir: string, out: string[] = []): string[] => {
       for (const entry of readdirSync(dir)) {
         if (entry === "node_modules" || entry.startsWith(".")) continue
@@ -250,15 +258,16 @@ describe("compliance never filters a candidate", () => {
       ...walk(path.join(process.cwd(), "components/agency")),
     ]
 
-    const COLS = ["rtw_evidence", "rtw_sponsorship", "rtw_expires_on"]
-    const CAMEL = ["rtwEvidence", "rtwSponsorship", "rtwExpiresOn"]
+    const COLS = ["rtw_evidence", "rtw_sponsorship", "rtw_expires_on", "outside_process"]
+    const CAMEL = ["rtwEvidence", "rtwSponsorship", "rtwExpiresOn", "outsideProcess"]
     const offenders: string[] = []
 
     for (const f of files) {
       const text = tsCode(readFileSync(f, "utf8"))
       const rel = path.relative(process.cwd(), f)
-      // compliance.ts legitimately reads its own row by candidate_id; what is
-      // forbidden is narrowing a LIST by a compliance value.
+      // compliance.ts legitimately reads its own row by candidate_id, and
+      // placements.ts legitimately WRITES outside_process as an object key;
+      // what is forbidden is narrowing a LIST by one of these values.
       for (const col of COLS) {
         if (new RegExp(`\\.(eq|neq|in|gt|lt|gte|lte|order)\\(\\s*["']${col}`).test(text)) {
           offenders.push(`${rel}: query narrowed by ${col}`)
