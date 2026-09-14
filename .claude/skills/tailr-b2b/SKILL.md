@@ -94,7 +94,14 @@ environment.
   walk-through" sat open from 14 Aug because `SUPABASE_SERVICE_ROLE_KEY` was
   the literal string `SET_ME_…`, so nobody could sign in at all.
 - Verify grants by attempting the write AS THE ROLE, service_role included.
-  Two shipped tables could never be written by the role that writes them.
+  **THREE shipped tables could never be written by the role that writes
+  them** (the third: `agency.role_decision_completions`, 14 Sep 2026). The
+  trap is that `grant select ... to authenticated` looks complete and reads
+  as correct; service_role picks up nothing implicitly here. Compare against
+  `placements` / `round_decisions` / `candidate_compliance`, which all carry
+  an explicit `grant select, insert, update, delete ... to service_role`.
+  Reading the grant table is not the check — `set local role service_role`
+  and attempt the insert inside a block that aborts.
 - **Probe-mutate every guardrail before trusting it.** Three shipped with
   blind spots: a filename-pinned constraint test, a `[^)]*` regex an arrow
   parameter's paren defeats, and a scan that matched its own documentation.
@@ -329,6 +336,17 @@ role rows. Interaction feedback is transform/opacity only.
   status, or the unit the seven steps run on — the verb you press on a person
   and the box they sit in must not be the same word. Same trap as `placement`,
   which is the outcome.
+
+- **A CHECK constraint refuses only on FALSE, and NULL is not FALSE.**
+  14 Sep 2026, `placement_reason_iff_outside`: the branch meant to force a
+  reason was `(flag = true and length(trim(reason)) > 0)`. With the reason
+  NULL that is NULL, not false, so `false or NULL` is NULL and the row was
+  ACCEPTED — the one thing the constraint existed to prevent. The opposite
+  direction refused correctly, which is exactly why it looked like it
+  worked. Wrap every nullable column in an iff-constraint with `coalesce`,
+  and probe BOTH directions plus a whitespace-only value before believing
+  it. `evidence_quote_iff_present` is safe because `is null` / `is not null`
+  can never evaluate to NULL; anything using a function on the column can.
 
 - **Mocked tests agree with wrong code.** Two real bugs this session were found
   by reading the deployed schema and by seeding real data, both while the unit
