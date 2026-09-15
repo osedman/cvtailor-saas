@@ -5234,4 +5234,79 @@ viewport — `overflowing: 0`, the rail wrapping 3+2 with its order intact.
 
 ---
 
+## 🧰 15 September 2026 (late) — a seeding script, and the guard that caught me pointing it at production
+
+Two asks: a clean cohort to walk from the start, and a script so fixtures stop
+rotting. Both are `scripts/seed-walkthrough.mjs`:
+
+```
+node scripts/seed-walkthrough.mjs state   ROL-2411
+node scripts/seed-walkthrough.mjs windows ROL-2411 [--days 2,3,4] [--dry]
+node scripts/seed-walkthrough.mjs clone   ROL-2411 [--title "..."] [--dry]
+```
+
+`windows` computes every time **relative to now** and generates only windows
+that clear the role's own minimum notice AND the interview length — the two
+rules `listOpenWindows` applies. It is idempotent: it skips a window that
+already exists at that start. This is the third time aged fixtures have
+blocked a walk, and absolute timestamps are why.
+
+`clone` copies a role's SHORTLIST into a fresh one — requirements, candidates,
+evidence, scores — and stops there. Rounds, decisions, references and the
+submission are the walk itself; seeding them would be seeding the thing under
+test. **Cloning rather than inventing is the safety property**: every source
+row already satisfies constraints like `evidence_quote_iff_present`, so copies
+do too. Hand-written fixtures are how you get rows that look like bugs.
+
+**`ROL-2416` — "AI & Automation Consultant — walk-through"** now exists: 10
+requirements, 4 candidates, 40 evidence rows, 4 scores, and nothing else.
+Verified by effect rather than by the success message — 0 evidence rows
+pointing at the source role's requirements, 0 score `effective` keys pointing
+at them either, and 4 distinct rights tokens with 0 shared.
+
+### The part worth keeping
+
+**The first draft resolved to the production database.** It imported
+`loadMailEnv` because that helper already parsed .env files — and that helper
+reads `.env.mail.local` FIRST, by design, because (its own docstring)
+"production credentials can live there for a send without repointing the local
+dev server". On this machine that file holds the service-role key for
+`wgpaaafseibcqagiiavt` — **"Cv-Tailor tool", the consumer production
+database.** A fixture-seeding tool aimed at staging, pointed at production.
+
+It was caught by the project guard. **And the guard only caught it because it
+is an ALLOW-list.** The draft before that had a deny-list containing a
+production ref that had been *guessed rather than looked up* — a guard that
+reads as protection and protects nothing, since it would have waved through
+the exact project it hit. An allow-list refuses an unknown project by default;
+a deny-list permits one by default. The script now resolves its own env and
+never reads the mailers' file.
+
+Worth noting separately: **`.env.local` in this repo has no Supabase URL at
+all; `.env.development.local` points at staging and `.env.mail.local` points
+at production.** Any script that parses env files here needs to say which it
+means.
+
+### And a partial write, cleaned up
+
+The clone failed mid-way on its first real run: `rights_token` is globally
+unique and database-generated, and copying it fails the insert — after the
+role and its ten requirements were already written. It left `ROL-2415`, a role
+with requirements and nobody in it, which was deleted after confirming nothing
+referenced it. The script now validates before it writes, rolls the role back
+if candidates fail, and never clones a column the database generates. A rights
+token is a candidate's private door to their own data; two people must never
+share one.
+
+**Guards:** `seed-script-safety.test.ts`, 7 pins — never reads the mailers'
+env file, decides by allow-list and not deny-list, has a `--dry` that writes
+nothing, stamps rows as fixtures with a null actor, never clones a
+database-generated unique column, and contains exactly one delete (the
+rollback of a role it made seconds earlier). Four probes, all caught,
+including reverting to `loadMailEnv`.
+
+**Verified:** typecheck clean, 1,341 tests, production build clean.
+
+---
+
 _Last updated: 15 September 2026_
