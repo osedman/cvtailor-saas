@@ -21,6 +21,49 @@ describe('site-url', () => {
     expect(getAppOrigin()).toBe('https://gettailr.com')
   })
 
+  /**
+   * A DEPLOYMENT MUST NOT EMAIL LINKS TO A DIFFERENT DEPLOYMENT.
+   *
+   * Found 15 Sep 2026: staging had no NEXT_PUBLIC_APP_URL, so getAppOrigin()
+   * fell through to the apex and every doorway link — /booking, /portal,
+   * /rights, /consent, /reference — was emailed pointing at production, where
+   * the agency surface does not exist. Real people got 404s; every screen
+   * inside the product looked perfect. An interview invite is how it surfaced.
+   */
+  it('a preview deployment uses ITSELF, not production, when nothing is configured', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', '')
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '')
+    vi.stubEnv('VERCEL_ENV', 'preview')
+    vi.stubEnv('VERCEL_BRANCH_URL', 'cvtailor-saas-git-staging-x.vercel.app')
+    expect(getAppOrigin()).toBe('https://cvtailor-saas-git-staging-x.vercel.app')
+    expect(getAppOrigin()).not.toBe('https://gettailr.com')
+  })
+
+  it('prefers the stable branch alias over the per-deployment hostname', () => {
+    // A link in an email outlives the deployment that sent it.
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', '')
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '')
+    vi.stubEnv('VERCEL_ENV', 'preview')
+    vi.stubEnv('VERCEL_BRANCH_URL', 'branch-alias.vercel.app')
+    vi.stubEnv('VERCEL_URL', 'dpl-abc123.vercel.app')
+    expect(getAppOrigin()).toBe('https://branch-alias.vercel.app')
+  })
+
+  it('production still gets the apex default', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', '')
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '')
+    vi.stubEnv('VERCEL_ENV', 'production')
+    vi.stubEnv('VERCEL_URL', 'dpl-abc123.vercel.app')
+    expect(getAppOrigin()).toBe('https://gettailr.com')
+  })
+
+  it('an explicit setting still wins everywhere', () => {
+    vi.stubEnv('VERCEL_ENV', 'preview')
+    vi.stubEnv('VERCEL_BRANCH_URL', 'branch-alias.vercel.app')
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://staging.example.com')
+    expect(getAppOrigin()).toBe('https://staging.example.com')
+  })
+
   it('prefers NEXT_PUBLIC_APP_URL', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.gettailr.com/')
     expect(getAppOrigin()).toBe('https://app.gettailr.com')

@@ -5102,4 +5102,57 @@ No application code changed.
 
 ---
 
+## 🚨 15 September 2026 — every doorway link staging sent pointed at production
+
+**Reported as a 404 while sending interview invites.** It is not the invite.
+
+`getAppOrigin()` falls through to `APEX = https://gettailr.com` when neither
+`NEXT_PUBLIC_APP_URL` nor `NEXT_PUBLIC_SITE_URL` is set. That default is
+correct for production and catastrophic anywhere else, because **the agency
+surface does not exist on `main` at all** — `git ls-tree origin/main` returns
+zero files under `app/booking`. Confirmed live: `gettailr.com/booking/test`
+answers **404**, and so does `/consent/test`.
+
+**It is not one link. It is every external door of the B2B product:**
+
+| doorway | who it is emailed to |
+|---|---|
+| `/booking` | the candidate, to pick an interview time |
+| `/portal` | **the client, to read the shortlist** |
+| `/rights` | the candidate, on an Art 14 notice |
+| `/consent` | the candidate, for capture consent |
+| `/reference` | the referee |
+
+All five build their URL from `getAppOrigin()`. Every one of them, emailed
+from staging, went to a host where it has never existed.
+
+**The shape of it is the nastiest part:** every screen INSIDE the product
+worked perfectly. The failure was only ever visible to someone outside it,
+holding a link — which is exactly the population that cannot report a bug to
+us. It is very likely why the full walk-through has never been completed.
+
+### The fix
+
+A missing env var must not be able to send a candidate to the wrong
+DEPLOYMENT. `getAppOrigin()` now falls back, on a non-production Vercel
+environment only, to the deployment's own origin before reaching for the
+apex. `VERCEL_BRANCH_URL` is preferred over `VERCEL_URL` because it is the
+stable branch alias rather than a per-deployment hostname — **a link in an
+email outlives the deployment that sent it.** Production is untouched: with
+`VERCEL_ENV=production` the apex default still applies.
+
+This is a safety net, not the whole answer. **`NEXT_PUBLIC_APP_URL` should
+still be set explicitly on the staging environment** — the code fix means a
+forgotten variable degrades to "links point at this deployment" instead of
+"links point at a different product".
+
+**Guards:** four new pins in `site-url.test.ts` — a preview uses itself, the
+branch alias beats the per-deployment URL, production keeps the apex, and an
+explicit setting still wins. Three probe mutations, all caught, including
+reverting to the exact production fallback that caused this.
+
+**Verified:** typecheck clean, 1,320 tests, production build clean.
+
+---
+
 _Last updated: 15 September 2026_
