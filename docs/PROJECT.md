@@ -5064,4 +5064,42 @@ three empty states rendered against the served CSS.
 
 ---
 
+## 🌱 15 September 2026 (later) — windows re-seeded so the loop can be walked
+
+Six availability windows on **ROL-2411 · Meridian Health**, the role all three
+outstanding invitations sit on: 17 Sep 09:00 / 11:00 / 14:00, 18 Sep 10:00 /
+15:00, 19 Sep 09:00 — all UTC, 60 minutes each. Enough for three candidates to
+each take one and still leave spares.
+
+Written with their `audit_log` rows in the same statement, because `offerSlot`
+is audit-coupled and a bare insert would have produced windows that nobody
+offered. Marked `SEEDED FIXTURE` in the audit `reason`, with a null actor —
+attributing them to Ose would have been a lie in a compliance trail.
+
+**Verified by effect, not by insert count.** Re-running the two list rules
+against the deployed data afterwards:
+
+| | before | after |
+|---|---|---|
+| candidate sees (`listOpenWindows`) | **0** | **6** |
+| recruiter sees (`listOpenSlots`) | 3 | 9 |
+| marked **You only** | — | 3 |
+
+The three the candidate still cannot take are the stale ones from the original
+bug; they now carry the label shipped in `06d24b4` rather than being silently
+unbookable, and they pass out of both lists on their own within a day.
+
+**The walk is unblocked.** All three rounds are `scheduled` / `pending` with
+their booking tokens intact, and every candidate address clears the non-prod
+email allowlist — so the invite actually sends rather than being refused.
+
+To get the booking link: role → **Interviews** → the cohort board → **Send
+again** on a candidate. That mints a fresh token and emails the self-booking
+invite (`remindCohortMember` refuses only when a slot is already held). The
+raw token is shown once and deliberately not recorded here.
+
+No application code changed.
+
+---
+
 _Last updated: 15 September 2026_
