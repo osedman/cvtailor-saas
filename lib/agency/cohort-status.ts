@@ -99,3 +99,110 @@ export function cohortSummary(statuses: CohortStatus[]): string {
   ].filter(Boolean) as string[]
   return parts.length ? `${parts.join(" · ")}.` : "Nothing outstanding."
 }
+
+/* ── THE LOOP RAIL (15 September 2026) ──────────────────────────────────────
+ *
+ * Ose, walking staging: "I'm sending out the interview invites and I don't
+ * know where I am in the process." The setup is numbered 1 and 2; the moment
+ * you press invite the numbering stops and the screen becomes a list of names
+ * with no shape.
+ *
+ * WHY THIS IS NOT A STEPPER. The obvious answer — "Step 2 of 4" — is wrong
+ * here, and wrong in a way that would look right. A cohort is not at a stage:
+ * four people can sit on four different rungs at once, and a single marker
+ * would have to pick one of them and lie about the rest. So the rail carries
+ * a DISTRIBUTION, and the question "which part is mine?" is answered
+ * separately, by nextAction, because it is a different question.
+ *
+ * CUMULATIVE, because that is already this file's convention: cohortSummary
+ * counts booked as booked + feedback_due + complete — "has reached this
+ * point", not "is sitting exactly here". A rail that counted only the current
+ * status would show BOOKED falling to zero as people progress, which reads as
+ * things going backwards.
+ *
+ * FIVE RUNGS, NOT SIX. The frame proposed CHOSEN and INVITED as separate
+ * rungs. In this product choosing IS inviting — the action bar says "Invite N
+ * to interview" — so rendering both would be two names for one fact, the
+ * exact trap this file's own docstring calls out for Booked/Confirmed. The
+ * sixth and seventh states are not progress at all: "no suitable time" and
+ * "cancelled" are exits, and a progress rail with CANCELLED sitting on the
+ * end of it is the opposite of intuitive. They are counted separately.
+ */
+
+export type LoopRungKey = "invited" | "booked" | "met" | "written_up" | "decided"
+
+export interface LoopRung {
+  key: LoopRungKey
+  label: string
+  /** How many people have reached this point. */
+  n: number
+  /** Said in words, because a row of numbers means nothing read aloud. */
+  said: string
+}
+
+export interface LoopMemberFacts {
+  status: CohortStatus
+  decided: boolean
+}
+
+export interface LoopProgress {
+  rungs: LoopRung[]
+  /** Everyone counted — the denominator every rung is out of. */
+  total: number
+  /** Not progress: the ways out of the loop, counted only when they happen. */
+  noSuitableTime: number
+  cancelled: number
+  /** One sentence for a screen reader, which cannot read a row of numbers. */
+  summary: string
+}
+
+const RUNG_LABELS: Record<LoopRungKey, string> = {
+  invited: "Invited",
+  booked: "Booked",
+  met: "Met",
+  written_up: "Written up",
+  decided: "Decided",
+}
+
+/**
+ * Where the cohort stands, as counts along the loop.
+ *
+ * Exits are excluded from the progress rungs on purpose: somebody who could
+ * find no suitable time did not get less far, they left, and folding them
+ * into "invited" would quietly inflate every number after it.
+ */
+export function loopProgress(members: LoopMemberFacts[]): LoopProgress {
+  const live = members.filter((m) => m.status !== "cancelled" && m.status !== "no_suitable_time")
+  const has = (...s: CohortStatus[]) => live.filter((m) => s.includes(m.status)).length
+
+  const counts: Record<LoopRungKey, number> = {
+    invited: live.length,
+    booked: has("booked", "feedback_due", "complete"),
+    met: has("feedback_due", "complete"),
+    written_up: has("complete"),
+    decided: live.filter((m) => m.decided).length,
+  }
+
+  const rungs = (Object.keys(RUNG_LABELS) as LoopRungKey[]).map((key) => ({
+    key,
+    label: RUNG_LABELS[key],
+    n: counts[key],
+    said: `${counts[key]} of ${live.length} ${RUNG_LABELS[key].toLowerCase()}`,
+  }))
+
+  const noSuitableTime = members.filter((m) => m.status === "no_suitable_time").length
+  const cancelled = members.filter((m) => m.status === "cancelled").length
+
+  const summary =
+    members.length === 0
+      ? "Nobody has been invited yet."
+      : [
+          rungs.map((r) => r.said).join(", "),
+          noSuitableTime > 0 && `${noSuitableTime} found no suitable time`,
+          cancelled > 0 && `${cancelled} cancelled`,
+        ]
+          .filter(Boolean)
+          .join(". ") + "."
+
+  return { rungs, total: live.length, noSuitableTime, cancelled, summary }
+}

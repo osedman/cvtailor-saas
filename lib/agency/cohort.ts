@@ -142,6 +142,16 @@ export interface CohortMember {
   durationMinutes: number
   /** An unanswered invitation that has waited long enough to chase. */
   chase: boolean
+  /**
+   * Has the round been decided?
+   *
+   * Carried so the loop rail can show a DECIDED rung that is a fact rather
+   * than an inference. CohortStatus deliberately stops at "complete" (the
+   * write-up is in) because a decision is a separate act on a separate
+   * table; this is the boolean, not the decision itself, because the rail
+   * counts people and never needs to know which way anyone went.
+   */
+  decided: boolean
 }
 
 export interface CohortBoard {
@@ -182,6 +192,7 @@ export async function getCohortBoard(ctx: AgencyContext, roleId: string): Promis
       scheduledAt: r.scheduledAt,
       durationMinutes: r.durationMinutes,
       chase: needsChasing(facts, now),
+      decided: r.clientDecision !== null,
     }
   })
 

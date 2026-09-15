@@ -18,17 +18,19 @@
 
 import { useState } from "react"
 import { STATUS_LABEL, STATUS_TONE, cohortSummary, type CohortStatus } from "@/lib/agency/cohort-status"
+import type { CohortMember } from "@/lib/agency/cohort"
 
-export interface BoardMember {
-  roundId: string
-  candidateRef: string
-  candidateName: string
-  roundNumber: number
-  status: CohortStatus
-  scheduledAt: string | null
-  durationMinutes: number
-  chase: boolean
-}
+/**
+ * What the board renders is what getCohortBoard returns, so it uses that
+ * type rather than a copy of it.
+ *
+ * It WAS a copy, and on 15 Sep 2026 the server grew a `decided` flag that
+ * this file had no way to know about — the same drift that let the booking
+ * doorway keep asserting a reason the server had stopped believing. A type
+ * is erased at build time and carries no imports with it, so pulling it from
+ * lib/agency/cohort.ts drags no server code into the browser bundle.
+ */
+export type BoardMember = CohortMember
 
 export interface WaveView {
   reserve: string[]

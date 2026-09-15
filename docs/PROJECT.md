@@ -5155,4 +5155,83 @@ reverting to the exact production fallback that caused this.
 
 ---
 
+## 🪜 15 September 2026 — the interview loop tells you where you are
+
+Ose, walking staging: _"I'm sending out the interview invites and I don't know
+where I am in the process."_ Figma frame `11 · The interview loop` (394:2),
+signed off before code.
+
+The setup was never the problem — it is numbered "1 · Who do you want to
+interview?" and "2 · When can you interview?" and it works. **The numbering
+stops at 2.** Everything after you press invite — they book, you meet, you
+write up, it is decided — had no shape on screen, so the moment you finished
+the guided part was the moment you stopped knowing where you were.
+
+### Why this is not a stepper, which is the whole design
+
+Every reference answers "multi-step process" with a stepper: *Step 2 of 4*,
+one marker on one rung. It is wrong here in a way that would have looked right
+in review. **A cohort is not at a stage** — four people sit on four rungs at
+once, and any single marker has to pick one of them and be wrong about the
+other three.
+
+So the rail carries a DISTRIBUTION: how many people have reached each point.
+"Which part is mine?" is a different question and gets its own answer rather
+than a colour on a bar.
+
+**Cumulative, because that is already this file's convention.** `cohortSummary`
+has always counted booked as `booked + feedback_due + complete` — reached this
+point, not sitting exactly here. A rail counting only current status would show
+BOOKED falling to zero as people progress, which reads as going backwards.
+
+**Five rungs, not the six in the frame.** In this product choosing IS inviting
+— the action bar says "Invite N to interview" — so CHOSEN and INVITED would be
+two names for one fact, the exact trap `cohort-status.ts` already calls out for
+Booked/Confirmed. And "no suitable time" and "cancelled" are not progress:
+they are exits, counted separately, because somebody who found no time did not
+get less far — they left, and folding them into "invited" would quietly
+inflate every number after it.
+
+### Intuitive, specifically
+
+Run through the `ui-ux-pro-max` rules, the ones that changed the build:
+
+- **Colour is never the only cue.** The reader's own rung carries the word
+  "yours" and a caret, not just a coral border — the same rule that put
+  "STRONG 1.0" on the evidence row instead of a coloured dot.
+- **It is a readout, so it must not look like a control.** No pointer, no
+  hover, no press state. A rung that invites a click and does nothing is the
+  dead-control failure again.
+- **A row of numbers cannot be read aloud.** The rail is `aria-hidden` and
+  carries one spoken sentence instead of announcing "4 3 2 1 0".
+- **Tabular figures**, so the rail cannot twitch as counts change.
+- **No SLA.** An age is not a breach; nothing turns red because time passed.
+
+### From the get-go
+
+With no cohort yet the band renders one sentence of the whole process —
+"You choose who to meet, you offer times from your diary, they pick their own,
+you meet, you write up what you thought, and then you decide" — with the
+subject of each act explicit, because half of them are not the reader's. The
+screen now answers "what am I about to start?" and not only "what did I just
+do?"
+
+### Also fixed on the way
+
+`BoardMember` was a hand-written copy of `CohortMember`, so when the server
+grew a `decided` flag this file had no way to know — the same drift that let
+the booking doorway keep asserting a reason the server had stopped believing,
+found this morning. It imports the type now.
+
+**Guards:** `loop-rail.test.ts`, 14 pins. Six probe mutations, all caught:
+counting current status only, folding exits into invited, turning it into a
+stepper, making the rungs look clickable, marking the reader's rung by colour
+alone, and dropping tabular figures.
+
+**Verified:** typecheck clean, 1,334 tests, production build clean, rendered
+against the served CSS in the real dark chain, and measured at a true 375px
+viewport — `overflowing: 0`, the rail wrapping 3+2 with its order intact.
+
+---
+
 _Last updated: 15 September 2026_

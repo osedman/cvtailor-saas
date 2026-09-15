@@ -28,6 +28,8 @@ import { SignOut } from "@/components/agency/sign-out"
 import { proposeWindows, windowsWanted, type Interval } from "@/lib/calendar/windows"
 import { assessCapacity, type Capacity } from "@/lib/calendar/capacity"
 import { CohortBoard, type BoardData } from "@/components/agency/cohort-board"
+import { LoopRail } from "@/components/agency/loop-rail"
+import { loopProgress, type LoopRungKey } from "@/lib/agency/cohort-status"
 import { DEFAULT_SETTINGS, type InterviewSettings } from "@/lib/agency/interview-rules"
 
 interface Entry {
@@ -92,6 +94,24 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState<{ interviewed: number; invited: number; held: number; declined: number; offered: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  /**
+   * Where the cohort is, and which rung is the hiring manager's own.
+   *
+   * "Yours" is a different question from "where is everyone" and is answered
+   * separately: the only rung a hiring manager personally holds up is the
+   * write-up, because booking is the candidate's act and deciding needs the
+   * write-up first. When nothing is theirs, nothing is marked — a rail that
+   * always points at something teaches the reader to ignore it.
+   */
+  const progress = useMemo(
+    () => loopProgress((board?.members ?? []).map((m) => ({ status: m.status, decided: m.decided }))),
+    [board]
+  )
+  const yours: LoopRungKey | null = useMemo(
+    () => ((board?.members ?? []).some((m) => m.status === "feedback_due") ? "met" : null),
+    [board]
+  )
 
   const load = useCallback(async () => {
     try {
@@ -325,6 +345,33 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
             {calendarNote && calendarNote !== "connected" && (
               <p className="ag-banner" role="alert">The calendar was not connected ({calendarNote.replace(/-/g, " ")}). You can still pick a range of days below.</p>
             )}
+
+            {/* WHERE YOU ARE, before anything else on the screen.
+             *
+             * Ose, walking staging: "I'm sending out the interview invites
+             * and I don't know where I am in the process." The setup below
+             * is numbered 1 and 2 and works; what was missing is everything
+             * after you press invite. This says it once, at the top, whether
+             * or not a cohort exists yet — so the screen answers "what am I
+             * about to start?" and not only "what did I just do?" */}
+            <section className="agd-band" aria-labelledby="loop-h">
+              <div className="agd-eyebrow-row">
+                <h2 className="agd-eyebrow" id="loop-h">Your interview loop</h2>
+                <span className="agd-rule" />
+                {board && board.members.length > 0 && (
+                  <span className="agd-aside">how far each person has got</span>
+                )}
+              </div>
+              {!board || board.members.length === 0 ? (
+                <p className="hm-loop-intro">
+                  <b>You choose who to meet</b>, you offer times from your diary, <b>they pick their
+                  own</b>, you meet, you write up what you thought, and then you decide. Half of
+                  that is not yours to do — the two steps below are.
+                </p>
+              ) : (
+                <LoopRail progress={progress} yours={yours} />
+              )}
+            </section>
 
             {board && board.members.length > 0 && (
               <section className="agd-band" aria-labelledby="cohort-h">

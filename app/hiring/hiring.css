@@ -419,3 +419,68 @@
 @media (prefers-reduced-motion: no-preference) {
   .hm-actionbar { transition: box-shadow 0.15s ease; }
 }
+
+/* ── The interview loop rail (15 September 2026) ────────────────────────────
+ * Frame 11. Not a stepper: it carries how many people have reached each
+ * point, because a cohort sits on several rungs at once and a single "you
+ * are here" marker would have to lie about the rest.
+ *
+ * It is a READOUT, not a control. Nothing here is clickable, so nothing here
+ * may look clickable — no pointer, no hover lift, no press state. The one
+ * thing a reader can act on lives in the card underneath. */
+.hm-loop { display: flex; flex-direction: column; gap: 10px; }
+
+.hm-loop-rail {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px;
+  list-style: none; margin: 0; padding: 4px;
+  background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md);
+}
+.hm-loop-rung {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 12px 8px; border-radius: var(--r-sm);
+  background: var(--ag-cream); text-align: center;
+}
+/* The filled run stops where the cohort has got to — the shape you read
+ * before you read any number. */
+.hm-loop-rung[data-reached="true"] { background: var(--ag-bg-2); }
+
+/* The rung that is the reader's own. COLOUR IS NOT THE ONLY CUE: it also
+ * carries the word "yours" and a caret, because a border alone fails anyone
+ * who cannot separate these two browns. */
+.hm-loop-rung[data-yours="true"] {
+  background: var(--ag-tint-1);
+  box-shadow: inset 0 0 0 1px var(--ag-coral);
+}
+
+.hm-loop-n {
+  font-family: var(--ag-display); font-size: 21px; font-weight: 600; line-height: 1.1;
+  color: var(--ag-ink);
+  /* Counts change under a poll; tabular figures stop the rail twitching. */
+  font-variant-numeric: tabular-nums;
+}
+.hm-loop-rung[data-reached="false"] .hm-loop-n { color: var(--ag-ink-3); }
+.hm-loop-rung[data-yours="true"] .hm-loop-n { color: var(--ag-coral-deep); }
+
+.hm-loop-label {
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; color: var(--ag-ink-3);
+}
+.hm-loop-rung[data-yours="true"] .hm-loop-label { color: var(--ag-coral-deep); }
+.hm-loop-yours {
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; color: var(--ag-coral-deep);
+}
+
+.hm-loop-exits { margin: 0; font-size: var(--t-small); line-height: 1.5; color: var(--ag-ink-2); }
+
+/* One sentence of what the whole thing is, before any of it has happened. */
+.hm-loop-intro { margin: 0; font-size: var(--t-body); line-height: 1.6; color: var(--ag-ink-2); max-width: 66ch; text-wrap: pretty; }
+.hm-loop-intro b { color: var(--ag-ink); font-weight: 600; }
+
+/* Five rungs do not fit a phone. Two rows of the same grid keeps the order
+ * and the meaning; squeezing them to 60px each would keep neither. */
+@media (max-width: 640px) {
+  .hm-loop-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .hm-loop-rung { padding: 10px 4px; }
+  .hm-loop-n { font-size: 18px; }
+}
