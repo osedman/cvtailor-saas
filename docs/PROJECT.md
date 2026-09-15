@@ -4701,4 +4701,92 @@ and the real page, which is the intercept registering.
 
 ---
 
-_Last updated: 14 September 2026_
+## 15 September 2026 — step 06 learned step 04's language
+
+### The evidence record now says what it means
+
+Step 04 and step 06 describe the same four strengths, and a recruiter moves
+between them constantly — since 14 Sep step 06 also opens as a modal over
+compare, so it is the surface they land on most. On 14 Sep the screening card
+learned to print `STRONG 1.0` on the control itself and deleted the legend
+whose numbers it had been duplicating. The evidence record was still saying
+the same thing in a bare 8px circle.
+
+**What the handoff got wrong, and worth recording:** `docs/NEXT-SESSION-EVIDENCE.md`
+said step 06 had no legend anywhere. It had one, with all four strengths and
+their weights. The real fault was narrower — the legend was a **fifth**
+hardcoded copy of `STRENGTH_VALUE`, and the row itself still carried colour
+alone. The fix is the same; the reasoning had to change, because deleting the
+legend is a removal of working information, not the filling of a hole.
+
+**Designed in Figma first** — frame `08 · The record, read as a map` (371:2)
+in "Tailr — Hiring Manager Concept", signed off before any code.
+
+**The row now carries:** its own strength in words and weight
+(`strengthLabel()`), a requirement that WRAPS, and the quote on the row at one
+clamped line with its source — openable to full body size. An override says
+what happened in a sentence, as at step 04. The legend is gone.
+
+**Two calls made deliberately, both flagged by the handoff as decisions:**
+- The quote is on the row, clamped, rather than hidden. You can see that
+  evidence EXISTS for all ten requirements without a click, which is the
+  question a reading surface is actually asked.
+- More than one row opens at once (`open` is a `Set`). A single-open
+  accordion is a working-surface control; reading a record means holding two
+  requirements side by side. An "Open every quote" control does the
+  whole-record pass, and hides itself when nothing has a quote.
+
+**The shape did NOT change.** Still a compact row — three lines, ~78px against
+the card's ~150px — so ten still read as a map on one screen. Sharing the
+vocabulary was the task; sharing the shape would have been the failure.
+
+**One definition of the weights, finally.** `WEIGHT_MULTIPLIER` moved out of
+`scoring.ts` (which imports `crypto`, so no client component could reach it —
+that is *why* the screen kept its own copy) into `lib/agency/strengths.ts`.
+`scoring.ts` and `lib/matching/prefilter.ts` both import it now. Three copies
+became one; the legend's hardcoded `1.0 / 0.7 / 0.4 / 0.0` is deleted.
+
+**Performance invariant restored.** `evidenceFor` was `evidence.find(...)`
+running twice per requirement rendered. Evidence is indexed into a `Map` once
+per data change. `.ag-evrow` gained `content-visibility: auto`, which
+`.ag-mx-row` and `.ag-ev-card` already had and it did not.
+
+**Kept:** the MISSING sentence verbatim and never clipped, `.ag-missing-chip`,
+and the screen staying read-only — overrides belong to step 04 and this must
+never grow a picker.
+
+**Guards:** `lib/__tests__/evidence-row-language.test.ts`, 14 pins, all eleven
+regressions probe-mutated and watched to fail. One probe initially did not
+fail; the cause was a `sed` escaping error in the probe itself, not a blind
+pin — re-probed properly and it failed. A second pin was caught mid-write
+asserting `weightPoints` when `weightPointsLabel` contains that substring.
+
+**Verified by rendering, not by reading.** The served CSS chunk was curled and
+grepped (Turbopack has served a stale `globals.css` before); the harness
+reproduced the real ancestor chain (`.ag-app` → `.ag-main` → `.ag-screen` →
+`.ag-card`), because every token is scoped to `.ag-app`. Rendered at 1440 and
+375, and inside `.ag-modal-body` as well as on the page. The one-line clamp
+was proved with a 340-character quote, collapsed and open side by side.
+
+**Design pass** (`web-design-guidelines`): two real findings, both fixed — the
+"Open every quote" button was a dead control when no requirement had a quote,
+and the disclosure had `aria-expanded` with no `aria-controls` naming what it
+revealed.
+
+### ⚠️ Found, not fixed: the agency shell overflows at 375px
+
+Walking the screen at 375px shows the card running past the viewport with the
+right-hand side clipped. **This is not from this change** — the old row was
+rendered in the same harness at the same width and clips identically (and
+worse for the job: every requirement truncated to ~30 characters).
+
+The cause is the shell, not the row: `.ag-main` keeps `padding: 32px` at every
+width and `.ag-app` is `display: flex` with no mobile override. It affects
+every agency screen, not just step 06. Left alone because the fix has a much
+wider blast radius than this task and belongs to a deliberate mobile pass.
+
+**Verified:** typecheck clean, 1,284 tests, production build clean.
+
+---
+
+_Last updated: 15 September 2026_

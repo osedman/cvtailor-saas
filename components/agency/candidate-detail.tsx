@@ -8,9 +8,11 @@
  * the decision card. All figures are server computed.
  */
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { resolveProbes } from "@/lib/agency/probes"
+import { strengthLabel, weightPointsLabel } from "@/lib/agency/strengths"
+import type { Strength, Weight } from "@/lib/agency/types"
 import { stepNumber } from "@/lib/agency/steps"
 import { RoleHeader } from "@/components/agency/role-header"
 import { CandidateCompliance } from "@/components/agency/candidate-compliance"
@@ -71,7 +73,15 @@ export function CandidateDetail({
   const [overridden, setOverridden] = useState<Set<string>>(new Set())
   const [decision, setDecision] = useState<string | null>(null)
   const [note, setNote] = useState("")
-  const [open, setOpen] = useState<string | null>(null)
+  /**
+   * WHICH QUOTES ARE OPEN — a set, not a single id.
+   *
+   * This was `useState<string | null>`, so opening one requirement's evidence
+   * closed the last. That is a working-surface control: it assumes you are
+   * handling one thing. Step 06 is where the whole record is read, and
+   * reading a record means holding two requirements side by side.
+   */
+  const [open, setOpen] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -133,20 +143,47 @@ export function CandidateDetail({
   const review = reviews[candidateId]
   const initials = (name: string) => name.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?"
   const tier = (n: number) => (n >= 80 ? "hi" : n >= 60 ? "med" : "lo")
-  const evidenceFor = (reqId: string) => evidence.find((e) => e.candidate_id === candidateId && e.requirement_id === reqId)
-  const effective = (reqId: string) => score?.effective?.[reqId] ?? evidenceFor(reqId)?.strength ?? "missing"
+  /**
+   * Evidence indexed once per data change, never scanned per row.
+   *
+   * `evidenceFor` was `evidence.find(...)` and ran twice for every
+   * requirement rendered — the exact linear-scan-inside-a-row the compare
+   * matrix was fixed for. Ten requirements times two calls times a re-render
+   * is not slow today; the invariant exists so it is not discovered to be
+   * slow later, on a role with forty.
+   */
+  const evidenceByReq = useMemo(() => {
+    const m = new Map<string, Evidence>()
+    for (const e of evidence) {
+      if (e.candidate_id !== candidateId) continue
+      m.set(e.requirement_id, e)
+    }
+    return m
+  }, [evidence, candidateId])
+  const evidenceFor = useCallback((reqId: string) => evidenceByReq.get(reqId), [evidenceByReq])
+  const effective = useCallback(
+    (reqId: string): Strength => (score?.effective?.[reqId] ?? evidenceByReq.get(reqId)?.strength ?? "missing") as Strength,
+    [score, evidenceByReq],
+  )
   // The call script for this candidate, resolved from the ids the recruiter
   // picked during screening, plus the requirements still carrying no evidence.
   const allProbes = resolveProbes(Object.keys(review?.call_answers ?? {}), requirements)
   const answeredProbes = allProbes.filter((q) => (review?.call_answers?.[q.id] ?? "").trim().length > 0)
   const unevidenced = requirements.filter((r) => r.weight !== "nice" && ["missing", "partial"].includes(effective(r.id)))
 
+  // Only requirements that actually have a quote can be opened, so "open
+  // every quote" must not claim to have opened the MISSING ones — whose copy
+  // is on the row already, and never collapses.
+  const quotedReqIds = useMemo(
+    () => requirements.filter((r) => (evidenceByReq.get(r.id)?.quote ?? "").length > 0).map((r) => r.id),
+    [requirements, evidenceByReq],
+  )
+  const allOpen = quotedReqIds.length > 0 && quotedReqIds.every((id) => open.has(id))
+
   const idx = candidates.findIndex((c) => c.id === candidateId)
   const prev = idx > 0 ? candidates[idx - 1] : null
   const next = idx >= 0 && idx < candidates.length - 1 ? candidates[idx + 1] : null
   const delta = score?.original_overall != null ? Math.round(score.overall - score.original_overall) : 0
-  // Weight multipliers from the scoring engine: must 3, important 2, nice 1.
-  const weightPoints: Record<string, string> = { must: "+3.0", important: "+2.0", nice: "+1.0" }
   const strengthsList = requirements.filter((r) => effective(r.id) === "strong")
   const risksList = requirements.filter((r) => ["missing", "partial"].includes(effective(r.id)))
   const confWord = ["", "LOW", "MEDIUM", "HIGH", "HIGH"][score?.confidence_level ?? 2] ?? "MEDIUM"
@@ -236,49 +273,98 @@ export function CandidateDetail({
                   <div className="ag-card">
                     <div className="ag-card-head">
                       <span className="ag-card-title">Evidence by requirement</span>
-                      <span className="ag-meta">Click a row to see the source</span>
+                      {/* The read-the-whole-thing pass. Rows also toggle
+                          individually and independently of each other.
+                          Hidden when nothing has a quote to open — a control
+                          that cannot do anything is worse than no control,
+                          and a candidate whose every requirement is MISSING
+                          is exactly the case you least want to look broken. */}
+                      {quotedReqIds.length > 0 && (
+                        <button className="ag-evrow-all" onClick={() => setOpen(allOpen ? new Set() : new Set(quotedReqIds))}>
+                          {allOpen ? "Close every quote" : "Open every quote"}
+                        </button>
+                      )}
                     </div>
                     <div className="ag-card-body ag-stack" style={{ gap: 8 }}>
-                      <div className="ag-legend" style={{ marginBottom: 0 }}>
-                        <span className="ag-field-label" style={{ marginBottom: 0, marginRight: 4 }}>Legend</span>
-                        <span><span className="ag-dot strong" /> Strong evidence — 1.0</span>
-                        <span><span className="ag-dot transferable" /> Transferable — 0.7</span>
-                        <span><span className="ag-dot partial" /> Partial — 0.4</span>
-                        <span><span className="ag-dot missing" /> Missing — 0.0</span>
-                      </div>
                       {requirements.map((req) => {
                         const ev = evidenceFor(req.id)
                         const strength = effective(req.id)
-                        const isOpen = open === req.id
+                        const isOpen = open.has(req.id)
                         const mine = overridden.has(req.id)
                         return (
                           <div key={req.id} className="ag-evrow" data-override={mine} data-open={isOpen}>
-                            <button className="ag-evrow-head" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : req.id)}>
-                              <span className={`ag-dot ${strength}`} />
-                              <span className="ag-meta" style={{ flex: "none" }}>{req.ref}</span>
-                              <span className="ag-evrow-text">{req.text}</span>
-                              {mine && <span className="ag-reviewed inline" style={{ flex: "none" }}>Your call</span>}
-                              <span className="ag-evrow-weight" data-must={req.weight === "must"}>{req.weight}</span>
-                              <span className="ag-evrow-pts">{weightPoints[req.weight] ?? ""}</span>
-                              <span className="ag-evrow-chev">{isOpen ? "⌃" : "⌄"}</span>
-                            </button>
-                            {isOpen && (
-                              <div className="ag-evrow-body">
-                                {ev?.quote ? (
-                                  <>
-                                    <div className="ag-quote"><span className="ag-mark">{ev.quote}</span></div>
-                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 8 }}>
-                                      <span className="ag-meta">Source · {ev.source_cite || "CV"}{ev.origin === "tailr_profile" ? " · Tailr profile" : ""}</span>
-                                      <span className="ag-meta">{strength === "strong" ? "Verbatim from the CV" : `Recorded as ${strength}`}</span>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <span style={{ fontSize: 13, color: "var(--ag-ink-3)" }}>
-                                    No evidence found in the CV for this requirement. Marked{" "}
-                                    <span className="ag-missing-chip">MISSING</span>. Confirm on the screening call rather than assuming either way.
-                                  </span>
+                            {/* The identity strip: which requirement, what it
+                                is worth, and — in words — how this person
+                                reads against it. Strength was a bare dot and
+                                a legend that scrolled away. */}
+                            <div className="ag-evrow-strip">
+                              <span className="ag-evrow-ref">{req.ref}</span>
+                              <span className="ag-evrow-weight" data-must={req.weight === "must"}>
+                                {req.weight} {weightPointsLabel(req.weight as Weight)}
+                              </span>
+                              <span className="ag-evrow-strength" data-strength={strength}>
+                                <span className={`ag-dot ${strength}`} />
+                                {strengthLabel(strength)}
+                              </span>
+                              {mine && <span className="ag-evrow-mine">Your call · attributed</span>}
+                            </div>
+
+                            {/* Wraps. This is the label you navigate ten of
+                                these by; it was the thing being truncated. */}
+                            <p className="ag-evrow-text">{req.text}</p>
+
+                            {ev?.quote ? (
+                              <>
+                                <button
+                                  className="ag-evrow-quote"
+                                  aria-expanded={isOpen}
+                                  /* aria-expanded alone announces "expanded"
+                                     and names nothing. The citation line is
+                                     what expanding reveals, so point at it. */
+                                  aria-controls={`ev-src-${req.id}`}
+                                  onClick={() =>
+                                    setOpen((prev) => {
+                                      const next = new Set(prev)
+                                      if (next.has(req.id)) next.delete(req.id)
+                                      else next.add(req.id)
+                                      return next
+                                    })
+                                  }
+                                >
+                                  <span className="ag-evrow-rule" aria-hidden="true" />
+                                  <span className="ag-evrow-said">&ldquo;{ev.quote}&rdquo;</span>
+                                  <span className="ag-evrow-cite">{ev.source_cite || "CV"}</span>
+                                  <span className="ag-evrow-chev" aria-hidden="true">{isOpen ? "\u2303" : "\u2304"}</span>
+                                </button>
+                                {isOpen && (
+                                  <p className="ag-evrow-source" id={`ev-src-${req.id}`}>
+                                    Source · {ev.source_cite || "CV"}
+                                    {ev.origin === "tailr_profile" ? " · Tailr profile" : ""}
+                                    {" · "}
+                                    {strength === "strong" ? "verbatim from the CV" : `recorded as ${strength}`}
+                                  </p>
                                 )}
-                              </div>
+                              </>
+                            ) : (
+                              /* Never clipped, never collapsed. This sentence
+                                 refuses to let an absence read as a negative
+                                 judgement, which is work no chip does alone. */
+                              <p className="ag-evrow-missing">
+                                No evidence found in the CV for this requirement. Marked{" "}
+                                <span className="ag-missing-chip">MISSING</span>. Confirm on the screening call rather than
+                                assuming either way.
+                              </p>
+                            )}
+
+                            {/* A person disagreeing with the machine about
+                                another person, said in a sentence. The
+                                picker that made this call lives at step 04;
+                                this screen reads the record, it does not
+                                edit it. */}
+                            {mine && ev && ev.strength !== strength && (
+                              <p className="ag-evrow-override">
+                                Tailr read this as {ev.strength}. You marked it {strength}.
+                              </p>
                             )}
                           </div>
                         )

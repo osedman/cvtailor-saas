@@ -878,21 +878,94 @@
 .ag-det-side > * { flex: none; }
 .ag-det-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
-/* One line per requirement, opening to its source. Compact so nine of them
- * read as a map rather than nine stacked cards. */
-.ag-evrow { border: none; border-top: 1px solid var(--ag-border); border-radius: 0; background: none; transition: background 0.14s ease; }
+/* ── The evidence row (rebuilt 14 Sep 2026) ───────────────────────────────
+ * One requirement per row, opening to its source. Compact so ten of them
+ * read as a map rather than ten stacked cards — that constraint is the whole
+ * reason this is not the .ag-ev-card from step 04, and it still holds.
+ *
+ * What changed is the LANGUAGE, not the shape. Step 04 and step 06 describe
+ * the same four strengths, and a recruiter moves between them constantly; on
+ * 14 Sep step 04 learned to say "STRONG 1.0" on the control itself and
+ * deleted its legend. This row said the same thing in a bare 8px circle,
+ * with a legend above the list that you had to look back up at for every one
+ * of ten rows. Now the row carries its own words and its own weight.
+ *
+ * The row grew from one line to three: an identity strip, the requirement
+ * (which WRAPS — it is the label you navigate by, and it was the thing being
+ * truncated), and the quote at one clamped line. ~78px against the card's
+ * ~150px, so ten still fit a screen. */
+.ag-evrow {
+  display: flex; flex-direction: column; gap: 5px;
+  border: none; border-top: 1px solid var(--ag-border); border-radius: 0;
+  background: none; padding: 11px 12px; transition: background 0.14s ease;
+  /* Rows are taller than they were, and there can be forty of them on a
+   * role. .ag-mx-row and .ag-ev-card already carry this; this one did not. */
+  content-visibility: auto; contain-intrinsic-size: auto 78px;
+}
 .ag-evrow:first-of-type { border-top: none; }
 .ag-evrow[data-override="true"] { background: var(--ag-tint-1); box-shadow: inset 2px 0 0 var(--ag-coral); }
-.ag-evrow[data-open="true"] { background: var(--ag-bg-2); }
-.ag-evrow-head { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border: none; background: none; cursor: pointer; font-family: var(--ag-sans); color: inherit; }
-.ag-evrow-head:hover { background: var(--ag-bg-2); }
-.ag-evrow[data-override="true"] .ag-evrow-head:hover { background: var(--ag-tint-2); }
-.ag-evrow-text { flex: 1; min-width: 0; font-size: var(--t-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Identity: which requirement, what it is worth, how it reads. */
+.ag-evrow-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ag-evrow-ref { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); color: var(--ag-ink-2); flex: none; }
 .ag-evrow-weight { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); flex: none; }
 .ag-evrow-weight[data-must="true"] { color: var(--ag-coral-deep); }
-.ag-evrow-pts { font-family: var(--ag-mono); font-size: var(--t-micro); color: var(--ag-ink-3); flex: none; min-width: 30px; text-align: right; }
+
+/* The strength, in the words step 04 uses. The dot stays as a redundant
+ * cue — it is no longer the only one, which was the WCAG 1.4.1 fault. */
+.ag-evrow-strength {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  padding: 3px 8px 3px 7px; border-radius: var(--r-xs);
+  background: var(--ag-tint-1); color: var(--ag-coral-deep);
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase;
+}
+.ag-evrow-strength[data-strength="missing"] { background: var(--ag-bg-2); color: var(--ag-ink-2); }
+.ag-evrow-mine { margin-left: auto; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); flex: none; }
+
+.ag-evrow-text { margin: 0; font-size: var(--t-body); line-height: 1.45; }
+
+/* The quote, on the row. It was behind a chevron, one at a time, on the
+ * screen whose whole purpose is this sentence. Collapsed it is one clamped
+ * line — enough to see that evidence EXISTS for all ten without a click. */
+.ag-evrow-quote {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  border: none; background: none; padding: 2px 0; cursor: pointer;
+  font-family: var(--ag-sans); color: inherit; border-radius: var(--r-xs);
+}
+.ag-evrow-quote:hover .ag-evrow-said { color: var(--ag-ink); }
+.ag-evrow-quote:hover .ag-evrow-chev { color: var(--ag-coral-deep); }
+.ag-evrow-rule { width: 2px; align-self: stretch; min-height: 16px; background: var(--ag-coral); flex: none; border-radius: 1px; }
+.ag-evrow-said {
+  flex: 1; min-width: 0; font-size: var(--t-small); line-height: 1.5; color: var(--ag-ink);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden;
+}
+.ag-evrow[data-open="true"] .ag-evrow-said { -webkit-line-clamp: unset; font-size: var(--t-body); }
+.ag-evrow-cite { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); flex: none; }
 .ag-evrow-chev { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); flex: none; }
-.ag-evrow-body { padding: 0 12px 12px 32px; }
+.ag-evrow-source { margin: 0 0 0 11px; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+
+/* MISSING is never clipped and never collapsed: it is the one place where an
+ * absence must not read as a negative judgement. */
+.ag-evrow-missing { margin: 0; font-size: var(--t-small); line-height: 1.5; color: var(--ag-ink-3); }
+
+/* A person disagreeing with the machine about another person, in a sentence
+ * rather than in ten pixels of mono. Same words as .ag-ev-said at step 04. */
+.ag-evrow-override { margin: 0; font-size: var(--t-small); line-height: 1.5; color: var(--ag-coral-deep); }
+
+/* The read-the-whole-record pass. Rows still toggle independently. */
+.ag-evrow-all {
+  border: 1px solid var(--ag-line-2); border-radius: var(--r-sm); background: var(--ag-paper);
+  padding: 4px 10px; cursor: pointer; color: var(--ag-ink-2);
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.ag-evrow-all:hover { background: var(--ag-bg-2); border-color: var(--ag-ink-3); color: var(--ag-ink); }
+
+/* The quote line is the hit target and it is only ~20px tall. Where the
+ * pointer is actually coarse, give it a finger. */
+@media (pointer: coarse) {
+  .ag-evrow-quote { padding: 6px 0; min-height: 44px; }
+}
 
 .ag-sr-row { display: flex; gap: 8px; align-items: flex-start; font-size: var(--t-small); line-height: 1.5; }
 .ag-sr-row .ag-dot { margin-top: 5px; flex: none; }
