@@ -4773,19 +4773,137 @@ was proved with a 340-character quote, collapsed and open side by side.
 and the disclosure had `aria-expanded` with no `aria-controls` naming what it
 revealed.
 
-### ⚠️ Found, not fixed: the agency shell overflows at 375px
+### ⚠️ CORRECTED 15 Sep: that 375px finding was a measurement artifact
 
-Walking the screen at 375px shows the card running past the viewport with the
-right-hand side clipped. **This is not from this change** — the old row was
-rendered in the same harness at the same width and clips identically (and
-worse for the job: every requirement truncated to ~30 characters).
+**This section originally reported that the agency shell overflows at 375px
+because `.ag-main` keeps `padding: 32px` with no mobile override. That was
+wrong, and the evidence for it looked strong** — the old row and the new row
+were rendered side by side at the same width and clipped identically.
 
-The cause is the shell, not the row: `.ag-main` keeps `padding: 32px` at every
-width and `.ag-app` is `display: flex` with no mobile override. It affects
-every agency screen, not just step 06. Left alone because the fix has a much
-wider blast radius than this task and belongs to a deliberate mobile pass.
+**headless Chrome on macOS clamps its window to a 500px minimum.**
+`--window-size=375` is accepted silently, the page still lays out at 500, and
+the PNG is then cropped to 375. So every "clipped at 375" screenshot was a
+crop of a working layout, and the before and after cropped the same way.
+
+The control that caught it: a `div` at `width: 100%` cannot overflow its
+viewport. Rendered at `--window-size=375` its right edge was cut off anyway,
+and the page reported `innerWidth = 500`.
+
+**The harness that actually works is an iframe.** `<iframe width="375">` gives
+its document a genuine 375px viewport — media queries resolve against it and
+`scrollWidth` means what it says. Measured that way, **step 06 overflows by
+exactly 0 at 375 and at 320.** The evidence row is fine on a phone; it always
+was. The compare matrix reports `right=817` inside a 375 viewport but sits in
+a `overflow-x: auto` wrapper and contributes nothing to the document's
+scrollWidth — a wide table scrolling in its own container, which is correct.
+
+Nothing shipped against the bad diagnosis; no CSS was written for it. It did
+reach this file and a Notion card as a known defect, and both are corrected.
+
+### ⚠️ Found for real: the primary action is off-screen at 375px
+
+Measured in a true 375 viewport: `innerWidth 375`, `document scrollWidth 430`
+— **55px of genuine horizontal overflow**, and the overflowing node is the
+action group. The furthest-right thing in it is the primary button at
+`right=430`. At 320 the primary button is off the page entirely.
+
+`.ag-screen-head` is `display: flex; justify-content: space-between` with **no
+`flex-wrap`**, so the action group can never drop below the headline. It is
+used by `app/agencies/clients`, `roles`, `roles/[roleId]`, `briefs` and
+`components/agency/candidate-detail` — so "Build submission", "Add to
+submission" and the step's Next control are all unreachable on a phone.
+`.ag-card-head` has the same shape and does not overflow today only because
+every current title is short enough. `.ag-legend` already carries
+`flex-wrap`, which is the proof the pattern was understood when written.
+
+Designed as Figma frame `09 · The agency shell on a phone` (377:2). Not yet
+implemented — awaiting sign-off.
 
 **Verified:** typecheck clean, 1,284 tests, production build clean.
+
+---
+
+## 15 September 2026 — the hiring manager's dashboard answers one question
+
+### What needs you, and nothing else
+
+A hiring manager is not a user of this product. They are a busy person with a
+role open and a recruiter doing the work, and they arrive with one question:
+is anything mine? The old dashboard answered it with three bands of rows to
+read. It now answers it once, in words, at the top.
+
+Designed as Figma frame `10 · The hiring manager's dashboard` (384:2), against
+a prototype Ose supplied (`components/hiring/` in tailr-b2-b.zip). Signed off
+before implementation.
+
+**The part that matters is the NO.** When the next action belongs to the
+recruiter, the card keeps its shape, names who holds it and since when, and
+renders **no button at all**. The old "needs you" row stayed a `<Link>` even
+while waiting, so a hiring manager clicked through to discover there was
+nothing there — the same judgement that removed the dead "Open every quote"
+control on step 06 yesterday.
+
+**What we took from the prototype:** the hierarchy (greeting → the one thing →
+the ladder), the "no button when waiting" rule, and the line "You only ever
+see what has been disclosed to you", which does real work — the HM's view is
+disclosure-filtered, not row-filtered, and saying so is the difference between
+a sparse screen reading as trust and reading as a bug.
+
+**What we did NOT take.** The prototype assumes a single role and a single
+hiring manager; ours cannot. The prototype hardcodes `Brief agreed &
+clarified: done`; `lib/agency/next-action.ts` already derives all of it from
+`RoleFacts` with nothing stored. The prototype is light; `/hiring` has been
+dark since 13 Aug and flipping it would be a far larger change made by
+accident. And the prototype shows "in 3 days · 72h" — next-action.ts refuses
+to invent an SLA and says so in its docstring, so the card shows a date and an
+honest age and never colours a wait as late.
+
+`today === null` renders as its own dashed "Checking what needs you…" state,
+never as the calm one: "nothing needs you" over a failed read is the same lie
+as `200 {enabled:false}`.
+
+### The brief doors are closed
+
+Both, as agreed. Wave 5a had already decided the brief was the recruiter's job
+description and no longer the primary act — but `hm-shared.tsx` carried that
+decision in a comment while `app/hiring/page.tsx` still rendered "Post a
+brief" as its PRIMARY button. **The two surfaces disagreed and the louder one
+was winning.** Opening a role is the recruiter's act now.
+
+The empty-state copy said "Post a brief to start one" — an instruction to
+press something that no longer exists — and is rewritten.
+
+**The ROUTE deliberately survives.** `/hiring/briefs/new` and
+`POST /api/hiring/briefs` still answer; only the doors are gone. Deleting them
+would leave the recruiter's briefs inbox unable to ever receive a new brief,
+which is a separate decision. Checked before cutting: nothing in
+`lib/email.ts` or the notification templates links to the brief form, so no
+already-delivered mail 404s.
+
+**Consequence to keep in view:** a hiring manager can no longer start a role.
+If briefs are meant to be gone for good, the briefs inbox and the
+accept-to-mint-a-role path are the next things to look at.
+
+**Guards:** `hiring-nav.test.ts` — the pin that asserted the nav CARRIED a
+brief CTA is inverted into one that keeps both doors shut, plus three new pins
+(no dashboard door, no "Post a brief" instruction, and the route still
+exists). All four probe-mutated and watched to fail.
+
+One of those guards initially matched **its own explanatory comment** — the
+trap `helpers/source-scan.ts` exists to prevent, and which its docstring says
+has now bitten seven times. Fixed by scanning `tsCode()` rather than raw
+source, which is what the helper is for.
+
+**Verified by rendering.** The served CSS chunk was curled and grepped, and
+the harness reproduces the real dark chain — `<html data-ag-theme="dark">` →
+`.ag-app.ag-themed` → `.ag-main.agd-main.hm-main` → `.agd-page`. Measured in
+the browser rather than eyeballed: `ctaCountAct: 1, ctaCountWait: 0` — the
+button exists when the work is yours and genuinely does not when it is not.
+An earlier harness omitted `.agd-page` and rendered flush to the left edge,
+which looked exactly like a padding bug and was not one.
+
+**Verified:** typecheck clean, 1,287 tests, production build clean —
+`/api/hiring/briefs` still registers, which is the kept route.
 
 ---
 

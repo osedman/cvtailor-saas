@@ -638,6 +638,65 @@
 .agd-sub { margin: 0; color: var(--ag-ink-2); font-size: var(--t-lead); max-width: 56ch; }
 .agd-sub b { font-weight: 600; color: var(--ag-ink); }
 
+/* ── The hiring manager's dashboard (rebuilt 15 Sep 2026) ────────────────
+ * A hiring manager is not a user of this product. They are a busy person
+ * with a role open and a recruiter doing the work, and they arrive with
+ * exactly one question: is anything mine? The old screen answered it with
+ * three bands of rows to read. This answers it once, in words, at the top.
+ *
+ * The part that matters is what happens when the answer is NO: the card
+ * keeps its shape, names who holds it and since when, and renders no button
+ * at all. The old "needs you" row stayed a link even while waiting, so a
+ * hiring manager clicked through to discover there was nothing there. */
+.hm-greet { margin-bottom: 22px; }
+.hm-greet-eyebrow { font-family: var(--ag-mono); font-size: var(--t-caption); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-text); margin: 0; }
+.hm-greet-h1 { font-family: var(--ag-display); font-size: var(--t-display); line-height: 1.12; margin: 8px 0 6px; font-weight: 600; letter-spacing: var(--track-tight); text-wrap: balance; }
+.hm-greet-sub { margin: 0; color: var(--ag-ink-2); font-size: var(--t-lead); max-width: 58ch; text-wrap: pretty; }
+.hm-greet-sub b { font-weight: 600; color: var(--ag-ink); }
+
+.hm-one { margin-bottom: 44px; }
+.hm-one-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 9px;
+  border: 1px solid var(--ag-line-2); background: var(--ag-paper);
+  border-radius: var(--r-md); padding: 22px 24px;
+}
+/* Yours to do: the card earns the brand colour and a button. */
+.hm-one-card[data-mode="act"] { border-color: var(--ag-coral); background: var(--ag-tint-1); }
+.hm-one-card[data-mode="act"] .hm-one-eyebrow { color: var(--ag-coral-deep); }
+/* Somebody else's: same shape, calmer ground, and no control. */
+.hm-one-card[data-mode="wait"] .hm-one-eyebrow { color: var(--ag-warn); }
+.hm-one-card[data-mode="load"] { border-style: dashed; }
+.hm-one-eyebrow { margin: 0; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-2); }
+.hm-one-title { margin: 0; font-family: var(--ag-display); font-size: 25px; line-height: 1.2; font-weight: 600; letter-spacing: var(--track-tight); text-wrap: balance; }
+.hm-one-detail { margin: 0; font-size: var(--t-body); line-height: 1.6; color: var(--ag-ink-2); max-width: 62ch; text-wrap: pretty; }
+.hm-one-meta { margin: 0; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+.hm-one-cta {
+  margin-top: 5px; display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 16px; border-radius: var(--r-sm); text-decoration: none;
+  background: var(--ag-coral); color: var(--ag-paper);
+  font-size: var(--t-body); font-weight: 500;
+  transition: background 0.12s, transform 0.12s;
+}
+.hm-one-cta:hover { background: var(--ag-coral-deep); }
+.hm-one-cta:active { transform: translateY(1px); }
+
+/* Anything else that is also theirs, kept quiet rather than competing. */
+.hm-one-rest { margin-top: 14px; display: flex; flex-direction: column; gap: 2px; }
+.hm-one-rest-label { margin: 0 0 6px; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+.hm-one-rest-row {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  padding: 10px 12px; border-radius: var(--r-sm); text-decoration: none; color: inherit;
+  border: 1px solid transparent; transition: background 0.12s, border-color 0.12s;
+}
+.hm-one-rest-row:hover { background: var(--ag-bg-2); border-color: var(--ag-border); }
+.hm-one-rest-title { font-size: var(--t-body); }
+.hm-one-rest-meta { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+
+@media (max-width: 560px) {
+  .hm-one-card { padding: 18px; }
+  .hm-one-cta { width: 100%; justify-content: center; }
+}
+
 /* Attention cards: one thing each, severity as a left rail. */
 .agd-attn { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .agd-card { background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 10px; position: relative; overflow: hidden; text-align: left; font-family: var(--ag-sans); color: inherit; cursor: pointer; transition: border-color 0.14s, transform 0.14s; }

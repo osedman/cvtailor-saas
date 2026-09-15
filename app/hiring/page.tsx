@@ -380,7 +380,27 @@ export default function HiringDashboardPage() {
   const agencyName = links[0]?.agencyName ?? "your agency"
   const company = links[0]?.company ?? ""
 
+  const firstName = (links[0]?.fullName ?? "").trim().split(/\s+/)[0] ?? ""
+  const roleCount = today?.length ?? 0
+
   const acts = (today ?? []).filter((r) => r.next.mode === "act")
+  /**
+   * The one thing, and everything else.
+   *
+   * Something the hiring manager can DO always outranks something they are
+   * waiting on — a wait is information, an action is a job. When nothing is
+   * theirs, `first` is the wait worth naming (the oldest one, since that is
+   * the one they are most likely wondering about) rather than nothing at all.
+   */
+  const first =
+    acts[0] ??
+    (today ?? [])
+      .filter((r) => r.next.mode !== "done")
+      .slice()
+      .sort((a, b) => (a.next.since ?? "").localeCompare(b.next.since ?? ""))[0] ??
+    null
+  const rest = acts.filter((r) => r !== first)
+
   const headline =
     today === null
       ? "Working out what needs you…"
@@ -530,78 +550,102 @@ export default function HiringDashboardPage() {
 
         {screen === "ready" && data && (
           <>
-            <section className="agd-hero">
-              <p className="agd-date">
-                {dateLine} · {agencyName}
+            {/* A greeting, not a status bar. The hiring manager is not a
+                user of this product — they are a busy person with a role open
+                and a recruiter doing the work — so the screen opens by
+                addressing them, and the one card below answers the only
+                question they came with. */}
+            <section className="hm-greet">
+              <p className="hm-greet-eyebrow">
+                Hiring manager{company ? ` · ${company}` : ""}
               </p>
-              <h1 className="agd-h1">{headline}</h1>
-              <p className="agd-sub">
-                {cards.length === 0 ? (
+              <h1 className="hm-greet-h1">{firstName ? `Hello, ${firstName}.` : "Hello."}</h1>
+              <p className="hm-greet-sub">
+                {roleCount === 0 ? (
                   <>
-                    You are connected to <b>{agencyName}</b>
-                    {company ? (
-                      <>
-                        {" "}
-                        as hiring manager for <b>{company}</b>
-                      </>
-                    ) : null}
-                    . When they send a shortlist, book an interview or need a decision from you,
-                    it lands here first — and you will get an email as well.
+                    You are connected to <b>{agencyName}</b>. When they send a shortlist, book an
+                    interview or need a decision from you, it lands here first — and you will get
+                    an email as well.
                   </>
                 ) : (
                   <>
-                    Sorted by what breaks first. Everything below is from <b>{agencyName}</b>; your
-                    recruiter sees the same rows from their side.
+                    {roleCount === 1 ? "One role is" : `${roleCount} roles are`} active with{" "}
+                    <b>{agencyName}</b>. Here is what needs you — and only you.
                   </>
                 )}
               </p>
             </section>
 
-            <section className="agd-band" aria-labelledby="hm-attn">
-              <div className="agd-eyebrow-row">
-                <h2 className="agd-eyebrow" id="hm-attn">
-                  Needs you now
-                </h2>
-                <span className="agd-rule" />
-                {/* An empty band is not "sorted by" anything. */}
-                {acts.length > 0 && <span className="agd-aside">what only you can do, first</span>}
-              </div>
+            {/* THE ONE THING.
+             *
+             * The whole screen exists to answer "is anything mine?", so it is
+             * answered once, in words, at the top. When the answer is no the
+             * card says who holds it and since when and offers NOTHING to
+             * press — a control that cannot help is worse than no control,
+             * and the old row was still a link, so a hiring manager clicked
+             * through to find there was nothing there.
+             *
+             * `today === null` is the load, and it must never be allowed to
+             * render as the calm state: "nothing needs you" over a failed
+             * read is the same lie as 200 {enabled:false}. */}
+            <section className="hm-one" aria-labelledby="hm-one-h" aria-live="polite">
               {today === null ? (
-                <div className="ag-quiet" aria-live="polite">Working out what needs you…</div>
-              ) : today.length === 0 ? (
-                <EmptyBand
-                  title="Nothing needs you today."
-                  body="Shortlists to decide on, rounds to write up and decisions your recruiter is waiting on all appear here first."
-                />
+                <div className="hm-one-card" data-mode="load">
+                  <p className="hm-one-eyebrow">Working it out</p>
+                  <h2 className="hm-one-title" id="hm-one-h">Checking what needs you…</h2>
+                </div>
+              ) : first ? (
+                <div className="hm-one-card" data-mode={first.next.mode}>
+                  <p className="hm-one-eyebrow">
+                    {first.next.mode === "act"
+                      ? "Needs your decision"
+                      : first.next.mode === "done"
+                        ? "Nothing outstanding"
+                        : `Waiting on ${first.next.waitingOn.label.toLowerCase()}`}
+                  </p>
+                  <h2 className="hm-one-title" id="hm-one-h">{first.next.title}</h2>
+                  {first.next.detail && <p className="hm-one-detail">{first.next.detail}</p>}
+                  <p className="hm-one-meta">
+                    Role · {first.role.title} · {first.role.ref}
+                    {first.next.since ? ` · ${first.next.waitingOn.label.toLowerCase()} since ${ageLabel(first.next.since, todayNow)}` : ""}
+                  </p>
+                  {/* The button exists only when the doing is yours. */}
+                  {first.next.mode === "act" && first.next.cta && (
+                    <Link className="hm-one-cta" href={first.next.cta.href}>
+                      {first.next.cta.label} →
+                    </Link>
+                  )}
+                </div>
               ) : (
-                <div className="agd-today">
-                  <div className="agd-today-group">
-                    {today.map((r) => (
-                      <Link
-                        key={r.role.id}
-                        className={`agd-today-row ${r.next.mode}`}
-                        href={r.next.cta?.href ?? `/hiring/roles/${r.role.id}`}
-                      >
-                        <span className="agd-today-role">
-                          <span className="agd-today-role-title">{r.role.title}</span>
-                          <span className="agd-today-role-meta">
-                            {r.role.ref}
-                            {r.role.recruiterName ? ` · ${r.role.recruiterName}` : ""}
-                          </span>
-                        </span>
-                        <span className="agd-today-state">
-                          <span className="agd-today-chip">
-                            {r.next.mode === "act" ? "Needs you" : r.next.mode === "done" ? "Done" : "Waiting"} · {r.subState.chip}
-                          </span>
-                          <span className="agd-today-next">{r.next.title}</span>
-                        </span>
-                        <span className="agd-today-since">
-                          {r.next.waitingOn.label}
-                          {r.next.since ? ` · ${ageLabel(r.next.since, todayNow)}` : ""}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
+                <div className="hm-one-card" data-mode="wait">
+                  <p className="hm-one-eyebrow">Nothing needs you</p>
+                  <h2 className="hm-one-title" id="hm-one-h">You are all caught up.</h2>
+                  <p className="hm-one-detail">
+                    Shortlists to decide on, rounds to write up and decisions your recruiter is
+                    waiting on all appear here first, and you will get an email as well.
+                  </p>
+                </div>
+              )}
+
+              {/* Anything else that is also yours, kept quiet beneath the one
+                  thing rather than competing with it. */}
+              {rest.length > 0 && (
+                <div className="hm-one-rest">
+                  <p className="hm-one-rest-label">
+                    {rest.length === 1 ? "One other thing needs you" : `${rest.length} other things need you`}
+                  </p>
+                  {rest.map((r) => (
+                    <Link
+                      key={r.role.id}
+                      className="hm-one-rest-row"
+                      href={r.next.cta?.href ?? `/hiring/roles/${r.role.id}`}
+                    >
+                      <span className="hm-one-rest-title">{r.next.title}</span>
+                      <span className="hm-one-rest-meta">
+                        {r.role.title} · {r.role.ref}
+                      </span>
+                    </Link>
+                  ))}
                 </div>
               )}
             </section>
@@ -612,9 +656,6 @@ export default function HiringDashboardPage() {
                   Your roles
                 </h2>
                 <span className="agd-rule" />
-                <Link className="agd-tbtn primary" href="/hiring/briefs/new">
-                  Post a brief
-                </Link>
               </div>
               {roles.length > 0 ? (
                 <div className="agd-roles">
@@ -681,7 +722,7 @@ export default function HiringDashboardPage() {
               ) : (
                 <EmptyBand
                   title="No roles yet."
-                  body="Every role you brief your recruiter on gets a row here, with the rail showing how far it has got: brief, shortlist, first round, second round, decision. Shortlists your recruiter sends will appear here too. Post a brief to start one."
+                  body="Every role your recruiter opens for you gets a row here, with the rail showing how far it has got: brief, shortlist, first round, second round, decision. Shortlists they send will appear here too."
                 />
               )}
             </section>

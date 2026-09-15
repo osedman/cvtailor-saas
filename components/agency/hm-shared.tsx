@@ -76,7 +76,6 @@ export function HiringNav() {
     { href: "/hiring", label: "Home", also: onCohort ? [] : ["/hiring/roles"] },
     { href: "/hiring/interviews", label: "Interviews", also: onCohort ? [pathname] : [] },
   ]
-  const briefOn = pathname.startsWith("/hiring/briefs")
   return (
     <nav className="hm-nav" aria-label="Hiring workspace">
       {items.map((it) => {
@@ -90,17 +89,18 @@ export function HiringNav() {
           </Link>
         )
       })}
-      <span className="ag-grow" />
-      {/* The brief is the recruiter's job description now (Wave 5a). Sending
-          one from here stays possible — it lands in the recruiter's inbox and
-          pre-fills their intake — but it is no longer the primary act. */}
-      <Link
-        href="/hiring/briefs/new"
-        className={`hm-nav-item${briefOn ? " on" : ""}`}
-        aria-current={briefOn ? "page" : undefined}
-      >
-        Send a brief
-      </Link>
+      {/* THE BRIEF DOOR IS CLOSED (15 Sep 2026).
+       *
+       * Wave 5a already decided the brief was the recruiter's job description
+       * and no longer the primary act — but the nav kept a link here while
+       * the dashboard still rendered "Post a brief" as its PRIMARY button,
+       * so the two surfaces disagreed and the louder one was winning.
+       * Opening a role is the recruiter's act now; both doors are gone.
+       *
+       * /hiring/briefs/new and POST /api/hiring/briefs still work, on
+       * purpose: deleting the route would leave the recruiter's briefs inbox
+       * unable to ever receive a new brief, which is a separate decision.
+       * There is simply no longer a door to it from this workspace. */}
     </nav>
   )
 }
