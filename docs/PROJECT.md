@@ -4980,4 +4980,88 @@ exists.
 
 ---
 
+## 🐛 15 September 2026 — "nothing happens when I pick a time": the doorway was explaining an absence by guessing
+
+**Reported:** selecting a proposed interview time does nothing.
+
+**Reproduced,** against live staging rather than by reading code. Three
+candidates hold a valid booking link in the choose-a-time state right now, and
+all three see **no times at all** plus this sentence:
+
+> "Every time has been taken. Your recruiter will be in touch with more."
+
+Nothing had been taken. At 14:52 on 15 Sep there were nine windows: six in the
+past, three in the future — and all three starting before 16 Sep 14:52, i.e.
+inside the 24-hour minimum notice. They were excluded for being *too soon* and
+the candidate was told a different, false reason.
+
+**Cause, in one sentence:** the doorway had exactly one empty-state sentence
+and it asserted the times were *taken*, but `listOpenWindows` drops a window
+for three different reasons — already held, inside the minimum notice, or
+shorter than the interview — so whenever the reason was anything but "held",
+the candidate was told something untrue.
+
+It is worse than saying nothing: it invents a race they lost.
+
+### The fix
+
+`listOpenWindows` now returns `{ windows, reason }` — `none_offered`,
+`all_taken` or `unbookable` — narrowed from the widest fact to the narrowest
+so the candidate is told the truest thing rather than the first thing. The
+doorway renders a sentence per reason, and every branch keeps "nothing about
+your application has changed", which was the one good thing about the original
+copy. A reason is attached ONLY when the list was actually empty, since a
+reason beside a full list reads as an error.
+
+**Proof the original case passes:** the same three round ids that produced the
+false message now derive `unbookable`.
+
+### The divergence that allowed it
+
+`listOpenSlots` (recruiter) and `listOpenWindows` (candidate) read the same
+table through different filters:
+
+| | recruiter | candidate |
+|---|---|---|
+| time | `ends_at > now` | `starts_at > now + minNoticeHours` |
+| long enough | not checked | `>= durationMinutes` |
+
+So a recruiter saw three bookable windows while the candidate saw none, and
+could offer a time nobody could ever pick. `scheduleRound` validates only
+"has it already passed", so booking one succeeds.
+
+Each slot now carries `selfBookable` and a reason, and the recruiter's picker
+marks the unbookable ones **You only**. They are **not hidden**: booking
+somebody in by hand is the documented exception for the candidate who cannot
+self-book, and filtering them out would delete that capability.
+
+### Also fixed on the way
+
+The doorway restated `BookingView` as a hand-written local type — ten fields —
+which is precisely how it stayed ignorant of the reason the server had
+learned. It imports the real type now; types are erased, so no server code
+reaches the browser bundle (build confirms).
+
+### The probe that mattered
+
+Four probe mutations. The third **passed when it should have failed**: the
+guard was `/filter\([^)]*selfBookable/`, and `[^)]*` cannot span the `)` in
+`(s) => s.selfBookable`, so it matched nothing while the capability was
+deleted. **That is the exact `[^)]*` trap the tailr-b2b skill documents**, hit
+for the second time in this repo. Fixed to `/\.filter\([\s\S]{0,60}?selfBookable/`
+plus a positive assertion that the list is still built from every free slot.
+
+### Sibling found, NOT fixed
+
+`getHiringDashboard` lists the hiring manager's own offered slots by
+`ends_at > now` — the recruiter's rule, not the candidate's. So an HM can
+believe they have offered three usable windows when no candidate can take any
+of them. Same class, third surface. Left alone because the agreed scope was
+the candidate's message plus the recruiter's label; worth deciding separately.
+
+**Verified:** typecheck clean, 1,316 tests, production build clean, and the
+three empty states rendered against the served CSS.
+
+---
+
 _Last updated: 15 September 2026_

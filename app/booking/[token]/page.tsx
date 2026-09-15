@@ -1,5 +1,7 @@
 "use client"
 
+import type { BookingView } from "@/lib/agency/booking"
+
 /**
  * Confirm or rearrange an interview — Figma "Candidate · Interview invitation".
  *
@@ -21,18 +23,18 @@
 import { useCallback, useEffect, useState } from "react"
 import { use } from "react"
 
-type Booking = {
-  state: "invited" | "confirmed" | "declined" | "cancelled"
-  company: string
-  agencyName: string
-  roundNumber: number
-  scheduledAt: string | null
-  durationMinutes: number
-  meetingUrl: string | null
-  openWindows: Array<{ slotId: string; start: string; end: string }>
-  needsChoice: boolean
-  reschedule: { allowed: boolean; because: string }
-}
+/**
+ * The doorway renders exactly what peekBooking returns, so it uses that
+ * type rather than a copy of it.
+ *
+ * It WAS a copy — ten fields restated by hand — which is how the shape was
+ * allowed to drift: the server grew a reason for an empty window list and
+ * this file had no way to know. A type is erased at build time and carries
+ * no imports with it, so pulling it from lib/agency/booking.ts drags no
+ * server code into the browser bundle (the rule that keeps runtime
+ * constants out of files like this does not apply to `import type`).
+ */
+type Booking = BookingView
 
 function whenText(iso: string | null, minutes: number): string {
   if (!iso) return "Time to be confirmed"
@@ -171,9 +173,29 @@ export default function BookingPage({ params }: { params: Promise<{ token: strin
               </p>
             )}
             {booking.openWindows.length === 0 ? (
+              /* The reason comes from the server, because the doorway cannot
+                 tell the three causes apart and used to assert the wrong one:
+                 it said every time had been TAKEN whenever the real reason was
+                 that the remaining times were inside the minimum notice. Being
+                 told a false reason is worse than being told none — it implies
+                 other candidates moved faster than you did. */
               <p className="cs-body">
-                Every time has been taken. Your recruiter will be in touch with more — nothing about
-                your application has changed.
+                {booking.noWindowsBecause === "all_taken" ? (
+                  <>
+                    Every time has been taken. Your recruiter will be in touch with more — nothing
+                    about your application has changed.
+                  </>
+                ) : booking.noWindowsBecause === "unbookable" ? (
+                  <>
+                    The times still open are too soon to book here. Your recruiter will arrange one
+                    with you directly — nothing about your application has changed.
+                  </>
+                ) : (
+                  <>
+                    No times have been offered yet. Your recruiter will send some — nothing about
+                    your application has changed, and this link will keep working.
+                  </>
+                )}
               </p>
             ) : (
               <div className="bk-slots">

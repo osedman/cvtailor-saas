@@ -29,6 +29,16 @@ import { notify } from "./notify"
 
 export type BookingState = "invited" | "confirmed" | "declined" | "cancelled" | "unknown"
 
+/**
+ * Why a candidate was shown no times.
+ *
+ * `unbookable` folds "too soon" and "too short" together deliberately: both
+ * mean the window exists but cannot be taken online, both are the desk's
+ * settings rather than anything the candidate did, and splitting them would
+ * describe the client's diary more precisely than a candidate needs.
+ */
+export type NoWindowsReason = "none_offered" | "all_taken" | "unbookable"
+
 export interface BookingView {
   state: BookingState
   /** Named deliberately: you cannot ask somebody to give up a morning without
@@ -50,6 +60,19 @@ export interface BookingView {
    * time is held, because there is then nothing to choose.
    */
   openWindows: Array<{ slotId: string; start: string; end: string }>
+  /**
+   * WHY there are no windows, when there are none.
+   *
+   * The doorway had exactly one empty-state sentence — "Every time has been
+   * taken" — but listOpenWindows excludes a window for three different
+   * reasons, and only one of them is "taken". On 15 Sep 2026 every remaining
+   * window on staging was merely inside the minimum-notice cutoff, so three
+   * candidates holding a live invitation were told a thing that was not
+   * true. An absence must not be explained by guessing at its cause.
+   *
+   * `null` whenever windows were not asked for, or some were found.
+   */
+  noWindowsBecause: NoWindowsReason | null
   /** True when this candidate still has to pick a time. */
   needsChoice: boolean
   /** Whether they may move a time they already hold, and the reason if not. */
@@ -97,7 +120,7 @@ export async function peekBooking(rawToken: string): Promise<BookingView> {
       return {
       state: "unknown", company: "", agencyName: "", roundNumber: 0,
       scheduledAt: null, durationMinutes: 0, meetingUrl: null,
-      openWindows: [], needsChoice: false,
+      openWindows: [], noWindowsBecause: null, needsChoice: false,
       reschedule: { allowed: false, because: "" },
     }
   }
@@ -121,9 +144,10 @@ export async function peekBooking(rawToken: string): Promise<BookingView> {
   const reschedule = await mayReschedule(admin, round, new Date())
   const needsChoice = state === "invited" && !round.slot_id
   const showWindows = needsChoice || (state === "confirmed" && reschedule.allowed)
-  const openWindows = showWindows
+  const open = showWindows
     ? await listOpenWindows(admin, round.agency_id as string, round.role_id as string)
-    : []
+    : { windows: [], reason: null as NoWindowsReason | null }
+  const openWindows = open.windows
 
   return {
     state,
@@ -135,6 +159,7 @@ export async function peekBooking(rawToken: string): Promise<BookingView> {
     // Withheld until confirmed, on purpose.
     meetingUrl: confirmed ? ((round.meeting_url as string) || null) : null,
     openWindows,
+    noWindowsBecause: showWindows && openWindows.length === 0 ? open.reason : null,
     needsChoice,
     reschedule,
   }
@@ -198,7 +223,7 @@ export async function rescheduleBooking(rawToken: string, slotId: string): Promi
   const allowed = await mayReschedule(admin, round, new Date())
   if (!allowed.allowed) return "not_allowed"
 
-  const open = await listOpenWindows(admin, round.agency_id as string, round.role_id as string)
+  const { windows: open } = await listOpenWindows(admin, round.agency_id as string, round.role_id as string)
   const window = open.find((w) => w.slotId === slotId)
   if (!window) return "not_open"
 
@@ -264,7 +289,7 @@ async function listOpenWindows(
   admin: AgencyClient,
   agencyId: string,
   roleId: string
-): Promise<Array<{ slotId: string; start: string; end: string }>> {
+): Promise<{ windows: Array<{ slotId: string; start: string; end: string }>; reason: NoWindowsReason | null }> {
   const { settings } = await getInterviewSettings(agencyId, roleId)
   const notFor = new Date(Date.now() + settings.minNoticeHours * 3_600_000).toISOString()
   const duration = settings.durationMinutes * 60_000
@@ -285,11 +310,39 @@ async function listOpenWindows(
       .not("slot_id", "is", null),
   ])
   const held = new Set((taken ?? []).map((r) => r.slot_id as string))
-  return (slots ?? [])
-    .filter((s) => !s.role_id || s.role_id === roleId)
-    .filter((s) => !held.has(s.id as string))
+  const mine = (slots ?? []).filter((s) => !s.role_id || s.role_id === roleId)
+  const free = mine.filter((s) => !held.has(s.id as string))
+  const windows = free
     .filter((s) => Date.parse(s.ends_at as string) - Date.parse(s.starts_at as string) >= duration)
     .map((s) => ({ slotId: s.id as string, start: s.starts_at as string, end: s.ends_at as string }))
+
+  /* The reason, narrowed from the widest fact to the narrowest, so the
+   * candidate is told the truest thing rather than the first thing:
+   *   nothing on this role at all        -> none_offered
+   *   everything on it is held           -> all_taken
+   *   some remain but none can be taken  -> unbookable (too soon / too short)
+   *
+   * `mine` is filtered ONLY by role, so it still counts the windows this
+   * query's `.gt(starts_at, notFor)` already dropped for being too soon —
+   * which is exactly the case that produced the false "taken" message. */
+  const anyOnRole = await countWindowsOnRole(admin, agencyId, roleId)
+  const reason: NoWindowsReason | null =
+    windows.length > 0 ? null
+      : anyOnRole === 0 ? "none_offered"
+        : free.length === 0 ? "all_taken"
+          : "unbookable"
+  return { windows, reason }
+}
+
+/** Every unrevoked window on this role, whatever its time — the denominator
+ *  that tells "none were ever offered" apart from "none can be taken". */
+async function countWindowsOnRole(admin: AgencyClient, agencyId: string, roleId: string): Promise<number> {
+  const { data } = await admin
+    .from("availability_slots")
+    .select("id, role_id")
+    .eq("agency_id", agencyId)
+    .is("revoked_at", null)
+  return (data ?? []).filter((s) => !s.role_id || s.role_id === roleId).length
 }
 
 export type ClaimOutcome = "claimed" | "taken" | "gone" | "not_found" | "not_open" | "already_booked"
@@ -311,7 +364,7 @@ export async function claimBookingSlot(rawToken: string, slotId: string): Promis
   if (round.status === "cancelled") return "gone"
   if (round.slot_id) return "already_booked"
 
-  const open = await listOpenWindows(admin, round.agency_id as string, round.role_id as string)
+  const { windows: open } = await listOpenWindows(admin, round.agency_id as string, round.role_id as string)
   const window = open.find((w) => w.slotId === slotId)
   if (!window) return "not_open"
 

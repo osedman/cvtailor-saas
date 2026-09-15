@@ -26,6 +26,7 @@
  * writes go through the service role in the same operation as the audit row.
  */
 
+import { getInterviewSettings } from "./interview-settings"
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
 import { mintBookingToken, sendBookingInvite } from "./booking"
 import type {
@@ -179,6 +180,23 @@ export interface OpenSlot {
   endsAt: string
   /** When the client offered it — the fact that opens "round N to book". */
   offeredAt: string
+  /**
+   * Can the CANDIDATE take this one themselves?
+   *
+   * This list and the candidate's doorway disagreed, silently, until 15 Sep
+   * 2026: a recruiter saw every window that had not finished, while
+   * listOpenWindows additionally required it to be beyond the minimum notice
+   * and long enough for the interview. On staging that was three windows
+   * here and none there, so a recruiter could offer a time no candidate
+   * could ever pick — and the candidate was told every time had been taken.
+   *
+   * The window is NOT hidden from the recruiter: booking somebody in by hand
+   * is the documented exception for the candidate who cannot self-book. It
+   * is labelled instead, so offering it is a choice rather than an accident.
+   */
+  selfBookable: boolean
+  /** Why not, when it is not. Empty when it is. */
+  notSelfBookableBecause: string
 }
 
 /** Slots a recruiter can actually book: this agency's, live, still ahead, and
@@ -227,15 +245,33 @@ export async function listOpenSlots(ctx: AgencyContext, roleId?: string): Promis
     ])
   )
 
-  return free.map((s) => ({
-    id: s.id as string,
-    contactId: s.contact_id as string,
-    company: byId.get(s.contact_id as string)?.company ?? "",
-    contactName: byId.get(s.contact_id as string)?.fullName ?? "",
-    startsAt: s.starts_at as string,
-    endsAt: s.ends_at as string,
-    offeredAt: (s.created_at as string) ?? (s.starts_at as string),
-  }))
+  // The candidate's own rules, applied here only to LABEL. Same two facts
+  // listOpenWindows filters on, read from the same settings.
+  const { settings } = await getInterviewSettings(ctx.agencyId, roleId ?? "")
+  const noticeCutoff = Date.now() + settings.minNoticeHours * 3_600_000
+  const needMs = settings.durationMinutes * 60_000
+
+  return free.map((s) => {
+    const starts = Date.parse(s.starts_at as string)
+    const lengthMs = Date.parse(s.ends_at as string) - starts
+    const tooSoon = starts <= noticeCutoff
+    const tooShort = lengthMs < needMs
+    return {
+      id: s.id as string,
+      contactId: s.contact_id as string,
+      company: byId.get(s.contact_id as string)?.company ?? "",
+      contactName: byId.get(s.contact_id as string)?.fullName ?? "",
+      startsAt: s.starts_at as string,
+      endsAt: s.ends_at as string,
+      offeredAt: (s.created_at as string) ?? (s.starts_at as string),
+      selfBookable: !tooSoon && !tooShort,
+      notSelfBookableBecause: tooSoon
+        ? `inside the ${settings.minNoticeHours}h notice — the candidate cannot pick this one`
+        : tooShort
+          ? `shorter than ${settings.durationMinutes} minutes — the candidate cannot pick this one`
+          : "",
+    }
+  })
 }
 
 export interface AgencyRoundRow {

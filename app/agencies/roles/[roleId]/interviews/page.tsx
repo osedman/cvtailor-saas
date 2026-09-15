@@ -49,6 +49,10 @@ interface OpenSlot {
   contactName: string
   startsAt: string
   endsAt: string
+  /** False when the candidate's doorway would refuse this window — inside
+   *  the minimum notice, or too short for the interview. See rounds.ts. */
+  selfBookable?: boolean
+  notSelfBookableBecause?: string
 }
 
 interface RoundRow {
@@ -515,6 +519,17 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                             {fmtTime(s.startsAt)} – {fmtTime(s.endsAt)}
                           </span>
                         </span>
+                        {/* The candidate's doorway applies two rules this
+                            list does not, so a window can sit here and be
+                            invisible to them. Labelled rather than hidden:
+                            booking somebody in by hand is the documented
+                            exception for the candidate who cannot self-book,
+                            and hiding it would remove that. */}
+                        {s.selfBookable === false && (
+                          <span className="ag-pill ag-pill-warn" title={s.notSelfBookableBecause}>
+                            You only
+                          </span>
+                        )}
                         {slotId === s.id && <span className="ag-meta">Selected</span>}
                       </button>
                     ))}
@@ -522,7 +537,9 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                   <p className="ag-note" style={{ marginTop: 10 }}>
                     Offered by {client?.contactName || "your client"} from their workspace. Booking
                     one removes it from the board — the client never has a time taken without
-                    offering it first.
+                    offering it first. A window marked <b>You only</b> is one the candidate cannot
+                    pick themselves — too soon, or too short for the interview — so booking it here
+                    means telling them yourself.
                   </p>
                 </section>
               </div>
