@@ -8,9 +8,13 @@
  *   Queue           one panel, two tenses: Still to do / Just happened
  *   Live roles      every role with its six step rail, top score and delta
  *
- * then Clients (portal heat) and Desk health (three numbers that each name
- * the row breaching them). Every card and row links into the step of the
- * workflow it talks about. The judgment features (best next calls, client
+ * then Clients (portal heat). Every card and row links into the step of the
+ * workflow it talks about.
+ *
+ * Desk health — three timing numbers — was deleted on 10 Sep (e007e61, from
+ * Ose's walk of staging) along with the Reports nav item. The route went on
+ * computing it for five days and shipping it to a client that had stopped
+ * reading it; both halves were struck on 15 Sep. The judgment features (best next calls, client
  * heat, worth a look) are folded into the cards and queue, not dropped.
  */
 
@@ -109,11 +113,6 @@ interface Dashboard {
     elsewhere: Array<{ agency_id: string; agency_name: string; count: number }>
   }
   needs_you: { client_actions: ClientAction[]; rights_requests: RightsRequest[] }
-  health: {
-    brief_to_shortlist: { days: number | null; breach: string }
-    shortlist_to_reply: { days: number | null; breach: string }
-    positive_response: { pct: number | null; n: number }
-  }
   notices_detail: NoticeDetail[]
   paperwork?: PaperworkItem[]
   next_calls: NextCall[]
@@ -406,7 +405,7 @@ export default function AgencyHomePage() {
               {/*
                 LIVE ROLES, AND NOTHING ELSE (10 Sep 2026, Ose).
                 The dashboard carried seven bands — Today, Also needs you,
-                briefs, the queue, live roles, clients, desk health — plus a
+                briefs, the queue, live roles and clients — plus a
                 nav whose sections expanded into all of them. For MVP it is
                 one thing: the roles that are live, each saying what it needs
                 next. The ladder's value survives in the row; the bands do

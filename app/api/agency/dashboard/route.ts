@@ -500,81 +500,26 @@ export async function GET() {
       ? { role_id: focusRole.id, title: focusRole.title, company: focusRole.company, reason: focusRole.needs }
       : null
 
-    // ---- Desk health: three numbers that each name their breach ----------
-    // Rolling 90 days. Every stat carries the row currently violating it, so
-    // none of them is decoration.
-    const since = now - 90 * DAY
+    /* ── Desk health was struck on 15 September 2026 ───────────────────────
+     * The recruiter dashboard's "Desk health" band was deleted on 10 Sep
+     * (e007e61, from Ose's walk of staging) together with the Reports nav
+     * item — but the route kept computing six measures for it and shipping
+     * them to a client that had stopped reading them. Five days of dead
+     * payload on every dashboard load.
+     *
+     * Wave 6 asks for four success spans and two of them CANNOT be measured
+     * yet: nobody has pressed "That's all my decisions", so submission -> all
+     * decisions and decision -> pack delivered both have a sample size of
+     * zero, by fact rather than by bug. Measuring a process nobody has run is
+     * theatre. The spans were written and verified against the deployed
+     * schema on 15 Sep — slot offered -> booked returned n=6 on seeded data —
+     * and then deliberately not shipped, because a number with no surface is
+     * just latency. See docs/PROJECT.md for the shape to rebuild from.
+     *
+     * No query was removed: submissions, submission_recipients, client_actions
+     * and handover_packs are all read elsewhere in this route. What went is
+     * the computation and the payload. */
     const recipientById = new Map((recipientsRes.data ?? []).map((r) => [r.id, r]))
-
-    // Brief to first shortlist: role created -> first submission.
-    const firstSubmissionByRole = new Map<string, number>()
-    for (const s of submissionsRes.data ?? []) {
-      const t = new Date(s.generated_at).getTime()
-      const prev = firstSubmissionByRole.get(s.role_id)
-      if (prev === undefined || t < prev) firstSubmissionByRole.set(s.role_id, t)
-    }
-    const briefSamples: number[] = []
-    for (const role of roles) {
-      const first = firstSubmissionByRole.get(role.id)
-      if (first !== undefined && first >= since) briefSamples.push((first - new Date(role.created_at).getTime()) / DAY)
-    }
-    const unsentOldest = openCards
-      .filter((r) => !firstSubmissionByRole.has(r.id))
-      .sort((a, b) => b.days_open - a.days_open)[0]
-
-    // Shortlist to client reply: first send of a submission -> first action
-    // on any of its recipients.
-    const firstSendBySubmission = new Map<string, number>()
-    for (const r of recipientsRes.data ?? []) {
-      const t = new Date(r.created_at).getTime()
-      const prev = firstSendBySubmission.get(r.submission_id)
-      if (prev === undefined || t < prev) firstSendBySubmission.set(r.submission_id, t)
-    }
-    const firstActionBySubmission = new Map<string, number>()
-    for (const a of allActionRecipientsRes.data ?? []) {
-      const rec = recipientById.get(a.recipient_id)
-      if (!rec) continue
-      const t = new Date(a.created_at).getTime()
-      const prev = firstActionBySubmission.get(rec.submission_id)
-      if (prev === undefined || t < prev) firstActionBySubmission.set(rec.submission_id, t)
-    }
-    const replySamples: number[] = []
-    for (const [submissionId, sent] of firstSendBySubmission) {
-      const acted = firstActionBySubmission.get(submissionId)
-      if (acted !== undefined && acted >= since) replySamples.push((acted - sent) / DAY)
-    }
-    let silentDays = 0
-    let silentRoleTitle = ""
-    for (const [submissionId, sent] of firstSendBySubmission) {
-      if (firstActionBySubmission.has(submissionId)) continue
-      const days = (now - sent) / DAY
-      if (days > silentDays) {
-        silentDays = days
-        const roleId = submissionRole.get(submissionId)
-        silentRoleTitle = roleId ? roleById.get(roleId)?.title ?? "" : ""
-      }
-    }
-
-    // Positive client responses: of the client actions received, the share
-    // that moved a candidate forward. Signals only — declines change nothing.
-    const recent = (allActionRecipientsRes.data ?? []).filter((a) => new Date(a.created_at).getTime() >= since)
-    const positive = recent.filter((a) => a.action === "interview" || a.action === "approve").length
-    const avg = (xs: number[]) => (xs.length === 0 ? null : xs.reduce((s, x) => s + x, 0) / xs.length)
-
-    const health = {
-      brief_to_shortlist: {
-        days: avg(briefSamples) === null ? null : Math.round(avg(briefSamples)! * 10) / 10,
-        breach: unsentOldest ? `${unsentOldest.title} is at day ${unsentOldest.days_open} with nothing sent` : "",
-      },
-      shortlist_to_reply: {
-        days: avg(replySamples) === null ? null : Math.round(avg(replySamples)! * 10) / 10,
-        breach: silentDays >= 1 && silentRoleTitle ? `${silentRoleTitle} has waited ${Math.round(silentDays)} day${Math.round(silentDays) === 1 ? "" : "s"}` : "",
-      },
-      positive_response: {
-        pct: recent.length === 0 ? null : Math.round((positive / recent.length) * 100),
-        n: recent.length,
-      },
-    }
 
     // Client actions with their role attached, so a card can open the right
     // submission instead of leaving the recruiter to hunt for it.
@@ -620,7 +565,6 @@ export async function GET() {
         })),
         rights_requests: rightsRes.data ?? [],
       },
-      health,
       notices_detail: noticesDetail,
       paperwork,
       next_calls: nextCalls,

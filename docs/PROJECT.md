@@ -4907,4 +4907,77 @@ which looked exactly like a padding bug and was not one.
 
 ---
 
+## 15 September 2026 (later) — Desk health struck, and the dead payload with it
+
+### Measuring a process nobody has run
+
+Wave 6 asks for four success spans wired into the dashboard route. Two of them
+**cannot be measured**: nobody has pressed "That's all my decisions", so
+`submission → all decisions` and `decision → pack delivered` both have a
+sample size of zero — by fact, not by bug.
+
+The three missing spans were written and **verified before being thrown away**,
+which is the part worth keeping. Against the DEPLOYED staging schema: all
+fourteen columns present, RLS on, `authenticated` holding SELECT with a policy
+on each. Then as real SQL against seeded data:
+
+| span | result |
+|---|---|
+| slot offered → booked | **n=6**, 0.0 days — the mechanism works end to end |
+| submission → all decisions | n=0 |
+| decision → pack delivered | n=0 |
+
+`slot → booked` returning six real samples is what proves the other two zeros
+are honest rather than broken. The shape to rebuild from is recorded in
+`docs/B2B-SMOOTH-FLOW-PLAN.md` Wave 6, including why
+`submission → all decisions` is a different question from the existing
+`shortlist_to_reply` (first reply ≠ finished) and why every measure needs its
+own `n` beside it.
+
+### The dead payload, and the five days nobody noticed
+
+**The "Desk health" band was deleted on 10 Sep** (`e007e61`, from Ose's walk of
+staging) along with the Reports nav item. The route went on computing six
+measures for it — three averages, two breach sentences and a percentage, each
+over its own pass across submissions, recipients and client actions — and
+shipping them to a client that had stopped reading them.
+
+Both halves are gone: 76 lines of computation out of the route, the `health`
+key off the response, the dead interface off `app/agencies/page.tsx`, and two
+docstrings that still advertised a band deleted five days earlier.
+
+**No query was removed, and an earlier claim that some would be was wrong.**
+`submissions`, `submission_recipients`, `client_actions` and `handover_packs`
+are all read elsewhere in the route. What went is computation and payload
+weight, not a round trip.
+
+### The guard that should have existed
+
+`lib/__tests__/dashboard-no-dead-payload.test.ts`. Not "health specifically" —
+the CLASS: every top-level key the route returns must be read by
+`app/agencies/page.tsx`. A key that leaves the route and is read by nobody is
+latency the whole desk pays on every load, and it is invisible in review
+because both halves look reasonable alone.
+
+Nothing pinned `health`, which is precisely why it survived five days and why
+removing it broke no test. Three probe mutations, all caught: shipping a key
+nobody reads, reviving one struck measure, and restructuring the response so
+the scan matches nothing (the way this kind of guard dies silently). The third
+probe initially "passed" because the probe SCRIPT was broken — Python has
+`rfind`, not `lastIndexOf` — which is the second time this week a probe's own
+bug nearly read as a blind guard. A probe that does not visibly mutate the
+file proves nothing.
+
+### Also corrected in the plan
+
+**Wave 5a is superseded.** It said the hiring manager's "Post a brief" *stays*
+as a secondary path and that "nothing is deleted". Ose went further on 15 Sep:
+both doors are gone. The paragraph is struck with the reason, and the open
+consequence recorded — the briefs inbox can now only ever hold what already
+exists.
+
+**Verified:** typecheck clean, 1,305 tests, production build clean.
+
+---
+
 _Last updated: 15 September 2026_
