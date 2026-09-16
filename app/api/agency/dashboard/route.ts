@@ -96,7 +96,7 @@ export async function GET() {
       db.from("score_breakdowns").select("candidate_id, overall, original_overall, effective, baselines").eq("agency_id", ctx.agencyId),
       db.from("requirements").select("id, ref, text, weight, role_id").eq("agency_id", ctx.agencyId),
       db.from("submissions").select("id, role_id, generated_at").eq("agency_id", ctx.agencyId),
-      db.from("handover_packs").select("role_id").eq("agency_id", ctx.agencyId),
+      db.from("handover_packs").select("role_id, delivered_at").eq("agency_id", ctx.agencyId),
       db.from("placements").select("candidate_id, role_id, status, start_date").eq("agency_id", ctx.agencyId),
       db.from("candidate_compliance").select("candidate_id, rtw_evidence").eq("agency_id", ctx.agencyId),
       db.from("client_contacts").select("id, full_name, company").eq("agency_id", ctx.agencyId),
@@ -377,6 +377,16 @@ export async function GET() {
     // Derived from data this route already loads: no extra queries.
     const submissionRoleIds = new Set((submissionsRes.data ?? []).map((s) => s.role_id))
     const handoverRoleIds = new Set((handoversRes.data ?? []).map((h) => h.role_id))
+    /* Generated is not delivered. `phase` stays keyed on a pack EXISTING —
+     * that is the phase the role is in — while the archive keys on the pack
+     * having actually reached the employer, which is the fact that ends it. */
+    const deliveredByRole = new Map<string, string>()
+    for (const h of handoversRes.data ?? []) {
+      const at = h.delivered_at as string | null
+      if (!at) continue
+      const prev = deliveredByRole.get(h.role_id as string)
+      if (!prev || at < prev) deliveredByRole.set(h.role_id as string, at)
+    }
 
     // Latest audit row per role: the "last activity" line on role rows and
     // the raw material for the queue's Just happened view.
@@ -470,6 +480,7 @@ export async function GET() {
         status: role.status,
         created_at: role.created_at,
         closed_at: role.closed_at,
+        handed_over_at: deliveredByRole.get(role.id) ?? null,
         mine: role.created_by === ctx.userId,
         days_open: Math.max(1, Math.round((now - new Date(role.created_at).getTime()) / DAY)),
         candidate_count: mine.length,

@@ -2012,3 +2012,44 @@ a.ag-rh-next:hover { opacity: 0.86; }
 /* The second nav group: the desk around the work, set apart so eight items
  * read as two short lists rather than one long one. */
 .ag-nav-group { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ag-border); }
+
+/* ── The archive (16 September 2026) ────────────────────────────────────────
+ * A role leaves the live table when it is finished — closed by the recruiter,
+ * or its handover pack actually delivered to the employer. ROL-2408 and
+ * ROL-2410 were delivered on 24 August and were still in the live queue three
+ * weeks later, because only `closed` was being filtered on.
+ *
+ * DELIVERED IS NOT CLOSED, and this band refuses to tidy that away: closing
+ * starts the retention clock on every candidate attached to the role, so it
+ * stays a deliberate act and the row says it is still owed. Nothing here is
+ * deleted — erasure is the clock's job. */
+.ag-archive-toggle {
+  border: 1px solid var(--ag-line-2); background: var(--ag-paper); color: var(--ag-ink-2);
+  border-radius: var(--r-sm); padding: 4px 10px; cursor: pointer;
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.ag-archive-toggle:hover { background: var(--ag-bg-2); border-color: var(--ag-ink-3); color: var(--ag-ink); }
+
+.ag-archive { display: flex; flex-direction: column; gap: 2px; }
+.ag-archive-row {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 11px 12px; border-radius: var(--r-sm); text-decoration: none; color: inherit;
+  border: 1px solid transparent; transition: background 0.12s, border-color 0.12s;
+}
+.ag-archive-row:hover { background: var(--ag-bg-2); border-color: var(--ag-border); }
+/* Still open: it reads a shade louder than a closed one, because it carries
+ * an outstanding act rather than being history. */
+.ag-archive-row[data-open="true"] { background: var(--ag-tint-1); }
+.ag-archive-row[data-open="true"]:hover { background: var(--ag-tint-2); }
+
+.ag-archive-ref { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); color: var(--ag-ink-3); flex: none; }
+.ag-archive-title { font-size: var(--t-body); font-weight: 500; }
+.ag-archive-company { font-size: var(--t-small); color: var(--ag-ink-3); }
+.ag-archive-state { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); flex: none; }
+.ag-archive-state[data-owed="true"] { color: var(--ag-warn); }
+
+@media (max-width: 640px) {
+  .ag-archive-row { gap: 4px 10px; }
+  .ag-archive-state { width: 100%; }
+}

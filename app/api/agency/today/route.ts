@@ -44,6 +44,20 @@ export async function GET() {
     const rows = (roles ?? [])
       .map((r) => facts.get(r.id as string))
       .filter((f): f is NonNullable<typeof f> => !!f)
+      /**
+       * A DELIVERED HANDOVER TAKES A ROLE OUT OF THE LIVE QUEUE (16 Sep 2026).
+       *
+       * The query above already drops `closed`, but closing is a deliberate
+       * later act — it starts the retention clock — so a role can be finished
+       * in practice and still be open in the data. Two were: ROL-2408 and
+       * ROL-2410 had their packs delivered on 24 August and were still
+       * sitting in the live queue three weeks later.
+       *
+       * Delivery is the honest end: the employer becomes controller at that
+       * moment. The role is not closed here and must not be — it moves to the
+       * archive, which offers closing as the outstanding act it is.
+       */
+      .filter((f) => !f.pack?.deliveredAt)
       .map((f) => {
         const sub = deriveSubState(f)
         return {

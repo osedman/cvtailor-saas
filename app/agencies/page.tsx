@@ -88,6 +88,9 @@ const phaseLabel = (p: PhaseKey) => PHASES.find((x) => x.key === p)?.label ?? p
 interface RoleRow {
   id: string; ref: string; title: string; company: string; salary_band: string; status: string
   mine: boolean; days_open: number; candidate_count: number
+  /** When the pack actually reached the employer. Null until it does. */
+  closed_at?: string | null
+  handed_over_at?: string | null
   stage: number; stage_state: StageState; needs: string; needs_action: boolean
   phase?: "shortlist" | "interviews" | "handover"
   top_score: number | null; top_delta: number | null; top_original: number | null; top_name: string
@@ -281,6 +284,27 @@ export default function AgencyHomePage() {
   // The rail's stage and phase come from the dashboard payload the page
   // already fetches — merged by id, so no second request for a visual.
   const statusById = useMemo(() => new Map((data?.roles ?? []).map((r) => [r.id, r])), [data])
+
+  /**
+   * THE ARCHIVE (16 September 2026).
+   *
+   * A role leaves the live table when it is finished, and it is finished in
+   * one of two ways: the recruiter closed it, or its handover pack actually
+   * reached the employer. The second is the one that was missing — ROL-2408
+   * and ROL-2410 were delivered on 24 August and were still in the live queue
+   * three weeks later, which is what Ose was looking at.
+   *
+   * Delivered is NOT closed, and the archive says so rather than tidying the
+   * difference away: closing starts the retention clock on every candidate
+   * attached to the role, so it stays a deliberate act and the row offers it.
+   */
+  const archived = useMemo(() => {
+    const rows = (data?.roles ?? []).filter((r) => r.status === "closed" || r.handed_over_at)
+    const when = (r: RoleRow) => r.closed_at ?? r.handed_over_at ?? ""
+    return rows.slice().sort((a, b) => when(b).localeCompare(when(a)))
+  }, [data])
+  const [showArchive, setShowArchive] = useState(false)
+  const needsClosing = archived.filter((r) => r.status !== "closed").length
   const acts = (today ?? []).filter((r) => r.next.mode === "act").length
   const hour = new Date().getHours()
   const tail = hour >= 17 ? "before you log off" : hour >= 12 ? "this afternoon" : "this morning"
@@ -464,6 +488,65 @@ export default function AgencyHomePage() {
                 )}
               </section>
 
+              {/* ── Archive ──────────────────────────────────────────────
+                * Finished roles, out of the live table but never out of the
+                * record: the evidence, the audit trail and the pack all stay
+                * readable. Erasure is the retention clock's job, not this
+                * band's.
+                *
+                * Collapsed by default because it only grows, and a desk
+                * should not scroll past its own history to reach its work. */}
+              {archived.length > 0 && (
+                <section className="agd-band" aria-labelledby="agd-archive-h">
+                  <div className="agd-eyebrow-row">
+                    <h2 className="agd-eyebrow" id="agd-archive-h">Archive</h2>
+                    <span className="agd-rule" />
+                    {needsClosing > 0 && (
+                      <span className="agd-aside" style={{ color: "var(--ag-warn)" }}>
+                        {needsClosing} handed over, not yet closed
+                      </span>
+                    )}
+                    <button
+                      className="ag-archive-toggle"
+                      aria-expanded={showArchive}
+                      onClick={() => setShowArchive((v) => !v)}
+                    >
+                      {showArchive ? "Hide" : `Show ${archived.length}`}
+                    </button>
+                  </div>
+                  {showArchive && (
+                    <div className="ag-archive">
+                      {archived.map((r) => {
+                        const closed = r.status === "closed"
+                        return (
+                          <Link key={r.id} href={`/agencies/roles/${r.id}`} className="ag-archive-row" data-open={!closed}>
+                            <span className="ag-archive-ref">{r.ref}</span>
+                            <span className="ag-archive-title">{r.title}</span>
+                            <span className="ag-archive-company">{r.company}</span>
+                            <span className="ag-grow" />
+                            {/* The two endings are not the same thing, and the
+                                difference is a job somebody still owes. */}
+                            {closed ? (
+                              <span className="ag-archive-state">
+                                Closed{r.closed_at ? ` · ${new Date(r.closed_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""}
+                              </span>
+                            ) : (
+                              <span className="ag-archive-state" data-owed="true">
+                                Handed over{r.handed_over_at ? ` · ${new Date(r.handed_over_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""} · close it to start retention
+                              </span>
+                            )}
+                          </Link>
+                        )
+                      })}
+                      <p className="agd-aside" style={{ marginTop: 4 }}>
+                        Nothing here is deleted. Closing a role starts the retention clock on its
+                        candidates; erasure happens when that clock runs out, not when a role leaves
+                        this table.
+                      </p>
+                    </div>
+                  )}
+                </section>
+              )}
 
               <p className="agd-foot">
                 <b>NOTE</b> Tailr never rejects anyone automatically. Client declines are signals, not state changes, and every override is audited.

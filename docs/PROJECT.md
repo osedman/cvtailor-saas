@@ -5309,4 +5309,75 @@ including reverting to `loadMailEnv`.
 
 ---
 
-_Last updated: 15 September 2026_
+## 🗄️ 17 September 2026 — a finished role leaves the live table
+
+Ose: _"on the live roles, it shouldn't be there once the handover is there."_
+Figma frame 13, band A, approved. First of the three pieces.
+
+**My first diagnosis was wrong and worth recording.** I claimed closed roles
+were still listed, reasoning from `roleCards` mapping every role. They are
+not: `/api/agency/today` has always carried `.neq("status", "closed")`, and
+the live band renders `today`, not `roleCards`. Ose's actual words pointed at
+the real thing — **the handover**, not the status.
+
+**What was really happening.** Closing a role is a separate, deliberate act
+because it starts the retention clock on every candidate attached to it. So a
+role can be finished in practice and open in the data:
+
+| role | pack delivered | status | was in the live queue |
+|---|---|---|---|
+| ROL-2410 | **24 Aug** | draft | **yes** |
+| ROL-2408 | **24 Aug** | draft | **yes** |
+| ROL-2409, ROL-2413 | never delivered | draft | yes, correctly |
+| ROL-2411 | delivered | closed | already excluded |
+
+Two roles handed over three weeks earlier were still sitting in the live
+queue. And the same fact says something worse: **their retention clocks have
+never started**, because nobody closed them.
+
+### The fix, and the distinction it refuses to tidy away
+
+`today` now also drops a role whose pack has actually been **delivered** —
+keyed on `pack.deliveredAt`, which `RoleFacts` already carried, so no new
+query. Delivery is the honest end: the employer becomes controller at that
+moment.
+
+The archive holds both endings and **says which is which**, because the
+difference is a job somebody still owes. A closed role reads as history; a
+delivered-but-open one reads a shade louder, says "close it to start
+retention", and links through to do it.
+
+**It never closes a role by itself**, and there is a guard for that:
+auto-closing on delivery would start a retention clock nobody chose to start.
+The archive offers the act; it does not perform it.
+
+`phase` deliberately stays keyed on a pack EXISTING rather than being
+delivered — generating a pack IS the handover phase, and conflating them
+would have moved a role out of the live table the moment a draft was made.
+ROL-2409 and ROL-2413 have exactly that shape and must stay live.
+
+### A standing decision, reversed by the person who made it
+
+`agency-nav.test.ts` pinned **"the dashboard renders one band, and it is the
+roles"** — from Ose's 10 Sep walk, where the dashboard was cut to live roles
+and nothing else. The archive breaks that pin, so the pin is rewritten to
+encode the new rule (exactly two bands, Live roles and Archive) with the
+reason and both dates. The original intent is kept intact: the four bands
+removed on 10 Sep stay removed, and nothing expands into more.
+
+**Guards:** `role-archive.test.ts`, 13 pins, six probes all caught —
+including reverting the delivered filter, keying on a pack existing rather
+than delivered, collapsing the two endings into one, dropping the "nothing is
+deleted" promise, and auto-closing on delivery. Plus two more on the rewritten
+band pin.
+
+**Verified:** typecheck clean, 1,354 tests, production build clean, and the
+band rendered against the served CSS.
+
+**Left for Ose:** ROL-2408 and ROL-2410 are handed over and unclosed on
+staging right now. Closing them is a real act with a real consequence — it
+starts retention on their candidates — so it is his to press, not mine.
+
+---
+
+_Last updated: 17 September 2026_

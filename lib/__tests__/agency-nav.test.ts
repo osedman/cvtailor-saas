@@ -182,13 +182,21 @@ describe("every agency screen uses the shared nav", () => {
     expect(s).not.toMatch(/onSection=/)
   })
 
-  it("the dashboard renders one band, and it is the roles", () => {
+  it("the dashboard renders two bands: the live roles, and the archive", () => {
+    // Was ONE band. Ose cut the dashboard to live-roles-only on 10 Sep, then
+    // on 16 Sep asked for finished roles to leave that table and land
+    // somewhere — so the archive is his reversal of his own call, not drift.
+    //
+    // The original intent survives and is still pinned below: the four bands
+    // that were removed stay removed, and nothing here expands into more.
+    //
     // Comments stripped: the removed band names survive in the note that
     // explains why they went, and a scan of raw source would match those.
     const s = tsCode(read("app/agencies/page.tsx"))
     const bands = [...s.matchAll(/className="agd-eyebrow"/g)]
-    expect(bands).toHaveLength(1)
+    expect(bands).toHaveLength(2)
     expect(s).toMatch(/id="agd-roles-h">Live roles</)
+    expect(s).toMatch(/id="agd-archive-h">Archive</)
     for (const gone of ["Also needs you", "Briefs from your clients", ">Queue<", ">Desk health<"]) {
       expect(s, gone).not.toContain(gone)
     }
