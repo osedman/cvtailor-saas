@@ -386,6 +386,7 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                   remindEndpoint={`/api/hiring/roles/${roleId}/cohort`}
                   onChanged={() => void loadBoard()}
                   offerMoreHref={`/hiring/roles/${roleId}/interviews#setup-when`}
+                  roomHref={(ref) => `/hiring/roles/${roleId}/rounds/${encodeURIComponent(ref)}`}
                   releaseEndpoint={`/api/hiring/roles/${roleId}/cohort`}
                 />
               </section>

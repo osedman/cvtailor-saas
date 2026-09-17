@@ -484,3 +484,93 @@
   .hm-loop-rung { padding: 10px 4px; }
   .hm-loop-n { font-size: 18px; }
 }
+
+/* ── The interview room (17 September 2026) ─────────────────────────────────
+ * Figma frame 13 band B. One candidate, all their rounds, the one that needs
+ * them open.
+ *
+ * DENSITY IS DELIBERATELY DIFFERENT HERE. The recruiter's tables are dense
+ * because a recruiter scans; this is one person at reading size because a
+ * hiring manager is deciding about them. Same tokens, different rhythm — that
+ * difference is the design, not an inconsistency. */
+.hm-room { display: flex; flex-direction: column; gap: 18px; }
+/* As a page it needs its own top margin; in the modal the bar supplies it. */
+.hm-room[data-modal="false"] { margin-top: 22px; }
+
+.hm-room-head { display: flex; align-items: flex-start; gap: 16px; }
+.hm-room-name { font-family: var(--ag-display); font-size: 26px; line-height: 1.15; font-weight: 600; letter-spacing: var(--track-tight); margin: 0; text-wrap: balance; }
+.hm-room-sub { margin: 4px 0 0; font-size: var(--t-small); color: var(--ag-ink-2); }
+.hm-room-where { flex: none; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); background: var(--ag-tint-1); border-radius: var(--r-xs); padding: 4px 9px; }
+
+/* The chain. Reading down it should answer "what has already happened to this
+ * person" without leaving the room. */
+.hm-room-rounds { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;
+  background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); overflow: hidden; }
+.hm-room-round { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-top: 1px solid var(--ag-border); }
+.hm-room-round:first-child { border-top: none; }
+.hm-room-round[data-kind="now"] { background: var(--ag-tint-1); }
+.hm-room-round[data-kind="off"] { opacity: 0.6; }
+.hm-room-mark { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); flex: none; }
+.hm-room-round[data-kind="now"] .hm-room-mark { color: var(--ag-coral); }
+.hm-room-rn { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); flex: none; }
+.hm-room-round[data-kind="now"] .hm-room-rn { color: var(--ag-coral-deep); }
+.hm-room-when { font-size: var(--t-small); }
+.hm-room-state { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); flex: none; }
+
+/* What they are deciding against — the shortlist they approved weeks ago. */
+.hm-room-ev { background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.hm-room-ev-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.hm-room-ev-title { margin: 0; font-size: var(--t-body); font-weight: 600; }
+.hm-room-ev-meta { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); margin-left: auto; }
+.hm-room-ev-body { margin: 0; font-size: var(--t-small); line-height: 1.6; color: var(--ag-ink-2); max-width: 74ch; text-wrap: pretty; }
+.hm-room-ev-gaps { margin: 0; font-size: var(--t-small); line-height: 1.6; color: var(--ag-ink-2); }
+.hm-room-ev-gaps b { color: var(--ag-ink); font-weight: 600; }
+
+/* The write-up. The loudest thing in the room, because it is the one act. */
+.hm-room-act { background: var(--ag-tint-1); border: 1px solid var(--ag-coral); border-radius: var(--r-md); padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+.hm-room-act[data-quiet="true"] { background: var(--ag-paper); border-color: var(--ag-border); }
+.hm-room-eyebrow { margin: 0; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); }
+.hm-room-act[data-quiet="true"] .hm-room-eyebrow { color: var(--ag-ink-3); }
+.hm-room-act-title { margin: 0; font-family: var(--ag-display); font-size: 19px; font-weight: 600; letter-spacing: var(--track-tight); }
+.hm-room-title { margin: 0; font-family: var(--ag-display); font-size: 20px; font-weight: 600; }
+.hm-room-note { margin: 0; font-size: var(--t-small); line-height: 1.6; color: var(--ag-ink-2); max-width: 74ch; text-wrap: pretty; }
+.hm-room-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hm-room-save {
+  border: none; border-radius: var(--r-sm); padding: 10px 16px; cursor: pointer;
+  background: var(--ag-coral); color: var(--ag-cream);
+  font-family: var(--ag-sans); font-size: var(--t-body); font-weight: 500;
+  transition: background 0.12s, opacity 0.12s;
+}
+.hm-room-save:hover:not(:disabled) { background: var(--ag-coral-deep); }
+.hm-room-save:disabled { opacity: 0.45; cursor: default; }
+.hm-room-draft { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+
+/* The decision. Closed until the write-up is in — the gate is a rule, so it
+ * is stated in words above the row and not only implied by the disabling. */
+.hm-room-dec { background: var(--ag-paper); border: 1px solid var(--ag-line-2); border-radius: var(--r-md); padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+.hm-room-dec[data-open="false"] { opacity: 0.6; }
+.hm-room-dec[data-open="true"] { border-color: var(--ag-coral); }
+.hm-room-dec-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.hm-room-dec-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--ag-line-2); border-radius: var(--r-sm);
+  background: var(--ag-cream); color: var(--ag-ink-2);
+  padding: 10px 15px; cursor: pointer; font-family: var(--ag-sans); font-size: var(--t-body);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.hm-room-dec-btn:hover:not(:disabled) { background: var(--ag-bg-2); border-color: var(--ag-ink-3); color: var(--ag-ink); }
+.hm-room-dec-btn:disabled { opacity: 0.5; cursor: default; }
+.hm-room-dec-note { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+
+.hm-room-back { align-self: flex-start; border: none; background: none; cursor: pointer; padding: 0; color: var(--ag-ink-2); font-family: var(--ag-sans); font-size: var(--t-body); }
+.hm-room-back:hover { color: var(--ag-ink); }
+
+@media (pointer: coarse) {
+  .hm-room-dec-btn, .hm-room-save { min-height: 44px; }
+}
+@media (max-width: 640px) {
+  .hm-room-head { flex-direction: column; gap: 8px; }
+  .hm-room-round { flex-wrap: wrap; gap: 6px 10px; }
+  .hm-room-state { width: 100%; }
+  .hm-room-dec-btn { flex: 1 1 140px; justify-content: center; }
+}

@@ -5380,4 +5380,74 @@ starts retention on their candidates — so it is his to press, not mine.
 
 ---
 
+## 🚪 17 September 2026 — the interview room
+
+Ose: _"a pop-up window for each candidate ... a distinct UI that helps the hire
+manager perform those rounds and see the rounds."_ Figma frame 13 band B,
+approved. Second of three pieces.
+
+**It is a place, not a pop-up.** `/hiring/roles/[id]/rounds/[ref]` — a real
+URL that answers a cold load, because a write-up is exactly the thing somebody
+starts, gets called away from, and comes back to. Opened from the loop it is a
+panel over the loop; opened from a link it is a page. That is the same
+intercepting-route pattern candidate detail has used since 14 Sep, reused
+deliberately: a second, subtly different modal is how a product ends up with
+two answers to "how do I get out of this".
+
+**The gate is the submission, not the role.** A hiring manager holds a role; a
+recruiter may be interviewing somebody on that role they never submitted — a
+bench candidate, a second wave, somebody met speculatively. Opening a room on
+"there is a round on a role you hold" would disclose that person's existence.
+The gate is `getClientShortlist`, and everything the room says about the
+PERSON comes out of the frozen submission snapshot rather than the live
+candidate row. The candidates table is read for `id` alone, to find the
+rounds.
+
+404 rather than 403 when there is no room: "never sent to you" and "does not
+exist" must look identical from outside.
+
+**The write-up still gates the decision**, and the gate reads from the server
+falling back to this tab — component state alone meant a client who wrote one
+up and reloaded got an empty box and no way through.
+
+**The draft survives.** Kept per ROUND id, so two candidates' half-written
+impressions cannot land on each other; written as they type; cleared once it
+has become a record so it cannot resurface on the next round as if it were
+about them. Every storage call is wrapped, because a private window is not a
+reason to fail.
+
+### The bug this uncovered: "round 2 of 2" was a guess
+
+Both hiring-manager screens passed `planned={2}` as a **literal** while
+`job_roles.planned_rounds` has been a real field set at intake. **A
+three-round process was being told it was on its final round** — and "the last
+round" is exactly what this piece had to get right. `planned_rounds` now
+travels with every `HiringRound`, and no screen hardcodes it.
+
+The plan is still never a gate: the room SAYS "this was the last planned
+round" and offers close-out, but refuses nothing. A fourth round after three
+planned stays allowed, as `next-action.ts` has always insisted.
+
+### What the frame promised and the schema cannot say
+
+Frame 13 showed "Priya has not written hers yet". **It is not buildable.**
+`round_artifacts.round_id` is UNIQUE — one write-up per round, with no author
+on it — so per-interviewer write-ups do not exist in this data model. Left out
+rather than faked, and pinned so nobody adds the words without adding the
+schema. If two interviewers each owing a write-up is real, that is a migration
+and a decision, not a label.
+
+**Guards:** `interview-room.test.ts`, 25 pins. Seven probes, all caught —
+gating on the role instead of the submission, letting through a candidate who
+was never sent, taking the person's name from the live row, dropping the
+server-side write-up gate, leaving the draft behind after a decision, deleting
+the slot's `default.tsx`, and turning the planned count into a gate.
+
+**Verified:** typecheck clean, 1,379 tests, production build clean — the build
+output lists `(.)rounds/[candidateRef]` alongside the real page, which is the
+intercept registering. Rendered against the served CSS in the dark chain
+across three states.
+
+---
+
 _Last updated: 17 September 2026_

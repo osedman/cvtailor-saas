@@ -64,6 +64,7 @@ export function CohortBoard({
   remindEndpoint,
   onChanged,
   offerMoreHref,
+  roomHref,
   releaseEndpoint,
 }: {
   board: BoardData
@@ -73,6 +74,12 @@ export function CohortBoard({
   onChanged: () => void
   /** Where the client goes to offer more windows. */
   offerMoreHref?: string
+  /**
+   * Where a row opens for the client: the interview room for that candidate.
+   * Only the client gets one — a recruiter does not perform rounds, and a
+   * door into somebody else's write-up would be the wrong shape entirely.
+   */
+  roomHref?: (candidateRef: string) => string
   /** POST { release: true } sends the next wave. The client's act, not the recruiter's. */
   releaseEndpoint?: string
 }) {
@@ -203,6 +210,14 @@ export function CohortBoard({
               <span className={`ag-pill ag-cohort-status ${STATUS_TONE[m.status]}`}>{STATUS_LABEL[m.status]}</span>
               <span className="ag-cohort-when">{whenText(m.scheduledAt, m.durationMinutes)}</span>
               <span className="ag-cohort-act">
+                {/* The way into the room. Present whenever there is a round to
+                    look at — a hiring manager should be able to see what they
+                    already said, not only what is owed. */}
+                {hat === "client" && roomHref && (
+                  <a className="ag-btn" href={roomHref(m.candidateRef)}>
+                    {m.status === "feedback_due" ? "Write it up" : "Open"}
+                  </a>
+                )}
                 {m.status === "awaiting" && (
                   <button className="ag-btn" disabled={busy === m.roundId} onClick={() => void remind(m.roundId)}>
                     {busy === m.roundId ? "Sending…" : m.chase ? "Chase" : "Send again"}

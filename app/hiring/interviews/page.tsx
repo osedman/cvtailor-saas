@@ -214,7 +214,7 @@ export default function HiringInterviewsPage() {
                         {[...role.byCandidate.entries()].map(([ref, list]) => (
                           <div key={ref} className="hm-loop-row">
                             <span className="ag-meta" style={{ minWidth: 64 }}>{ref}</span>
-                            <RoundProgress rounds={list} planned={2} />
+                            <RoundProgress rounds={list} planned={list[0]?.planned_rounds ?? 2} />
                           </div>
                         ))}
                       </div>

@@ -270,6 +270,8 @@ export interface HiringRound {
   contact_id: string
   role_id: string
   role_title: string
+  /** The role's own plan. Never a literal — see client-auth.ts. */
+  planned_rounds: number
   candidate_ref: string
   round_number: number
   scheduled_at: string | null

@@ -747,13 +747,21 @@ export async function getHiringDashboard(ctx: HiringContext): Promise<HiringDash
   // company_context stay on the recruiter's side of the wall.
   const roleIds = [...new Set(roundRows.map((r) => r.role_id as string).filter(Boolean))]
   const roleTitles = new Map<string, string>()
+  /* How many rounds this role PLANS. Both hiring-manager screens rendered
+   * "of 2" as a literal until 17 Sep 2026 while job_roles.planned_rounds was
+   * a real field set at intake — so a three-round process was told it was on
+   * its final round, and "the last round" could not mean anything. */
+  const rolePlanned = new Map<string, number>()
   if (roleIds.length > 0) {
     const { data: roles, error: roleError } = await admin
       .from("job_roles")
-      .select("id, title")
+      .select("id, title, planned_rounds")
       .in("id", roleIds)
     if (roleError) throw roleError
-    for (const role of roles ?? []) roleTitles.set(role.id as string, (role.title as string) ?? "")
+    for (const role of roles ?? []) {
+      roleTitles.set(role.id as string, (role.title as string) ?? "")
+      rolePlanned.set(role.id as string, (role.planned_rounds as number | null) ?? 2)
+    }
   }
 
   // Candidate REFS for the rounds. `id, ref` — the select is this narrow on
@@ -845,6 +853,7 @@ export async function getHiringDashboard(ctx: HiringContext): Promise<HiringDash
       contact_id: r.contact_id as string,
       role_id: r.role_id as string,
       role_title: roleTitles.get(r.role_id as string) ?? "",
+      planned_rounds: rolePlanned.get(r.role_id as string) ?? 2,
       candidate_ref: candidateRefs.get(r.candidate_id as string) ?? "",
       round_number: r.round_number as number,
       scheduled_at: (r.scheduled_at as string | null) ?? null,
