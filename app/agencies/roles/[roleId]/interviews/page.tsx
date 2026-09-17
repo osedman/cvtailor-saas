@@ -32,6 +32,7 @@ import { AgencyNav } from "@/components/agency/agency-nav"
 import { InterviewCapture } from "@/components/agency/interview-capture"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
 import { CohortBoard, type BoardData } from "@/components/agency/cohort-board"
+import { loopState, type LoopState, type RoundFacts } from "@/lib/agency/next-action"
 import { SignOut } from "@/components/agency/sign-out"
 
 interface Candidate {
@@ -69,6 +70,54 @@ interface RoundRow {
   captureConsentStatus: string
   clientDecision: { decision: string; note: string; decidedAt: string } | null
   hasDebrief: boolean
+  /** Both already travel on AgencyRoundRow; the shared ladder reads them. */
+  candidateResponse: "pending" | "confirmed" | "declined"
+  createdAt: string
+}
+
+
+/**
+ * What a recruiter can actually DO about each state, and who they are waiting
+ * on when the answer is nothing.
+ *
+ * NO BUTTON WHEN IT IS NOT YOURS. There is no endpoint that nudges a client
+ * for a write-up or a decision — remindCohortMember re-sends a BOOKING link
+ * and refuses once a slot is held — so those rows carry the wait and no
+ * control. Frame 13 drew a "Nudge Owen" button; it does not exist, and a
+ * button that cannot do anything is worse than none.
+ */
+function rank(s: LoopState): number {
+  switch (s.kind) {
+    case "close-out": return 0   // yours, and it ends the loop
+    case "to-book": return 1     // yours
+    case "write-up-due": return 2
+    case "decision-due": return 3
+    case "invited": return 4
+    case "booked": return 5
+    case "on-hold": return 6
+    case "declined": return 7
+  }
+}
+
+function says(s: LoopState, planned: number): { state: string; waiting: string; tone: "act" | "wait" | "done" } {
+  switch (s.kind) {
+    case "close-out":
+      return { state: `Advanced after round ${s.round.roundNumber} of ${planned} planned`, waiting: "yours to take to close-out", tone: "act" }
+    case "to-book":
+      return { state: `Round ${s.nextRound} to book`, waiting: "yours to book", tone: "act" }
+    case "write-up-due":
+      return { state: `Round ${s.round.roundNumber} happened`, waiting: "waiting on the client's write-up", tone: "wait" }
+    case "decision-due":
+      return { state: `Round ${s.round.roundNumber} written up`, waiting: "waiting on the client's decision", tone: "wait" }
+    case "invited":
+      return { state: `Round ${s.round.roundNumber} invited`, waiting: "waiting on the candidate to pick a time", tone: "wait" }
+    case "booked":
+      return { state: `Round ${s.round.roundNumber} booked`, waiting: "waiting on the interview", tone: "wait" }
+    case "on-hold":
+      return { state: `Held after round ${s.round.roundNumber}`, waiting: "not this wave", tone: "done" }
+    case "declined":
+      return { state: "Not for this role", waiting: "a signal, not a removal", tone: "done" }
+  }
 }
 
 function fmtDay(iso: string): string {
@@ -165,6 +214,53 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
    * index on (role_id, candidate_id, round_number) is status-agnostic, so a
    * cancelled round 1 means the next one really is round 2. Filtering them out
    * here would promise "Round 1" and then book "Round 2". */
+  /**
+   * THE LOOP, ONE ROW PER CANDIDATE (17 Sep 2026, frame 13 band C).
+   *
+   * A recruiter is not performing interviews — they are watching several at
+   * once and clearing what blocks them. So this answers a different question
+   * from the hiring manager's room: not "what do I write about this person"
+   * but "who is stuck, and on whom".
+   *
+   * It runs the SAME ladder the role header runs (loopState, exported from
+   * next-action.ts) rather than a second one. Two derivations of "where is
+   * this person" would disagree the first time either changed, and they would
+   * do it on the same screen.
+   */
+  const loopRows = useMemo(() => {
+    const planned = role?.plannedRounds ?? 2
+    const byCandidate = new Map<string, RoundRow[]>()
+    for (const r of rounds) {
+      const list = byCandidate.get(r.candidateRef) ?? []
+      list.push(r)
+      byCandidate.set(r.candidateRef, list)
+    }
+    return [...byCandidate.entries()]
+      .map(([ref, list]) => {
+        const facts: RoundFacts[] = list.map((r) => ({
+          candidateRef: r.candidateRef,
+          roundNumber: r.roundNumber,
+          status: r.status,
+          createdAt: r.createdAt,
+          scheduledAt: r.scheduledAt,
+          endsAt: r.scheduledAt
+            ? new Date(new Date(r.scheduledAt).getTime() + r.durationMinutes * 60_000).toISOString()
+            : null,
+          candidateResponse: r.candidateResponse,
+          hasDebrief: r.hasDebrief,
+          decision: (r.clientDecision?.decision as RoundFacts["decision"]) ?? null,
+          decidedAt: r.clientDecision?.decidedAt ?? null,
+        }))
+        const last = [...list].sort((a, b) => b.roundNumber - a.roundNumber)[0]
+        return { ref, name: last?.candidateName || ref, last, state: loopState(facts, planned) }
+      })
+      .filter((r) => r.state !== null)
+      /* Ordered the way a desk reads it: what is yours, then what somebody
+       * else owes, then what is settled. Same instinct as the dashboard's
+       * "broken before stalled, stalled before merely waiting". */
+      .sort((a, b) => rank(a.state!) - rank(b.state!))
+  }, [rounds, role])
+
   const nextRound = useMemo(() => {
     if (!candidateId) return 1
     const mine = rounds.filter((r) => r.candidateId === candidateId)
@@ -347,6 +443,14 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
             const inLoop = candidates
               .map((c) => ({ c, theirs: rounds.filter((r) => r.candidateId === c.id && r.status !== "cancelled").sort((a, b) => a.roundNumber - b.roundNumber) }))
               .filter((x) => x.theirs.length > 0)
+              /* Ordered the way a desk reads it: what is yours, then what
+               * somebody else owes, then what is settled. The list was in
+               * candidate order, which buries the one row that needs you. */
+              .sort((a, b) => {
+                const sa = loopRows.find((x) => x.ref === a.c.ref)?.state
+                const sb = loopRows.find((x) => x.ref === b.c.ref)?.state
+                return (sa ? rank(sa) : 99) - (sb ? rank(sb) : 99)
+              })
             if (inLoop.length === 0) return null
             const planned = role?.plannedRounds ?? 2
             return (
@@ -359,26 +463,25 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                     const last = theirs[theirs.length - 1]
                     const declined = theirs.find((r) => r.clientDecision?.decision === "decline")
                     const lastDecided = last?.status === "completed" ? last.clientDecision : null
-                    // What happens next, in one honest sentence.
-                    let nextLine: string
-                    let done = false
-                    if (declined) {
-                      nextLine = `Client declined at round ${declined.roundNumber} — their signal, not a removal. ${c.full_name} stays on the role.`
-                      done = true
-                    } else if (last?.status === "scheduled") {
-                      nextLine = `Round ${last.roundNumber} is booked — nothing owed until it happens.`
-                    } else if (last && last.status === "completed" && !last.hasDebrief) {
-                      nextLine = `Round ${last.roundNumber} happened — waiting on the client's write-up.`
-                    } else if (last && last.status === "completed" && !lastDecided) {
-                      nextLine = `Write-up is in for round ${last.roundNumber} — waiting on the client's decision.`
-                    } else if (lastDecided && last.roundNumber >= planned) {
-                      nextLine = `Cleared all ${last.roundNumber} round${last.roundNumber === 1 ? "" : "s"} — advancing. Close-out is next.`
-                      done = true
-                    } else if (lastDecided) {
-                      nextLine = `Advancing after round ${last.roundNumber} — round ${last.roundNumber + 1} of ${planned} to book.`
-                    } else {
-                      nextLine = "Nothing outstanding."
-                    }
+                    /* WHAT HAPPENS NEXT — from the SHARED ladder.
+                     *
+                     * This was an if/else chain that reimplemented loopState
+                     * inline: a second derivation of "where is this person",
+                     * on the same screen as the role header that runs the
+                     * first. They would have disagreed the first time either
+                     * changed. loopState is exported now and both read it.
+                     *
+                     * The words still live here, because a recruiter and a
+                     * hiring manager need different sentences about the same
+                     * fact — but the FACT is computed once. */
+                    const state = loopRows.find((x) => x.ref === c.ref)?.state ?? null
+                    const said = state ? says(state, planned) : null
+                    const nextLine = said
+                      ? declined
+                        ? `Client declined at round ${declined.roundNumber} — their signal, not a removal. ${c.full_name} stays on the role.`
+                        : `${said.state} — ${said.waiting}.`
+                      : "Nothing outstanding."
+                    const done = state?.kind === "close-out" || state?.kind === "declined"
                     return (
                       <div key={c.id} className="ag-card ag-loop-card">
                         <div className="ag-loop-head">

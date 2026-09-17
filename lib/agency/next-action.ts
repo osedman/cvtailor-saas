@@ -156,8 +156,17 @@ export interface NextAction {
 
 // ── The ladder ──────────────────────────────────────────────────────────────
 
-/** Where each candidate's loop stands, from their rounds alone. */
-type LoopState =
+/**
+ * Where each candidate's loop stands, from their rounds alone.
+ *
+ * EXPORTED 17 September 2026 for the recruiter's interview table, which asks
+ * the same question per candidate that deriveSubState asks once per role.
+ * Exporting it rather than writing a second ladder is the whole point: two
+ * derivations of "where is this person" would disagree the first time either
+ * changed, and the recruiter's table and the role header would then contradict
+ * each other on the same screen.
+ */
+export type LoopState =
   | { kind: "declined" }
   | { kind: "close-out"; round: RoundFacts }
   | { kind: "to-book"; nextRound: number; since: string | null; candidateRef: string }
@@ -167,7 +176,7 @@ type LoopState =
   | { kind: "booked"; round: RoundFacts }
   | { kind: "on-hold"; round: RoundFacts }
 
-function loopState(rounds: RoundFacts[], planned: number): LoopState | null {
+export function loopState(rounds: RoundFacts[], planned: number): LoopState | null {
   if (rounds.length === 0) return null
   const live = rounds.filter((r) => r.status !== "cancelled")
   if (rounds.some((r) => r.decision === "decline")) return { kind: "declined" }

@@ -5450,4 +5450,62 @@ across three states.
 
 ---
 
+## 🪞 17 September 2026 (later) — the recruiter's loop table: one ladder, not two
+
+Frame 13 band C, the last of the three pieces. **Most of it already existed**,
+and saying so is the honest report: the role's Interviews screen already had
+per-candidate rows, the round lanes, the client's note, "Book round N+1" and
+"Take to close-out →".
+
+What it also had was a **second implementation of the ladder**. An if/else
+chain derived "what happens next" inline — declined, booked, write-up due,
+decision due, cleared-all-rounds, advancing — while `deriveSubState` ran the
+real one for the role header **on the same screen**. Two derivations of "where
+is this person" do not stay equal; they disagree the first time either
+changes, and these would have disagreed in front of the recruiter, about one
+candidate, on one page.
+
+So `loopState` is exported from `next-action.ts` and both read it. The WORDS
+stay local on purpose — a recruiter and a hiring manager need different
+sentences about the same fact — but the fact is computed once.
+
+**And the list is ordered now**: what is yours, then what somebody else owes,
+then what is settled. It was in candidate order, which buries the single row
+that needs the recruiter.
+
+### The button frame 13 drew that does not exist
+
+The frame showed **"Nudge Owen"** beside a row waiting on the client's
+write-up. There is no such endpoint: `remindCohortMember` re-sends a BOOKING
+link and refuses outright once a slot is held. Nothing in the product chases a
+client for a write-up or a decision.
+
+So those rows carry the wait and no control — the same rule the hiring
+manager's dashboard follows, and the same judgement that removed the dead
+"Open every quote". A dead button is worse than none. **If chasing a client is
+something a recruiter should be able to do, that is a feature with an email in
+it, not a label.**
+
+**Guards:** `recruiter-loop-table.test.ts`, 12 pins — and unusually for this
+repo they are half BEHAVIOURAL rather than source scans, because exporting
+`loopState` finally made the ladder callable from a test. One of them is the
+`planned={2}` bug written as an assertion: advancing at round 2 of a
+three-round plan must NOT reach close-out.
+
+Five probes, all caught: reinstating the inline ladder, closing the loop a
+round early, letting a decline stop settling it, letting the decision come
+before the write-up, and dropping the ordering.
+
+**Verified:** typecheck clean, 1,391 tests, production build clean.
+
+### The three pieces are done
+
+Archive (`a25f44a`), the interview room (`e9bcfd5`), and this. What is still
+open from the design, and deliberately not built: **per-interviewer write-ups**
+— `round_artifacts.round_id` is UNIQUE, so "both interviewers have written up"
+is not a thing this schema can say, and frame 13 promised it. That is a
+migration and a product decision, not a label.
+
+---
+
 _Last updated: 17 September 2026_
