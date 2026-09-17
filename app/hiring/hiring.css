@@ -361,6 +361,25 @@
 /* Interviews summary rows on the dashboard. */
 .hm-round-line { display: flex; align-items: center; gap: 12px; padding: 12px 16px; text-decoration: none; }
 
+/* Waiting on you · across every role — 18 Sep 2026.
+   The row is who / what / the one act, and it must WRAP rather than push the
+   act off the edge: .ag-screen-head losing its primary action at 375px is a
+   live defect on five recruiter screens and this must not join them. The
+   action keeps its own line on a narrow viewport instead of being clipped. */
+.hm-across-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; }
+.hm-across-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 220px; }
+.hm-across-what { flex: 2 1 280px; min-width: 0; color: var(--ag-ink-2); line-height: 1.5; }
+/* A wait is calm on purpose: nothing here turns red because time passed. */
+.hm-across-what[data-mode="wait"],
+.hm-across-what[data-mode="done"] { color: var(--ag-ink-3); }
+.hm-across-wait { flex: none; white-space: nowrap; }
+.hm-across-row .agd-tbtn { flex: none; }
+
+@media (max-width: 620px) {
+  .hm-across-row { align-items: flex-start; }
+  .hm-across-row .agd-tbtn { width: 100%; text-align: center; }
+}
+
 /* One candidate's lanes on the client side. */
 .hm-loop-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
 

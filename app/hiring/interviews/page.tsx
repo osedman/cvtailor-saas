@@ -30,12 +30,39 @@ import {
   SlotChip,
 } from "@/components/agency/hm-shared"
 import type { HiringDashboard, HiringRound } from "@/lib/agency/types"
+import type { NextAction } from "@/lib/agency/next-action"
 
 type Screen = "loading" | "unauthed" | "not_linked" | "error" | "ready"
+
+/**
+ * One next action per role, from /api/hiring/today — the SAME ladder the
+ * dashboard and the role header read.
+ *
+ * WHY THIS SCREEN NEEDED IT (18 Sep 2026, Ose walked the loop). Every band
+ * below fills only once somebody has BOOKED. Before the first booking this
+ * page had nothing on it, correctly, and no way to say so — four empty bands
+ * and a sentence telling you to go back to the role you came from. Meanwhile
+ * a role was waiting on this very person to choose who to interview, and the
+ * dashboard knew.
+ *
+ * So the screen gains what it was always missing: the across-roles question.
+ * The dashboard answers "what is the one thing now" for a single role; a
+ * role's own cohort screen answers "where is this cohort". Nobody answered
+ * "what do I owe, anywhere" — which is the only reason to open a nav item
+ * called Interviews when you hold six live roles.
+ *
+ * Nothing is derived here. The route already sorts acts before waits.
+ */
+interface TodayRow {
+  role: { id: string; ref: string; title: string; company: string; recruiterName: string | null }
+  subState: { key: string; chip: string }
+  next: NextAction
+}
 
 export default function HiringInterviewsPage() {
   const [screen, setScreen] = useState<Screen>("loading")
   const [data, setData] = useState<HiringDashboard | null>(null)
+  const [today, setToday] = useState<TodayRow[] | null>(null)
   const [refresh, setRefresh] = useState(0)
   const reload = () => setRefresh((n) => n + 1)
 
@@ -52,6 +79,20 @@ export default function HiringInterviewsPage() {
         if (!body.dashboard) return setScreen("error")
         setData(body.dashboard)
         setScreen("ready")
+
+        /* The ladder is fetched SECOND and never gates the screen. If it
+           fails, the three reporting bands below are still correct and still
+           render; the across-roles band simply does not appear. A failed load
+           must not read as an empty one, and it must not take the page with
+           it either. */
+        try {
+          const t = await fetch("/api/hiring/today")
+          if (!live || !t.ok) return
+          const tb = (await t.json()) as { roles?: TodayRow[] }
+          setToday(Array.isArray(tb.roles) ? tb.roles : [])
+        } catch {
+          /* leave it null — the band stays away */
+        }
       } catch {
         if (live) setScreen("error")
       }
@@ -97,6 +138,13 @@ export default function HiringInterviewsPage() {
     [rounds]
   )
   const decided = useMemo(() => rounds.filter((r) => r.latest_decision), [rounds])
+
+  /* Split, not filtered: a role where nothing is yours is still worth a line,
+     because "nothing for you" is the answer to the question this screen is
+     being asked. Showing only the acts would leave a person who owes nothing
+     staring at an empty band again — the exact fault this fixes. */
+  const yours = useMemo(() => (today ?? []).filter((r) => r.next.mode === "act"), [today])
+  const theirs = useMemo(() => (today ?? []).filter((r) => r.next.mode !== "act"), [today])
 
   const links = data?.links ?? []
   const slots = data?.slots ?? []
@@ -161,7 +209,16 @@ export default function HiringInterviewsPage() {
                     ? `${upcoming.length} interview${upcoming.length === 1 ? "" : "s"} coming up.`
                     : stillChoosing > 0
                       ? `${stillChoosing} candidate${stillChoosing === 1 ? " is" : "s are"} choosing a time.`
-                      : "Nothing is waiting on you."}
+                      : /* Nothing owed is not the same as nothing happening.
+                           Before the first booking every band below is empty
+                           by construction, and the honest headline is what
+                           IS waiting — which sits earlier in the loop, on
+                           another screen. Saying "nothing is waiting on you"
+                           over a role that was waiting on you is how this
+                           screen read as broken. */
+                        yours.length > 0
+                        ? `Nothing owed yet. ${yours.length === 1 ? "One role is" : `${yours.length} roles are`} waiting on you.`
+                        : "Nothing is waiting on you."}
               </h1>
               <p className="agd-sub">
                 Meet the person, write up what happened, then advance or not. The write-up comes
@@ -169,6 +226,58 @@ export default function HiringInterviewsPage() {
                 removes anyone; it is your signal on the round.
               </p>
             </section>
+
+            {/* ── 0. Waiting on you, across every role ─────────────────────
+                 Added 18 Sep 2026. Reads /api/hiring/today, which already
+                 answers this per role and already sorts acts first — no
+                 second ladder, no new endpoint, no derived state. The rows
+                 carry exactly one control each, and only where there is
+                 genuinely something to press. */}
+            {today !== null && today.length > 0 && (
+              <section className="agd-band hm-across" aria-labelledby="hm-across">
+                <div className="agd-eyebrow-row">
+                  <h2 className="agd-eyebrow" id="hm-across">
+                    Waiting on you · across every role
+                  </h2>
+                  <span className="agd-rule" />
+                  <span className="agd-aside">
+                    {yours.length === 0
+                      ? "nothing outstanding"
+                      : `${yours.length} of ${today.length}`}
+                  </span>
+                </div>
+                <div className="ag-stack" style={{ gap: 10 }}>
+                  {[...yours, ...theirs].map((r) => (
+                    <article key={r.role.id} className="agd-card hm-static hm-across-row">
+                      <span className="hm-across-who">
+                        <span className="agd-eyebrow">{r.role.title}</span>
+                        <span className="ag-meta">
+                          {r.role.ref}
+                          {r.role.company ? ` · ${r.role.company}` : ""}
+                        </span>
+                      </span>
+                      <span className="hm-across-what" data-mode={r.next.mode}>
+                        {r.next.title}
+                      </span>
+                      {/* NO BUTTON WHEN IT IS NOT YOURS. A wait carries the
+                          party it is waiting on and no control — the same
+                          rule the recruiter's loop table keeps, and the
+                          reason there is no "Nudge" anywhere in this
+                          product. */}
+                      {r.next.mode === "act" && r.next.cta ? (
+                        <Link className="agd-tbtn primary" href={r.next.cta.href}>
+                          {r.next.cta.label} →
+                        </Link>
+                      ) : (
+                        <span className="ag-meta hm-across-wait">
+                          {r.next.mode === "done" ? "nothing outstanding" : r.next.waitingOn.label}
+                        </span>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* ── 1. What you owe ─────────────────────────────────────────── */}
             <section className="agd-band" aria-labelledby="hm-owed">

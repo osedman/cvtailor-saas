@@ -28,6 +28,9 @@ const route = read("app/api/agency/rounds/[roundId]/transcript/route.ts")
 const cron = read("app/api/agency/cron/route.ts")
 const migration = read("supabase/migrations/20260817140000_agency_transcription_jobs.sql")
 const hiring = read("lib/agency/rounds.ts")
+// Scanned as CODE: the module explains the rule in prose, so a raw scan
+// would match its own documentation — the trap source-scan.ts exists for.
+const debriefModule = code(read("lib/agency/round-debrief.ts"))
 
 describe("no vendor is wired in", () => {
   it("defaults to the synthetic provider", () => {
@@ -131,7 +134,34 @@ describe("the client never sees the raw transcript", () => {
   it("the hiring-manager surface does not read artifact content", () => {
     // §5.7: structured evidence and quotes only. The consent copy promises
     // the people interviewing you are not handed the tape.
+    //
+    // rounds.ts is a MIXED module — offerSlot, withdrawSlot and decideRound
+    // all take a HiringContext — so it may not read artifact content at all,
+    // even for a recruiter. On 18 Sep 2026 the recruiter's round detail
+    // needed the write-up text and this fired; the read moved to
+    // round-debrief.ts rather than the rule being loosened. The two
+    // assertions below keep that move honest.
     expect(hiring).not.toMatch(/round_artifacts[\s\S]{0,200}content/)
+  })
+
+  it("the module that DOES read write-ups is recruiter-only, and debrief-only", () => {
+    // Moving a forbidden read into a new file is only legitimate while that
+    // file cannot be reached by a hiring manager. If either assertion ever
+    // fails, the read has followed the client through the door.
+    expect(debriefModule).not.toMatch(/HiringContext/)
+    expect(debriefModule).toMatch(/\.eq\("kind", "debrief"\)/)
+
+    // ONE query, and it carries the filter. Counting matters: a second,
+    // unfiltered read of the same table would satisfy a bare "does the string
+    // appear" check while fetching transcripts. Filtered in the QUERY and not
+    // after it, because a transcript row's mere existence discloses that a
+    // candidate consented to being recorded — discarding the text afterwards
+    // does not undo that.
+    const queries = debriefModule.match(/\.from\("round_artifacts"\)/g) ?? []
+    expect(queries).toHaveLength(1)
+    const q = debriefModule.slice(debriefModule.indexOf('.from("round_artifacts")'))
+    const statement = q.slice(0, q.indexOf("\n  if (error)"))
+    expect(statement).toMatch(/\.eq\("kind", "debrief"\)/)
   })
 
   it("the verify route is recruiter-scoped, not client-scoped", () => {

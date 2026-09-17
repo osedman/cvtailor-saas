@@ -31,7 +31,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { SignOut } from "@/components/agency/sign-out"
-import { DECISION_LABEL, EmptyBand, HiringNav, fmtWhen } from "@/components/agency/hm-shared"
+import { EmptyBand, HiringNav, fmtWhen } from "@/components/agency/hm-shared"
 import Link from "next/link"
 import type {
   HiringBrief,
@@ -737,42 +737,31 @@ export default function HiringDashboardPage() {
                   Open interviews →
                 </Link>
               </div>
-              {/* A summary, deliberately: the write-ups, decisions and your
-                  diary live on the Interviews screen now. Performing all of it
-                  on the dashboard is how this page became a corridor with the
-                  furniture of four rooms in it. */}
+              {/*
+                A SIGNPOST, NOT A SECOND LIST (18 Sep 2026, Ose: "remove any
+                duplication").
+
+                This band used to render up to four round rows — the same
+                rounds, with the same pills, that /hiring/interviews renders
+                in full. Two screens listing one dataset means two places to
+                keep right and two places to read before you trust either.
+                The Interviews screen owns the rounds; the dashboard owns the
+                one thing that needs you now. So this says how much is over
+                there and opens the door, and nothing else.
+              */}
               {actionable.length > 0 ? (
-                <div className="ag-stack" style={{ gap: 8 }}>
-                  {actionable.slice(0, 4).map((r) => (
-                    <Link key={r.id} href="/hiring/interviews" className="agd-card hm-static hm-round-line">
-                      <span className="ag-grow" style={{ minWidth: 0 }}>
-                        <span className="agd-eyebrow">
-                          {r.role_title} · round {r.round_number} · {r.candidate_ref}
-                        </span>
-                        <span className="hm-round-when">
-                          {r.scheduled_at ? fmtWhen(r.scheduled_at) : "No time set"}
-                        </span>
-                      </span>
-                      {r.latest_decision ? (
-                        <span className="ag-pill">{DECISION_LABEL[r.latest_decision]}</span>
-                      ) : r.status === "completed" ? (
-                        <span className="ag-pill warn">{r.has_debrief ? "Needs your decision" : "Needs your write-up"}</span>
-                      ) : (
-                        <span className="ag-pill">Scheduled</span>
-                      )}
-                    </Link>
-                  ))}
-                  {(actionable.length > 4 || slots.length > 0) && (
-                    <p className="agd-aside">
-                      {actionable.length > 4 ? `${actionable.length - 4} more on the interviews screen. ` : ""}
-                      Your availability ({slots.length} window{slots.length === 1 ? "" : "s"} offered) is managed there too.
-                    </p>
-                  )}
-                </div>
+                <p className="agd-aside">
+                  {actionable.length === 1 ? "One round is" : `${actionable.length} rounds are`} live on the
+                  Interviews screen, with the write-up and your decision on the same card
+                  {slots.length > 0
+                    ? `, and the ${slots.length} window${slots.length === 1 ? "" : "s"} you have offered`
+                    : ""}
+                  .
+                </p>
               ) : (
                 <EmptyBand
                   title="No interviews yet."
-                  body="Rounds appear on the Interviews screen, with the write-up and your decision on the same card — and that is where you offer the times you are free. Nothing moves on a candidate until you have had your say."
+                  body="Rounds appear on the Interviews screen, with the write-up and your decision on the same card — and that screen also lists every role waiting on you, across all of them. Nothing moves on a candidate until you have had your say."
                 />
               )}
             </section>

@@ -29,6 +29,8 @@
 import { getInterviewSettings } from "./interview-settings"
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
 import { mintBookingToken, sendBookingInvite } from "./booking"
+// Recruiter-only, and in its own module on purpose — see round-debrief.ts.
+import { readDebriefs, type RoundDebrief } from "./round-debrief"
 import type {
   AgencyContext,
   HiringContext,
@@ -292,10 +294,29 @@ export interface AgencyRoundRow {
    * by design (§5.5: the HM writes notes the recruiter can see); append-only
    * upstream, so "latest" is the live one and history stays on the dossier. */
   clientDecision: { decision: string; note: string; decidedAt: string } | null
-  /** The client has written the round up. The content lives on the dossier;
-   * this is the flag the selection screen sequences on ("no artifact, no
-   * progression"). */
+  /** The client has written the round up. The flag the selection screen
+   * sequences on ("no artifact, no progression"). */
   hasDebrief: boolean
+  /**
+   * What the write-up actually SAYS, for the round detail card.
+   *
+   * Until 18 Sep this module read `round_id` alone, so the recruiter's screen
+   * knew a write-up existed and could not show a word of it — the text was
+   * two screens away, on the dossier, while the decision it explains sat
+   * here. Ose walked the loop and said so.
+   *
+   * The write-up is the CLIENT's sentence about the hour they spent with
+   * somebody. It is shown whole and unedited; nothing parses it, scores it,
+   * or derives a signal from it, and `writtenBy` is carried so the screen
+   * never attributes a recruiter's own note to the client. There is no author
+   * beyond that — the artifact row is UNIQUE per round, one write-up with no
+   * author column — so the UI must not imply a person.
+   *
+   * kind='debrief' only. The other kind is 'transcript', which exists solely
+   * where a candidate consented, and reading it unfiltered would leak that
+   * consent by inference.
+   */
+  debrief: RoundDebrief | null
   /** The candidate's answer to the booking invite; 'pending' until they act. */
   candidateResponse: "pending" | "confirmed" | "declined"
   createdAt: string
@@ -348,20 +369,15 @@ export async function listRoundsForRole(
   // other kind is 'transcript', which exists only where the candidate
   // consented, so an unfiltered read would leak consent by inference.
   const roundIds = rounds.map((r) => r.id as string)
-  const [{ data: decisionRows }, { data: debriefRows }] = await Promise.all([
+  const [{ data: decisionRows }] = await Promise.all([
     admin
       .from("round_decisions")
       .select("round_id, decision, note, created_at")
       .eq("agency_id", ctx.agencyId)
       .in("round_id", roundIds)
       .order("created_at", { ascending: false }),
-    admin
-      .from("round_artifacts")
-      .select("round_id")
-      .eq("agency_id", ctx.agencyId)
-      .eq("kind", "debrief")
-      .in("round_id", roundIds),
   ])
+  const debriefs = await readDebriefs(ctx, roundIds)
   const latestDecision = new Map<string, { decision: string; note: string; decidedAt: string }>()
   for (const d of decisionRows ?? []) {
     const key = d.round_id as string
@@ -373,8 +389,6 @@ export async function listRoundsForRole(
       })
     }
   }
-  const debriefed = new Set((debriefRows ?? []).map((a) => a.round_id as string))
-
   return rounds.map((r) => ({
     id: r.id as string,
     candidateId: r.candidate_id as string,
@@ -388,7 +402,8 @@ export async function listRoundsForRole(
     company: byContact.get(r.contact_id as string) ?? "",
     captureConsentStatus: (r.capture_consent_status as string) ?? "pending",
     clientDecision: latestDecision.get(r.id as string) ?? null,
-    hasDebrief: debriefed.has(r.id as string),
+    hasDebrief: debriefs.written.has(r.id as string),
+    debrief: debriefs.body.get(r.id as string) ?? null,
     candidateResponse: ((r.candidate_response as string) ?? "pending") as "pending" | "confirmed" | "declined",
     createdAt: (r.created_at as string) ?? "",
   }))

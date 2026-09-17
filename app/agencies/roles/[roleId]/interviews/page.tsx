@@ -34,6 +34,10 @@ import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header
 import { CohortBoard, type BoardData } from "@/components/agency/cohort-board"
 import { loopState, type LoopState, type RoundFacts } from "@/lib/agency/next-action"
 import { SignOut } from "@/components/agency/sign-out"
+// The one neutral decision vocabulary, shared with the client's own screens —
+// a decline is a state for the ROUND, never a verdict on the person, and the
+// recruiter must read the same words the client pressed.
+import { DECISION_LABEL } from "@/components/agency/hm-shared"
 
 interface Candidate {
   id: string
@@ -70,6 +74,14 @@ interface RoundRow {
   captureConsentStatus: string
   clientDecision: { decision: string; note: string; decidedAt: string } | null
   hasDebrief: boolean
+  /** What the write-up says, so the decision and its reasoning are readable in
+   * the same place. Null when nobody has written the round up yet. */
+  debrief: {
+    notes: string
+    answers: Array<{ key: string; question: string; answer: string }>
+    writtenBy: "hiring_manager" | "recruiter" | ""
+    writtenAt: string
+  } | null
   /** Both already travel on AgencyRoundRow; the shared ladder reads them. */
   candidateResponse: "pending" | "confirmed" | "declined"
   createdAt: string
@@ -761,6 +773,74 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                       </p>
                     )}
                   </div>
+                  {/*
+                    THE DECISION, AND THE WORDS BEHIND IT (18 Sep 2026, Ose's
+                    walk). The loop table knew a write-up existed and could not
+                    show a syllable of it; the text sat on the dossier, two
+                    screens from the decision it explains. A recruiter reading
+                    "advanced" without the reasoning has to go and find it, or
+                    ring the client and ask them to say it again.
+
+                    Shown whole and unedited. Nothing scores it, ranks it or
+                    derives a signal from it — no tone, no sentiment, no
+                    confidence. It is a person's sentence about an hour they
+                    spent with another person, and that is the whole product's
+                    argument.
+
+                    ATTRIBUTION STOPS AT THE HAT. round_artifacts.round_id is
+                    UNIQUE — one write-up per round, no author column — so this
+                    says "the client" or "your note" from written_by and never
+                    names anybody. Two interviewers cannot be told apart here,
+                    and pretending otherwise is the open decision in the
+                    handoff, not something to paper over in a card.
+                  */}
+                  {r.status !== "cancelled" && (r.clientDecision || r.debrief) && (
+                    <div className="ag-round-say">
+                      {r.clientDecision && (
+                        <p className="ag-round-say-head">
+                          <span className="ag-pill">{DECISION_LABEL[r.clientDecision.decision as keyof typeof DECISION_LABEL] ?? r.clientDecision.decision}</span>
+                          <span className="ag-meta">
+                            the client&apos;s call
+                            {r.clientDecision.decidedAt ? `, ${fmtDay(r.clientDecision.decidedAt)}` : ""} · append only
+                          </span>
+                        </p>
+                      )}
+                      {r.clientDecision?.note && (
+                        <p className="ag-round-say-note">{r.clientDecision.note}</p>
+                      )}
+
+                      {r.debrief && (r.debrief.notes || r.debrief.answers.length > 0) ? (
+                        <div className="ag-round-writeup">
+                          <p className="ag-field-label">
+                            {r.debrief.writtenBy === "recruiter" ? "Your write-up" : "The client's write-up"}
+                            <span className="ag-meta" style={{ marginLeft: 8, textTransform: "none", letterSpacing: 0 }}>
+                              in their words · not edited, not scored
+                              {r.debrief.writtenAt ? ` · ${fmtDay(r.debrief.writtenAt)}` : ""}
+                            </span>
+                          </p>
+                          {r.debrief.notes && <p className="ag-round-writeup-body">{r.debrief.notes}</p>}
+                          {r.debrief.answers.length > 0 && (
+                            <dl className="ag-round-answers">
+                              {r.debrief.answers.map((a) => (
+                                <div key={a.key} className="ag-round-answer">
+                                  <dt>{a.question || a.key}</dt>
+                                  <dd>{a.answer || <span className="ag-meta">left blank</span>}</dd>
+                                </div>
+                              ))}
+                            </dl>
+                          )}
+                        </div>
+                      ) : (
+                        r.hasDebrief && (
+                          /* The flag says written up and the body is empty —
+                             a real state (saved with nothing in it), not an
+                             error, and it must not read as a failed load. */
+                          <p className="ag-meta">Written up, but nothing was typed into it.</p>
+                        )
+                      )}
+                    </div>
+                  )}
+
                   {/* Recording folded away: it is an attachment to the round,
                       not a gate on reviewing it. Rendered as a wall of BLOCKED
                       panels it read as the flow being broken, when the truth is

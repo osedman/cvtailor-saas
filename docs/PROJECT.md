@@ -5509,3 +5509,111 @@ migration and a product decision, not a label.
 ---
 
 _Last updated: 17 September 2026_
+
+---
+
+## 🚶 18 September 2026 — the first walk, and the two things it found
+
+**The loop was walked by a person for the first time.** Ose opened ROL-2416 on
+staging, got as far as the hiring manager's workspace, and found two faults that
+no amount of structural verification had surfaced — because both are about what
+a screen says when it has nothing to say.
+
+Figma frame **14 · Interviews · the across-roles screen, and the recruiter's
+read** (`424:2` on `AWRRbEOX6rLsltutFDL3zs`), drawn and signed off before any
+code, as the rules require.
+
+### 1. `/hiring/interviews` was a screen with nothing to do on it
+
+His words: *"the screen just does nothing."* He was right, and nothing was
+broken. All three of its bands — what you owe, the loop role by role, what is
+coming up — fill only once a candidate has BOOKED. Before the first booking the
+page is empty by construction, and it had no way to say so: four empty bands
+and a sentence sending you back to the role you came from.
+
+Meanwhile ROL-2416 was waiting on him at that exact moment, and the dashboard
+knew.
+
+**What it was missing was the across-roles question.** The dashboard answers
+"what is the one thing now" for a single role. A role's own cohort screen
+answers "where is this cohort". Nobody answered *"what do I owe, anywhere?"* —
+which is the only reason to open a nav item called Interviews when you hold six
+live roles.
+
+So the screen gained one band above the three it already had: **Waiting on you ·
+across every role**, reading `/api/hiring/today` — the same ladder the dashboard
+and the role header read. No second derivation, no new endpoint, no new state.
+The empty headline changed from "Nothing is waiting on you" to "Nothing owed
+yet. Two roles are waiting on you."
+
+- The ladder is fetched SECOND and never gates the page: if it fails the three
+  reporting bands still render. A failed load must not read as an empty one —
+  and must not take the screen with it either.
+- Roles where nothing is yours still get a line. "Nothing for you" is the answer
+  to the question being asked; filtering them out would leave a person who owes
+  nothing staring at an empty band again.
+- **No button where it is not yours.** A wait carries the party and no control.
+  Frame 13 drew "Nudge Owen"; it still does not exist and is still not built.
+
+### 2. The recruiter could see that a write-up existed, not what it said
+
+`getRoundFacts` selected `round_id` from `round_artifacts` and nothing else, so
+the loop table knew a write-up existed and could not show a syllable. The text
+was two screens away on the dossier, while the decision it explains sat on the
+interviews screen. A recruiter reading "advanced" with no reasoning has to go
+hunting, or ring the client and ask them to say it again.
+
+The write-up now renders in **Round detail**, under the decision, whole and
+unedited. Nothing parses it, scores it, or derives a signal from it.
+`written_by` decides whether it reads as "The client's write-up" or "Your
+write-up", and no name is ever shown — `round_artifacts.round_id` is UNIQUE, so
+there is one write-up per round and no author column to read. Per-interviewer
+attribution remains the open migration + product decision, not something to
+paper over in a card.
+
+### 3. The duplication is gone
+
+The dashboard was rendering up to four round rows that `/hiring/interviews`
+renders in full — one dataset, two screens, two places to keep right. The
+dashboard band is now a signpost: how much is over there, and the door. The
+Interviews screen owns rounds; the dashboard owns the one thing that needs you
+now.
+
+### A guardrail fired, and was strengthened rather than loosened
+
+Moving the write-up text into `lib/agency/rounds.ts` failed
+`agency-transcription.test.ts` — **correctly**. That module is MIXED: hiring
+managers call `offerSlot`, `withdrawSlot` and `decideRound` from it, so a
+file-level scan forbids ANY read of `round_artifacts.content` there. §5.7 and
+the consent copy both promise the client is never handed the tape, and a
+file-level regex cannot tell a recruiter-scoped query from a client-scoped one
+ten lines away.
+
+The read moved to a new recruiter-only module, `lib/agency/round-debrief.ts`,
+which takes an `AgencyContext` and never a `HiringContext`. `rounds.ts` now
+contains **zero** references to `round_artifacts` — strictly stricter than
+before. Two new assertions keep the move honest: the module may not mention
+`HiringContext`, and its single query must carry `.eq("kind", "debrief")`
+(filtered in the query, not after it — a transcript row's mere existence
+discloses that a candidate consented).
+
+**Both were probe-mutated before being believed.** Dropping the `kind` filter
+failed the suite; widening the context to accept a `HiringContext` failed the
+suite; the file was restored and the suite is green. The first draft of the
+guard also matched the module's own documentation, which is the seventh time
+that trap has been hit — it now scans `code(...)` like the rest of the file.
+
+### Verified
+
+- `tsc --noEmit` clean; **1392 tests pass**, 1 skipped.
+- All three touched routes serve 200 from the dev server.
+- The new CSS was confirmed in the **served chunk**, not read from disk.
+- Measured at 375px inside an `<iframe width="375">` with a `width:100%`
+  control div reporting a genuine 324px viewport: the row's primary action
+  wraps to its own line and is **not clipped**, and the write-up card does not
+  overflow, clip, or scroll the page sideways. Body copy computes as Geist, not
+  mono.
+
+**Not verified, and cannot be from here:** neither screen has been seen signed
+in. Both need Ose's session on staging — which is the next step of the walk,
+not a substitute for it.
