@@ -71,9 +71,20 @@ describe("the seeding script cannot wander into production", () => {
   it("does not delete anything it did not just create", () => {
     const src = code()
     const deletes = [...src.matchAll(/\.delete\(\)/g)]
-    // Exactly one: the rollback of a role this script created seconds earlier
-    // when its candidates fail. Any other delete needs its own argument.
-    expect(deletes.length).toBe(1)
-    expect(src).toMatch(/from\("job_roles"\)\.delete\(\)\.eq\("id", roleId\)/)
+
+    /*
+     * EVERY delete must be the rollback of a role this script created seconds
+     * earlier — `job_roles`, by the `roleId` it just minted, and nothing else.
+     *
+     * This was a count ("exactly one") until 18 Sep 2026, when the clone gained
+     * two more rollback paths for the same role and the count failed while the
+     * rule itself was never broken. A count is a proxy; it fails on safe
+     * changes and would pass a dangerous one that replaced the existing delete
+     * rather than adding to it. So the assertion now says the actual thing:
+     * every delete in the file is that exact shape.
+     */
+    const rollbacks = [...src.matchAll(/from\("job_roles"\)\.delete\(\)\.eq\("id", roleId\)/g)]
+    expect(deletes.length).toBeGreaterThan(0)
+    expect(rollbacks.length).toBe(deletes.length)
   })
 })

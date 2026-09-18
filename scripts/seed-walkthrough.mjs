@@ -134,10 +134,32 @@ function die(msg) {
   process.exit(1);
 }
 
+/**
+ * NEVER HAND-MAINTAIN A SELECT LIST. 18 September 2026.
+ *
+ * This read used to name six columns — id, ref, title, company, agency_id,
+ * status — and `cloneRole` spreads the row it returns straight into the new
+ * role. So the clone copied six columns and silently dropped every other one
+ * the table has.
+ *
+ * ROL-2416, the role built for the walk-through, therefore came into the
+ * world with **no client contact**. The entire /hiring surface is
+ * contact-scoped, so a hiring manager could never see it: the recruiter's
+ * screen said "the client is choosing who to interview" and the client had
+ * nothing. It also lost jd_raw, location, salary_band, seniority and
+ * company_context. Ose found it by walking the loop.
+ *
+ * This is the second time this exact class has cost us a day —
+ * BRIEF_CONVERSION_COLUMNS omitted jd_raw and accepted briefs minted roles
+ * with an empty intake box. Every other read in this file already uses "*";
+ * this was the only one that did not. `assertClonedFaithfully` below now
+ * makes the failure loud rather than silent, because the next column added to
+ * job_roles must not be able to do this again.
+ */
 async function findRole(ref) {
   const { data, error } = await db
     .from("job_roles")
-    .select("id, ref, title, company, agency_id, status")
+    .select("*")
     .eq("ref", ref)
     .maybeSingle();
   if (error) die(`Could not read job_roles: ${error.message}`);
@@ -325,6 +347,9 @@ async function cloneRole(role) {
   });
   if (roleErr) die(`Could not create the role: ${roleErr.message}`);
 
+  // Checked before anything hangs off it, so a rollback is still just one row.
+  await assertClonedFaithfully(role, roleId);
+
   const reqMap = new Map();
   if (requirements.length) {
     const rows = requirements.map((r) => {
@@ -409,6 +434,58 @@ async function cloneRole(role) {
  *
  * The general rule this encodes: never clone a column the database generates.
  */
+/**
+ * Did the clone actually carry the source's content across?
+ *
+ * A `select("*")` fixes today's bug. It does not stop tomorrow's: a column
+ * dropped by a stray `stripIds` entry, a default that overwrites a copied
+ * value, or a future insert that picks fields by hand would all fail the same
+ * silent way — a role that looks complete and is missing the one column some
+ * other surface joins on.
+ *
+ * So the clone is checked by EFFECT, the way everything in this repo is
+ * supposed to be: read the new row back out of the database and compare it
+ * with the source, column by column. Any column the source had filled and the
+ * copy has not is named and the clone is rolled back.
+ *
+ * Deliberately ignored: identity and bookkeeping (a clone MUST differ there),
+ * and `status`, which is reset to draft on purpose. Everything else is
+ * content, and content is what a walk-through needs.
+ */
+const CLONE_MAY_DIFFER = new Set([
+  "id", "ref", "title", "status", "created_at", "updated_at",
+  "candidate_seq", "closed_at",
+]);
+
+async function assertClonedFaithfully(source, roleId) {
+  const { data: copy, error } = await db
+    .from("job_roles")
+    .select("*")
+    .eq("id", roleId)
+    .maybeSingle();
+  if (error || !copy) {
+    await db.from("job_roles").delete().eq("id", roleId);
+    die(`Could not read the new role back to check it (${error?.message ?? "no row"}). Rolled it back.`);
+  }
+
+  const filled = (v) => v !== null && v !== undefined && v !== "";
+  const lost = Object.keys(source).filter(
+    (col) => !CLONE_MAY_DIFFER.has(col) && filled(source[col]) && !filled(copy[col])
+  );
+
+  if (lost.length > 0) {
+    await db.from("job_roles").delete().eq("id", roleId);
+    die(
+      `The clone lost ${lost.length} column${lost.length === 1 ? "" : "s"}: ${lost.join(", ")}.\n` +
+        `  Rolled the new role back; nothing was left behind.\n` +
+        `  This is the check that exists because ROL-2416 was minted without a contact_id\n` +
+        `  and no hiring manager could see it. Fix the copy, do not widen the ignore list\n` +
+        `  unless the column genuinely must differ between a role and its clone.`
+    );
+  }
+  return lost;
+}
+
 function stripIds(row) {
   const out = { ...row };
   for (const col of ["id", "created_at", "updated_at", "rights_token"]) delete out[col];

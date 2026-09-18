@@ -5617,3 +5617,72 @@ that trap has been hit — it now scans `code(...)` like the rest of the file.
 **Not verified, and cannot be from here:** neither screen has been seen signed
 in. Both need Ose's session on staging — which is the next step of the walk,
 not a substitute for it.
+
+---
+
+## 🧬 18 September 2026 — the clone that lost its client
+
+**ROL-2416 could never have been seen by a hiring manager.** Its `contact_id`
+was NULL, and the whole `/hiring` surface is contact-scoped. The recruiter's
+role header said *"the client is choosing who to interview"* while no client
+was attached to the role at all.
+
+### Root cause: a hand-maintained SELECT list
+
+`scripts/seed-walkthrough.mjs` → `findRole` read six columns
+(`id, ref, title, company, agency_id, status`) and `cloneRole` spreads that row
+straight into the new role. So the clone copied six columns and silently
+dropped the rest. Confirmed against ROL-2411, the role it was cloned from,
+ROL-2416 lost:
+
+`contact_id · jd_raw · location · salary_band · seniority · company_context · created_by`
+
+Every OTHER read in that script — requirements, candidates, evidence, scores —
+already used `select("*")`. This was the only one that did not.
+
+**Second time this class has cost a day.** `BRIEF_CONVERSION_COLUMNS` omitted
+`jd_raw`, and accepted briefs minted roles with an empty intake box, silently.
+The rule in the skill is already written: never hand-maintain a SELECT list.
+
+### The fix, and the guard
+
+`findRole` now selects `*`. That fixes today; it does not stop tomorrow, so
+`assertClonedFaithfully` reads the new role back **out of the database** and
+compares it with the source column by column. Anything the source had filled
+and the copy has not is named, and the role is rolled back before anything
+hangs off it. Identity and bookkeeping are exempt (`id`, `ref`, `title`,
+`status`, timestamps, `candidate_seq`, `closed_at`) — a clone must differ
+there; everything else is content.
+
+**Probed against the real failure**, read-only, with the ignore-list parsed out
+of the shipping source rather than retyped: the guard reports all seven lost
+columns including `contact_id`, and a self-compare returns empty — no false
+positives.
+
+### A safety test was strengthened rather than bumped
+
+The new rollback paths broke `seed-script-safety.test.ts`, which asserted
+`deletes.length === 1`. The rule was never broken — all three deletes are the
+same "roll back the role this script minted seconds ago" — but a COUNT is a
+proxy: it fails on safe additions and would pass a dangerous change that
+REPLACED the existing delete instead of adding to it. It now asserts the real
+constraint: every `.delete()` in the file is
+`from("job_roles").delete().eq("id", roleId)`. Probe-mutated — a delete against
+`candidates` fails it.
+
+### Still open from this walk
+
+- **ROL-2416's `contact_id` must be set by hand** before the walk can continue;
+  the clone fix does not repair a role already minted. Ose has the SQL.
+- **The recruiter's banner claims a delivery that did not happen.** ROL-2416's
+  submission was generated as `document` format with **0 recipients** — a file
+  the recruiter hands over themselves, naming no client — and the UI still says
+  "Shortlist of 2 sent to the client." A submission row exists, so the screen
+  asserts delivery. That is the `200 {enabled:false}` lesson wearing copy.
+  **Not yet fixed; next.**
+- Worth noting for the record: the role only appeared on the HM *dashboard* at
+  all because seeded windows were pinned to it under Meridian Health's contact,
+  and `client-header.ts` discovers a contact's roles via
+  `availability_slots.role_id`. The dashboard found it through a slot; the role
+  screen found nothing. A role can therefore reach a client through a side door
+  its own `contact_id` never opened — which is arguably its own defect.
