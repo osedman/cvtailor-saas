@@ -184,6 +184,21 @@ export async function ingestCandidate(
     }
 
     // 5. Original file to storage (compliance asset; same purge lifecycle).
+    //
+    // THE POINTER IS WHAT MAKES THE FILE ERASABLE. `purge_candidate` finds a
+    // CV through `cv_storage_path` and nothing else, so a blob whose pointer
+    // was never written cannot be reached by an erasure request, a retention
+    // purge, or a person asking to be forgotten. It is not "a file we lost
+    // track of" — it is a CV that survives its own deletion, silently.
+    //
+    // This update was unchecked until 19 September 2026: the upload's error
+    // was handled and the update's was discarded, so a failed write left the
+    // file orphaned with nothing logged. Found while tracing 22 orphans in
+    // the staging bucket.
+    //
+    // On failure the blob is removed immediately, because the alternative is
+    // keeping a file nobody can ever delete. Losing the compliance copy is
+    // recoverable — the recruiter re-uploads — and is the lesser harm.
     if (input.file) {
       const safeName = input.file.name.replace(/[^\w.\-]+/g, "_").slice(-80)
       const path = `${ctx.agencyId}/${roleId}/${candidate.id}/${safeName}`
@@ -191,8 +206,30 @@ export async function ingestCandidate(
         .from("agency-cvs")
         .upload(path, input.file.buffer, { contentType: input.file.contentType })
       if (!uploadError) {
-        await admin.from("candidates").update({ cv_storage_path: path }).eq("id", candidate.id)
-        candidate.cv_storage_path = path
+        const { error: pointerError } = await admin
+          .from("candidates")
+          .update({ cv_storage_path: path })
+          .eq("id", candidate.id)
+
+        if (pointerError) {
+          console.error(
+            "[ingest] could not record cv_storage_path; removing the orphan:",
+            pointerError.message
+          )
+          const { error: cleanupError } = await admin.storage.from("agency-cvs").remove([path])
+          // Both failed: the file is now unreachable by every erasure path
+          // there is. Loud, and named as what it is, because this is the
+          // line a data-protection answer is written from.
+          if (cleanupError) {
+            console.error(
+              "[ingest] ORPHANED CV — pointer unwritten and blob not removed:",
+              path,
+              cleanupError.message
+            )
+          }
+        } else {
+          candidate.cv_storage_path = path
+        }
       }
     }
 

@@ -5852,3 +5852,64 @@ block, and that the name is never assumed.
 
 **Still to do: this migration has not been applied to tailr-staging.** It must
 run BEFORE the deployed code reads it, per the standing rule.
+
+---
+
+## 🧷 19 September 2026 — a CV that survived its own deletion
+
+Tracing the 22 orphaned files in the staging `agency-cvs` bucket. The headline:
+**nothing in the app deletes a candidate outside the purge path.** All three
+`purge_candidate` callers — remove-added-in-error, rights requests, and the
+retention cron — correctly remove the blob afterwards. That part was sound.
+
+The orphans come from deletion being **fire-and-forget**, by four routes:
+
+1. **The purge path itself, when storage removal fails.** The RPC deletes the
+   row first; if the storage call then fails the cron logs it and moves on.
+   Its own comment says so: *"the next run will NOT retry these paths."*
+2. **`ingest.ts` — the pointer write was unchecked.** The upload's error was
+   handled and the `cv_storage_path` update's was discarded. **Fixed below.**
+3. **Any cascade from deleting a role.** `job_roles → candidates` is ON DELETE
+   CASCADE and nothing collects storage paths first. No app route deletes a
+   role, so this is manual SQL — which is most of how staging got here,
+   `reset-walkthrough.sql` included.
+4. **Cloned candidates share a blob.** `seed-walkthrough.mjs` copies
+   `cv_storage_path`, so two rows point at one file; purging either deletes it
+   and leaves the other dangling.
+
+**And nothing reconciles the bucket.** Recordings have a sweep in the cron;
+CVs have none. So an orphan from any route is permanent *and* invisible, which
+is why 22 sat there unnoticed.
+
+### Why it matters past staging
+
+`purge_candidate` finds a CV through `cv_storage_path` and nothing else. A blob
+whose pointer was never written **cannot be reached by an erasure request**. An
+Art 17 request would complete successfully and leave the file behind. That is
+§8.2 of `LEGAL-REVIEW-PACK.md` moving from a residual risk we are carrying to a
+demonstrated defect.
+
+### Fixed now: the pointer write
+
+The `cv_storage_path` update is checked. On failure the blob is **removed
+immediately** — keeping it would mean keeping a file no erasure path can ever
+reach, and losing the compliance copy is recoverable (the recruiter
+re-uploads) where an unreachable CV is not. If both the write and the cleanup
+fail, it logs `ORPHANED CV` by name, because the last line of defence is a
+string somebody can search for.
+
+Four assertions, scanning code rather than the prose the module now carries
+(the source-scan trap, hit seven times here). **Probed: reverting to the
+pre-fix two-liner fails all four.**
+
+### Not fixed, deliberately
+
+The **reconciliation sweep** — list the bucket, subtract referenced paths,
+delete what is left past a grace period. It is the thing that would have found
+all 22, and it is the same shape as the recordings sweep already in the cron.
+Ose's call (19 Sep): do it **before the first real candidate**, not before the
+walk. Zero members of the public have ever been through the B2B product, so
+nothing is at risk today — but it must be a decision rather than something
+that gets forgotten. Routes 1, 3 and 4 above stay open until it exists.
+
+**1420 tests pass.**
