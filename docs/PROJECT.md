@@ -5686,3 +5686,66 @@ constraint: every `.delete()` in the file is
   `availability_slots.role_id`. The dashboard found it through a slot; the role
   screen found nothing. A role can therefore reach a client through a side door
   its own `contact_id` never opened — which is arguably its own defect.
+
+---
+
+## 🧾 18 September 2026 (later) — "sent" has to be earned
+
+**The recruiter's receipt claimed a delivery that never happened.** On ROL-2416
+it read *"Shortlist of 2 sent to the client. The interview workflow has
+started"* — over a submission generated as a **`document` with 0 recipients**,
+on a role with **no client contact at all**. Nothing had been sent, there was
+nobody to send it to, and the hiring manager's side was correctly empty the
+whole time.
+
+A submission ROW existing is not a delivery. That is the
+`200 {enabled:false}` lesson from CLAUDE.md wearing copy: the thing that should
+have changed is `recipients`, not the presence of a record.
+
+`handoffFor`'s own docstring already promised it *"never says 'sent' when
+nothing was"*. It does now.
+
+### The fix
+
+`RoleFacts.submission` gained `format` and `recipients`. The recipient count
+comes from rows `role-facts.ts` already reads for the client's actions, so it
+costs nothing. The `with-the-client` receipt now branches on **recipients, not
+format** — a zero-recipient email has delivered exactly as much as a document
+has:
+
+- **Delivered** → "Shortlist of N sent to {client}." Unchanged, now earned.
+- **Generated only** → "Shortlist of N generated as a document. Nothing has
+  been sent from Tailr." A document submission is not a failure — it is the
+  recruiter deliberately taking the shortlist away as a file — so it must not
+  read as one. But the next task is completely different, and the receipt has
+  to say which happened.
+- **Generated, and no client contact on the role** → "No client contact is on
+  this role, so nobody can act on it in Tailr. Add one, then send it to the
+  portal." The blocking fact, named, rather than left to be discovered by
+  opening an empty screen.
+
+### Why nothing caught it
+
+Two reasons, both fixed.
+
+1. **`handoffFor` had no tests at all.** It has five now, covering both
+   directions plus the no-contact case. Probe-mutated: forcing `delivered =
+   true` (the old behaviour) fails four of them.
+2. **The fixture was called `sent` and modelled no delivery** — no format, no
+   recipients. A mock that does not implement the thing its name promises will
+   agree with wrong code forever, which is the standing lesson about mocks in
+   this repo. `sent()` is now portal + 1 recipient, and `generatedOnly()` is
+   its honest sibling.
+
+One of the new assertions failed on its own correct copy first — `not
+.toMatch(/\bsent\b/)` against a sentence that legitimately says "Nothing has
+been **sent** from Tailr". The claim under test is "sent **to**", and the
+assertion says that now.
+
+### Judgement call, stated
+
+No Figma frame for this one. It is a copy-and-state correction inside an
+existing component whose layout does not change — not a new screen, a new
+section or a restyle. Frame 14 already covers the surfaces around it.
+
+**1397 tests pass.** Still not seen signed in; needs Ose's session, as before.

@@ -11,6 +11,7 @@ import { describe, it, expect } from "vitest"
 import {
   ageLabel,
   deriveSubState,
+  handoffFor,
   nextAction,
   type RoleFacts,
   type RoundFacts,
@@ -59,14 +60,31 @@ function round(over: Partial<RoundFacts> = {}): RoundFacts {
   }
 }
 
+/**
+ * A submission that genuinely WENT somewhere: to the portal, addressed to a
+ * named client contact.
+ *
+ * The format and recipient count were added 18 Sep 2026. Before that this
+ * fixture was called `sent` and modelled no delivery at all — which is
+ * exactly why nothing caught the receipt claiming "sent to the client" over a
+ * document submission with no recipients, on a role with no client. A mock
+ * that does not implement the thing its name promises will agree with wrong
+ * code forever.
+ */
 const sent = (over: Partial<NonNullable<RoleFacts["submission"]>> = {}) => ({
   generatedAt: "2026-09-03T09:00:00Z",
+  format: "portal",
+  recipients: 1,
   submitted: 3,
   decided: 0,
   advanced: 0,
   lastActionAt: null,
   ...over,
 })
+
+/** Generated and taken away as a file. Nothing left Tailr, nobody was named. */
+const generatedOnly = (over: Partial<NonNullable<RoleFacts["submission"]>> = {}) =>
+  sent({ format: "document", recipients: 0, ...over })
 
 describe("the shortlist ladder", () => {
   it("starts at intake with nothing parsed", () => {
@@ -289,5 +307,62 @@ describe("the module stays browser-safe", () => {
     // The only runtime import is the browser-safe phases module.
     const imports = [...code.matchAll(/^\s*import\s[^\n]*from\s+["']([^"']+)["']/gm)].map((m) => m[1])
     expect(imports).toEqual(["./phases"])
+  })
+})
+
+/**
+ * The receipt after a seam (handoffFor).
+ *
+ * UNTESTED UNTIL 18 SEPTEMBER 2026, which is how it came to claim a delivery
+ * that never happened. Its own docstring promised it "never says 'sent' when
+ * nothing was"; on ROL-2416 it said "Shortlist of 2 sent to the client" over a
+ * document submission with no recipients, on a role with no client contact at
+ * all — and the hiring manager's side was correctly empty the whole time.
+ *
+ * A submission ROW existing is not a delivery. Same shape as the
+ * `200 {enabled:false}` lesson: the thing that should have changed is
+ * recipients, not the presence of a record.
+ */
+describe("the receipt only claims what actually happened", () => {
+  const withClient = (submission: RoleFacts["submission"], over: Partial<RoleFacts> = {}) =>
+    facts({ phase: "interviews", submission, ...over })
+
+  it("says SENT when it went to a named recipient", () => {
+    const h = handoffFor(withClient(sent({ submitted: 2 })), "recruiter", "r1")
+    expect(h?.confirmed).toMatch(/Shortlist of 2 sent to Owen Castellano/)
+    expect(h?.then).toMatch(/chooses who to interview/)
+  })
+
+  it("never says SENT for a document nobody was addressed in", () => {
+    const h = handoffFor(withClient(generatedOnly({ submitted: 2 })), "recruiter", "r1")
+    // "sent TO" is the claim under test, not the word "sent" — the sentence
+    // legitimately says "Nothing has been sent from Tailr", and a blunter
+    // assertion failed on its own correct copy.
+    expect(h?.confirmed).not.toMatch(/sent to/i)
+    expect(h?.confirmed).toMatch(/generated as a document/)
+    expect(h?.confirmed).toMatch(/Nothing has been sent from Tailr/)
+  })
+
+  it("names the missing client contact, because that is the blocking fact", () => {
+    // No contact on the role means no hiring manager can see it at all, so
+    // the receipt must say so rather than leave it to be discovered by
+    // opening an empty screen. This is the ROL-2416 case exactly.
+    const h = handoffFor(withClient(generatedOnly({ submitted: 2 }), { clientName: null }), "recruiter", "r1")
+    expect(h?.then).toMatch(/No client contact is on this role/)
+    expect(h?.confirmed).not.toMatch(/\bsent to\b/i)
+  })
+
+  it("tells a recruiter WITH a client contact to send it themselves", () => {
+    const h = handoffFor(withClient(generatedOnly({ submitted: 2 })), "recruiter", "r1")
+    expect(h?.then).toMatch(/Send it to Owen Castellano yourself/)
+    expect(h?.then).not.toMatch(/No client contact/)
+  })
+
+  it("a zero-recipient EMAIL is not a delivery either", () => {
+    // The rule is recipients, not format. An email submission generated
+    // without anybody on it has sent exactly as much as a document has.
+    const h = handoffFor(withClient(generatedOnly({ format: "email", submitted: 2 })), "recruiter", "r1")
+    expect(h?.confirmed).toMatch(/generated as an email/)
+    expect(h?.confirmed).not.toMatch(/\bsent to\b/i)
   })
 })

@@ -88,7 +88,10 @@ export async function getRoleFactsBatch(
     admin.from("candidates").select("id, ref, role_id, parse_status").eq("agency_id", ctx.agencyId).in("role_id", liveIds),
     admin
       .from("submissions")
-      .select("id, role_id, snapshot, generated_at")
+      // `format` is load-bearing, not display: a document submission names no
+      // recipient and leaves Tailr as a file the recruiter hands over, so a
+      // receipt that says "sent to the client" would be inventing a delivery.
+      .select("id, role_id, snapshot, generated_at, format")
       .eq("agency_id", ctx.agencyId)
       .in("role_id", liveIds)
       .order("generated_at", { ascending: false }),
@@ -271,6 +274,13 @@ export async function getRoleFactsBatch(
       }
       submissionFacts = {
         generatedAt: submission.generated_at as string,
+        format: (submission.format as string) ?? "",
+        /* Whether it actually went to anybody. Counted from the rows that
+           already had to be read for the client's actions, so this costs
+           nothing. Zero is a real and common state — a document submission
+           has no recipients by design — and it is the difference between
+           "sent" and "generated". */
+        recipients: (recipientsBySubmission.get(submission.id as string) ?? []).length,
         submitted: submittedRefs.size,
         decided: [...acted].filter((r) => submittedRefs.has(r)).length,
         advanced: [...advanced].filter((r) => submittedRefs.has(r)).length,

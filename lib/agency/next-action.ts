@@ -87,6 +87,20 @@ export interface RoleFacts {
   decisionsCompleteAt: string | null
   submission: {
     generatedAt: string
+    /** 'document' | 'email' | 'portal' — how it left, if it left at all. */
+    format: string
+    /**
+     * How many client contacts it was actually addressed to.
+     *
+     * ZERO IS NORMAL AND MEANS SOMETHING. A `document` submission is a file
+     * the recruiter hands over themselves; it names no recipient and nothing
+     * leaves Tailr. Until 18 Sep 2026 the receipt could not tell that apart
+     * from a portal submission delivered to a named person, and said
+     * "Shortlist of 2 sent to the client" over a role that had no client
+     * contact at all. The row existed, so the screen asserted delivery —
+     * the same shape as the `200 {enabled:false}` lesson in CLAUDE.md.
+     */
+    recipients: number
     /** Candidates in the snapshot. */
     submitted: number
     /** Submitted candidates the client has acted on (any action). */
@@ -452,8 +466,54 @@ export function handoffFor(f: RoleFacts, hat: Hat, roleId: string): Handoff | nu
   const owner = next.mode === "act" ? "You" : next.waitingOn.label
   const task = next.mode === "act" ? next.title : other.mode === "act" ? other.title : next.title
   switch (sub.key) {
-    case "with-the-client":
-      return { confirmed: `Shortlist of ${f.submission?.submitted ?? 0} sent to ${client}. The interview workflow has started.`, owner, nextTask: task, then: `${client === "the client" ? "The client" : client} chooses who to interview and offers times; the candidates pick from them.` }
+    case "with-the-client": {
+      /*
+       * "SENT" HAS TO BE EARNED. 18 September 2026.
+       *
+       * This branch said "Shortlist of N sent to {client}. The interview
+       * workflow has started." on the strength of a submission row existing.
+       * On ROL-2416 that row was a `document` with no recipients, on a role
+       * with no client contact — so nothing had been sent, there was nobody
+       * to send it to, and the hiring manager's side was empty while this
+       * banner said the client had it. Ose found it by walking the loop.
+       *
+       * The docstring above this function already promised it "never says
+       * 'sent' when nothing was". It does now.
+       *
+       * A document submission is not a failure and must not read as one: it
+       * is the recruiter deliberately taking the shortlist away as a file.
+       * The receipt just has to say which of the two happened, because the
+       * next task is completely different — waiting on a client who has it,
+       * versus getting it to them yourself.
+       */
+      const sub2 = f.submission
+      const n = sub2?.submitted ?? 0
+      const delivered = (sub2?.recipients ?? 0) > 0
+      if (delivered) {
+        return {
+          confirmed: `Shortlist of ${n} sent to ${client}. The interview workflow has started.`,
+          owner,
+          nextTask: task,
+          then: `${client === "the client" ? "The client" : client} chooses who to interview and offers times; the candidates pick from them.`,
+        }
+      }
+      const asA = sub2?.format === "document" ? "a document" : sub2?.format === "email" ? "an email" : "a file"
+      return {
+        confirmed: `Shortlist of ${n} generated as ${asA}. Nothing has been sent from Tailr.`,
+        owner,
+        nextTask: task,
+        /*
+         * Two different absences, and the recruiter can only act on one of
+         * them. No contact on the role is the blocking one — there is nobody
+         * for the loop to wait on, and no hiring manager can see the role at
+         * all — so it is named plainly rather than left to be discovered by
+         * opening an empty screen.
+         */
+        then: f.clientName
+          ? `Send it to ${client} yourself, or generate it again to the portal so they can act on it in Tailr.`
+          : "No client contact is on this role, so nobody can act on it in Tailr. Add one, then send it to the portal.",
+      }
+    }
     case "windows-to-offer":
       return { confirmed: `${client} advanced ${plural(sub.n ?? 1, "candidate")}.`, owner, nextTask: task, then: "Each of them picks their own time from the windows offered." }
     case "round-to-book":
