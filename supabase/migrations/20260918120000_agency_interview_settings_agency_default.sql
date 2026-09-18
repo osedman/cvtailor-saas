@@ -31,11 +31,45 @@
 -- Idempotent: safe to re-run against staging and production.
 
 -- ── The primary key becomes two partial unique indexes ──────────────────────
-alter table agency.interview_settings
-  drop constraint if exists interview_settings_pkey;
+--
+-- ONE STATEMENT, ON PURPOSE. This was two ALTERs — drop the constraint, then
+-- drop NOT NULL — and it failed on tailr-staging on 19 Sep 2026 with
+-- `42P16: column "role_id" is in a primary key`: the second ran while the
+-- first had not taken, and because the editor runs a script in one
+-- transaction the whole migration rolled back, leaving nothing applied.
+--
+-- A DO block removes the question. The drop and the nullability change are
+-- now one statement executed in order, and the constraint is found BY LOOKUP
+-- rather than by assuming it is called `interview_settings_pkey` — a table
+-- whose key was ever rebuilt by hand would carry a different name and the
+-- `if exists` would have quietly matched nothing, which is the failure mode
+-- that wastes an afternoon.
+do $mig$
+declare
+  pk_name text;
+begin
+  select conname into pk_name
+  from pg_constraint
+  where conrelid = 'agency.interview_settings'::regclass
+    and contype = 'p';
 
-alter table agency.interview_settings
-  alter column role_id drop not null;
+  if pk_name is not null then
+    execute format('alter table agency.interview_settings drop constraint %I', pk_name);
+  end if;
+
+  -- Only after the key is gone can the column stop being mandatory. Guarded
+  -- so a re-run against an already-migrated database does nothing.
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'agency'
+      and table_name = 'interview_settings'
+      and column_name = 'role_id'
+      and is_nullable = 'NO'
+  ) then
+    alter table agency.interview_settings alter column role_id drop not null;
+  end if;
+end
+$mig$;
 
 -- At most one override per role.
 create unique index if not exists interview_settings_role_uniq

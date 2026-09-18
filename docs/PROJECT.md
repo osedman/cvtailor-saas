@@ -5830,5 +5830,25 @@ every candidate on every future role is owed.
   implemented, not stubbed. It had none of them, and a chain method that
   ignores its arguments makes every query look correct.
 
+### 🐛 The first attempt at applying it failed, and why
+
+`ERROR: 42P16: column "role_id" is in a primary key`. The transition was two
+separate statements — drop the constraint, then drop NOT NULL — and the second
+ran with the key still in place. Because the SQL editor runs a whole script in
+one transaction, **the entire migration rolled back and nothing was applied**:
+PK still there, role_id still NOT NULL, no indexes, no trigger. Verified by
+querying the live catalogue rather than trusting the error message.
+
+Fixed by making the transition **one DO block**: the drop and the nullability
+change in a single statement, in order, with no chance of being split or
+reordered. The constraint is now found **by lookup** (`pg_constraint`,
+`contype='p'`) instead of by assuming it is called `interview_settings_pkey` —
+a table whose key was ever rebuilt by hand would carry another name, and
+`drop constraint if exists <assumed name>` would have matched nothing,
+succeeded, and left the next statement to fail exactly like this.
+
+A test now asserts the drop precedes the nullability change *inside* that
+block, and that the name is never assumed.
+
 **Still to do: this migration has not been applied to tailr-staging.** It must
 run BEFORE the deployed code reads it, per the standing rule.

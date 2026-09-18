@@ -109,9 +109,33 @@ describe("the write path matches the schema it writes to", () => {
 describe("the migration keeps one default per agency", () => {
   const sql = read("supabase/migrations/20260918120000_agency_interview_settings_agency_default.sql")
 
-  it("drops the primary key that made role_id mandatory", () => {
-    expect(sql).toMatch(/drop constraint if exists interview_settings_pkey/)
-    expect(sql).toMatch(/alter column role_id drop not null/)
+  it("drops the primary key and the NOT NULL in ONE ordered statement", () => {
+    /*
+     * These were two ALTERs and it failed on staging on 19 Sep 2026 —
+     * `42P16: column "role_id" is in a primary key`. The second ran with the
+     * key still in place, and since the editor runs a script in a single
+     * transaction the whole migration rolled back with nothing applied.
+     *
+     * So the transition is one DO block: drop, then nullable, in order, with
+     * no chance of the two being split or reordered.
+     */
+    const block = sql.slice(sql.indexOf("do $mig$"), sql.indexOf("$mig$;"))
+    expect(block).toBeTruthy()
+    expect(block).toMatch(/drop constraint/)
+    expect(block).toMatch(/alter column role_id drop not null/)
+    // The drop must come first inside that block, which is the whole point.
+    expect(block.indexOf("drop constraint")).toBeLessThan(
+      block.indexOf("alter column role_id drop not null")
+    )
+  })
+
+  it("finds the primary key by lookup, never by assuming its name", () => {
+    // A table whose key was ever rebuilt by hand carries a different name,
+    // and `drop constraint if exists <assumed name>` would match nothing,
+    // succeed, and leave the next statement to fail confusingly.
+    expect(sql).toMatch(/from pg_constraint/)
+    expect(sql).toMatch(/contype = 'p'/)
+    expect(sql).not.toMatch(/drop constraint if exists interview_settings_pkey/)
   })
 
   it("keeps at most one override per role AND one default per agency", () => {
