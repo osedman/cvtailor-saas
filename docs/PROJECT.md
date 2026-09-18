@@ -5749,3 +5749,86 @@ existing component whose layout does not change — not a new screen, a new
 section or a restyle. Frame 14 already covers the surfaces around it.
 
 **1397 tests pass.** Still not seen signed in; needs Ose's session, as before.
+
+---
+
+## ⚙️ 19 September 2026 — the notice period becomes an agency default
+
+**The field read as an agency default and was not one.** Interview rules lived
+only on `interview_settings`, whose `role_id` was the PRIMARY KEY and NOT NULL
+— so the 24-hour minimum notice, the setting that decides whether a candidate
+can book a time today, could only be changed one role at a time, forever. A
+desk that books same-day had to remember on every role it opened, and
+forgetting produced a candidate doorway that offered no times at all while
+working perfectly. That cost sessions on **15 and 18 September**.
+
+### The shape is borrowed, not invented
+
+`agency.notification_preferences` already solves this: a NULL in the scoping
+column IS the agency default, a non-null row is the override, and
+`resolvePreference()` is the single rule that reads them. This mirrors it
+exactly — `role_id` NULL is the agency's default, `role_id` set is that role's
+override — so the schema has one pattern for "a default somebody can override"
+rather than two that drift apart.
+
+`resolveSettingsRows` is pure, lives in the server-import-free module beside
+`DEFAULT_SETTINGS`, and is the only place precedence is decided.
+
+### Migration 20260918120000
+
+- The primary key on `role_id` goes; `role_id` becomes nullable.
+- **Two partial unique indexes** replace it: one override per role, and **one
+  default per agency**. Without the second, an agency could accumulate several
+  conflicting defaults and the resolver would pick whichever came back first.
+- A **tenancy trigger** refuses a row whose `role_id` belongs to a different
+  agency. Nothing enforced that before because `role_id` was the key and
+  `agency_id` came along for the ride; with two layers it matters, because
+  resolution filters on `agency_id`.
+- `grant ... to service_role` stated explicitly. Three shipped tables have been
+  found unwritable by the role that writes them because a grant to
+  `authenticated` looked complete.
+
+### The upsert had to go
+
+`role_id`'s key became a PARTIAL unique index, and **a partial unique index
+cannot be named as a PostgREST `onConflict` target** — the inference needs the
+index predicate, which the query string cannot carry. Left alone it would have
+failed at conflict-resolution time rather than at deploy time, which is the
+worst place to find out. `writeSettingsRow` now reads, then updates or inserts,
+and both layers go through that one writer.
+
+Also corrected while in there: `setInterviewSettings` logged its audit action
+from `saved`, which is now true for a role that has never had its own row
+whenever an agency default exists — so a role's FIRST override would have been
+recorded as an update to something that was not there. It reads `source` now,
+and carries what it inherited from in the reason.
+
+### Where it is set
+
+`/agencies/settings` gains **"Notice a candidate gets"**, alongside retention
+and the Art 14 delay. It says *"inherited — nobody has set this, so every role
+uses 24 hours"* until somebody does, then *"your desk's default · a role can
+still override it"*. Writers only, and audited: shortening it changes what
+every candidate on every future role is owed.
+
+### Verified, and one correction
+
+- **1415 tests pass.** 14 new on the resolver, migration and write path; 4 more
+  driving the real doorway path (`peekBooking → mayReschedule →
+  getInterviewSettings`) so a default that resolves in a unit test but never
+  reaches a person still fails.
+- **Probed both directions.** Making the agency default beat the role's
+  override fails 2; letting another role's override leak in fails 1; ignoring
+  the agency layer entirely fails 1.
+- **A claim in the first draft was false and is now a note in the file.** It
+  said loosening the mock's `.or` would fail the role-override test. Probing
+  showed all four still pass — the resolver picks the role row out of whatever
+  comes back, so a sloppier query changes nothing there. The `.or` is
+  implemented faithfully regardless, and the thing that actually protects
+  precedence is the resolver's own tests.
+- The mock gained working `.or`, `.gt`, `.neq`, `.not` and `.order` —
+  implemented, not stubbed. It had none of them, and a chain method that
+  ignores its arguments makes every query look correct.
+
+**Still to do: this migration has not been applied to tailr-staging.** It must
+run BEFORE the deployed code reads it, per the standing rule.

@@ -54,6 +54,11 @@ export default function AgencySettingsPage() {
   const [settings, setSettings] = useState<AgencySettings | null>(null)
   const [retention, setRetention] = useState("")
   const [notice, setNotice] = useState("")
+  // The agency-wide interview default. `inherited` is true while nobody has
+  // set one, so the field can say the number is the product's, not a choice
+  // somebody made.
+  const [minNotice, setMinNotice] = useState("")
+  const [minNoticeSaved, setMinNoticeSaved] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -73,6 +78,10 @@ export default function AgencySettingsPage() {
       setSettings(s)
       setRetention(String(s.retentionDays))
       setNotice(String(s.noticeDelayDays))
+      if (body.interviewDefaults && typeof body.interviewDefaults.minNoticeHours === "number") {
+        setMinNotice(String(body.interviewDefaults.minNoticeHours))
+      }
+      setMinNoticeSaved(Boolean(body.interviewDefaultsSaved))
     } catch {
       setError("Could not load your settings.")
     }
@@ -117,9 +126,16 @@ export default function AgencySettingsPage() {
     }
   }
 
+  const [initialMinNotice, setInitialMinNotice] = useState<string | null>(null)
+  useEffect(() => {
+    if (initialMinNotice === null && minNotice !== "") setInitialMinNotice(minNotice)
+  }, [minNotice, initialMinNotice])
+
   const dirty =
     settings !== null &&
-    (Number(retention) !== settings.retentionDays || Number(notice) !== settings.noticeDelayDays)
+    (Number(retention) !== settings.retentionDays ||
+      Number(notice) !== settings.noticeDelayDays ||
+      (initialMinNotice !== null && minNotice !== initialMinNotice))
 
   async function save() {
     setBusy(true)
@@ -132,6 +148,9 @@ export default function AgencySettingsPage() {
         body: JSON.stringify({
           retentionDays: Number(retention),
           noticeDelayDays: Number(notice),
+          // Sent every save, so the first save is what brings the agency
+          // default into existence rather than needing its own button.
+          interviewDefaults: { minNoticeHours: Number(minNotice) },
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -140,6 +159,11 @@ export default function AgencySettingsPage() {
         return
       }
       setSettings(body.settings as AgencySettings)
+      if (body.interviewDefaults && typeof body.interviewDefaults.minNoticeHours === "number") {
+        setMinNotice(String(body.interviewDefaults.minNoticeHours))
+        setInitialMinNotice(String(body.interviewDefaults.minNoticeHours))
+      }
+      setMinNoticeSaved(true)
       setSaved(true)
     } catch {
       setError("Could not save those settings.")
@@ -277,6 +301,53 @@ export default function AgencySettingsPage() {
                   The cap is {NOTICE_MAX} days and the notice cannot be switched off. Setting it to
                   0 tells them the same day you add them, which is the most straightforward thing
                   you can do.
+                </p>
+              </section>
+
+              {/*
+                THE INTERVIEW DEFAULT (19 Sep 2026). This field existed only
+                per role, on the hiring manager's Set up interviews screen,
+                which meant a desk that books same-day had to set it again on
+                every role it ever opened — and forgetting produced a
+                candidate doorway that silently offered no times at all. It
+                read as an agency default and was not one. Now it is one, and
+                a role can still override it.
+              */}
+              <section className="ag-card ag-setting">
+                <h2 className="ag-setting-title">Notice a candidate gets</h2>
+                <p className="ag-note">
+                  The least warning anyone is given before an interview you offer them. Windows
+                  closer than this cannot be booked by a candidate, so a short notice period is
+                  what lets somebody take a slot today.
+                </p>
+                <div className="ag-setting-row">
+                  <label className="ag-sr-only" htmlFor="min-notice">
+                    Minimum notice in hours
+                  </label>
+                  <select
+                    id="min-notice"
+                    className="ag-input ag-setting-input"
+                    name="minNoticeHours"
+                    value={minNotice}
+                    disabled={readOnly}
+                    onChange={(e) => setMinNotice(e.target.value)}
+                  >
+                    {[0, 12, 24, 48, 72].map((n) => (
+                      <option key={n} value={n}>
+                        {n === 0 ? "No minimum" : `${n} hours`}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="ag-note">
+                    {minNoticeSaved
+                      ? "your desk's default · a role can still override it"
+                      : "inherited — nobody has set this, so every role uses 24 hours"}
+                  </span>
+                </div>
+                <p className="ag-callout ag-book-warn">
+                  This is what a candidate is owed, not a filter on your diary. Shortening it is a
+                  change to every role you open from now on, and it is written to the audit log
+                  under your name.
                 </p>
               </section>
 

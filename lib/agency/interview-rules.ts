@@ -100,3 +100,38 @@ export function normalise(input: unknown): InterviewSettings {
     rescheduleLimit: clamp(raw.rescheduleLimit, 0, 10, DEFAULT_SETTINGS.rescheduleLimit),
   }
 }
+
+/**
+ * Where a role's interview rules came from.
+ *
+ * Carried rather than inferred, because "24 hours" means three different
+ * things to the person reading it: somebody chose it for this role, somebody
+ * chose it for the whole desk, or nobody has ever chosen anything. A screen
+ * that cannot tell them apart invites a recruiter to change a role and
+ * wonder why the next one behaves the same.
+ */
+export type SettingsSource = "role" | "agency" | "default"
+
+/**
+ * The ONE rule for reading two layers of interview settings.
+ *
+ * Deliberately the same shape as `resolvePreference` in notify.ts: a NULL in
+ * the scoping column IS the default, a non-null row is the override. Two
+ * derivations of "which setting applies" would disagree the first time
+ * either changed, so there is one, it is pure, and it is tested.
+ *
+ * Added 18 September 2026. Before it, the agency layer did not exist and the
+ * 24-hour minimum notice could only be changed one role at a time — so a desk
+ * that books same-day had to remember on every role, and forgetting produced
+ * a candidate doorway that silently offered nothing.
+ */
+export function resolveSettingsRows<T extends { role_id: string | null }>(
+  rows: T[],
+  roleId: string
+): { row: T | null; source: SettingsSource } {
+  const forRole = rows.find((r) => r.role_id === roleId)
+  if (forRole) return { row: forRole, source: "role" }
+  const agencyDefault = rows.find((r) => r.role_id === null)
+  if (agencyDefault) return { row: agencyDefault, source: "agency" }
+  return { row: null, source: "default" }
+}

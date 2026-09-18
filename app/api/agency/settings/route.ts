@@ -12,6 +12,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { getAgencySettings, updateAgencySettings } from "@/lib/agency/settings"
+import {
+  getAgencyInterviewDefaults,
+  setAgencyInterviewDefaults,
+} from "@/lib/agency/interview-settings"
 
 export const maxDuration = 15
 
@@ -26,7 +30,17 @@ export async function GET() {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
-    return NextResponse.json({ settings: await getAgencySettings(auth.ctx) })
+    const [settings, interviews] = await Promise.all([
+      getAgencySettings(auth.ctx),
+      getAgencyInterviewDefaults(auth.ctx.agencyId),
+    ])
+    // `saved` travels so the screen can say "inherited" rather than implying
+    // somebody chose these numbers.
+    return NextResponse.json({
+      settings,
+      interviewDefaults: interviews.settings,
+      interviewDefaultsSaved: interviews.saved,
+    })
   } catch (e) {
     if (e instanceof AgencyAccessError) {
       return NextResponse.json({ error: e.message }, { status: 403 })
@@ -47,7 +61,17 @@ export async function PATCH(req: NextRequest) {
       noticeDelayDays:
         typeof body.noticeDelayDays === "number" ? body.noticeDelayDays : undefined,
     })
-    return NextResponse.json({ settings })
+    /*
+     * Interview defaults are optional on this PATCH and handled separately,
+     * because they are a different object with its own validator and its own
+     * audit entry. Sending them is what makes the agency's default exist;
+     * omitting them leaves whatever is there alone.
+     */
+    let interviewDefaults = (await getAgencyInterviewDefaults(auth.ctx.agencyId)).settings
+    if (body.interviewDefaults && typeof body.interviewDefaults === "object") {
+      interviewDefaults = await setAgencyInterviewDefaults(auth.ctx, body.interviewDefaults)
+    }
+    return NextResponse.json({ settings, interviewDefaults })
   } catch (e) {
     if (e instanceof AgencyAccessError) {
       return NextResponse.json({ error: e.message }, { status: 403 })
