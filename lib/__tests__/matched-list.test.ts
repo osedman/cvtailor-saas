@@ -57,8 +57,12 @@ describe("the matched list is cards", () => {
   it("pins the action strip to the bottom edge so cards in a row line up", () => {
     expect(CSS).toMatch(/\.ag-matched-body \{[^}]*flex: 1;/)
     expect(CSS).toMatch(/\.ag-matched-foot \{[^}]*margin-top: auto;/)
-    // auto-fit, so it drops to two then one without a breakpoint of its own.
-    expect(CSS).toMatch(/\.ag-matched-grid \{[^}]*repeat\(auto-fit, minmax\(/)
+    // auto-FILL, not auto-fit: auto-fit collapses empty tracks, so a single
+    // matched person stretched the full width of the window and stopped
+    // reading as a card. auto-fill keeps the track and the card keeps its
+    // shape whether there is one person or six.
+    expect(CSS).toMatch(/\.ag-matched-grid \{[^}]*repeat\(auto-fill, minmax\(/)
+    expect(CSS).not.toMatch(/\.ag-matched-grid \{[^}]*auto-fit/)
   })
 })
 

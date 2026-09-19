@@ -2067,7 +2067,13 @@ a.ag-rh-next:hover { opacity: 0.86; }
  * One person, one card, one state. Three parts that say three different
  * things: who they are and how well they matched; what they were matched
  * against; and what you can do about it. */
-.ag-matched-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+/* auto-FILL, not auto-fit (19 Sep 2026). With auto-fit an empty track
+   collapses, so ONE matched person stretched edge to edge and stopped reading
+   as a card at all — which is what it looked like in the window. auto-fill
+   keeps the 280px track, so one card is a card and three are a row. */
+.ag-matched-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+/* Cards, not rows: a person is an object you scan, not a line item. */
+.ag-matched-card { display: flex; flex-direction: column; }
 .ag-matched-card { display: flex; flex-direction: column; background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); overflow: hidden; }
 /* Top-aligned, not centred: "very strong" is the widest band and squeezes
  * the headline onto two lines in a narrow column, and a centred chip then
