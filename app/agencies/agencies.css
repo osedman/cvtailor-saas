@@ -553,6 +553,44 @@
   .ag-match-bar > span { animation: none; width: 100%; opacity: 0.5; }
 }
 
+/* The pool. A reading surface, not a leaderboard — rows are generous, the
+   person's own words carry the weight, and the number is the quietest thing
+   on the row. Switchers get a left rule rather than a colour fill, so the
+   emphasis reads as "look here" not "ranked higher". */
+.ag-pool { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ag-pool-row {
+  display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;
+  padding: 16px 18px; border: 1px solid var(--ag-border); border-radius: var(--r-md);
+  background: var(--ag-paper); border-left: 3px solid transparent;
+}
+.ag-pool-row[data-switching] { border-left-color: var(--ag-coral); background: var(--ag-tint-1); }
+.ag-pool-who { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ag-pool-name { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ag-pool-tag {
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; color: var(--ag-coral-text);
+  border: 1px solid var(--ag-tint-2); border-radius: var(--r-pill); padding: 2px 8px;
+}
+.ag-pool-headline { font-size: var(--t-caption); color: var(--ag-ink-3); }
+/* Their writing. Clamped rather than truncated mid-thought, and never
+   rewritten — a summarised arc is a claim we made about them. */
+.ag-pool-arc {
+  margin: 6px 0 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink-2);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ag-pool-evidence { margin: 8px 0 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; }
+.ag-pool-evidence li { font-size: var(--t-caption); line-height: 1.5; color: var(--ag-ink-2); }
+.ag-pool-metrics { flex: 0 1 260px; display: flex; flex-direction: column; gap: 6px; }
+.ag-pool-rel { font-size: var(--t-caption); color: var(--ag-ink-2); display: flex; flex-direction: column; gap: 5px; }
+.ag-pool-rel b { font-variant-numeric: tabular-nums; color: var(--ag-ink); }
+.ag-pool-rel-bar { height: 5px; border-radius: var(--r-pill); background: var(--ag-border); overflow: hidden; }
+.ag-pool-rel-bar > span { display: block; height: 100%; background: var(--ag-coral); border-radius: var(--r-pill); }
+.ag-pool-act { flex: 0 0 auto; display: flex; align-items: center; }
+
+@media (max-width: 720px) {
+  .ag-pool-metrics, .ag-pool-act { flex-basis: 100%; }
+}
+
 /* The rounded bucket. Quiet, and never a number. */
 .ag-match-bucket {
   margin-top: 22px; padding: 16px 20px 18px;

@@ -18,7 +18,7 @@ import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "
 import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey, isSourcingStep } from "@/lib/agency/steps"
 import { STRENGTHS, strengthWeightLabel } from "@/lib/agency/strengths"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
-import { MatchingWindow } from "@/components/agency/matching-window"
+import { MatchingWindow, type PoolPerson } from "@/components/agency/matching-window"
 import { roleLandingPath, type PhaseKey } from "@/lib/agency/phases"
 import {
   ArrowUpRight, Banknote, Briefcase, ChevronUp, FileText,
@@ -191,6 +191,25 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   /* The matching window (frame 16). Publishing opens it; it can be reopened
    * from the card, so the scan is a place rather than a pill. */
   const [matchWindow, setMatchWindow] = useState(false)
+  /* The pool: everyone who may be shown, not only those a scan accepted.
+     Fetched when the window opens — it is a read nobody needs until then. */
+  const [pool, setPool] = useState<{ people: PoolPerson[] } | null>(null)
+  useEffect(() => {
+    if (!matchWindow) return
+    let live = true
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/agency/roles/${roleId}/matching/pool`)
+        if (!live || !res.ok) return
+        const body = (await res.json()) as { people?: PoolPerson[] }
+        setPool({ people: Array.isArray(body.people) ? body.people : [] })
+      } catch {
+        /* the panel says "reading the pool" and stops; the rest of the
+           window is unaffected, the same rule the ladder follows */
+      }
+    })()
+    return () => { live = false }
+  }, [matchWindow, roleId])
   const loadMatched = useCallback(async () => {
     try {
       const res = await fetch(`/api/agency/roles/${roleId}/matching/people`)
@@ -2741,6 +2760,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
           requirements={requirements}
           matching={matching}
           matched={matched}
+          pool={pool}
           inviting={inviting}
           onInvite={invite}
           canInvite={callerRole !== "viewer"}

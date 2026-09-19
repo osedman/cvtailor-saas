@@ -56,6 +56,20 @@ export interface MatchedPerson {
   appliedAt: string | null
 }
 
+export interface PoolPerson {
+  userId: string
+  name: string
+  headline: string
+  arc: string
+  matchedOn: string[]
+  gaps: string[]
+  relevance: number
+  evidenceCount: number
+  switching: boolean
+  recommendationId: string | null
+  state: string | null
+}
+
 export interface MatchingState {
   enabled: boolean
   minScore?: number | null
@@ -84,6 +98,7 @@ export function MatchingWindow({
   inviting,
   onInvite,
   canInvite,
+  pool,
   minScore,
   onMinScoreChange,
   onPublish,
@@ -99,6 +114,8 @@ export function MatchingWindow({
   inviting: string | null
   onInvite: (recommendationId: string) => void
   canInvite: boolean
+  /** Everyone who may be shown, not only those a scan accepted. */
+  pool: { people: PoolPerson[] } | null
   /** The draft threshold, live while it is being typed. */
   minScore: number
   onMinScoreChange: (n: number) => void
@@ -376,6 +393,82 @@ export function MatchingWindow({
                 A row is what they consented to show: name, headline, band and the evidence that
                 matched. Their CV and contact details arrive only if they apply. Bands, never a
                 ranking.
+              </p>
+            </>
+          )}
+
+          {/* ── The pool ───────────────────────────────────────────────────
+              Everyone who may be shown, with the arc they wrote and what
+              they have evidenced. Ordered by overlap, but ordering a list is
+              not ranking people: every row here is selectable whatever the
+              number says, and the switchers are the point. */}
+          <p className="ag-field-label" style={{ marginTop: 26 }}>
+            The pool{pool ? ` · ${pool.people.length}` : ""}
+          </p>
+          {pool === null ? (
+            <p className="ag-note">Reading the pool…</p>
+          ) : pool.people.length === 0 ? (
+            <p className="ag-note">
+              Nobody on Tailr has turned on both switches yet — &ldquo;let recruiters see me&rdquo;
+              and &ldquo;show me when a role matches&rdquo;. Until somebody does, there is no pool
+              to read.
+            </p>
+          ) : (
+            <>
+              <ul className="ag-pool">
+                {pool.people.map((p) => (
+                  <li key={p.userId} className="ag-pool-row" data-switching={p.switching || undefined}>
+                    <span className="ag-avatar">{initials(p.name)}</span>
+                    <div className="ag-pool-who">
+                      <div className="ag-pool-name">
+                        {p.name}
+                        {p.switching && <span className="ag-pool-tag">may be switching</span>}
+                      </div>
+                      {p.headline && <div className="ag-pool-headline">{p.headline}</div>}
+                      {p.arc && <p className="ag-pool-arc">{p.arc}</p>}
+                      {p.matchedOn.length > 0 && (
+                        <ul className="ag-pool-evidence">
+                          {p.matchedOn.map((line, i) => (
+                            <li key={i}>&ldquo;{line}&rdquo;</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="ag-pool-metrics">
+                      <span className="ag-pool-rel" aria-label={`Overlap with this role: ${p.relevance} percent`}>
+                        <span className="ag-pool-rel-bar"><span style={{ width: `${p.relevance}%` }} /></span>
+                        <b>{p.relevance}%</b> of your requirements evidenced
+                      </span>
+                      <span className="ag-meta">{p.evidenceCount} evidenced claims</span>
+                      {p.gaps.length > 0 && (
+                        <span className="ag-meta">Nothing yet on {p.gaps.slice(0, 4).join(", ")}</span>
+                      )}
+                    </div>
+                    <div className="ag-pool-act">
+                      {p.state === "applied" ? (
+                        <span className="ag-meta">Applied</span>
+                      ) : p.state === "invited" ? (
+                        <span className="ag-meta">Invited</span>
+                      ) : p.recommendationId ? (
+                        <button
+                          className="ag-btn ag-btn-primary"
+                          disabled={inviting === p.recommendationId || !canInvite}
+                          onClick={() => onInvite(p.recommendationId as string)}
+                        >
+                          {inviting === p.recommendationId ? "Inviting…" : "Invite to apply"}
+                        </button>
+                      ) : (
+                        <span className="ag-meta">Not matched by the last scan</span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="ag-note" style={{ marginTop: 12 }}>
+                Everyone here chose to be seen by recruiters. The percentage is how much of THIS
+                role they have already evidenced — a reading aid, not a ranking, and nobody is
+                excluded by it. Somebody mid-switch scores low on purpose: their arc points here
+                and their evidence has not caught up.
               </p>
             </>
           )}
