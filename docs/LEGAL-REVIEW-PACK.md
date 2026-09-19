@@ -264,6 +264,81 @@ Our position is that there is **no Art 22 automated decision-making** here. We
 would like that confirmed, along with a view on whether the EU AI Act's
 high-risk employment provisions are engaged at all (§8.4).
 
+### 5.1 The shortlist recommendation — the hardest thing in this pack
+
+**Added 19 September 2026, staging only, and it has never been run against a
+real candidate.** We are flagging it ourselves because it is the single
+feature in the product that most threatens the claim made immediately above,
+and we would rather it were reviewed than discovered.
+
+**What it does.** On the compare screen, a recruiter may press *Recommend a
+shortlist*. A model reads the answers that recruiter typed during their own
+screening calls, together with the evidence scores, and returns every
+candidate on the role sorted into three named groups — *Recommended*, *Worth
+a second look*, *Not recommended yet* — each with a one-sentence reason. It
+exists because a recruiter can read a matrix of ten candidates and cannot
+read one of fifty.
+
+**It names people.** That is the difference from everything else in this pack,
+and we are not going to soften it. Until now the product organised evidence
+and left every judgement about a person to the recruiter. This orders people
+into groups, and the top group is, in substance, a proposed shortlist.
+
+**Why we say Art 22 is still not engaged.** The recommendation produces no
+decision and no effect. It writes nothing: the shortlist / hold / reject
+controls are on a different screen, `recruiter_reviews` is untouched by the
+route, and a test fails the build if that route ever contains an insert,
+update or delete. Nothing downstream reads the grouping — the client
+submission, the interview loop and the handover pack are all built from
+recruiter decisions, never from this output. A candidate's position in it has
+no consequence unless a human acts, and the human acts elsewhere.
+
+**Why we are not satisfied by our own answer.** The live question is not
+whether a human is in the loop but whether their involvement stays
+*meaningful*, and a recruiter under time pressure at fifty candidates may
+simply shortlist the top group. We have designed against rubber-stamping
+rather than asserted it away:
+
+- **Nothing is filtered, hidden, reordered away or pre-selected.** All fifty
+  candidates remain on the matrix in the recruiter's own order. A group is a
+  label with a stated reason, never a removal, and a test asserts that every
+  candidate handed in comes back out exactly once — one the model omits is
+  added to the third group rather than disappearing.
+- **The third group is "not recommended *yet*"**, and the adverb is enforced:
+  the word "rejected" does not appear in the feature, by test.
+- **Every reason is traceable to a source the recruiter can open** — a
+  verbatim CV quote, an answer they typed, an override they made, or an
+  explicit `MISSING`. Reasons are not free prose: the model selects citations
+  from a list computed from the actual rows, anything invented is discarded,
+  and a reason left with no surviving citation is replaced by a factual line
+  generated from the record. An untraceable recommendation cannot be
+  displayed.
+- **`MISSING` is never filled.** Where nothing is evidenced, the output says
+  so and stops. Its most useful sentence is that a requirement has not been
+  asked about by anyone.
+- **No inference about a person reaches the model.** It is never given a
+  candidate's name, and it is never given the two fields in our schema that
+  rate a person rather than their evidence (a recruiter's optional 1–5
+  communication and motivation stars) or the call questions about motivation
+  and availability. A test that scans the source fails the build if any of
+  them is ever sent. The commitment in §5 above — no tone, sentiment,
+  confidence or fluency analysis — holds here unchanged and is additionally
+  enforced by a language filter that discards any reason describing a person.
+- **Asking for one is audited**, with the role reference, the recruiter and
+  the time. The audit row deliberately carries counts only: no name, no
+  reason, no group.
+
+**On the EU AI Act, our position has changed and we want to say so plainly.**
+§5 and §8.4 record our belief that the high-risk employment provisions are
+not engaged. That belief was formed about a product that structured evidence.
+A system that sorts candidates into recommended and not-recommended groups
+looks considerably more like a system used to evaluate candidates in
+recruitment, and we no longer think our own answer is safe. **We would rather
+be told this feature is high-risk, and what conformity and documentation that
+demands, than keep a clean claim we have outgrown.** If the advice is that it
+cannot ship in this form, it does not ship — it is behind a button nobody has
+yet pressed.
+
 ---
 
 ## 6. The two-products question
@@ -320,9 +395,18 @@ supporting material — or are we a joint controller?
 selected. We want the criteria, the required terms, and whether UK/EU-only
 processing should be a hard requirement before we choose.
 
-**8.4 Art 22 and the EU AI Act.** We believe neither is engaged (§5). We would
-like that confirmed and, if the AI Act's high-risk employment provisions do
-apply, to know what documentation to keep.
+**8.4 Art 22 and the EU AI Act.** We believed neither was engaged, and the
+shortlist recommendation added on 19 September 2026 (**§5.1**) has made us
+much less sure. It groups named candidates into recommended and
+not-recommended-yet, which is closer to evaluating candidates than anything we
+have built before, even though it writes no decision and nothing downstream
+reads it. Two questions, and we want the uncomfortable answer if it is the
+right one: **(a)** does human involvement stay meaningful under Art 22 when
+the recruiter's own notes are being read back to them as a proposed grouping,
+and what would make it not? **(b)** does §5.1 fall inside the AI Act's
+high-risk employment provisions — and if so, what conformity and record-keeping
+does it demand? It is behind a button that has never been pressed against a
+real candidate, so "do not ship it in this form" is an answer we can act on.
 
 **8.5 Is the surviving audit log the right balance?** It deliberately outlives
 erasure so an agency can evidence a fair process (§4).
