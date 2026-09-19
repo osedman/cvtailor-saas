@@ -5963,10 +5963,15 @@ cannot do anything, which has bitten three times.
    to `.ag-themed`). `/hiring` already follows Owen's own choice, so building
    to a light reference decided nothing. **The `tailr-b2b` skill is stale on
    this point.**
-2. **Frame 03 is genuinely reversed**, and that part stands. Its argument was
-   against a stacked sidebar — correctly, about the RECRUITER's eighteen
-   links. The client's side has five things in it. Frame 03 should be marked
-   superseded for `/hiring` only.
+2. **Frame 03 is NOT reversed — I overstated that too.** Marking it on 19 Sep
+   showed its own eyebrow reads *"RECRUITER NAVIGATION"*: it was scoped to the
+   recruiter's sidebar from the start and never governed `/hiring`. Its
+   argument — one step of one role stacking four labelled lists and eighteen
+   things to click — stands unchanged. Five named places on the client's side
+   is not in tension with it. The frame now carries a **scope band** saying
+   so, and pointing at frame 15, rather than a "superseded" stamp it never
+   earned. A frame that looks reversed when it is only out of scope is how a
+   signed-off decision gets quietly discarded.
 
 The brief door stays closed. "My roles" lists roles the RECRUITER opened.
 
