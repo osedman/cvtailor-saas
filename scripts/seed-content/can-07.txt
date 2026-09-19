@@ -1,0 +1,28 @@
+Sasha Benton
+Remote (UK) · o.oifoh+can07@gmail.com · 07700 900007
+
+SUMMARY
+Freelance data engineer, 8 years. Contract work across several sectors
+including two NHS trusts.
+
+EXPERIENCE
+
+Independent contractor (2019–present)
+Selected engagements:
+- NHS trust, 14 months: rebuilt the referral-to-treatment pipeline. Airflow,
+  Python, SQL Server then Snowflake. Worked under the trust's IG framework and
+  handled patient identifiable data throughout.
+- Retail client, 9 months: dbt project from scratch, 200 models, BigQuery.
+- Fintech, 6 months: Kafka consumers for transaction enrichment.
+- Several clients: Terraform modules for data infrastructure.
+
+Data Engineer — Vance Media (2016–2019)
+- Python and SQL, first exposure to Airflow.
+
+NOTES
+Contracting means breadth over depth in any one place. I have not formally
+mentored anyone, though I have paired extensively and written a lot of
+handover documentation.
+
+SKILLS
+Python · SQL · Airflow · dbt · Snowflake · BigQuery · Kafka · Terraform

@@ -1,0 +1,27 @@
+Dr Helena Vasquez
+Cambridge · o.oifoh+can05@gmail.com · 07700 900005
+
+SUMMARY
+Clinical informatician turned data engineer. Six years engineering after eight
+years in clinical research. Deep healthcare data knowledge.
+
+EXPERIENCE
+
+Senior Data Engineer — Wren Bioinformatics (2020–present)
+- Pipelines for genomic and clinical trial data. Python, Airflow, BigQuery.
+- Built the FHIR ingestion layer taking feeds from nine NHS trusts; also HL7v2
+  where trusts had not migrated.
+- Information governance is most of my week: I wrote three DPIAs and sit on the
+  research ethics committee.
+- dbt for the trial reporting models, about 90 in production.
+- SQL daily, including heavy tuning on the variant tables.
+
+Clinical Research Fellow — Addenbrooke's (2012–2019)
+- Not an engineering role, but where the domain knowledge comes from.
+
+NOTES
+No Kafka or streaming — our data arrives in nightly batches. No Terraform; our
+infrastructure is managed by a central team. I have mentored two juniors.
+
+SKILLS
+Python · SQL · Airflow · dbt · BigQuery · FHIR · HL7 · UK GDPR / IG

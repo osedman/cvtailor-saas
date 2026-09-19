@@ -1,0 +1,27 @@
+Marcus Bell
+Manchester · o.oifoh+can02@gmail.com · 07700 900002
+
+SUMMARY
+Analytics engineer moving toward platform work. Seven years, mostly retail and
+e-commerce. Very strong dbt and SQL; less depth on streaming.
+
+EXPERIENCE
+
+Analytics Engineer — Halyard Retail Group (2020–present)
+- Own the dbt project: 340 models, full CI, documented lineage. Introduced dbt
+  to the company and trained the analyst team on it.
+- BigQuery warehouse, heavy query tuning — rewrote the nightly aggregation and
+  took it from 50 minutes to 6.
+- Airflow for orchestration, though the platform team runs the cluster.
+- Python for data work daily, seven years in total.
+
+Data Analyst — Halyard Retail Group (2018–2020)
+- SQL reporting, dashboards, and the first version of the warehouse.
+
+NOTES
+No production streaming experience — I have read about Kafka but not run it.
+No infrastructure as code; our platform team owns Terraform.
+No healthcare or regulated-domain work.
+
+SKILLS
+SQL · dbt · BigQuery · Python · Airflow (user, not operator)

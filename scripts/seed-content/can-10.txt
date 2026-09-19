@@ -1,0 +1,27 @@
+Daniel Osei
+London · o.oifoh+can10@gmail.com · 07700 900010
+
+SUMMARY
+Data engineer, 7 years, healthcare throughout. Left the NHS for a supplier and
+would like to come back toward patient-facing work.
+
+EXPERIENCE
+
+Data Engineer — Caldera Health Systems (2022–present)
+- Pipelines for the patient administration product used by 11 trusts.
+- Airflow, Python, Snowflake. About 900GB/day.
+- dbt for the reporting layer, 130 models in production.
+- FHIR integration work with four trusts, plus legacy HL7v2.
+- Clinical safety: I am a trained Clinical Safety Officer and wrote the DCB0129
+  hazard log for two releases. UK GDPR and special category data daily.
+
+Data Engineer — NHS Trust (2018–2022)
+- SQL Server then Snowflake. Deep SQL tuning on the activity tables.
+- Mentored two apprentices through their data qualifications.
+
+NOTES
+No Kafka — everything we do is batch. Terraform only lightly; our platform team
+owns it and I have contributed a handful of changes.
+
+SKILLS
+Python · SQL · Airflow · dbt · Snowflake · FHIR · HL7 · DCB0129 · UK GDPR
