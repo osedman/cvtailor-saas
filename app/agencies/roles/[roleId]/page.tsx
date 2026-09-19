@@ -18,6 +18,7 @@ import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "
 import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey, isSourcingStep } from "@/lib/agency/steps"
 import { STRENGTHS, strengthWeightLabel } from "@/lib/agency/strengths"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
+import { MatchingWindow } from "@/components/agency/matching-window"
 import { roleLandingPath, type PhaseKey } from "@/lib/agency/phases"
 import {
   ArrowUpRight, Banknote, Briefcase, ChevronUp, FileText,
@@ -188,6 +189,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // who did not choose that; they stay in the bucket.
   const [matched, setMatched] = useState<{ people: MatchedPerson[]; bucket: string } | null>(null)
   const [inviting, setInviting] = useState<string | null>(null)
+  /* The matching window (frame 16). Publishing opens it; it can be reopened
+   * from the card, so the scan is a place rather than a pill. */
+  const [matchWindow, setMatchWindow] = useState(false)
   const loadMatched = useCallback(async () => {
     try {
       const res = await fetch(`/api/agency/roles/${roleId}/matching/people`)
@@ -419,6 +423,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       const body = await res.json()
       if (!res.ok) throw new Error(body?.error || "That did not save.")
       setMatching(body.matching)
+      // Publishing opens the window (frame 16). Pausing does not — there is
+      // nothing to watch, and a window over a stopped scan would be a screen
+      // that reports on nothing.
+      if (enabled) setMatchWindow(true)
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -1323,88 +1331,36 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </>
                   ) : (
                     <>
+                      {/*
+                        THE MATCHED PEOPLE MOVED INTO THE WINDOW (19 Sep 2026,
+                        Figma frame 16). They were rendered here AND in the
+                        role-level card, which is two places for one list and
+                        two chances to disagree — the same duplication the
+                        hiring manager's interviews list had.
+
+                        This is now a door. The window shows what the scan is
+                        matching against, how far it has got, and who
+                        consented to be seen, with room to read it.
+                      */}
                       <p className="ag-note" style={{ margin: 0 }}>
                         {matching.scanQueued
-                          ? "The scan is running now. Matches appear here as it finishes; nothing else is needed from you."
+                          ? "The scan is running now. Nothing else is needed from you."
                           : matching.lastScanAt
                             ? "Scanned against this role's requirements. It re-runs on its own whenever you republish or the requirements change."
                             : "Published. The first scan is queued and will run shortly."}
                       </p>
-                      {matched === null ? (
-                        <p className="ag-quiet">Loading…</p>
-                      ) : matched.people.length === 0 ? (
-                        <p className="ag-quiet">
-                          {matching.lastScanAt
-                            ? "Nobody who chose to be seen matches this role yet."
-                            : "Nothing yet — the first scan has not finished."}
-                          {matched.bucket !== "none" && " People who match but have not chosen to be seen stay in the rounded count on the matching card below."}
-                        </p>
-                      ) : (
-                        <>
-                          <p className="ag-note" style={{ margin: 0 }}>
-                            Matched and chose to be seen. A row is what they consented to show: name, headline, band, the matched evidence. Their CV and contact details arrive only if they apply. Bands, never a ranking.
-                          </p>
-                          {/* CARDS, NOT ROWS (Ose, 13 Sep 2026). One person,
-                              one card, one state — and MISSING gets the mark
-                              the product built for it rather than a pill at
-                              55% opacity, which read as evidence turned down
-                              instead of evidence absent. */}
-                          <div className="ag-matched-grid">
-                            {matched.people.map((p) => (
-                              <article key={p.recommendationId} className="ag-matched-card">
-                                <div className="ag-matched-head">
-                                  <span className="ag-avatar">{initials(p.name)}</span>
-                                  <div className="ag-matched-who">
-                                    <div className="ag-matched-name">{p.name}</div>
-                                    {p.headline && <div className="ag-matched-headline">{p.headline}</div>}
-                                  </div>
-                                  {/* The band, never a number: matched_people
-                                      does not send the score to the browser. */}
-                                  <span className={`ag-band ${p.band === "very strong" ? "hi" : p.band === "strong" ? "med" : "lo"}`}>
-                                    {p.band}
-                                  </span>
-                                </div>
-                                <div className="ag-matched-body">
-                                  <span className="ag-field-label" style={{ marginBottom: 0 }}>Matched against</span>
-                                  <div className="ag-matched-evidence">
-                                    {p.evidence.map((e) => (
-                                      <span
-                                        key={e.requirement_ref}
-                                        className={`ag-ev ${e.strength}`}
-                                        title={e.quote ?? "MISSING — no evidence for this requirement"}
-                                      >
-                                        <span className={`ag-dot ${e.strength}`} />
-                                        {e.requirement_ref} {e.strength}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                                <div className="ag-matched-foot">
-                                  {p.state === "invited" && (
-                                    <span className="ag-pill">
-                                      Invited{p.invitedAt ? ` · ${new Date(p.invitedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}
-                                    </span>
-                                  )}
-                                  {p.state === "applied" && <span className="ag-pill">Applied · in your pool</span>}
-                                  <span className="ag-grow" />
-                                  {p.state !== "applied" && p.state !== "invited" && (
-                                    <button
-                                      className="ag-btn ag-btn-primary"
-                                      disabled={inviting === p.recommendationId || callerRole === "viewer"}
-                                      onClick={() => void invite(p.recommendationId)}
-                                    >
-                                      {inviting === p.recommendationId ? "Inviting…" : "Invite to apply"}
-                                    </button>
-                                  )}
-                                </div>
-                              </article>
-                            ))}
-                          </div>
-                          {matched.bucket !== "none" && (
-                            <p className="ag-note" style={{ margin: 0 }}>The scan also matched people who have not chosen to be seen. They stay a rounded count and are never listed.</p>
-                          )}
-                        </>
-                      )}
+                      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                        <button className="ag-btn ag-btn-primary" onClick={() => setMatchWindow(true)}>
+                          {matching.scanQueued ? "Watch the scan" : "See who matched"}
+                        </button>
+                        <span className="ag-meta">
+                          {matched === null
+                            ? "Loading…"
+                            : matched.people.length === 0
+                              ? "Nobody who matched has chosen to be seen yet."
+                              : `${matched.people.length} chose to be seen`}
+                        </span>
+                      </div>
                     </>
                   )}
                 </div>
@@ -2934,6 +2890,21 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
           </div>
           )}
         </div>
+
+        {/* The matching window. One instance for the screen: the publish card
+            and step 03 both open THIS, so there is no second place where the
+            matched people are rendered and no chance of the two disagreeing. */}
+        <MatchingWindow
+          open={matchWindow}
+          onClose={() => setMatchWindow(false)}
+          roleRef={role?.ref ?? ""}
+          requirements={requirements}
+          matching={matching}
+          matched={matched}
+          inviting={inviting}
+          onInvite={invite}
+          canInvite={callerRole !== "viewer"}
+        />
       </main>
     </>
   )

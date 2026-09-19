@@ -495,6 +495,47 @@
 /* The evidence scrolls, the bar does not — Close is always reachable. */
 .ag-modal-body { overflow-y: auto; overscroll-behavior: contain; padding: 20px 24px 28px; }
 
+/* The matching window — Figma frame 16, 19 Sep 2026.
+   Wider than the candidate modal because it holds a card grid rather than one
+   person's evidence. */
+.ag-match-panel { width: min(1180px, 100%); }
+
+/* What the scan is matching against. Must-haves are tinted; everything else
+   is quiet, so the eye reads the shape of the requirement set at a glance. */
+.ag-match-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.ag-match-chip {
+  font-size: var(--t-caption); line-height: 1.3; color: var(--ag-ink-3);
+  background: var(--ag-cream); border: 1px solid var(--ag-border);
+  border-radius: var(--r-pill); padding: 6px 11px;
+}
+.ag-match-chip[data-must] { background: var(--ag-tint-1); border-color: var(--ag-tint-2); color: var(--ag-coral-text); }
+
+/* Liveness, never a count: "found nobody", "found people who have not
+   applied" and "the scan is broken" must stay distinguishable, so this says
+   what is happening rather than how many. */
+.ag-match-scan {
+  margin-top: 22px; padding: 18px 20px 20px;
+  background: var(--ag-cream); border: 1px solid var(--ag-border); border-radius: var(--r-md);
+}
+.ag-match-scan[data-scanning] { border-color: var(--ag-tint-2); background: var(--ag-tint-1); }
+.ag-match-scan-line { margin: 0; font-size: var(--t-lead); line-height: 1.4; color: var(--ag-ink); }
+
+.ag-match-bar { margin-top: 12px; height: 6px; border-radius: var(--r-pill); background: var(--ag-border); overflow: hidden; }
+.ag-match-bar > span { display: block; height: 100%; width: 38%; border-radius: var(--r-pill); background: var(--ag-coral); animation: ag-match-sweep 1.5s ease-in-out infinite; }
+/* Indeterminate on purpose. A percentage would be a count of people wearing a
+   progress bar, and the number of people is the thing that must not be shown. */
+@keyframes ag-match-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+@media (prefers-reduced-motion: reduce) {
+  .ag-match-bar > span { animation: none; width: 100%; opacity: 0.5; }
+}
+
+/* The rounded bucket. Quiet, and never a number. */
+.ag-match-bucket {
+  margin-top: 22px; padding: 16px 20px 18px;
+  background: var(--ag-cream); border: 1px dashed var(--ag-border); border-radius: var(--r-md);
+  color: var(--ag-ink-2); font-size: var(--t-body); line-height: 1.55;
+}
+
 /* Below 900px the sidebar is already gone and a centred dialog would be a
  * full screen pretending not to be. It becomes a sheet off the bottom
  * instead, which is what that shape actually is. */

@@ -6072,3 +6072,76 @@ which made the 860px query match and would have "confirmed" a row layout.
 | page scrolls sideways | **no** | **no** |
 
 **1423 tests pass.** Still not seen signed in.
+
+---
+
+## 🔍 19 September 2026 — the matching window
+
+Figma frame **16 · Matching insights** (`442:2`), approved before code.
+
+Publishing a role produced a status pill and a cramped card. It now opens a
+window: what the scan is matching against, how far it has got, and who
+consented to be seen.
+
+### The line it does not cross, and why
+
+Ose asked for "an interactive insights pool of what candidates could be
+considered". **The method is showable; the pool is not.**
+
+`public.recruiter_profile_snapshot` returns null for a matched person who has
+NOT opted in — from the same code path, with the same timing, as for somebody
+who never matched at all. No flag, no distinct error, no channel a recruiter
+could read as *"there is somebody here"*. A window that hinted at those people
+would undo the one property that makes opting in safe, and it is a consent
+commitment in `LEGAL-REVIEW-PACK.md` §3.2 rather than a preference.
+
+So the window keeps three rules:
+
+1. **Nobody is browsed.** Only people who matched AND chose to be seen are
+   listed. No search, no filter over the pool.
+2. **The others stay rounded.** "A handful", never 7. An exact number is a
+   disclosure — watch it move as you change the threshold and you have learned
+   about individuals.
+3. **Bands, never a score.** The score never reaches the browser, so no
+   ranking of people exists here and none can be reconstructed.
+
+The progress bar is **indeterminate on purpose**. A percentage would be a
+count of people wearing a progress bar, and the count is the thing that must
+not be shown. Reduced motion gets a static bar.
+
+### It also removed a duplication
+
+The matched people were rendered on the workflow page AND in the role-level
+card — one list, two places, two chances to disagree, the same shape as the
+hiring manager's interviews list on 18 Sep. Step 03 is now a door into the
+window; the list exists once.
+
+### The guard caught a real feature loss, which is what it is for
+
+`matched-list.test.ts` pins what is a product promise rather than a
+preference: cards not checklist rows, an avatar, the strength mark, MISSING in
+words, and a band rather than a number. **The first version of the window
+dropped the avatar, the band class and the MISSING-in-words title** — exactly
+the silent loss the suite exists to prevent. Restored verbatim from the
+original markup.
+
+The suite now scans the component rather than the page (the promises are
+unchanged; only the file moved) and gained an assertion that the list **lives
+in exactly one place**.
+
+### Verified
+
+- `tsc` clean, **1424 tests pass**.
+- The workflow route serves 200; the five new CSS rules confirmed in the
+  **served chunk**.
+- Measured at 1280 against the real stylesheet: panel 1168px and fits, must-have
+  chips tinted apart from the rest, the missing chip **dashed and at full
+  opacity** (never dimmed — the original bug), the bucket dashed, the body
+  scrolls while the bar does not, no sideways scroll.
+- First measurement attempt read the CONSUMER stylesheet because the tab was
+  on `/` — every check came back false. Navigated to an agency route and
+  re-measured. Worth recording: a harness that loads the wrong stylesheet
+  fails in the same direction as broken CSS.
+
+**Not verified:** not seen signed in, and the scan itself has never run
+against a real opted-in user.

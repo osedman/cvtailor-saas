@@ -18,13 +18,30 @@ import { join } from "path"
 import { tsCode } from "./helpers/source-scan"
 
 const read = (p: string) => tsCode(readFileSync(join(process.cwd(), p), "utf8"))
-const PAGE = "app/agencies/roles/[roleId]/page.tsx"
+/*
+ * MOVED 19 Sep 2026 (Figma frame 16). The matched people were rendered on the
+ * workflow page AND in the role-level card — one list, two places, two
+ * chances to disagree. They now live in the matching window, once.
+ *
+ * Every promise below is unchanged; only the file is. The move is also what
+ * this suite caught: the first version of the window dropped the avatar, the
+ * band class and the MISSING-in-words title, which is exactly the silent
+ * feature loss it was written to prevent.
+ */
+const PAGE = "components/agency/matching-window.tsx"
 const CSS = readFileSync(join(process.cwd(), "app/agencies/agencies.css"), "utf8")
 
 const page = read(PAGE)
 const cardBlock = page.slice(page.indexOf("ag-matched-grid"), page.indexOf("ag-matched-foot"))
 
 describe("the matched list is cards", () => {
+  it("lives in exactly one place", () => {
+    // Two renderings of one list is how they drift.
+    const workflow = read("app/agencies/roles/[roleId]/page.tsx")
+    expect(workflow).not.toMatch(/ag-matched-grid|ag-matched-card/)
+    expect(workflow).toMatch(/<MatchingWindow/)
+  })
+
   it("renders a grid of cards, not checklist rows", () => {
     expect(page).toMatch(/className="ag-matched-grid"/)
     expect(page).toMatch(/<article key=\{p\.recommendationId\} className="ag-matched-card">/)
