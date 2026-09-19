@@ -87,6 +87,34 @@ describe("MISSING is drawn as an absence, never as faded evidence", () => {
   })
 })
 
+describe("matching is switched on in exactly one place", () => {
+  /*
+   * 19 Sep 2026. The threshold and the publish button existed TWICE — on the
+   * role-level card and again inside step 03 — so there were two ways to turn
+   * one thing on and two inputs that could disagree about what the minimum
+   * was. Both moved into the window, where the switch and the result it
+   * produces are finally on screen together.
+   */
+  const workflow = read("app/agencies/roles/[roleId]/page.tsx")
+  const win = read("components/agency/matching-window.tsx")
+
+  it("the workflow screen carries no threshold input", () => {
+    expect(workflow).not.toMatch(/ag-min-score|scan-min-score/)
+    expect(win).toMatch(/id="ag-min-score"/)
+  })
+
+  it("the workflow screen never publishes directly", () => {
+    // setMatchingEnabled is still DEFINED there — it owns the fetch — but the
+    // only thing that calls it is the window, through onPublish.
+    expect(workflow).not.toMatch(/onClick=\{\(\) => void setMatchingEnabled/)
+    expect(workflow).toMatch(/onPublish=\{setMatchingEnabled\}/)
+  })
+
+  it("the cards are doors", () => {
+    expect(workflow).toMatch(/onClick=\{\(\) => setMatchWindow\(true\)\}/)
+  })
+})
+
 describe("a band, never a number", () => {
   it("the card shows the band and nothing finer", () => {
     expect(cardBlock).toMatch(/\{p\.band\}/)

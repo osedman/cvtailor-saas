@@ -73,6 +73,11 @@ export function MatchingWindow({
   inviting,
   onInvite,
   canInvite,
+  minScore,
+  onMinScoreChange,
+  onPublish,
+  busy,
+  canPublish,
 }: {
   open: boolean
   onClose: () => void
@@ -83,6 +88,13 @@ export function MatchingWindow({
   inviting: string | null
   onInvite: (recommendationId: string) => void
   canInvite: boolean
+  /** The draft threshold, live while it is being typed. */
+  minScore: number
+  onMinScoreChange: (n: number) => void
+  /** Publish, re-publish with a new minimum, or pause. */
+  onPublish: (enabled: boolean) => void
+  busy: boolean
+  canPublish: boolean
 }) {
   const panel = useRef<HTMLDivElement>(null)
   /** Whatever had focus when the window opened, so it can be given back. */
@@ -148,6 +160,77 @@ export function MatchingWindow({
             you wrote. Nobody is contacted, nothing about this role is shared, and no agency
             browses anyone.
           </p>
+
+          {/*
+            PUBLISHING LIVES HERE (19 Sep 2026, Ose). It was a separate card
+            below the step content, so the thing you switch on and the thing
+            that shows you what it did were two different places on the
+            screen. One window: decide, then watch.
+
+            The copy is carried over verbatim from that card — it was written
+            carefully and says exactly what the scan does and does not do.
+          */}
+          <div className="ag-match-publish" data-live={matching?.enabled || undefined}>
+            {requirements.length === 0 ? (
+              <>
+                <p className="ag-note" style={{ marginTop: 0 }}>
+                  Matching scores people against this role&apos;s requirements, so it needs them
+                  parsed first. Extract them and this turns on.
+                </p>
+                <button className="ag-btn ag-btn-secondary" style={{ marginTop: 12 }} disabled>
+                  Parse requirements first
+                </button>
+                <p className="ag-note" style={{ marginTop: 8 }}>
+                  Nothing has been published and nobody has been scanned.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="ag-note" style={{ marginTop: 0 }}>
+                  There is no job board. Tailr scans each consumer user&apos;s own evidence — on
+                  their side — and quietly nudges the people who fit. Applying is their consent;
+                  until someone applies, you see nobody.
+                </p>
+
+                <div className="ag-match-publish-row">
+                  <span className="ag-match-publish-field">
+                    <label className="ag-label" htmlFor="ag-min-score">Minimum score</label>
+                    <input
+                      id="ag-min-score"
+                      className="ag-input"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      style={{ width: 90 }}
+                      value={minScore}
+                      onChange={(e) => onMinScoreChange(Number(e.target.value))}
+                      disabled={busy || !canPublish}
+                    />
+                    <span className="ag-meta">as scored on arrival — before review or overrides</span>
+                  </span>
+                  <span className="ag-grow" />
+                  <button
+                    className={matching?.enabled ? "ag-btn ag-btn-secondary" : "ag-btn ag-btn-coral"}
+                    onClick={() => onPublish(!matching?.enabled)}
+                    disabled={busy || !canPublish}
+                  >
+                    {busy && <span className="ag-spin" />}
+                    {matching?.enabled ? "Pause matching" : matching ? "Resume matching" : "Publish for matching"}
+                  </button>
+                  {matching?.enabled && (
+                    <button
+                      className="ag-btn ag-btn-secondary"
+                      onClick={() => onPublish(true)}
+                      disabled={busy || !canPublish || minScore === matching.minScore}
+                    >
+                      Update score
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* ── What it is matching against ─────────────────────────────── */}
           <p className="ag-field-label">What it is matching against</p>

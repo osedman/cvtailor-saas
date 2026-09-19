@@ -6145,3 +6145,25 @@ in exactly one place**.
 
 **Not verified:** not seen signed in, and the scan itself has never run
 against a real opted-in user.
+
+### Later the same day — publishing moved into the window too
+
+Ose: *"Put the publish for Tailr matching in the Tailr window."* Right, and it
+exposed something the first pass had left standing: **the threshold and the
+publish button existed TWICE** — on the role-level card and again inside step
+03. Two ways to switch one thing on, and two number inputs that could disagree
+about what the minimum was.
+
+Both are now in the window, with the copy carried over verbatim (it was
+written carefully and says precisely what the scan does and does not do). The
+two cards became doors: they show the state and the way in, nothing else.
+
+That is the point of the change rather than a side effect. The card was the
+switch AND the status, so **the thing you turn on and the thing that shows you
+what it did were never on screen together**. Now you set the minimum, press
+publish, and watch the scan in the same window.
+
+Three assertions pin it, probed: reintroducing a second threshold input on the
+workflow screen fails the suite.
+
+**1427 tests pass.**
