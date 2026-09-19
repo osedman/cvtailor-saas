@@ -6193,3 +6193,36 @@ title earlier.
 
 **1427 tests pass.**
 
+### 19 Sep, later — the row is gone, and why the score looked broken
+
+**Nothing sits below the step content now.** The role-level card, then the row
+that replaced it, are both removed. Publishing lives in the matching window,
+reached from step 03. Two guards were repointed rather than deleted: the
+"reachable outside a step conditional" rule no longer applies because there is
+no control on the screen to place, and what remains asserted is that the
+screen carries none and the window carries one.
+
+**"Update score isn't working" — it was, and it wasn't.** `min_score` was
+saved as 10 at 10:57, confirmed in the database. But the scan that would USE
+it never ran: `next_scan_allowed_at` was 20 Sep 08:08, the 24-hour anti-probing
+cooldown. The 08:08 scan had run at the old threshold of 70 and matched
+nobody, so nothing reached the consumer account — which is the outcome that
+actually matters and the one being asked about.
+
+Saying "it worked" because the column changed was too narrow. The column
+changing is not the effect.
+
+Two things fixed:
+- **The cooldown is now stated in the window**, next to the button that
+  triggers it. The card that publishing replaced carried this copy and it was
+  dropped in the move, which is what made a correct update indistinguishable
+  from a broken one.
+- **The cooldown on ROL-2417 was cleared** on staging so a scan can run at the
+  new threshold.
+
+**Also found: all 8 `role_recommendations` rows are orphans.** Every
+`published_role_id` points at a role the reset deleted, and those rows are what
+`/found` reads — so a real account is holding stale matches against roles that
+no longer exist. Same class as the orphaned CVs: deletion cascades did not
+reach them. Not yet fixed.
+

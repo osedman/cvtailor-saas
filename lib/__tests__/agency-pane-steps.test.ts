@@ -73,10 +73,18 @@ describe("sourcing stops when judging starts", () => {
     for (const s of SOURCING_STEPS) expect(panes.has(s), `${s} is not a pane`).toBe(true)
   })
 
-  it("the page gates the card on the rule, not on its own copy of the list", () => {
+  it("no screen keeps its own copy of the sourcing list", () => {
+    /*
+     * The page used to gate a publish card on isSourcingStep. Ose removed
+     * everything below the step content on 19 Sep 2026, so there is nothing
+     * left to gate — publishing lives in the matching window.
+     *
+     * The rule that still matters is the one this suite was really about: a
+     * second hand-written list of sourcing steps in a screen is how the first
+     * one drifted, so no screen may carry one.
+     */
     const page = tsCode(readFileSync(join(process.cwd(), "app/agencies/roles/[roleId]/page.tsx"), "utf8"))
-    expect(page).toMatch(/\{role && isSourcingStep\(step\) && \(/)
-    // A second list in the page is how the first step list started drifting.
     expect(page).not.toMatch(/\["intake", "parse", "candidates"\]/)
+    expect(page).not.toMatch(/step === "intake" \|\| step === "parse"/)
   })
 })

@@ -2727,58 +2727,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             )
           })()}
 
-          {/*
-            THE CARD IS GONE; THE DOOR IS NOT (19 Sep 2026, Ose).
-
-            It was a card that described what matching was doing AND carried
-            the switch. Both live in the window now — the point of moving
-            publishing there was that the switch and its result belong
-            together — so a card outside repeating the state was a second
-            surface describing the first.
-
-            WHAT IS LEFT IS ONE ROW, and removing even that recreates a bug
-            this project has already paid for. A role opens on its FURTHEST
-            step, so a door that lives inside `step === "candidates"` is
-            unreachable the moment a role has candidates and opens on
-            screening — which is exactly the original report, "there's no
-            button that lets me publish it". The row therefore sits AFTER
-            every step block, not inside one.
-
-            It still stops at step 04. Publishing is a sourcing decision, and
-            from screening onwards the recruiter is judging the people they
-            already have.
-          */}
-          {role && isSourcingStep(step) && (
-            <div className="ag-match-door">
-              <span className="ag-card-title">Publish for Tailr matching</span>
-              <span className="ag-pill">
-                {requirements.length === 0
-                  ? "Not yet"
-                  : matching?.enabled
-                    ? "Matching live"
-                    : matching
-                      ? "Paused"
-                      : "Matching off"}
-              </span>
-              <span className="ag-grow" />
-              {matching?.enabled && matching.lastScanAt && (
-                <span className="ag-meta">
-                  Last scan {new Date(matching.lastScanAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                </span>
-              )}
-              <button
-                className={matching?.enabled ? "ag-btn ag-btn-secondary" : "ag-btn ag-btn-coral"}
-                onClick={() => setMatchWindow(true)}
-                disabled={requirements.length === 0}
-              >
-                {requirements.length === 0
-                  ? "Parse requirements first"
-                  : matching?.enabled
-                    ? "Open matching"
-                    : "Publish and scan"}
-              </button>
-            </div>
-          )}
+          {/* Nothing sits below the step content. The matching window is
+              reached from step 03, where sourcing lives. */}
         </div>
 
         {/* The matching window. One instance for the screen: the publish card

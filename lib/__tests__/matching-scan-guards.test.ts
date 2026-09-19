@@ -165,34 +165,42 @@ describe("the cached prompt is the same prompt", () => {
   })
 })
 
-describe("the publish control is reachable", () => {
+describe("the publish control lives in the matching window", () => {
   const page = readFileSync(
     join(process.cwd(), "app/agencies/roles/[roleId]/page.tsx"),
     "utf8"
   )
+  const win = readFileSync(
+    join(process.cwd(), "components/agency/matching-window.tsx"),
+    "utf8"
+  )
 
-  it("is not nested inside a step conditional", () => {
-    // It was, and that made it unreachable: a role opens on its FURTHEST step
-    // (candidates if any exist, else parse if requirements do), while the card
-    // lived under step === "intake". So it rendered only in the one state
-    // where it says "not yet" and vanished in every state where it could be
-    // used — reported as "there's no button that lets me publish it".
-    //
-    // Publishing is one decision about the ROLE. This asserts the card sits
-    // after every step block rather than inside one.
-    const cardAt = page.indexOf('<span className="ag-card-title">Publish for Tailr matching')
-    expect(cardAt).toBeGreaterThan(-1)
+  /*
+   * 19 Sep 2026, Ose: nothing below the step content. The role-level card and
+   * the row that briefly replaced it are both gone; publishing is inside the
+   * window, reached from step 03 where sourcing lives.
+   *
+   * What this suite used to assert — that the control sat outside every step
+   * conditional so a role opening on its furthest step could still reach it —
+   * no longer applies, because there is no control on the screen to place.
+   * The rules that ARE still rules are below: one publish control, and it
+   * still refuses without requirements.
+   */
+  it("the screen carries no publish control at all", () => {
+    expect(page).not.toMatch(/ag-match-door/)
+    expect(page).not.toMatch(/Publish for Tailr matching/)
+    expect(page).not.toMatch(/ag-min-score|scan-min-score/)
+  })
 
-    const stepConditionals = [...page.matchAll(/step === "(\w+)"/g)].map((m) => m.index ?? 0)
-    expect(stepConditionals.length).toBeGreaterThan(3)
-    expect(Math.max(...stepConditionals)).toBeLessThan(cardAt)
+  it("the window is the one place it lives", () => {
+    expect(win).toMatch(/id="ag-min-score"/)
+    expect(win).toMatch(/Publish for matching|Resume matching|Pause matching/)
+    expect(page).toMatch(/<MatchingWindow/)
   })
 
   it("still refuses to offer a button with no requirements", () => {
-    const cardAt = page.indexOf('<span className="ag-card-title">Publish for Tailr matching')
-    const card = page.slice(cardAt, cardAt + 4000)
-    expect(card).toMatch(/requirements\.length === 0/)
-    expect(card).toMatch(/Parse requirements first/)
+    expect(win).toMatch(/requirements\.length === 0/)
+    expect(win).toMatch(/Parse requirements first/)
   })
 })
 

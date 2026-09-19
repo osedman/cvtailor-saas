@@ -1,0 +1,330 @@
+From e9a89dcd78de7535ba0f1826ee4662c5db30b00a Mon Sep 17 00:00:00 2001
+From: osedman <osedman@github.com>
+Date: Fri, 7 Aug 2026 21:00:03 +0100
+Subject: [PATCH 1/2] wip: ThreadProgress loader + session doc edits (stale 22
+ Jul base, preserved before staging sync)
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+---
+ app/globals.css                          |  36 ++++++-
+ app/tailor/page.tsx                      |   4 +-
+ components/cv-tailor/results-tabs.tsx    |   2 +-
+ components/cv-tailor/thread-progress.tsx | 132 +++++++++++++++++++++++
+ docs/PROJECT.md                          |   7 ++
+ docs/STAGING.md                          |  24 +++--
+ 6 files changed, 188 insertions(+), 17 deletions(-)
+ create mode 100644 components/cv-tailor/thread-progress.tsx
+
+diff --git a/app/globals.css b/app/globals.css
+index 81b096b..568bb3d 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -4,6 +4,15 @@
+ @custom-variant dark (&:is(.dark *));
+ 
+ :root {
++  /* Motion tokens (see docs: Tailr Motion Design draft) */
++  --ease-brand: cubic-bezier(.2, .7, .2, 1);
++  --ease-exit: cubic-bezier(.4, 0, 1, 1);
++  --motion-fast: 150ms;
++  --motion-base: 200ms;
++  --motion-gentle: 300ms;
++  --motion-reveal: 600ms;
++  --motion-draw: 1200ms;
++
+   --background: oklch(1 0 0);
+   --foreground: oklch(0.145 0 0);
+   --card: oklch(1 0 0);
+@@ -155,14 +164,15 @@
+   }
+ }
+ 
++/* Panel entrance: transform + opacity only (no layout animation, no CLS) */
+ @keyframes slide-up {
+   from {
+     opacity: 0;
+-    max-height: 0;
++    transform: translateY(24px);
+   }
+   to {
+     opacity: 1;
+-    max-height: 2000px;
++    transform: translateY(0);
+   }
+ }
+ 
+@@ -171,9 +181,27 @@
+ }
+ 
+ .animate-fade-in-up {
+-  animation: fade-in-up 0.3s ease-out forwards;
++  animation: fade-in-up 0.3s var(--ease-brand) forwards;
+ }
+ 
+ .animate-slide-up {
+-  animation: slide-up 0.5s ease-out forwards;
++  animation: slide-up 0.5s var(--ease-brand) forwards;
++}
++
++/*
++ * Staggered child entrance: 200ms rise per child, 40ms apart.
++ * Children past the 10th enter together so long lists don't crawl.
++ */
++.stagger-children > * {
++  opacity: 0;
++  animation: fade-in-up 0.2s var(--ease-brand) forwards;
+ }
++.stagger-children > *:nth-child(2) { animation-delay: 40ms; }
++.stagger-children > *:nth-child(3) { animation-delay: 80ms; }
++.stagger-children > *:nth-child(4) { animation-delay: 120ms; }
++.stagger-children > *:nth-child(5) { animation-delay: 160ms; }
++.stagger-children > *:nth-child(6) { animation-delay: 200ms; }
++.stagger-children > *:nth-child(7) { animation-delay: 240ms; }
++.stagger-children > *:nth-child(8) { animation-delay: 280ms; }
++.stagger-children > *:nth-child(9) { animation-delay: 320ms; }
++.stagger-children > *:nth-child(n+10) { animation-delay: 360ms; }
+diff --git a/app/tailor/page.tsx b/app/tailor/page.tsx
+index 4f7433c..c1add13 100644
+--- a/app/tailor/page.tsx
++++ b/app/tailor/page.tsx
+@@ -13,7 +13,7 @@ import { ResultsTabs } from "@/components/cv-tailor/results-tabs"
+ import { EmptyState } from "@/components/cv-tailor/empty-state"
+ import { SignInModal } from "@/components/auth/sign-in-modal"
+ import { useAuth } from "@/components/auth/auth-provider"
+-import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
++import { ThreadProgress } from "@/components/cv-tailor/thread-progress"
+ import { HistoryDrawer, type HistoryItem } from "@/components/cv-tailor/history-drawer"
+ import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
+ import { markOnboardingStep, isOnboardingDismissed } from "@/lib/onboarding"
+@@ -356,7 +356,7 @@ export default function CVTailorPage() {
+             disabled={!canTailor}
+             isLimitReached={false}
+           />
+-          {isLoading && <ProgressSteps currentStep={progressStep} />}
++          {isLoading && <ThreadProgress currentStep={progressStep} />}
+           {!user && canTailor && !isLoading && (
+             <p className="text-xs text-gray-400">Sign in to tailor your CV</p>
+           )}
+diff --git a/components/cv-tailor/results-tabs.tsx b/components/cv-tailor/results-tabs.tsx
+index 4661b04..17c666d 100644
+--- a/components/cv-tailor/results-tabs.tsx
++++ b/components/cv-tailor/results-tabs.tsx
+@@ -13,7 +13,7 @@ import { InterviewPitches } from "./interview-pitches"
+ function FormattedCV({ text }: { text: string }) {
+   const lines = (text ?? "").split("\n")
+   return (
+-    <div className="font-mono text-sm text-[#1e1813] leading-relaxed space-y-0.5">
++    <div className="font-mono text-sm text-[#1e1813] leading-relaxed space-y-0.5 stagger-children">
+       {lines.map((line, i) => {
+         const trimmed = line.trim()
+         if (!trimmed) return <div key={i} className="h-3" />
+diff --git a/components/cv-tailor/thread-progress.tsx b/components/cv-tailor/thread-progress.tsx
+new file mode 100644
+index 0000000..2c8fe55
+--- /dev/null
++++ b/components/cv-tailor/thread-progress.tsx
+@@ -0,0 +1,132 @@
++"use client"
++
++import { useEffect, useState } from "react"
++
++const STEPS = [
++  "Analysing job requirements…",
++  "Matching your experience…",
++  "Rewriting bullet points…",
++  "Checking ATS compatibility…",
++  "Finalising your CV…",
++]
++
++/* A loose stitching curve — same motif as the Career Path journey line. */
++const THREAD_PATH = "M8,40 C 90,40 130,14 210,14 S 330,44 410,36 S 560,12 612,16"
++
++function usePrefersReducedMotion() {
++  const [reduced, setReduced] = useState(false)
++  useEffect(() => {
++    const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
++    setReduced(mq.matches)
++    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches)
++    mq.addEventListener("change", onChange)
++    return () => mq.removeEventListener("change", onChange)
++  }, [])
++  return reduced
++}
++
++interface ThreadProgressProps {
++  currentStep: number // 0-based index of the active step
++}
++
++/**
++ * Loading indicator for the tailor run: a coral thread stitches across a
++ * dashed guide path, one segment per stage, with a needle-dot riding the
++ * tip and stage copy crossfading beneath. Replaces the stacked checklist
++ * (progress-steps.tsx) per the motion design draft.
++ *
++ * The draw is pure CSS: the thread animates `stroke-dashoffset` and the
++ * needle animates `offset-distance` along the same path, sharing one
++ * duration/easing token so they stay in lockstep with no per-frame JS.
++ */
++export function ThreadProgress({ currentStep }: ThreadProgressProps) {
++  const reduced = usePrefersReducedMotion()
++
++  // Start fully undrawn so the first segment animates in after mount. A
++  // short timeout (not rAF, which stalls in occluded tabs) lets the
++  // undrawn state paint first so the browser runs the transition.
++  const [mounted, setMounted] = useState(false)
++  useEffect(() => {
++    const t = setTimeout(() => setMounted(true), 50)
++    return () => clearTimeout(t)
++  }, [])
++
++  const step = Math.min(Math.max(currentStep, 0), STEPS.length - 1)
++  const frac = mounted ? (step + 1) / STEPS.length : 0
++
++  // Crossfade the stage copy when the step advances.
++  const [shownStep, setShownStep] = useState(0)
++  const [fading, setFading] = useState(false)
++  useEffect(() => {
++    if (step === shownStep) return
++    if (reduced) {
++      setShownStep(step)
++      return
++    }
++    setFading(true)
++    const t = setTimeout(() => {
++      setShownStep(step)
++      setFading(false)
++    }, 180)
++    return () => clearTimeout(t)
++  }, [step, shownStep, reduced])
++
++  const drawTransition = reduced
++    ? "none"
++    : "stroke-dashoffset var(--motion-draw) var(--ease-brand)"
++  const rideTransition = reduced
++    ? "none"
++    : "offset-distance var(--motion-draw) var(--ease-brand)"
++
++  return (
++    <div className="w-full max-w-md mx-auto mt-3" role="status" aria-live="polite">
++      <svg
++        viewBox="0 0 620 56"
++        preserveAspectRatio="none"
++        aria-hidden="true"
++        className="block w-full h-12 overflow-visible"
++      >
++        <path
++          d={THREAD_PATH}
++          fill="none"
++          stroke="#ddd5c6"
++          strokeWidth={1}
++          strokeDasharray="3 5"
++        />
++        <path
++          d={THREAD_PATH}
++          fill="none"
++          stroke="#dc4f33"
++          strokeWidth={2.5}
++          strokeLinecap="round"
++          pathLength={1}
++          strokeDasharray={1}
++          style={{ strokeDashoffset: 1 - frac, transition: drawTransition }}
++        />
++        {/* Needle-dot rides the tip of the thread via CSS motion path. */}
++        <circle
++          r={4}
++          fill="#dc4f33"
++          style={{
++            offsetPath: `path("${THREAD_PATH}")`,
++            offsetDistance: `${frac * 100}%`,
++            offsetRotate: "0deg",
++            transition: rideTransition,
++          }}
++        />
++      </svg>
++      <div className="flex items-baseline justify-between mt-1.5 px-0.5">
++        <span
++          className={`text-[13px] font-semibold text-[#1e1813] transition-opacity duration-200 ${
++            fading ? "opacity-0" : "opacity-100"
++          }`}
++        >
++          {STEPS[shownStep]}
++        </span>
++        <span className="font-mono text-[11px] text-[#a09884] tabular-nums">
++          {shownStep + 1} / {STEPS.length}
++        </span>
++      </div>
++    </div>
++  )
++}
+diff --git a/docs/PROJECT.md b/docs/PROJECT.md
+index 62d2b4d..3a60fe3 100644
+--- a/docs/PROJECT.md
++++ b/docs/PROJECT.md
+@@ -49,6 +49,9 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
+ | Living skills profile: roadmap updates through the tailor flow | Feature | — | `staging` only, not merged. CareerSyncPanel under tailor results compares each run's evidence against the roadmap: one-click 'mark done' when a roadmap skill shows strong evidence, status chips for gaps already on the path, copy-CV-bullet for done skills, one-click 'add to career path' for new gaps (single-skill AI generation, `add-skill` mode on /api/career-path) |
+ | Living Career Path (career-path rework) | Feature | — | `staging` only, all 4 stages. Reworks the generate-once roadmap into a living path: continuous journey line (milestones -> you-are-here -> target readiness ring), compute layer (`lib/career-path-compute.ts`: unlock-ranking + readiness from `tailor_history`+`job_tracker`, migration 007 adds `current_title`+`milestones`), intake form killed/seeded, rebuild confirm dialog; update actions (I-got-the-job, add-project, add-skill-for-JD) that also write to the Arc; and a money-path-safe feedback edge in `/api/tailor` (closed path skills become evidence, no-op when empty). Owed before prod: 1 real end-to-end generation test + independent money-path verification of the feedback edge |
+ | Career Arc: private CV highlight-reel page | Feature | — | `staging` only, not merged. New `/career-arc` page + `/api/career-profile` route: Sonnet extraction (no web search, pure CV extraction, explicitly told never to invent facts) into timeline/skills/growth/projects/inferred qualities, all click-to-edit inline. Auto-generates from the user's most recent `tailor_history.original_cv`; paste-box fallback if none exists. `career_profiles` table (migration 005) has a `source` column left room for an aggregated (multi-tailor) generator later. Needs migration 005 run manually in `tailr-staging` SQL Editor before testing |
++| Career Arc redesign: concept exploration (design only, 1 Aug 2026) | Design | — | Direction chosen: evidence bank (C) + shareable story cards (A). Figma file "Tailr — Career Arc Redesign" has 4 hi-fi screens of the chosen direction (arc page w/ evidence cards + edit affordances, share modal w/ redaction toggles, tailor w/ matched-evidence sidebar + JD coverage meter, public arc page w/ build-yours CTA) plus Concept A "The Dossier" (editorial serif). Figma Starter MCP call limit hit mid-build, so concepts B–E live as HTML mockups in `mockups/career-arc-concept-{b-mission-control,c-metro-map,d-one-sheet,e-ledger}.html` — port the winner(s) into Figma before any build. No code changes. **2 Aug:** external Genspark refinement reviewed (E+D split, constrained editing, per-claim redaction — adopted; its "VERIFIED BY TAILR" language rejected as an unprovable claim). Final refined set (Ledger structure × Tailr skin, screen 01 approved by Ose, 02–06 built to match): `mockups/career-arc-refined-tailr*.html` — arc page, thin-CV/career-break state, share modal w/ per-claim Full/Band/Mask/Hide redaction, 5-card share set, tailor sidebar (Tailr components + ledger accents), public recipient view w/ "NOTHING INVENTED" trust bar. Awaiting Ose's review of 02–06, then Figma port |
++
++| Tailr for Agencies — schema design + migration 1 (5 Aug 2026) | Feature | — | B2B recruiter product from the `design_handoff_tailr_for_agencies` hifi handoff. Design agreed in [docs/AGENCIES_SCHEMA.md](AGENCIES_SCHEMA.md): dedicated `agency` Postgres schema in the same DB (so consumer `auth.uid() = user_id` RLS and agency `agency_id`-scoped RLS can't be confused), 6-migration plan, consumer reuse note. **Decisions:** manual agency provisioning + self-serve teammate invites; agency `viewer` = agency-wide read, clients modelled separately as `client_contacts` with per-recipient portal tokens and `client_actions` (approve/interview) that signal, never auto-reject; 180d retention from role close; original CV kept (it's the audit trail's evidence); Art 14 candidate notice **in v1** with a 7-day delay window and non-overridable auto-fire. **Parked:** recruiter-side sourcing from the consumer pool (different consent model + cold-start problem; prefer candidate-initiated opt-in per role). **Pulled forward:** quick person-to-role analysis as a by-product of build step 3. Migrations 1 (`20260805120000_agency_core.sql`) + 2 (`20260805130000_agency_candidates.sql`, candidates/identities/evidence/ingestion jobs/`agency-cvs` storage bucket) **applied to `tailr-staging` via Supabase MCP and verified, 5 Aug** — prod untouched. Fix found on apply: staging (built from schema.sql) lacked `public.set_updated_at()`; migration 1 now defines it idempotently. Verified: 10 tables + RLS on all, 21 policies; two-agency isolation both directions; cross-tenant insert → RLS error; evidence constraint rejects strength-without-quote AND missing-with-quote; `candidate_identities` permission-denied even to members; ref allocators (ROL-2401/CAN-01) work. As-built deltas in AGENCIES_SCHEMA §4.1. Migration 3 (`20260805140000_agency_scoring.sql`) applied + verified same day: candidate_reviews/review_overrides/recruiter_reviews/score_breakdowns, all **audit-coupled** (no authenticated writes — service-role-only, so the audit log can't be bypassed; requirements + role_constraints retro-tightened to match). Verified: full screening fixture readable by owner, invisible to other agency; owner's direct writes to overrides AND requirements both permission-denied. Migration 4 (`20260805150000_agency_submissions.sql`) applied + verified same day: client_contacts (authenticated-writable address book) + submissions/submission_recipients/client_actions (service-role only; per-recipient sha256 portal tokens with expiry+revocation; client actions are signals that survive candidate purge via denormalised candidate_ref). Verified: owner creates contact via RLS path ✓; owner's direct submission insert denied ✓; full chain seeded service-role-side; Beta sees zero. Schema profile run over all 18 tables (see chat 5 Aug): write-model matrix confirmed — 12 read-only to authenticated, and the two seeding-order invariants the app code must uphold (audit rows with every audit-coupled write; identity rows with every candidate). Migration 5 (`20260805160000_agency_retention.sql`) applied + verified same day: role-close→retention trigger (+180d exact, reopen clears), `purge_candidate`/`purge_expired` (verified end-to-end: full cascade purge, client action + audit `erased` row with name/ref/score survive), Art 14 notice state machine (7-day window, 28-day hard cap, suppressed⇔reason constraint), notice_suppressions (service-role only, verified denied), rights_requests. Purge test consumed fixture candidate CAN-01 by design. **Recruiter validation landed 5 Aug:** strategy meeting w/ Yemi (exec-search domain expert) — notes in docs/meetings/2026-08-05-tailr-strategy-meeting.md; validates screening/write-up/override flow as the USP; new asks: cross-role candidate repository, tiered screening depth, background checks, scheduler, 3-stage client reports; redesign workshop w/ Temi (UX) planned — feeds the Figma phase. Migration 6 (`20260805170000_recruiter_visibility.sql`) applied + verified same day — **ALL SIX MIGRATIONS LIVE ON STAGING, data layer complete.** `recruiter_visibility` opt-in columns on profiles + `recruiter_profile_snapshot()` (service-role-only, verified: opted-in account returns Arc+16 evidence items+activity stats; not-opted-in and unmatched identically null; authenticated execute denied; test account reset to opted-out). `tailr-b2b` skill created at `~/.claude/skills/tailr-b2b` capturing full context + build plan for future sessions. App-code phase started same day: `lib/agency/types.ts` + `lib/agency/db.ts` (the only agency query module — context from session, viewer guard, cross-tenant assertion on every service-role write, audit writer, role CRUD + requirement mutations w/ per-edit audit rows) and `app/api/agency/cron/route.ts` (CRON_SECRET-guarded; purge_expired + storage file deletion + due-notice send honouring suppression list, notice template v1 inline — **copy needs Ose review**; maxDuration 300). `lib/email.ts` gained optional `from` override. Second wave same day: `lib/agency/scoring.ts` (server-side computeScore port — 45/25/10/10/10 weights, strength values, soft-signal math, review bumps, canonical-JSON `inputsHash`, `identityHash`) + 10 unit tests; `lib/agency/ingest.ts` (full candidate pipeline: pre-parse objection/suppression block, Sonnet 4.6 tool-forced extraction w/ untrusted-CV framing, **verbatim-quote verification** — strengths whose quote isn't found in the CV text are downgraded to missing, never stored inferred; identity+dedupe, storage upload, evidence, score+hash, notice scheduling, audit, ingestion_jobs lifecycle); routes `POST/GET /api/agency/roles`, `POST .../[roleId]/parse` (JD→requirements+constraints, audit-coupled save), `POST/GET .../[roleId]/candidates` (PDF/DOCX/TXT/paste, 10MB & 10-candidate caps). All AI routes: maxDuration 300 + checkRateLimit('ai'). Third wave same day — **server API surface COMPLETE for build steps 4–6**: migration 7 (`20260805180000_agency_score_baselines.sql`, applied to staging — persists CV-parse calibration baselines that rescoring needs); `lib/agency/rescore.ts` (loadScoringState + recomputeAndStore + applyOverrides w/ per-override audit rows carrying parsed-vs-human from/to); routes: `.../candidates/[id]/review` (GET/PATCH/DELETE — soft signals, call answers, overrides map, mark-reviewed, reset; every change rescored), `.../candidates/[id]/decision` (PATCH; null=undecided first-class; sole writer of decisions, human-only), `.../roles/[id]/submission` (GET/POST — scores recomputed server-side AT generation, snapshot immutable, recruiter_notes never enter it, per-recipient sha256 portal tokens returned raw exactly once, purge-race candidates omitted), `/api/portal/[token]` (anonymous GET/POST — hash-matched, expiry+revocation enforced, snapshot-only exposure, client actions capped and audit-logged, decline never changes state). `tsc --noEmit` clean, **51/51 vitest green** (eslint not installed in this checkout — pre-existing). Notion card created (board schema now Name+Text only — playbook's Type/Status/Priority columns gone, flagged). **Deployed to PR 5 Aug eve:** commit `17edd9a` on `agency-b2b` (clean worktree from origin/staging; build + 267/267 staging tests on the exact tree; email.ts + PROJECT.md patched surgically, next-env.d.ts build artifact excluded) — [PR #44](https://github.com/osedman/cvtailor-saas/pull/44) **MERGED on Ose's go-ahead + DEPLOYED to staging (squash `4d80a57`, Vercel status success); smoke-tested live: `/api/agency/roles` → 401 JSON, `/api/portal/<bogus>` → 404 JSON.** **FULL AUTHED E2E PASSED on staging 5 Aug (late):** real session (OTP mint recipe, Ose ran the auth script) → member context resolved (owner, sees only own agency) → role ROL-2402 created → live JD parse 13.9s (10 requirements 5/1/4 must/imp/nice, R06 correctly derived from recruiter notes) → CV ingest 14.1s (CAN-01, 72.66, 4/5 musts — engineered AWS gap correctly MISSING, Terraform not inflated) → screening override+signals+reviewed → 84.39, 5/5 musts, conf 2→3, original preserved → shortlist → portal submission (1 recipient link minted, recruiter_notes leak check: FALSE) → anonymous portal GET 200 + client 'interview' action recorded → audit log: 9 rows covering every step (role/reqs×10/constraints×2/candidate/override/reviewed/decision/submission/client_interview). E2E artifacts left in fixture (ROL-2402 + CAN-01, synthetic data only). Design fallback (option 3) COMPLETE — four sheets in handoff tokens, browser-verified: `mockups/agency-states.html` (6 error/empty states), `agency-invite.html` (team/roles/pending invites), `agency-portal.html` (client shortlist w/ DeltaChip + signal-not-state action confirmation + indistinguishable dead-link state), `agency-notice.html` (recruiter notice window w/ 7-day countdown "cannot be switched off", candidate email template v1 — **copy awaiting Ose review** — and rights page w/ 4 one-click requests). Review set ready for Yemi/Temi workshop (all four sheets made dash free 6 Aug on Ose's rule); Figma port when MCP calls free up. **Cron wiring built + verified 6 Aug, awaiting Ose's PR clicks:** branch `cron-wiring` pushed (dispatcher `app/api/cron/weekly` shares the second Hobby slot — Sunday forwards course-sync (moves 03:00→09:00), Monday path-digest (unchanged 09:00); agency cron takes the daily 03:30 slot; guardrail test updated to assert the new wiring + exactly 2 crons; 267/267 + build green; CRON_SECRET confirmed already set — route answers 401 not 503). **MERGED + LIVE on Ose's go-ahead: [PR #45](https://github.com/osedman/cvtailor-saas/pull/45), squash `66e0430`, Vercel deploy success; verified live — both `/api/agency/cron` and `/api/cron/weekly` answer 401 to unauthenticated calls. First daily housekeeping run: 03:30 UTC tomorrow. CRON WIRING DONE.** DPA + DPIA drafted 6 Aug from the as built system ([docs/legal/agency-dpia-draft.md](legal/agency-dpia-draft.md), [docs/legal/agency-dpa-draft.md](legal/agency-dpa-draft.md)) — every mitigation cites a verified control; **needs solicitor review before design partner #1**. Real-CV gate now: solicitor sign off + Ose's notice copy sign off. DPA + DPIA emailed to Ose 6 Aug (Resend, 200 OK). **Teammate invites BUILT 6 Aug:** migration 8 (`member` audit entity, applied to staging) + `app/api/agency/team` (GET team w/ names; POST owner invite by email — profile match or account create, magic link sign in, notification email, audit; PATCH role change/suspend, owner self change blocked). tsc clean + 267/267 on the tree; [PR #46](https://github.com/osedman/cvtailor-saas/pull/46) **MERGED on Ose's word (squash `13f16f0`), deploy success, `/api/agency/team` verified live (401 unauthed).** **Notice window actions BUILT 6 Aug:** delivery extracted to `lib/agency/notices.ts` (single sender shared by cron + send now; suppression and no contact checks always at send time; every outcome audited); cron route slimmed to use it; new `.../candidates/[id]/notice` route (GET state; PATCH send_now / personal_note while scheduled / already_informed requiring a how note that lands in the audit row with the actor). No path cancels a due notice. tsc clean + 267/267; [PR #47](https://github.com/osedman/cvtailor-saas/pull/47) **MERGED on Ose's word (squash `d20c46e`), deploy success, verified live: notice route 401 unauthed, cron still armed 401.** **FRONT END FIRST ARC BUILT 6 Aug** (Ose asked to see it today; handoff = the signed off design, Figma port still owed): scoped design system `app/agencies/agencies.css` (brand v1.0 tokens, .ag- classes, nothing leaks to consumer surfaces); `/agencies` roles list (create role, sign in / no agency states); `/agencies/roles/[id]` workflow — intake (JD + client context + private notes, autosave on blur, live Extract), parse review (weight cycling chips w/ per edit audit via new requirement PATCH/DELETE route, constraints, weighting model card), candidates (upload PDF/DOCX/TXT + paste, live server scores, duplicate + failed pills); locked rail steps 04 to 06 keep the seven step shape. New `roles/[id]` GET/PATCH route. **Typography: mono = chrome only, allowlisted with written reason; JD paste box deliberately sans contra the handoff (the 27 Jul robotic paste box lesson) — flagged for Figma port review.** tsc clean, 267/267, build green, routes in table. [PR #48](https://github.com/osedman/cvtailor-saas/pull/48) **MERGED on Ose's word (squash `bab9c47`), deploy success, `/agencies` serving 200; browser verified in pane — sidebar/tokens/typography render to spec, signed out state correct. Full web-design-guidelines + logged in pass owed next session.** **SCREENS 4 TO 6 LIVE** (#49 superseded by rebased [PR #50](https://github.com/osedman/cvtailor-saas/pull/50), merged `bae8b77`, deploy success, `/agencies` 200). **CANDIDATE DETAIL SCREEN LIVE** ([PR #51](https://github.com/osedman/cvtailor-saas/pull/51) merged `d85ef70` on Ose's word, deploy success, `/agencies` 200 — ALL SEVEN RECRUITER SCREENS NOW LIVE ON STAGING; only the client portal viewer page remains from the handoff): expandable evidence rows (verbatim quote in coral mark + source cite, explicit MISSING card), score breakdown bars, call findings card, derived still to probe list, audit logged decision card, candidate tab strip. Original build detail: screening (candidate rail w/ call done badges + delta, per requirement override segments against parsed strength dots, soft signal squares, availability/salary/notice, private notes, mark reviewed/reset — every change rescored server side), compare (ranked decision cards, click active decision to clear, requirement × candidate matrix w/ effective strengths + strong washes), submission (document/email/portal generation, immutable snapshot summary, portal links shown once). Candidates GET now includes reviews + decisions. tsc clean, 267/267, build green. **PORTAL VIEWER LIVE — THE DESIGN HANDOFF IS 100% SHIPPED** ([PR #52](https://github.com/osedman/cvtailor-saas/pull/52) merged `aad252d` on Ose's word, deploy success, /portal + /agencies both 200; portal dead link state rendering as designed): public /portal/[token] page consuming the anonymous API; ink hero, per candidate sections (score + screening delta + musts + recruiter narrative), inline evidence (coral mark quotes, plain gaps), four signal actions w/ nothing-automatic confirmation, viewer attribution footer, identical dead link page, noindex; portal shell mono allowlisted. tsc clean, 267/267, build green, fresh staging lineage. **GAP REGISTER compiled 7 Aug** (full inventory in the `tailr-b2b` skill, section "Surface inventory + gap register"). **Dashboard BUILT + MERGED 7 Aug** ([PR #54](https://github.com/osedman/cvtailor-saas/pull/54), squash `b777484`): `/agencies` is now the agency home, not a roles list — needs-you-now band (rights requests first, then client signals in plain English), pipeline stall tiles (awaiting screening, screened-no-decision, sent-no-reply, unreadable CVs) that name people and click into the role, compliance clock tiles (notices sending in window, erasures within 30 days, open rights requests), roles with counts, and recent activity read from the audit log — the first time the audit trail appears in the product. New `GET /api/agency/dashboard` aggregates via the user-scoped client (RLS does tenancy, no service role). Net-new screen with no approved design, due its own review. **Judgment layer added 7 Aug** (Ose chose: best next calls, client heat, worth a look — cross role suggestions boundary agreed: open roles only, existing assessments only, never automatic): what if rescoring shows current → potential with the exact gaps to ask about (verified live: 55 → 82 on a real candidate); portal open telemetry surfaced (opened but silent vs never opened); [PR #55](https://github.com/osedman/cvtailor-saas/pull/55) **MERGED on Ose's word (squash `f4d3058`), deploy success, `/agencies` 200 — judgment layer LIVE on staging.** **Candidate rights shipped** ([PR #60](https://github.com/osedman/cvtailor-saas/pull/60) merged `7688371`): migration 9 (`candidates.rights_token`, applied to staging) + public `/rights/[token]` page reached from the notice email (what is held, by whom, until when; four one-click requests; files PENDING only so a forwarded link can't erase anyone; deliberately exposes no scores/evidence/notes) + `/api/agency/rights` queue and actioning (completing erasure/objection executes `purge_candidate` + storage delete + suppression; rejecting requires a recorded reason) + dashboard rows now actionable with a destructive-action confirm. Makes the DPIA's "working rights routes" claim true. **Owed:** access/rectification fulfilment is still manual (the route marks complete; no data export built). **Intake flow fix** ([PR #59](https://github.com/osedman/cvtailor-saas/pull/59) merged `1976ddb`; #58 closed, pre-squash lineage): extraction now completes ON the intake screen with a result banner (counts + which fields were filled + confirmation typed fields/notes untouched); moving to parse review is a deliberate "Continue to parse review" button, with "Extract again" secondary. Built via the git API against current staging (`scratchpad/api-commit.mjs`) after three lineage failures — pattern documented in the skill; also preserved a parallel session's admin-viewer commits automatically. **JD intake upgrade built 7 Aug on Ose's feedback from real use** ([PR #56](https://github.com/osedman/cvtailor-saas/pull/56) merged `7d97961` on Ose's word, **deploy success, LIVE**): JD arrives by paste, document upload (PDF/DOCX/TXT via the existing extractors), or a LINK fetched server side (http/https only, no raw IP or internal hosts, redirect target rechecked, 10s timeout, 1MB cap; walled boards refuse politely with a paste fallback). Parse tool now also returns role_details and the route fills ONLY empty intake fields (title/company/context/comp band/location/seniority; "Untitled role" counts as empty) — it never overwrites what the recruiter typed and never touches recruiter notes. Fetched/uploaded text saves back to jd_raw so the recruiter sees exactly what was read. tsc clean, 267/267, build green. Original gap note: **All three BROKEN flows FIXED in [PR #53](https://github.com/osedman/cvtailor-saas/pull/53)** (contacts API + recipient picker; role status PATCH w/ audit + Close role card + intake autosave narrowed so status cannot change by side effect; three detail entry points). tsc clean, 267/267, build green. Original diagnosis, found by auditing the shipped code against the data model: (1) submission UI sends no `recipients`, so portal format mints zero links and nobody can open the shortlist; (2) no Close role action anywhere, so `retention_expires_at` is never set and the 180 day clock never starts — a compliance gap, not a convenience one; (3) the candidate detail screen is deployed but unreachable, nothing links to it. Designed-not-built: team page, notice window card, client contacts UI, remaining error states, candidate rights page. Never designed but needed: dashboard (tile spec in skill), audit log viewer, agency settings, rights routes + queue, recipient revocation, erasure action, consumer↔agency navigation, bulk upload. Remaining code beyond that: consumer enrichment + opt in UI, quick person to role analysis. Figma design phase: "Tailr — Agencies" file created (YhmWlceKG87SrIm07Iwv1g) but **Starter-plan MCP limit exhausted** before tokens could land — upgrade/reset/HTML-mockup-fallback decision needed. **Exposed schemas DONE 5 Aug** (Ose toggled; verified via REST — PostgREST lists `agency` as exposed, anon gets schema-level permission denied). ⚠️ Local `.env.local` points at PROD (`wgpaaafseibcqagiiavt`) — never run agency scripts/tests against local env keys; staging keys live only in Vercel Preview env. Full route-level E2E requires deploying to the staging branch. **Open:** cron wiring (vercel.json cron or scheduler) + CRON_SECRET env; **mono-font guardrail collision**: staging's typography test forbids new mono but the agencies handoff is Geist-Mono-heavy — needs a deliberate allowlist decision at design time; work sits uncommitted on the `career-path-northstar` checkout — cut a feature branch from origin/staging when committing (files are additive); fixture cleanup SQL in chat; Figma design phase next session |
+ 
+ ## 📋 Backlog (suggested, not started)
+ 
+@@ -65,6 +68,10 @@ Legend: ✅ Shipped · 🔧 In progress · 📋 Backlog · 🐛 Bug
+ | Terms of Service page | Chore | Low | Companion to the privacy policy |
+ | Dedicated privacy@ contact address | Chore | Low | Swap into the privacy policy once set up |
+ | `tsconfig.tsbuildinfo` gitignore tidy | Chore | Low | Build artifact tracked in git |
++| Produce "Better Fit" 30s animated social ad (Higgsfield) | Chore | Med | Follow-up video post. Script, 2D Illustrator style, character key, and Imogen narration all locked (15 Jul 2026); blocked on ~125-credit Higgsfield top-up. Resume spec + asset IDs in Claude session memory (`tailr-ad-production`) |
++| First social post: "No Memory" 6-slide carousel (IG/LinkedIn/TikTok) | Chore | High | v2 chosen 15 Jul 2026: Tailr as career-management tool (tailor → gap signals → upskill → track). 6 slides × 3 sizes in `Marketing/better-fit-carousel/` + captions; pack: https://claude.ai/code/artifact/8c870953-dca4-442f-9198-4178c9a036f5 — awaiting Ose posting. Supersedes 5-slide "two doors" v1 |
++| "Better Fit" 30s TikTok slideshow video | Chore | Med | 16 Jul 2026: 6 TikTok slides → 19s 9:16 MP4 (push-in + crossfades), `Marketing/better-fit-carousel/tiktok-9x16/tailr-tiktok.mp4`. Rendered via ffmpeg-static; add trending sound in-app. Awaiting Ose posting |
++| "Class 01" educational lesson poster + 9-slide carousel | Chore | Med | 16 Jul 2026: infographic-style teaching post ("Job Hunt From Zero"), Tailr-branded. Single poster + sliced 9-slide carousel (4:5 + 9:16) in `Marketing/tailr-class-01-poster/` + captions. Poster: https://claude.ai/code/artifact/032e10a7-c517-4d96-af16-c43fa6c735aa · Carousel pack: https://claude.ai/code/artifact/b334e817-b441-41ea-8fc5-5cb7911e17cd — awaiting Ose posting |
+ 
+ ---
+ 
+diff --git a/docs/STAGING.md b/docs/STAGING.md
+index b9bf3a0..999909f 100644
+--- a/docs/STAGING.md
++++ b/docs/STAGING.md
+@@ -11,25 +11,29 @@ Tailr has a persistent staging environment for testing changes before they reach
+ 
+ ## Who can open staging (Vercel Deployment Protection)
+ 
+-Preview URLs return **403** when Vercel Authentication is on. Team Viewer seats / shareable links need **Pro** — use a Hobby workaround below.
++Preview URLs return **403** when Vercel Authentication is on. Team Viewer seats / shareable links need **Pro**.
+ 
+-### Option A (easiest): disable Vercel Authentication
++**Production note:** `gettailr.com` / `app.gettailr.com` are already public custom domains. Vercel Authentication mainly gates `*.vercel.app` preview URLs (and the project’s `*.vercel.app` production alias — not your custom domains). Still, if you don’t want to change the project-wide toggle, use **Option A** below.
+ 
+-Staging already requires Tailr magic-link sign-in against `tailr-staging`, so turning off the Vercel wall is usually fine.
++### Option A (recommended on Hobby): bypass URL — staging only
+ 
+-1. Vercel → project **cvtailor-saas** → **Settings** → **Deployment Protection**
+-2. Set **Vercel Authentication** to **Disabled** (or only protect Production if that option appears)
+-3. Send Oje the normal staging URL — no Vercel account needed
+-
+-### Option B: keep protection + share a bypass URL (Hobby)
++Does **not** change protection settings or production.
+ 
+-1. Same page → **Protection Bypass for Automation** → generate/copy the secret
+-2. Send this once (sets a cookie so later visits work):
++1. Vercel → project **cvtailor-saas** → **Settings** → **Deployment Protection**
++2. **Protection Bypass for Automation** → generate/copy the secret
++3. Send Oje this once (sets a cookie so later visits work):
+ 
+ `https://cvtailor-saas-git-staging-ooifoh-gmailcoms-projects.vercel.app/tailor?x-vercel-protection-bypass=SECRET&x-vercel-set-bypass-cookie=true`
+ 
+ Do **not** commit the secret to git. Rotate it in Vercel if it leaks.
+ 
++### Option B: disable Vercel Authentication (project-wide)
++
++Makes **all** preview URLs public (staging + PR previews). Does not remove Tailr magic-link auth, and does not change who can use your production custom domains — but it does open every preview link to anyone with the URL.
++
++1. Same **Deployment Protection** page → **Vercel Authentication** → **Disabled**
++2. Send the normal staging URL
++
+ ### Option C (Pro only): invite as Viewer / Shareable Link
+ 
+ Skip unless you upgrade.
+-- 
+2.39.5 (Apple Git-154)
+

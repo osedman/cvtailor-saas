@@ -61,6 +61,17 @@ export interface MatchingState {
   minScore?: number | null
   scanQueued?: boolean
   lastScanAt?: string | null
+  /**
+   * When another scan is allowed. THE ANTI-PROBING CONTROL, not a cost one:
+   * without a cooldown a recruiter could move the threshold, rescan, and read
+   * the bucketed count changing, which over a few iterations says something
+   * about individual people.
+   *
+   * It has to be ON SCREEN. This was explained on the card that publishing
+   * replaced, and dropping it made "Update score" look broken — the score
+   * saves, no scan runs, and nothing says why.
+   */
+  nextScanAllowedAt?: string | null
 }
 
 export function MatchingWindow({
@@ -127,6 +138,8 @@ export function MatchingWindow({
   if (!open) return null
 
   const musts = requirements.filter((r) => r.weight === "must")
+  const nextAllowed = matching?.nextScanAllowedAt ? new Date(matching.nextScanAllowedAt) : null
+  const cooldownUntil = nextAllowed && nextAllowed > new Date() ? nextAllowed : null
   const scanning = Boolean(matching?.scanQueued)
   const people = matched?.people ?? []
 
@@ -228,6 +241,31 @@ export function MatchingWindow({
                     </button>
                   )}
                 </div>
+
+                {/*
+                  WHY NOTHING APPEARS TO HAPPEN (19 Sep 2026). The score saves
+                  immediately and the next scan is what uses it — so with the
+                  cooldown running, a correct update looks identical to a
+                  broken button. Said plainly here, where the button is.
+                */}
+                {matching?.enabled && (
+                  <p className="ag-note" style={{ marginTop: 10 }}>
+                    {minScore === matching.minScore && matching.minScore != null && (
+                      <>Minimum fit is {matching.minScore}. </>
+                    )}
+                    {cooldownUntil ? (
+                      <>
+                        The next scan runs{" "}
+                        <b>{cooldownUntil.toLocaleString("en-GB", { weekday: "long", hour: "2-digit", minute: "2-digit" })}</b>
+                        , and your score applies to it. Changing the number does not buy an extra
+                        scan — a day between scans is what stops the threshold being used to probe
+                        who is in the pool.
+                      </>
+                    ) : (
+                      <>A scan is available now — updating the score runs one.</>
+                    )}
+                  </p>
+                )}
               </>
             )}
           </div>

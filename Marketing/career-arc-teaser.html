@@ -1,0 +1,119 @@
+<title>Your career has an arc — Tailr</title>
+<style>
+  :root { --ink:#16120e; --cream:#f9f6f0; --coral:#dc4f33; --peach:#f4a58e; --muted:#8a8178; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--ink); color: var(--cream); overflow: hidden;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: grid; place-items: center; min-height: 100vh;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  .stage {
+    position: relative; width: min(92vw, 720px); text-align: center;
+    padding: 4vh 0 6vh;
+  }
+  .glow {
+    position: fixed; width: 60vmax; height: 60vmax; right: -22vmax; top: -22vmax;
+    border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, rgba(220,79,51,.22) 0%, rgba(220,79,51,0) 70%);
+  }
+
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: clamp(9px, 1.6vw, 12px); letter-spacing: .34em; color: var(--muted);
+    opacity: 0; animation: rise .7s ease-out .3s forwards;
+  }
+
+  .arc-wrap { margin: 5vh auto 4vh; width: min(86vw, 620px); }
+  .arc-wrap svg { width: 100%; display: block; }
+  #arcPath, #arcGhost { stroke-dasharray: 1200; stroke-dashoffset: 1200; animation: draw 2.2s cubic-bezier(.5,0,.2,1) .9s forwards; }
+  #arcGhost { animation-delay: .85s; }
+  #arcDot { opacity: 0; animation: pop .45s cubic-bezier(.2,1.6,.4,1) 3s forwards; }
+  #arcRing { opacity: 0; animation: ringIn .6s ease-out 3.15s forwards; }
+
+  h1 {
+    margin: 0; font-weight: 900; letter-spacing: -.015em; line-height: 1.04;
+    font-size: clamp(38px, 9vw, 78px); color: var(--cream);
+    text-shadow: 0 0 60px rgba(220,79,51,.35);
+  }
+  h1 .l { display: block; opacity: 0; animation: rise .8s cubic-bezier(.2,.8,.2,1) forwards; }
+  h1 .l:nth-child(1) { animation-delay: 3.4s; }
+  h1 .l:nth-child(2) { animation-delay: 3.65s; }
+  h1 em { color: var(--coral); font-style: normal; }
+
+  .stamp {
+    display: inline-block; margin-top: 5vh; padding: 12px 22px 10px;
+    border: 3.5px solid var(--coral); border-radius: 10px; color: var(--coral);
+    transform: rotate(-9deg); opacity: 0;
+    animation: stamp .5s cubic-bezier(.2,1.5,.4,1) 4.6s forwards;
+  }
+  .stamp b { display: block; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: clamp(13px, 2.6vw, 19px); font-weight: 700; letter-spacing: .24em; }
+  .stamp small { display: block; margin-top: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: clamp(6.5px, 1.2vw, 9px); letter-spacing: .18em; }
+
+  .foot {
+    margin-top: 6vh; display: flex; justify-content: center; gap: 26px; flex-wrap: wrap;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: clamp(9px, 1.6vw, 11.5px); letter-spacing: .22em; color: var(--muted);
+    opacity: 0; animation: rise .8s ease-out 5.3s forwards;
+  }
+  .foot span b { color: var(--peach); font-weight: 500; }
+
+  .replay {
+    position: fixed; right: 18px; bottom: 16px; background: none; border: 1px solid rgba(249,246,240,.2);
+    color: var(--muted); border-radius: 8px; padding: 7px 13px; cursor: pointer;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; letter-spacing: .14em;
+    opacity: 0; animation: rise .6s ease-out 6s forwards;
+  }
+  .replay:hover, .replay:focus-visible { color: var(--cream); border-color: var(--cream); outline: none; }
+
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+  @keyframes pop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
+  @keyframes ringIn { from { opacity: 0; transform: scale(.6); } to { opacity: .45; transform: scale(1); } }
+  @keyframes stamp { from { opacity: 0; transform: rotate(-26deg) scale(2.1); } to { opacity: .95; transform: rotate(-9deg) scale(1); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; animation-delay: 0ms !important; }
+  }
+</style>
+
+<div class="glow"></div>
+<main class="stage" id="stage">
+  <p class="eyebrow">TAILR · CAREER ARC</p>
+
+  <div class="arc-wrap" aria-hidden="true">
+    <svg viewBox="0 0 620 230">
+      <path id="arcGhost" d="M 20 205 H 120 L 150 172 H 250 L 280 139 H 380 L 410 106 H 480 L 510 73 H 560"
+        fill="none" stroke="rgba(220,79,51,.25)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="arcPath" d="M 20 205 H 120 L 150 172 H 250 L 280 139 H 380 L 410 106 H 480 L 510 73 H 560"
+        fill="none" stroke="#dc4f33" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle id="arcDot" cx="560" cy="73" r="10" fill="#dc4f33"/>
+      <circle id="arcRing" cx="560" cy="73" r="19" fill="none" stroke="#dc4f33" stroke-width="2"/>
+    </svg>
+  </div>
+
+  <h1>
+    <span class="l">Your career</span>
+    <span class="l">has an arc<em>.</em></span>
+  </h1>
+
+  <div class="stamp" role="img" aria-label="Nothing invented — sourced from a real CV">
+    <b>NOTHING INVENTED</b>
+    <small>EVERY CLAIM SOURCED FROM A REAL CV</small>
+  </div>
+
+  <p class="foot">
+    <span>BUILT IN <b>FOUR MINUTES</b></span>
+    <span><b>GETTAILR.COM</b></span>
+  </p>
+</main>
+
+<button class="replay" id="replay" aria-label="Replay animation">↻ REPLAY</button>
+<script>
+  document.getElementById('replay').addEventListener('click', () => {
+    const stage = document.getElementById('stage');
+    const clone = stage.cloneNode(true);
+    stage.replaceWith(clone);
+  });
+</script>
