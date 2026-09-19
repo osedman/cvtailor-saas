@@ -6167,3 +6167,29 @@ Three assertions pin it, probed: reintroducing a second threshold input on the
 workflow screen fails the suite.
 
 **1427 tests pass.**
+
+### And then the card came off the screen — but not the door
+
+Ose: *"Remove it from the screen if it is in the pop up window."* Right: the
+card described what the window already describes, so it was a second surface
+reporting on the first.
+
+**Removing it outright recreated a bug this project has already paid for**,
+and the guard caught it in the same run. `matching-scan-guards.test.ts`
+asserts the publish control is not nested inside a single step's conditional,
+because a role opens on its FURTHEST step — so a door living only in
+`step === "candidates"` is unreachable the moment a role has candidates and
+opens on screening. That is the original report, verbatim: *"there's no button
+that lets me publish it."*
+
+What is there now is **one row**, not a card: the title, the state pill, the
+last scan, and the way in. It sits after every step block rather than inside
+one, and still stops at step 04 because publishing is a sourcing decision.
+
+**Probed:** moving that row back inside `step === "candidates"` fails the
+suite. The guard is doing exactly the job it was written for, twice in one
+day — it also caught the window dropping the avatar and the MISSING-in-words
+title earlier.
+
+**1427 tests pass.**
+

@@ -502,6 +502,17 @@
 
 /* What the scan is matching against. Must-haves are tinted; everything else
    is quiet, so the eye reads the shape of the requirement set at a glance. */
+/* The door to matching. One row, not a card: the card described what the
+   window already describes, so what is left is the state and the way in.
+   It wraps rather than clipping its button — .ag-screen-head losing its
+   primary action at 375px is a live defect on five screens and this must not
+   join them. */
+.ag-match-door {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 20px; padding: 14px 18px;
+  background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md);
+}
+
 /* Publishing, inside the window (19 Sep 2026). The switch and the thing it
    produces were on two different parts of the screen; now you decide at the
    top of the window and watch the result below it. Tinted once live, so the

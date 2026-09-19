@@ -157,7 +157,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
    *  because a rejected pool or a fall-off is exactly when you need an
    *  eleventh candidate, and a locked door there would fight how recruiting
    *  actually goes. Opening it again is one click and changes nothing else. */
-  const [sourcingOpen, setSourcingOpen] = useState(false)
   const [closureNote, setClosureNote] = useState<string | null>(null)
   // Removing a candidate added in error. Confirmed, because it is a real
   // erasure and not a hide (22 Aug walk-through).
@@ -2729,35 +2728,28 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
           })()}
 
           {/*
-            PUBLISH FOR MATCHING — role-level, not step-level.
+            THE CARD IS GONE; THE DOOR IS NOT (19 Sep 2026, Ose).
 
-            Built to Figma 10:2 (the live card) and 118:2 (the states it did
-            not cover), but deliberately NOT in 10:2's intake rail. A role
-            opens on its furthest step — candidates if any exist, else parse
-            if requirements do — and publishing needs requirements, so an
-            intake-only card rendered solely in the one state where it says
-            "not yet" and was invisible in every state where it could be used.
-            There was no button, exactly as reported. Publishing is one
-            sourcing decision about the role, so it sits below the step
-            content on every step.
+            It was a card that described what matching was doing AND carried
+            the switch. Both live in the window now — the point of moving
+            publishing there was that the switch and its result belong
+            together — so a card outside repeating the state was a second
+            surface describing the first.
 
-            The NOT YET state still exists, because requirements can genuinely
-            be absent and the scan refuses to run without them — an enabled
-            button then could only ever produce an error.
+            WHAT IS LEFT IS ONE ROW, and removing even that recreates a bug
+            this project has already paid for. A role opens on its FURTHEST
+            step, so a door that lives inside `step === "candidates"` is
+            unreachable the moment a role has candidates and opens on
+            screening — which is exactly the original report, "there's no
+            button that lets me publish it". The row therefore sits AFTER
+            every step block, not inside one.
 
-            No count anywhere in this card. Scan liveness is shown instead:
-            without it "found nobody", "found people who haven't applied" and
-            "the scan is broken" are indistinguishable.
-
-            AND IT STOPS AT STEP 04 (14 Sep 2026). "Below the step content on
-            every step" overcorrected for the invisibility above: publishing
-            is a SOURCING decision, and from screening onwards the recruiter
-            is judging the people they already have. isSourcingStep is the
-            rule, and it keeps intake so the capability stays discoverable.
+            It still stops at step 04. Publishing is a sourcing decision, and
+            from screening onwards the recruiter is judging the people they
+            already have.
           */}
           {role && isSourcingStep(step) && (
-          <div className="ag-card" style={{ marginTop: 20 }}>
-            <div className="ag-card-head">
+            <div className="ag-match-door">
               <span className="ag-card-title">Publish for Tailr matching</span>
               <span className="ag-pill">
                 {requirements.length === 0
@@ -2768,65 +2760,24 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       ? "Paused"
                       : "Matching off"}
               </span>
-              <span className="ag-pill">Audit logged</span>
-            </div>
-            <div className="ag-card-body">
-              {phase !== null && phase !== "shortlist" && !sourcingOpen ? (
-                <>
-                  <p className="ag-note" style={{ marginTop: 0 }}>
-                    Sourcing is done for now — the shortlist is with the client and this role has
-                    moved on to interviews. Anyone already matched keeps what they were shown and
-                    can still apply.
-                  </p>
-                  <button
-                    className="ag-btn ag-btn-secondary"
-                    style={{ marginTop: 12 }}
-                    onClick={() => setSourcingOpen(true)}
-                  >
-                    Show sourcing controls
-                  </button>
-                </>
-              ) : (
-                /*
-                  A DOOR, NOT A SECOND CONTROL SURFACE (19 Sep 2026, Ose).
-                  The threshold and the publish button moved into the matching
-                  window, so deciding and watching are one place. What is left
-                  here is the state and the way in — this card used to be
-                  both, which meant the switch and the result it produced were
-                  never on screen together.
-                */
-                <>
-                  <p className="ag-note" style={{ marginTop: 0 }}>
-                    {requirements.length === 0
-                      ? "Matching scores people against this role's requirements, so it needs them parsed first. Extract them above and this turns on."
-                      : matching?.enabled
-                        ? "Tailr is scanning on the candidate's side. Applying is their consent; until someone applies, you see nobody."
-                        : matching
-                          ? "Paused — the role has stopped being shown to anyone new. People it already reached keep what they were shown, and can still apply."
-                          : "There is no job board. Tailr scans each consumer user's own evidence — on their side — and quietly nudges the people who fit. Or keep it direct-sourced and add candidates yourself in step 03."}
-                  </p>
-                  <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
-                    <button
-                      className={matching?.enabled ? "ag-btn ag-btn-secondary" : "ag-btn ag-btn-coral"}
-                      onClick={() => setMatchWindow(true)}
-                      disabled={requirements.length === 0}
-                    >
-                      {requirements.length === 0
-                        ? "Parse requirements first"
-                        : matching?.enabled
-                          ? "Open matching"
-                          : "Publish for Tailr matching"}
-                    </button>
-                    {matching?.enabled && matching.lastScanAt && (
-                      <span className="ag-meta">
-                        Last scan {new Date(matching.lastScanAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    )}
-                  </div>
-                </>
+              <span className="ag-grow" />
+              {matching?.enabled && matching.lastScanAt && (
+                <span className="ag-meta">
+                  Last scan {new Date(matching.lastScanAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </span>
               )}
+              <button
+                className={matching?.enabled ? "ag-btn ag-btn-secondary" : "ag-btn ag-btn-coral"}
+                onClick={() => setMatchWindow(true)}
+                disabled={requirements.length === 0}
+              >
+                {requirements.length === 0
+                  ? "Parse requirements first"
+                  : matching?.enabled
+                    ? "Open matching"
+                    : "Publish and scan"}
+              </button>
             </div>
-          </div>
           )}
         </div>
 
