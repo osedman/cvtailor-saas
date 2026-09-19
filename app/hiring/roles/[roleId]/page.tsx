@@ -21,7 +21,6 @@ import { SignOut } from "@/components/agency/sign-out"
 import {
   DecisionsComplete,
   EmptyBand,
-  HiringNav,
   RoundActions,
   RoundProgress,
 } from "@/components/agency/hm-shared"
@@ -106,8 +105,6 @@ export default function HiringRolePage({ params }: { params: Promise<{ roleId: s
           </>
         )}
       </div>
-
-      {screen === "ready" && <HiringNav />}
 
       <div className="agd-page" aria-busy={screen === "loading"}>
         {screen === "loading" && (

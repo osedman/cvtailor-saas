@@ -25,7 +25,6 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import type { HiringLink } from "@/lib/agency/types"
-import { HiringNav } from "@/components/agency/hm-shared"
 import "../../hiring.css"
 
 type Screen = "loading" | "signed-out" | "not-linked" | "ready"
@@ -205,7 +204,6 @@ export default function NewBriefPage() {
 
   return (
     <main className="agd-main hm-main">
-      <HiringNav />
       <div className="agd-page">
         <header className="agd-hero">
           <p className="agd-date">New brief</p>

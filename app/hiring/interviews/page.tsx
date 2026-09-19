@@ -24,7 +24,6 @@ import Link from "next/link"
 import { SignOut } from "@/components/agency/sign-out"
 import {
   EmptyBand,
-  HiringNav,
   RoundActions,
   RoundProgress,
   SlotChip,
@@ -169,8 +168,6 @@ export default function HiringInterviewsPage() {
           </>
         )}
       </div>
-
-      {screen === "ready" && <HiringNav />}
 
       <div className="agd-page" aria-busy={screen === "loading"}>
         {screen === "loading" && (

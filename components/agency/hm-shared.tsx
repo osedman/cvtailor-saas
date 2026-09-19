@@ -77,6 +77,19 @@ export interface HiringNavItem {
   on: boolean
 }
 
+/**
+ * Does this path get the workspace rail?
+ *
+ * Doorways do not. /hiring/invite is where somebody accepts an invitation and
+ * is not yet inside anything — a rail of five places they cannot reach would
+ * be five dead links, which is the same broken promise as a button that does
+ * nothing. Pure and exported so the rule is tested against paths rather than
+ * scanned for in the component.
+ */
+export function showsHiringRail(pathname: string): boolean {
+  return !pathname.startsWith("/hiring/invite")
+}
+
 export function hiringNavFor(pathname: string): HiringNavItem[] {
   /*
    * FIVE PLACES, ONE PER PHASE (19 Sep 2026, Ose — Figma frame 15).
@@ -109,30 +122,16 @@ export function hiringNavFor(pathname: string): HiringNavItem[] {
   ]
 }
 
-export function HiringNav() {
-  const pathname = usePathname() ?? ""
-  return (
-    <nav className="hm-nav" aria-label="Hiring workspace">
-      {hiringNavFor(pathname).map((it) => (
-        <Link
-          key={it.href}
-          href={it.href}
-          className={`hm-nav-item${it.on ? " on" : ""}`}
-          aria-current={it.on ? "page" : undefined}
-        >
-          {it.label}
-        </Link>
-      ))}
-      {/* THE BRIEF DOOR IS STILL CLOSED (15 Sep 2026, unchanged 19 Sep).
-       *
-       * "My roles" lists roles the RECRUITER opened; it is not a door to
-       * posting one. /hiring/briefs/new and POST /api/hiring/briefs still
-       * answer, on purpose — deleting them would leave the recruiter's briefs
-       * inbox unable to ever receive a brief — but nothing in this workspace
-       * links there. */}
-    </nav>
-  )
-}
+/*
+ * HiringNav is GONE (19 Sep 2026). It was a horizontal strip of uppercase
+ * mono pills rendered inside each page's <main>; the five places belong in a
+ * left rail in the shell, which is what Figma frame 15 drew and what
+ * components/agency/hiring-sidebar.tsx now renders once for every screen.
+ *
+ * `hiringNavFor` above survives and is the shared rule — the rail reads it,
+ * and it is tested against paths rather than asserted as a regex over this
+ * file.
+ */
 
 // ── Small shared blocks ─────────────────────────────────────────────────────
 

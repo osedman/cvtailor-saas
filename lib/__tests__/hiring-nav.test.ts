@@ -14,7 +14,7 @@ const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
  *  explains why the door was closed. That trap has bitten seven times now. */
 const code = (p: string) => tsCode(read(p))
 
-import { hiringNavFor } from "../../components/agency/hm-shared"
+import { hiringNavFor, showsHiringRail } from "../../components/agency/hm-shared"
 
 /** Which place is lit for a path — the question every assertion below asks. */
 const lit = (path: string) => hiringNavFor(path).find((i) => i.on)?.label ?? null
@@ -100,20 +100,59 @@ describe("the hiring manager cannot start a role", () => {
   })
 })
 
-describe("every hiring workspace screen renders the nav", () => {
-  it.each([
-    "app/hiring/page.tsx",
-    "app/hiring/roles/page.tsx",
-    "app/hiring/shortlist/page.tsx",
-    "app/hiring/decisions/page.tsx",
-    "app/hiring/interviews/page.tsx",
-    "app/hiring/roles/[roleId]/page.tsx",
-    "app/hiring/briefs/new/page.tsx",
-  ])("%s", (path) => {
-    expect(read(path)).toMatch(/<HiringNav \/>/)
+describe("the rail lives in the shell, not in every page", () => {
+  /*
+   * This suite used to assert `<HiringNav />` appeared in each of seven page
+   * files. That was the right rule protected the wrong way, and the wrong way
+   * is what let the first build of the five places ship as a horizontal strip
+   * inside <main>: adding chrome to a page was easier than adding it to the
+   * shell, and nothing objected.
+   *
+   * The rail is mounted once in app/hiring/layout.tsx now, so the guard is
+   * that the layout mounts it and that no page re-renders its own.
+   */
+  it("the layout mounts the rail", () => {
+    expect(read("app/hiring/layout.tsx")).toMatch(/<HiringSidebar \/>/)
   })
 
-  it("the invite doorway does not", () => {
-    expect(read("app/hiring/invite/[token]/page.tsx")).not.toMatch(/HiringNav/)
+  it("no page renders nav chrome of its own", () => {
+    for (const path of [
+      "app/hiring/page.tsx",
+      "app/hiring/roles/page.tsx",
+      "app/hiring/shortlist/page.tsx",
+      "app/hiring/decisions/page.tsx",
+      "app/hiring/interviews/page.tsx",
+      "app/hiring/roles/[roleId]/page.tsx",
+      "app/hiring/roles/[roleId]/interviews/page.tsx",
+      "app/hiring/briefs/new/page.tsx",
+    ]) {
+      expect(code(path)).not.toMatch(/<HiringNav \/>|<HiringSidebar \/>/)
+    }
+  })
+
+  it("the retired strip is gone from the component and the stylesheet", () => {
+    // Same words in two places is how the rail and the strip would drift.
+    expect(code("components/agency/hm-shared.tsx")).not.toMatch(/export function HiringNav\b/)
+    expect(read("app/hiring/hiring.css")).not.toMatch(/^\.hm-nav \{/m)
+  })
+
+  it("the invite doorway gets no rail", () => {
+    // A doorway is not the workspace: five places somebody cannot reach yet
+    // is five dead links.
+    expect(showsHiringRail("/hiring/invite/abc123")).toBe(false)
+    expect(showsHiringRail("/hiring/invite")).toBe(false)
+  })
+
+  it("every workspace path does get one", () => {
+    for (const path of [
+      "/hiring",
+      "/hiring/roles",
+      "/hiring/roles/abc",
+      "/hiring/shortlist",
+      "/hiring/interviews",
+      "/hiring/decisions",
+    ]) {
+      expect(showsHiringRail(path)).toBe(true)
+    }
   })
 })

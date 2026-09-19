@@ -6,11 +6,20 @@
  * loads agencies.css and the same three faces (Geist body, Geist Mono chrome,
  * Fraunces display) rather than forking a token set.
  *
- * Theme: agencies.css turns dark for `.ag-app:has(.agd-main)`. The dashboard
- * renders `.agd-main` and is therefore the dark surface, per the signed-off
- * Figma frame ("Tailr — Hiring Manager Concept" → 01 · Hiring manager → HM ·
- * Dashboard). The invite page deliberately does NOT render `.agd-main`: it is
- * a doorway, not the workspace, and stays on light paper.
+ * Theme: dark is a user TOGGLE now (`data-ag-theme` on <html>, applied to
+ * `.ag-themed`), not a property of this surface. The older note here said
+ * agencies.css turned dark for `.ag-app:has(.agd-main)` — that stopped being
+ * true when dark became a mode, and it misled a session on 19 Sep 2026 into
+ * treating "should /hiring be light?" as an open question when the hiring
+ * manager already chooses.
+ *
+ * THE RAIL LIVES HERE, not in each page (19 Sep 2026, Figma frame 15). Five
+ * places rendered per-page is five chances for them to disagree, and the
+ * first version of this shipped as a horizontal strip inside <main> for
+ * exactly that reason — it was easier to add to a page than to the shell.
+ * `.ag-app` is display:flex, so the rail is a sibling of <main> and the
+ * recruiter's own sidebar already works this way. HiringSidebar returns null
+ * on the invite doorway, which is not the workspace.
  *
  * Access model (docs/AGENCIES_SCHEMA.md §5.4): hiring managers hold no RLS
  * grants at all. Nothing under /hiring reads Supabase from the client — every
@@ -20,6 +29,7 @@
 import type { Metadata } from "next"
 import { Fraunces, Geist, Geist_Mono } from "next/font/google"
 import { AgencyShell } from "@/components/agency/agency-shell"
+import { HiringSidebar } from "@/components/agency/hiring-sidebar"
 import "../agencies/agencies.css"
 import "./hiring.css"
 
@@ -37,6 +47,7 @@ export const metadata: Metadata = {
 export default function HiringLayout({ children }: { children: React.ReactNode }) {
   return (
     <AgencyShell className={`${agSans.variable} ${agMono.variable} ${agDisplay.variable}`}>
+      <HiringSidebar />
       {children}
     </AgencyShell>
   )

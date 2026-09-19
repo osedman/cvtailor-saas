@@ -31,7 +31,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { SignOut } from "@/components/agency/sign-out"
-import { EmptyBand, HiringNav, fmtWhen } from "@/components/agency/hm-shared"
+import { EmptyBand, fmtWhen } from "@/components/agency/hm-shared"
 import Link from "next/link"
 import type {
   HiringBrief,
@@ -521,8 +521,6 @@ export default function HiringDashboardPage() {
       <p className="sr-only" role="status" aria-live="polite">
         {statusMessage}
       </p>
-
-      {screen === "ready" && <HiringNav />}
 
       <div className="agd-page" aria-busy={screen === "loading"}>
         {screen === "loading" && (

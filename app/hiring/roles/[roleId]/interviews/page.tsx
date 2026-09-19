@@ -22,7 +22,7 @@ import { use, useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import "../../../hiring.css"
-import { HiringNav, EmptyBand } from "@/components/agency/hm-shared"
+import { EmptyBand } from "@/components/agency/hm-shared"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
 import { SignOut } from "@/components/agency/sign-out"
 import { proposeWindows, windowsWanted, type Interval } from "@/lib/calendar/windows"
@@ -323,7 +323,6 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
           </>
         )}
       </div>
-      {screen === "ready" && <HiringNav />}
 
       <div className="agd-page" aria-busy={screen === "loading"}>
         {screen === "loading" && (

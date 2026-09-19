@@ -6000,3 +6000,75 @@ dropping the cohort exclusion fails 2.
   struck through.
 
 **Not verified:** none of it has been seen signed in. That needs Ose's session.
+
+---
+
+## 🧱 19 September 2026 (later) — the rail, built properly this time
+
+**The five places shipped as the wrong object.** Frame 15 draws a 272px column
+of sentence-case places down the left; what went out was `.hm-nav` — a
+horizontal strip of small uppercase mono pills inside each page's `<main>`.
+Same five words, same routes, same data. Ose: *"nothing from the screenshot
+was implemented."* He was right about the thing that matters.
+
+**The deploy was fine.** Verified server-side before answering, per Play 2: the
+three new routes 200 while a nonsense route 404s, and the shipped JS chunk
+contains `"My roles"` and `"This role at a glance"`. Not a cache problem, not a
+deploy problem — the layout was simply never built.
+
+### How the verification passed while the design failed
+
+The 375px check reported *"the five-item nav wraps to two rows"* and that was
+written down as a pass. **A thing that wraps is not the thing that was
+designed** — a rail cannot wrap. The measurement was true and the conclusion
+was wrong, which is worse than a failed check because it carries the
+authority of a number. The `.hm-nav { flex-wrap: wrap }` rule that produced it
+has been deleted, with a comment recording what it disguised.
+
+### What the rail is
+
+- `components/agency/hiring-sidebar.tsx`, mounted **once in
+  `app/hiring/layout.tsx`** rather than per-page. Five places rendered by eight
+  pages is eight chances to disagree, and rendering it per-page is precisely
+  why the strip happened: adding chrome to a page is easier than adding it to
+  the shell, and nothing objected.
+- `.ag-app` is `display:flex` and the recruiter's own `.ag-sidebar` already
+  sits beside `.ag-main` in it — same shell shape, not a second layout.
+- Sentence case at body size in the design system's face, tinted coral when
+  active. Not the uppercase micro-mono of the chrome: these are names of
+  places a person goes.
+- Below 860px it rides along the top and scrolls **inside itself**, because a
+  272px column on a 375px screen leaves 100px for the work.
+- **`HiringNav` and `.hm-nav` are deleted**, not left beside the rail. Two
+  navs with the same five words is how they drift.
+
+### The guard was the wrong shape too
+
+`hiring-nav.test.ts` asserted `<HiringNav />` appeared in seven page files —
+the right rule protected the wrong way, and the way that let chrome-in-a-page
+ship unchallenged. It now asserts the layout mounts the rail, that **no page
+renders nav chrome of its own**, that the retired strip is gone from both the
+component and the stylesheet, and that the invite doorway gets no rail
+(`showsHiringRail`, pure and tested against paths).
+
+That last assertion caught a real leftover: `.hm-nav { flex-wrap: wrap }` had
+survived in the stylesheet.
+
+### Verified, in a real viewport this time
+
+Measured inside an `<iframe>` at **1280** and **375**, reproducing the ancestor
+chain, because the Browser pane was hidden and reported `innerWidth: 0` —
+which made the 860px query match and would have "confirmed" a row layout.
+
+| | 1280 | 375 |
+|---|---|---|
+| column | **yes** | no (row, by design) |
+| items stack vertically | **yes** | no |
+| width | **272px** | full width |
+| left of main | **yes** | n/a |
+| full height | **yes** | n/a |
+| sentence case, not mono | **yes** | yes |
+| active tint | `#fff7f4` | `#fff7f4` |
+| page scrolls sideways | **no** | **no** |
+
+**1423 tests pass.** Still not seen signed in.

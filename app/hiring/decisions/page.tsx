@@ -22,7 +22,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { SignOut } from "@/components/agency/sign-out"
-import { DECISION_LABEL, EmptyBand, HiringNav, fmtWhen } from "@/components/agency/hm-shared"
+import { DECISION_LABEL, EmptyBand, fmtWhen } from "@/components/agency/hm-shared"
 import type { HiringDashboard, HiringRound } from "@/lib/agency/types"
 
 type Screen = "loading" | "unauthed" | "not_linked" | "error" | "ready"
@@ -89,8 +89,6 @@ export default function HiringDecisionsPage() {
           </>
         )}
       </div>
-
-      {screen === "ready" && <HiringNav />}
 
       <div className="agd-page" aria-busy={screen === "loading"}>
         {screen === "loading" && (

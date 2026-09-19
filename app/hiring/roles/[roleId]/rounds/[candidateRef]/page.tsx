@@ -10,7 +10,6 @@
  */
 import { use } from "react"
 import "../../../../hiring.css"
-import { HiringNav } from "@/components/agency/hm-shared"
 import { SignOut } from "@/components/agency/sign-out"
 import { InterviewRoom } from "@/components/agency/interview-room"
 
@@ -29,7 +28,6 @@ export default function InterviewRoomPage({
         <SignOut />
       </div>
       <div className="agd-page">
-        <HiringNav />
         <InterviewRoom roleId={roleId} candidateRef={decodeURIComponent(candidateRef)} />
       </div>
     </main>

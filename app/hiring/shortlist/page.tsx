@@ -26,7 +26,7 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { SignOut } from "@/components/agency/sign-out"
-import { EmptyBand, HiringNav } from "@/components/agency/hm-shared"
+import { EmptyBand } from "@/components/agency/hm-shared"
 import type { NextAction } from "@/lib/agency/next-action"
 
 type Screen = "loading" | "unauthed" | "not_linked" | "error" | "ready"
@@ -120,8 +120,6 @@ export default function HiringShortlistPage() {
           </>
         )}
       </div>
-
-      {screen === "ready" && <HiringNav />}
 
       <div className="agd-page" aria-busy={screen === "loading"}>
         {screen === "loading" && (
