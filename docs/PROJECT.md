@@ -6275,3 +6275,101 @@ judgements belong to people), and the one framing question the feature turns
 on: does the tab **suggest a shortlist** or **organise what is known**? Those
 are different products and only one is defensible without a second legal look.
 
+
+---
+
+## 🔧 The recommendations tab — step 05 (19 September 2026)
+
+**Built.** Staging only, on `staging`. Migration **`20260919120000_recommendation_audit.sql`**
+must be run in `tailr-staging` BEFORE the code, or every generation 500s on
+the audit insert.
+
+### The framing question, answered — then re-answered by Ose
+
+`docs/NEXT-SESSION-SHORTLIST-RECOMMENDATIONS.md` said to settle one thing
+first: does the tab **suggest a shortlist** (naming people) or **organise what
+is known** (naming gaps)?
+
+Ose first chose *organise what is known*, requirement-first, and Figma frame 19
+was built to it. On seeing it: **"it's not really giving any direct information
+that's useful… it should be an AI recommendation based on the shortlisting
+input. Maybe put a button there for AI recommendations. So when it becomes 50
+candidates for a role it can be efficient."**
+
+So the shipped feature **names people**. That is the decision, and the
+efficiency case is the point of it: at ten candidates the matrix is readable,
+at fifty it is not. Frame 19 was rebuilt as *"Recommend the shortlist. Show
+every reason."* (`AWRRbEOX6rLsltutFDL3zs`, node `461:2`).
+
+### What holds the line instead
+
+Naming people made the guardrails load-bearing rather than decorative:
+
+- **The model never sees a name.** Candidates go in as refs (`CAN-01`) and come
+  back as refs; names are reattached server-side afterwards.
+- **The model never sees the soft signals.** `candidate_reviews.communication`
+  and `.motivation` are the only columns in the schema that rate a person, and
+  they are not selected. Neither are the L01–L12 library probes — those are
+  motivation, logistics and ways of working, i.e. a read of a person. Only the
+  gap probes, keyed to a requirement ref, go in.
+- **Every reason shows its working.** The model does not write citations in
+  prose; it picks trace ids from a per-candidate allowlist computed from the
+  real rows. Invented ids are dropped, and a reason left with no surviving
+  trace is replaced by a fact line the server computes.
+- **Nobody falls off.** `items.length` always equals the candidate count.
+  A candidate the model forgot is appended to `not_yet` with a computed reason
+  rather than vanishing. Grouping is not filtering.
+- **No decision is written.** The route never touches `recruiter_reviews`;
+  a test asserts it contains no insert/update/upsert/delete at all. Shortlist /
+  hold / reject stay on the matrix.
+- **"Not recommended yet" keeps its adverb**, and the panel never prints
+  "rejected".
+
+### Files
+
+`lib/agency/recommendation.ts` (server-import-free — the page imports its
+types) · `app/api/agency/roles/[roleId]/recommendation/route.ts` ·
+`components/agency/recommendation-panel.tsx` · the tab bar and
+`compareTab` state in the step 05 pane · `.ag-reco-*` in `agencies.css` ·
+`lib/__tests__/agency-recommendation.test.ts` (36 tests).
+
+Model is **`claude-opus-5`**, not the `claude-sonnet-4-6` the parse and
+assessment routes use: this is the only output in the product that names
+people. ~10s and ~1.8k input tokens on a two-candidate probe.
+
+### 🐛 A runtime-only bug the build could not see
+
+The route first used `zodOutputFormat` for structured output. It type-checked,
+`next build` passed, and the whole test suite was green — and it throws
+`Cannot read properties of undefined (reading 'def')` **at request time**,
+because the helper in SDK 0.100.1 expects a zod **v4** schema (`schema._zod`)
+and this repo's `zod` import is the v3 classic API.
+
+The first person to press the button would have got a 500. Found by probing
+the live Anthropic API with the route's real prompt, which is the whole
+argument for probing it. Now a raw JSON schema via `jsonSchemaOutputFormat`,
+which has no zod dependency and matches how the parse route already writes
+schemas.
+
+The same probe caught a second thing the build cannot: the model wrote
+900-character paragraphs with trace ids inline in the prose. The prompt now
+asks for one sentence under 300 characters and forbids ids in prose (output
+came back 158–203 chars), and `trimToSentence` trims at a sentence boundary —
+a plain `.slice(0, 400)` had produced `"...R07 was not as"` on screen.
+
+### Verified, and not
+
+- ✅ 1,472 tests pass; `next build` compiles; the route is registered.
+- ✅ The live model call works — real API, real prompt, 10.2s, well-formed,
+  and it obeyed the rules unprompted (no person language, kept the adverb,
+  cited only allowed ids, flagged a CV/call discrepancy without resolving it).
+- ✅ Unauthenticated `POST` to the route returns **401**.
+- ✅ The new CSS is in the **served** chunk (33 `ag-reco` rules), not just on
+  disk — the Turbopack stale-stylesheet trap.
+- ❌ **Nobody has pressed the button signed in.** The local browser has no
+  agency session and ROL-2417 still has **zero reviews**, so there are no real
+  call answers to read yet. Ose is logging the screening calls.
+- ❌ **`docs/LEGAL-REVIEW-PACK.md` §5 has NOT been updated.** It currently
+  claims no automated decision-making as a clean fact, and a tab that names
+  people is the closest thing to one that has ever existed here. It needs a
+  paragraph before this goes anywhere near a real candidate.

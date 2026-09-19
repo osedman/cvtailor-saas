@@ -167,6 +167,9 @@ export interface AuditEntry {
     // Interview rules for a role (20260910090000): duration, buffer, notice,
     // daily cap. About the process, never about a person.
     | "interview"
+    // The step 05 shortlist recommendation (20260919120000). action is always
+    // 'generated'; the payload is counts, never a name, a reason or a group.
+    | "recommendation"
   entityRef: string
   action: string
   fromValue?: unknown

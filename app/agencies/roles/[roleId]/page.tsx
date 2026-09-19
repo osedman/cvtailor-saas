@@ -19,6 +19,7 @@ import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey, is
 import { STRENGTHS, strengthWeightLabel } from "@/lib/agency/strengths"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
 import { MatchingWindow, type PoolPerson } from "@/components/agency/matching-window"
+import { RecommendationPanel } from "@/components/agency/recommendation-panel"
 import { roleLandingPath, type PhaseKey } from "@/lib/agency/phases"
 import {
   ArrowUpRight, Banknote, Briefcase, ChevronUp, FileText,
@@ -300,6 +301,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // candidate with no decision yet.
   const [focusedCandidate, setFocusedCandidate] = useState<string | null>(null)
   const [compareSort, setCompareSort] = useState<"score" | "must" | "name">("score")
+  // Step 05 has two tabs. The matrix is the default and stays the default:
+  // the recommendation is a second reading of the same material, never a
+  // replacement for the board the decisions are made on.
+  const [compareTab, setCompareTab] = useState<"matrix" | "reco">("matrix")
   const [mustOnly, setMustOnly] = useState(false)
   // Hiding is a view control on the compare board only. It never touches the
   // candidate, the score or any decision — the product does not remove people.
@@ -1963,6 +1968,31 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   </div>
                 </div>
 
+                {/* The matrix stays the default. The second tab is a
+                    recommendation, generated on demand — it names people, and
+                    it is the closest thing to an automated decision in the
+                    product, so it carries no decision controls of its own. */}
+                <div className="ag-cmp-tabs" role="tablist" aria-label="Compare views">
+                  <button
+                    role="tab"
+                    aria-selected={compareTab === "matrix"}
+                    className={compareTab === "matrix" ? "on" : ""}
+                    onClick={() => setCompareTab("matrix")}
+                  >
+                    Matrix
+                  </button>
+                  <button
+                    role="tab"
+                    aria-selected={compareTab === "reco"}
+                    className={compareTab === "reco" ? "on" : ""}
+                    onClick={() => setCompareTab("reco")}
+                  >
+                    Recommendations
+                  </button>
+                </div>
+                {compareTab === "matrix" ? (
+                  <>
+
                 <div className="ag-legend">
                   <span className="ag-field-label" style={{ marginBottom: 0, marginRight: 4 }}>Legend</span>
                   <span><span className="ag-dot strong" /> Strong evidence — 1.0</span>
@@ -2152,6 +2182,15 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     Continue to submission
                   </button>
                 </div>
+                  </>
+                ) : (
+                  <RecommendationPanel
+                    roleId={roleId}
+                    candidateCount={candidates.length}
+                    callsLogged={reviewedCount}
+                    onOpenCandidate={(id) => router.push(`/agencies/roles/${roleId}/candidates/${id}`)}
+                  />
+                )}
               </>
             )
           })()}
