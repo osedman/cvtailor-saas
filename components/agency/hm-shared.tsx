@@ -61,46 +61,75 @@ export const DECISION_SENTENCE: Record<RoundDecision, string> = {
  * Rendered by the workspace screens only, never the doorways (invite stays a
  * doorway, and doorways do not get workspace chrome).
  */
+/**
+ * The five places, and which one a path belongs to.
+ *
+ * PURE, AND EXPORTED, so the rules below are tested against paths rather
+ * than asserted as a regex over this file's source. The old guard matched the
+ * literal string `["/hiring/roles"]`; when /hiring/roles became its own place
+ * that string changed and the test failed while the behaviour was correct —
+ * a proxy breaking on a safe change, which is the same trap as counting
+ * deletes in the seed script.
+ */
+export interface HiringNavItem {
+  href: string
+  label: string
+  on: boolean
+}
+
+export function hiringNavFor(pathname: string): HiringNavItem[] {
+  /*
+   * FIVE PLACES, ONE PER PHASE (19 Sep 2026, Ose — Figma frame 15).
+   *
+   * This was Home and Interviews. Two items meant everything else lived on
+   * the dashboard, and a hiring manager with six live roles had one screen
+   * that was a roles list, a task list, a rounds list and a diary at once.
+   * Frame 03 argued against a stacked sidebar and was right about the
+   * RECRUITER's eighteen links; the client's side has five things in it, and
+   * naming them is what stops the dashboard being a corridor.
+   *
+   * Each place reaches real data. A nav item opening an empty screen is the
+   * same broken promise as a button that cannot do anything.
+   */
+  const onCohort = /^\/hiring\/roles\/[^/]+\/interviews/.test(pathname)
+  // A role page is a door opened from a task, so Tasks stays lit there — the
+  // same reasoning that kept Home lit before. The TRAILING SLASH matters:
+  // /hiring/roles exactly is My roles, /hiring/roles/<id> is a door out of
+  // Tasks. Without it, My roles could never light.
+  const onRoleDoor = /^\/hiring\/roles\/.+/.test(pathname) && !onCohort
+
+  const exact = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
+
+  return [
+    { href: "/hiring/roles", label: "My roles", on: pathname === "/hiring/roles" },
+    { href: "/hiring", label: "Tasks", on: pathname === "/hiring" || onRoleDoor },
+    { href: "/hiring/shortlist", label: "Shortlist", on: exact("/hiring/shortlist") },
+    { href: "/hiring/interviews", label: "Interviews", on: exact("/hiring/interviews") || onCohort },
+    { href: "/hiring/decisions", label: "Decisions", on: exact("/hiring/decisions") },
+  ]
+}
+
 export function HiringNav() {
   const pathname = usePathname() ?? ""
-  // A role page is a door opened from the dashboard's role rows, so the
-  // dashboard stays lit there; before this the nav highlighted nothing on
-  // /hiring/roles/:id or the brief form (found 3 Sep 2026).
-  //
-  // A role's OWN interviews screen is the cohort, and it belongs to
-  // Interviews rather than Home — it lit "Home" while a nav item literally
-  // named Interviews pointed elsewhere (found 11 Sep 2026). Matching is on
-  // the more specific path first, so the role's cohort wins over the role.
-  const onCohort = /^\/hiring\/roles\/[^/]+\/interviews/.test(pathname)
-  const items = [
-    { href: "/hiring", label: "Home", also: onCohort ? [] : ["/hiring/roles"] },
-    { href: "/hiring/interviews", label: "Interviews", also: onCohort ? [pathname] : [] },
-  ]
   return (
     <nav className="hm-nav" aria-label="Hiring workspace">
-      {items.map((it) => {
-        const on =
-          pathname === it.href ||
-          pathname.startsWith(`${it.href}/`) ||
-          it.also.some((p) => pathname === p || pathname.startsWith(`${p}/`))
-        return (
-          <Link key={it.href} href={it.href} className={`hm-nav-item${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>
-            {it.label}
-          </Link>
-        )
-      })}
-      {/* THE BRIEF DOOR IS CLOSED (15 Sep 2026).
+      {hiringNavFor(pathname).map((it) => (
+        <Link
+          key={it.href}
+          href={it.href}
+          className={`hm-nav-item${it.on ? " on" : ""}`}
+          aria-current={it.on ? "page" : undefined}
+        >
+          {it.label}
+        </Link>
+      ))}
+      {/* THE BRIEF DOOR IS STILL CLOSED (15 Sep 2026, unchanged 19 Sep).
        *
-       * Wave 5a already decided the brief was the recruiter's job description
-       * and no longer the primary act — but the nav kept a link here while
-       * the dashboard still rendered "Post a brief" as its PRIMARY button,
-       * so the two surfaces disagreed and the louder one was winning.
-       * Opening a role is the recruiter's act now; both doors are gone.
-       *
-       * /hiring/briefs/new and POST /api/hiring/briefs still work, on
-       * purpose: deleting the route would leave the recruiter's briefs inbox
-       * unable to ever receive a new brief, which is a separate decision.
-       * There is simply no longer a door to it from this workspace. */}
+       * "My roles" lists roles the RECRUITER opened; it is not a door to
+       * posting one. /hiring/briefs/new and POST /api/hiring/briefs still
+       * answer, on purpose — deleting them would leave the recruiter's briefs
+       * inbox unable to ever receive a brief — but nothing in this workspace
+       * links there. */}
     </nav>
   )
 }

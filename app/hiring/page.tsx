@@ -257,6 +257,43 @@ function buildRoles(d: HiringDashboard, now: number): RoleRow[] {
 }
 
 
+/**
+ * The four rungs of "how far has this role got", from the client's side.
+ *
+ * DERIVED, NEVER STORED, and only from facts this payload already carries.
+ * A rung that guessed would be worse than no rung: a hiring manager reading
+ * "candidates interviewed" when nobody has been would stop chasing.
+ *
+ * The ladder is deliberately coarser than the recruiter's seven steps,
+ * because a client sees none of the shortlisting work — no candidates, no
+ * scores, no evidence (the disclosure rules in lib/agency/client-auth.ts).
+ * The only honest signals available are: the role exists, somebody was put
+ * in front of them, a round actually happened, and the loop ended.
+ */
+function glanceFor(
+  row: ClientTodayRow,
+  rounds: HiringRound[]
+): Array<{ label: string; done: boolean }> {
+  const mine = rounds.filter((r) => r.role_id === row.role.id && r.status !== "cancelled")
+  const key = row.subState.key
+
+  // A role only reaches this workspace once the recruiter has opened it, so
+  // the brief is behind us the moment there is anything to show at all.
+  const briefDone = true
+  // They have seen a shortlist once they have acted on one — a round exists
+  // only because somebody was chosen from it.
+  const shortlistDone = mine.length > 0
+  const interviewed = mine.some((r) => r.status === "completed")
+  const ended = ["take-to-close-out", "pack-generated", "handed-over", "closed", "loop-ended"].includes(key)
+
+  return [
+    { label: "Brief agreed & clarified", done: briefDone },
+    { label: "Shortlist reviewed", done: shortlistDone },
+    { label: "Candidates interviewed", done: interviewed },
+    { label: "Hire selected", done: ended },
+  ]
+}
+
 /** One row of what needs the client, from /api/hiring/today — the same ladder
  * as their role header, so the two never disagree. */
 interface ClientTodayRow {
@@ -603,7 +640,21 @@ export default function HiringDashboardPage() {
                         ? "Nothing outstanding"
                         : `Waiting on ${first.next.waitingOn.label.toLowerCase()}`}
                   </p>
-                  <h2 className="hm-one-title" id="hm-one-h">{first.next.title}</h2>
+                  {/*
+                    THE WAIT IS TITLED AFTER THE PERSON (19 Sep 2026, frame 15).
+                    When the next act is somebody else's, `next.title` names
+                    THEIR task — which read as an instruction to the hiring
+                    manager. Naming who holds it answers the question they
+                    actually came with, and the task drops to the detail line.
+                  */}
+                  <h2 className="hm-one-title" id="hm-one-h">
+                    {first.next.mode === "wait" && first.role.recruiterName
+                      ? `Waiting on ${first.role.recruiterName}`
+                      : first.next.title}
+                  </h2>
+                  {first.next.mode === "wait" && first.role.recruiterName && (
+                    <p className="hm-one-detail">{first.next.title}.</p>
+                  )}
                   {first.next.detail && <p className="hm-one-detail">{first.next.detail}</p>}
                   <p className="hm-one-meta">
                     Role · {first.role.title} · {first.role.ref}
@@ -650,79 +701,68 @@ export default function HiringDashboardPage() {
               )}
             </section>
 
+            {/*
+              THIS ROLE AT A GLANCE (19 Sep 2026, frame 15).
+              Four rungs, every one derived from facts this payload already
+              carries — no new state, and nothing here is a stage the product
+              does not otherwise know about. It answers "how far along is
+              this" without the hiring manager opening the role, and says
+              plainly that what they can see is bounded by disclosure, which
+              is the §5.4 rule told to the person it protects.
+            */}
+            {first && (
+              <section className="agd-band" aria-labelledby="hm-glance">
+                <div className="agd-eyebrow-row">
+                  <h2 className="agd-eyebrow" id="hm-glance">This role at a glance</h2>
+                  <span className="agd-rule" />
+                  <Link className="agd-tbtn" href={`/hiring/roles/${first.role.id}`}>
+                    Open {first.role.ref} →
+                  </Link>
+                </div>
+                <div className="ag-card">
+                  <div className="ag-card-body">
+                    <ul className="hm-glance">
+                      {glanceFor(first, data?.rounds ?? []).map((step) => (
+                        <li key={step.label} className="hm-glance-row" data-done={step.done || undefined}>
+                          <span className="hm-glance-dot" aria-hidden="true" />
+                          <span className="hm-glance-label">{step.label}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="ag-note" style={{ marginTop: 14 }}>
+                      Current phase: <b>{first.subState.chip.toLowerCase()}</b>. You only ever see
+                      what has been disclosed to you.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/*
+              THE ROLES LIST MOVED TO ITS OWN PLACE (19 Sep 2026, frame 15).
+              Tasks answers "what needs me now"; My roles answers "what am I
+              on". Rendering both here is what made this screen a corridor
+              with the furniture of four rooms in it, and it is the same
+              duplication the interviews list had. One signpost, no second
+              list.
+            */}
             <section className="agd-band" aria-labelledby="hm-roles">
               <div className="agd-eyebrow-row">
-                <h2 className="agd-eyebrow" id="hm-roles">
-                  Your roles
-                </h2>
+                <h2 className="agd-eyebrow" id="hm-roles">Your roles</h2>
                 <span className="agd-rule" />
+                <Link className="agd-tbtn primary" href="/hiring/roles">
+                  Open my roles →
+                </Link>
               </div>
               {roles.length > 0 ? (
-                <div className="agd-roles">
-                  {roles.map((role) => (
-                    /* A row with a role behind it opens that role's screen. A
-                       brief the recruiter has not accepted yet has no role to
-                       open — it stays a row, because a door to nowhere is
-                       worse than no door. */
-                    role.key.startsWith("brief:") ? (
-                    <article key={role.key} className="agd-role hm-role">
-                      <div className="agd-role-id">
-                        <div className="ag-grow">
-                          <span className="agd-role-title">{role.title}</span>
-                          <span className="agd-role-sub">{role.sub}</span>
-                          {role.note && (
-                            <span className="agd-role-last" data-tone={role.noteTone}>
-                              {role.note}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="ag-stage hm-steps">
-                        {role.steps.map((step) => (
-                          <div
-                            key={step.label}
-                            className="ag-stage-seg"
-                            data-s={step.state === "none" ? undefined : step.state}
-                          >
-                            <span className="ag-stage-bar" />
-                            <span className="ag-stage-label">{step.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </article>
-                    ) : (
-                    <Link key={role.key} href={`/hiring/roles/${role.key}`} className="agd-role hm-role hm-role-door">
-                      <div className="agd-role-id">
-                        <div className="ag-grow">
-                          <span className="agd-role-title">{role.title}</span>
-                          <span className="agd-role-sub">{role.sub}</span>
-                          {role.note && (
-                            <span className="agd-role-last" data-tone={role.noteTone}>
-                              {role.note}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="ag-stage hm-steps">
-                        {role.steps.map((step) => (
-                          <div
-                            key={step.label}
-                            className="ag-stage-seg"
-                            data-s={step.state === "none" ? undefined : step.state}
-                          >
-                            <span className="ag-stage-bar" />
-                            <span className="ag-stage-label">{step.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </Link>
-                    )
-                  ))}
-                </div>
+                <p className="agd-aside">
+                  {roles.length === 1 ? "One role is" : `${roles.length} roles are`} open with{" "}
+                  {agencyName}, each with where it has got to.
+                </p>
               ) : (
                 <EmptyBand
                   title="No roles yet."
-                  body="Every role your recruiter opens for you gets a row here, with the rail showing how far it has got: brief, shortlist, first round, second round, decision. Shortlists they send will appear here too."
+                  body="Every role your recruiter opens for you gets a row in My roles, with the rail showing how far it has got."
                 />
               )}
             </section>

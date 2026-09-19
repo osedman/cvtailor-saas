@@ -14,40 +14,67 @@ const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
  *  explains why the door was closed. That trap has bitten seven times now. */
 const code = (p: string) => tsCode(read(p))
 
-describe("HiringNav", () => {
-  const nav = code("components/agency/hm-shared.tsx")
-  const fn = nav.slice(nav.indexOf("export function HiringNav"))
+import { hiringNavFor } from "../../components/agency/hm-shared"
 
-  it("keeps the dashboard lit on a role page", () => {
-    expect(fn).toMatch(/\["\/hiring\/roles"\]/)
+/** Which place is lit for a path — the question every assertion below asks. */
+const lit = (path: string) => hiringNavFor(path).find((i) => i.on)?.label ?? null
+
+describe("HiringNav — which place is lit", () => {
+  /*
+   * BEHAVIOURAL, NOT A SOURCE SCAN. This suite used to assert the literal
+   * `["/hiring/roles"]` appeared in the component. When /hiring/roles became
+   * its own place that string changed and the test failed while the
+   * behaviour was right — a proxy breaking on a safe change. The rules are
+   * now a pure function and these run against real paths.
+   */
+  it("lights exactly one place, on every workspace path", () => {
+    for (const path of [
+      "/hiring",
+      "/hiring/roles",
+      "/hiring/roles/abc",
+      "/hiring/roles/abc/interviews",
+      "/hiring/shortlist",
+      "/hiring/interviews",
+      "/hiring/decisions",
+    ]) {
+      expect(hiringNavFor(path).filter((i) => i.on)).toHaveLength(1)
+    }
   })
 
-  it("lights Interviews, not Home, on a role's own cohort screen", () => {
+  it("lights each place on its own path", () => {
+    expect(lit("/hiring")).toBe("Tasks")
+    expect(lit("/hiring/roles")).toBe("My roles")
+    expect(lit("/hiring/shortlist")).toBe("Shortlist")
+    expect(lit("/hiring/interviews")).toBe("Interviews")
+    expect(lit("/hiring/decisions")).toBe("Decisions")
+  })
+
+  it("keeps Tasks lit on a role page, which is a door out of a task", () => {
+    expect(lit("/hiring/roles/abc")).toBe("Tasks")
+  })
+
+  it("does NOT light Tasks on My roles", () => {
+    // /hiring is a prefix of every path here. A startsWith would light Tasks
+    // on all five and My roles would be unreachable-looking.
+    expect(lit("/hiring/roles")).not.toBe("Tasks")
+  })
+
+  it("lights Interviews, not Tasks, on a role's own cohort screen", () => {
     // It lit "Home" while a nav item literally named Interviews pointed
     // somewhere else (found 11 Sep 2026).
-    expect(fn).toMatch(/const onCohort = /)
-    expect(fn).toMatch(/hiring\\\/roles\\\/\[\^\/\]\+\\\/interviews/)
+    expect(lit("/hiring/roles/abc/interviews")).toBe("Interviews")
   })
 
-  /**
-   * THE BRIEF DOOR IS CLOSED (15 Sep 2026).
-   *
-   * This used to assert the opposite — that the nav carried a brief CTA and
-   * lit it on the brief form. Wave 5a had already decided the brief was the
-   * recruiter's job description and no longer the primary act, but the nav
-   * kept its link while the dashboard rendered "Post a brief" as its PRIMARY
-   * button. The two surfaces disagreed and the louder one was winning.
-   * Opening a role is the recruiter's act now, so both doors are gone and
-   * this guard keeps them gone.
-   */
+  it("matches whole segments, never a prefix of a sibling", () => {
+    expect(lit("/hiring/interviewsX")).not.toBe("Interviews")
+    expect(lit("/hiring/rolesX")).not.toBe("My roles")
+  })
+
   it("carries no door to the brief form", () => {
+    const nav = code("components/agency/hm-shared.tsx")
+    const fn = nav.slice(nav.indexOf("export function hiringNavFor"))
     expect(fn).not.toMatch(/hiring\/briefs/)
-    expect(fn).not.toMatch(/briefOn/)
-  })
-
-  it("matches whole path segments, never a prefix of a sibling", () => {
-    // "/hiring/interviews" must not light for "/hiring/interviewsX".
-    expect(fn).toMatch(/pathname\.startsWith\(`\$\{it\.href\}\/`\)/)
+    expect(hiringNavFor("/hiring").map((i) => i.href)).not.toContain("/hiring/briefs/new")
   })
 })
 
@@ -76,6 +103,9 @@ describe("the hiring manager cannot start a role", () => {
 describe("every hiring workspace screen renders the nav", () => {
   it.each([
     "app/hiring/page.tsx",
+    "app/hiring/roles/page.tsx",
+    "app/hiring/shortlist/page.tsx",
+    "app/hiring/decisions/page.tsx",
     "app/hiring/interviews/page.tsx",
     "app/hiring/roles/[roleId]/page.tsx",
     "app/hiring/briefs/new/page.tsx",

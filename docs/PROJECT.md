@@ -5913,3 +5913,85 @@ nothing is at risk today — but it must be a decision rather than something
 that gets forgotten. Routes 1, 3 and 4 above stay open until it exists.
 
 **1420 tests pass.**
+
+---
+
+## 🧭 19 September 2026 — five places for the hiring manager
+
+Figma frame **15 · The hiring manager's five places, and a task-first
+dashboard** (`435:2`), drawn and signed off before code, per the repo rule.
+
+The nav was **Home** and **Interviews**. Two items meant everything else lived
+on the dashboard, which was a roles list, a task list, a rounds list and a
+diary on one screen. It is now five named places, each answering one question
+and each reaching real data:
+
+| place | question | route |
+|---|---|---|
+| My roles | what am I on, and where has each got to | `/hiring/roles` **(new)** |
+| Tasks | what needs me now | `/hiring` |
+| Shortlist | who was sent to me, and what did I say | `/hiring/shortlist` **(new)** |
+| Interviews | rounds, write-ups, my diary | `/hiring/interviews` |
+| Decisions | what have I already said | `/hiring/decisions` **(new)** |
+
+**No stubs.** Every place reads an endpoint that already exists — `today` for
+the ladder, `dashboard` for rounds, `roles/{id}/shortlist` for the snapshot. A
+nav item opening an empty screen is the same broken promise as a button that
+cannot do anything, which has bitten three times.
+
+### The dashboard is Tasks now
+
+- **The wait is titled after the person.** When the next act is somebody
+  else's, `next.title` names THEIR task, which read as an instruction to the
+  hiring manager. It says "Waiting on Mara Ellison" and drops the task to the
+  detail line.
+- **This role at a glance** — four rungs, all derived from facts the payload
+  already carries. Deliberately coarser than the recruiter's seven steps,
+  because a client sees none of the shortlisting work: the only honest signals
+  are that the role exists, somebody was put in front of them, a round
+  happened, and the loop ended. Plus the §5.4 rule said to the person it
+  protects: *"You only ever see what has been disclosed to you."*
+- **The roles list moved out.** Tasks answers "what needs me now"; My roles
+  answers "what am I on". Rendering both is what made this a corridor — the
+  same duplication the interviews list had on 18 Sep.
+
+### Two corrections to what I told Ose
+
+1. **The dark-theme concern was wrong.** I said `/hiring` was fixed dark,
+   scoped by `.ag-app:has(.agd-main)` — which is what the skill says. The code
+   has moved on: dark is a user TOGGLE (`data-ag-theme` on `<html>`, applied
+   to `.ag-themed`). `/hiring` already follows Owen's own choice, so building
+   to a light reference decided nothing. **The `tailr-b2b` skill is stale on
+   this point.**
+2. **Frame 03 is genuinely reversed**, and that part stands. Its argument was
+   against a stacked sidebar — correctly, about the RECRUITER's eighteen
+   links. The client's side has five things in it. Frame 03 should be marked
+   superseded for `/hiring` only.
+
+The brief door stays closed. "My roles" lists roles the RECRUITER opened.
+
+### The nav guard was brittle, and is now behavioural
+
+`hiring-nav.test.ts` asserted the literal string `["/hiring/roles"]` appeared
+in the component. When `/hiring/roles` became its own place that string
+changed and the test failed **while the behaviour was correct** — a proxy
+breaking on a safe change, the same shape as counting deletes in the seed
+script.
+
+The active-state rules are now a pure `hiringNavFor(pathname)` and the suite
+runs against real paths: exactly one place lit on every workspace path, Tasks
+lit on a role page but NOT on My roles, Interviews lit on a cohort screen, and
+no sibling-prefix matches. **Probed:** matching Tasks by prefix fails 3;
+dropping the cohort exclusion fails 2.
+
+### Verified
+
+- `tsc` clean, **1426 tests pass**.
+- All five routes serve 200.
+- New CSS confirmed in the **served chunk**, not read from disk.
+- Measured at 375px inside an `<iframe width="375">` (control div reports a
+  genuine 339px): the five-item nav **wraps to two rows**, every item visible,
+  no sideways scroll on the nav or the page, and a completed rung renders
+  struck through.
+
+**Not verified:** none of it has been seen signed in. That needs Ose's session.

@@ -367,6 +367,28 @@
    live defect on five recruiter screens and this must not join them. The
    action keeps its own line on a narrow viewport instead of being clipped. */
 .hm-across-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; }
+
+/* This role at a glance — 19 Sep 2026, frame 15.
+   A ladder, not a progress bar: a bar implies a percentage and there isn't
+   one. A done rung is struck through and steps back in colour, because the
+   reader's eye should land on what has NOT happened yet. */
+.hm-glance { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.hm-glance-row { display: flex; align-items: center; gap: 14px; }
+.hm-glance-dot { flex: none; width: 22px; height: 22px; border-radius: 999px; background: var(--ag-bg-2, var(--ag-cream)); border: 1px solid var(--ag-border); }
+.hm-glance-row[data-done] .hm-glance-dot { background: var(--ag-calm); border-color: var(--ag-calm); }
+.hm-glance-label { color: var(--ag-ink); line-height: 1.4; }
+.hm-glance-row[data-done] .hm-glance-label { color: var(--ag-ink-3); text-decoration: line-through; }
+
+/* One decision, one row: who, what was said, when. The whole row is the link
+   into the round it belongs to, because the decision only means anything
+   beside the write-up it rested on. */
+.hm-decision-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--r-sm, 8px); border: 1px solid var(--ag-border); text-decoration: none; color: inherit; }
+.hm-decision-row:hover { border-color: var(--ag-line-2); }
+
+/* The five-place nav wraps rather than scrolls sideways at 375px — the
+   .ag-screen-head defect is still live on five recruiter screens and this
+   must not join them. */
+.hm-nav { flex-wrap: wrap; }
 .hm-across-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 220px; }
 .hm-across-what { flex: 2 1 280px; min-width: 0; color: var(--ag-ink-2); line-height: 1.5; }
 /* A wait is calm on purpose: nothing here turns red because time passed. */
