@@ -37,7 +37,7 @@
  * why the card this replaces refused to show a number too.
  */
 
-import { useCallback, useEffect, useRef } from "react"
+import { memo, useCallback, useEffect, useRef } from "react"
 
 /** Two letters, the way every other avatar in this product is built. Copied
  *  rather than imported: the workflow screen declares it inline, and reaching
@@ -87,6 +87,93 @@ export interface MatchingState {
    */
   nextScanAllowedAt?: string | null
 }
+
+/**
+ * One person, compressed — Figma frame 18.
+ *
+ * MEMOISED ON PURPOSE. These arrive live: a scan finishes and the list grows,
+ * an invite lands and one card changes state. Without memo, one person being
+ * invited re-renders every card in the row, and the whole point of a row is
+ * that there are many. The props are primitives and one stable callback, so
+ * the default shallow compare is enough.
+ *
+ * COVERAGE IS DOTS, and the count is underneath rather than instead. Ten
+ * marks compare across four cards at a glance where "8 of 10" has to be read
+ * one card at a time — but dots alone would be meaning carried by colour, so
+ * the sentence stays.
+ *
+ * The footer holds its height across states. A card that grows when somebody
+ * is invited reflows the whole row, and reflow during a live update is what
+ * makes a list feel like it is fighting you.
+ */
+const MatchedCard = memo(function MatchedCard({
+  person,
+  inviting,
+  canInvite,
+  onInvite,
+}: {
+  person: MatchedPerson
+  inviting: boolean
+  canInvite: boolean
+  onInvite: (recommendationId: string) => void
+}) {
+  const p = person
+  const hits = p.evidence.filter((e) => e.strength !== "missing").length
+  const total = p.evidence.length
+
+  return (
+    <article className="ag-matched-card">
+      <div className="ag-matched-head">
+        <span className="ag-avatar">{initials(p.name)}</span>
+        <div className="ag-matched-who">
+          <div className="ag-matched-name">{p.name}</div>
+          {p.headline && <div className="ag-matched-headline">{p.headline}</div>}
+        </div>
+      </div>
+
+      {/* The band, never a number: matched_people does not send the score to
+          the browser. */}
+      <span className={`ag-band ${p.band === "very strong" ? "hi" : p.band === "strong" ? "med" : "lo"}`}>
+        {p.band}
+      </span>
+
+      <div className="ag-matched-body">
+        <span className="ag-field-label" style={{ marginBottom: 0 }}>Matched against</span>
+        <div className="ag-matched-evidence" role="img" aria-label={`${hits} of ${total} requirements evidenced`}>
+          {p.evidence.map((e) => (
+            <span
+              key={e.requirement_ref}
+              className={`ag-ev ${e.strength}`}
+              title={e.quote ?? "MISSING — no evidence for this requirement"}
+            >
+              <span className={`ag-dot ${e.strength}`} />
+              {e.requirement_ref} {e.strength}
+            </span>
+          ))}
+        </div>
+        <span className="ag-meta">{hits} of {total} requirements</span>
+      </div>
+
+      <div className="ag-matched-foot">
+        {p.appliedAt ? (
+          <span className="ag-meta">Applied</span>
+        ) : p.invitedAt ? (
+          <span className="ag-meta">
+            Invited · {new Date(p.invitedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+          </span>
+        ) : (
+          <button
+            className="ag-btn ag-btn-primary"
+            disabled={inviting || !canInvite}
+            onClick={() => onInvite(p.recommendationId)}
+          >
+            {inviting ? "Inviting…" : "Invite to apply"}
+          </button>
+        )}
+      </div>
+    </article>
+  )
+})
 
 export function MatchingWindow({
   open,
@@ -341,52 +428,13 @@ export function MatchingWindow({
             <>
               <div className="ag-matched-grid">
                 {people.map((p) => (
-                  <article key={p.recommendationId} className="ag-matched-card">
-                    <div className="ag-matched-head">
-                      <span className="ag-avatar">{initials(p.name)}</span>
-                      <div className="ag-matched-who">
-                        <div className="ag-matched-name">{p.name}</div>
-                        {p.headline && <div className="ag-matched-headline">{p.headline}</div>}
-                      </div>
-                      {/* The band, never a number: matched_people does not
-                          send the score to the browser. */}
-                      <span className={`ag-band ${p.band === "very strong" ? "hi" : p.band === "strong" ? "med" : "lo"}`}>
-                        {p.band}
-                      </span>
-                    </div>
-                    <div className="ag-matched-body">
-                      <span className="ag-field-label" style={{ marginBottom: 0 }}>Matched against</span>
-                      <div className="ag-matched-evidence">
-                        {p.evidence.map((e) => (
-                          <span
-                            key={e.requirement_ref}
-                            className={`ag-ev ${e.strength}`}
-                            title={e.quote ?? "MISSING — no evidence for this requirement"}
-                          >
-                            <span className={`ag-dot ${e.strength}`} />
-                            {e.requirement_ref} {e.strength}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="ag-matched-foot">
-                      {p.appliedAt ? (
-                        <span className="ag-meta">Applied</span>
-                      ) : p.invitedAt ? (
-                        <span className="ag-meta">
-                          Invited · {new Date(p.invitedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                        </span>
-                      ) : (
-                        <button
-                          className="ag-btn ag-btn-primary"
-                          disabled={inviting === p.recommendationId || !canInvite}
-                          onClick={() => onInvite(p.recommendationId)}
-                        >
-                          {inviting === p.recommendationId ? "Inviting…" : "Invite to apply"}
-                        </button>
-                      )}
-                    </div>
-                  </article>
+                  <MatchedCard
+                    key={p.recommendationId}
+                    person={p}
+                    inviting={inviting === p.recommendationId}
+                    canInvite={canInvite}
+                    onInvite={onInvite}
+                  />
                 ))}
               </div>
               <p className="ag-note" style={{ marginTop: 12 }}>

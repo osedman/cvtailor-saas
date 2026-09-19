@@ -32,9 +32,21 @@ const PAGE = "components/agency/matching-window.tsx"
 const CSS = readFileSync(join(process.cwd(), "app/agencies/agencies.css"), "utf8")
 
 const page = read(PAGE)
-const cardBlock = page.slice(page.indexOf("ag-matched-grid"), page.indexOf("ag-matched-foot"))
+/* The card is its own memoised component now (19 Sep 2026) and is DEFINED
+ * above the grid that renders it, so slicing forward from "ag-matched-grid"
+ * caught nothing and every assertion below passed against an empty string —
+ * a guard that silently stops guarding. Sliced from the component instead,
+ * and the emptiness is asserted against. */
+const cardBlock = page.slice(page.indexOf("const MatchedCard"), page.indexOf("export function MatchingWindow"))
 
 describe("the matched list is cards", () => {
+  it("the scanned block is not empty", () => {
+    // Everything below asserts against this slice. If the markup moves again
+    // the slice collapses and the suite passes while guarding nothing.
+    expect(cardBlock.length).toBeGreaterThan(400)
+    expect(cardBlock).toMatch(/ag-matched-card/)
+  })
+
   it("lives in exactly one place", () => {
     // Two renderings of one list is how they drift.
     const workflow = read("app/agencies/roles/[roleId]/page.tsx")
@@ -44,7 +56,10 @@ describe("the matched list is cards", () => {
 
   it("renders a grid of cards, not checklist rows", () => {
     expect(page).toMatch(/className="ag-matched-grid"/)
-    expect(page).toMatch(/<article key=\{p\.recommendationId\} className="ag-matched-card">/)
+    expect(cardBlock).toMatch(/<article className="ag-matched-card">/)
+    // Memoised: these arrive live, and one invite must not re-render the row.
+    expect(page).toMatch(/const MatchedCard = memo\(/)
+    expect(page).toMatch(/key=\{p\.recommendationId\}/)
     // The borrowed handover-checklist row must not come back for these.
     expect(cardBlock).not.toMatch(/ag-check-row/)
   })
@@ -57,12 +72,18 @@ describe("the matched list is cards", () => {
   it("pins the action strip to the bottom edge so cards in a row line up", () => {
     expect(CSS).toMatch(/\.ag-matched-body \{[^}]*flex: 1;/)
     expect(CSS).toMatch(/\.ag-matched-foot \{[^}]*margin-top: auto;/)
-    // auto-FILL, not auto-fit: auto-fit collapses empty tracks, so a single
-    // matched person stretched the full width of the window and stopped
-    // reading as a card. auto-fill keeps the track and the card keeps its
-    // shape whether there is one person or six.
-    expect(CSS).toMatch(/\.ag-matched-grid \{[^}]*repeat\(auto-fill, minmax\(/)
+    /* Flex wrap with a fixed basis, not a grid. A grid stretches its tracks,
+     * so four people became four quarter-width cards on a wide window and the
+     * card stopped having a shape. auto-fit was worse still: one person
+     * stretched edge to edge. A basis that wraps keeps every card identical
+     * whether there are two or twelve, which is what makes them comparable. */
+    expect(CSS).toMatch(/\.ag-matched-grid \{[^}]*flex-wrap: wrap/)
     expect(CSS).not.toMatch(/\.ag-matched-grid \{[^}]*auto-fit/)
+    expect(CSS).toMatch(/\.ag-matched-card \{[\s\S]{0,700}flex: 0 1 256px/)
+    // A long row is cheap to skip, and the reserved size stops it jumping as
+    // people stream in from a scan.
+    expect(CSS).toMatch(/\.ag-matched-card \{[\s\S]{0,700}content-visibility: auto/)
+    expect(CSS).toMatch(/contain-intrinsic-size/)
   })
 })
 

@@ -2071,9 +2071,40 @@ a.ag-rh-next:hover { opacity: 0.86; }
    collapses, so ONE matched person stretched edge to edge and stopped reading
    as a card at all — which is what it looked like in the window. auto-fill
    keeps the 280px track, so one card is a card and three are a row. */
-.ag-matched-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-/* Cards, not rows: a person is an object you scan, not a line item. */
-.ag-matched-card { display: flex; flex-direction: column; }
+/* Compressed cards, side by side — Figma frame 18.
+   FLEX WRAP, not a grid: a grid stretches its tracks so four people become
+   four quarter-width cards on a wide window and the card stops having a
+   shape. A fixed basis that wraps keeps every card identical whether there
+   are two or twelve — which is what makes them comparable, the only reason
+   to use cards here at all.
+   NOT a horizontal scroller: a scroller hides people, and somebody you never
+   saw is somebody you never considered. */
+.ag-matched-grid { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; }
+.ag-matched-card {
+  /* 256 + 12 gap × 4 fits the 1168px panel with its own padding; at 268 the
+     fourth card wrapped onto a line of its own, which is the one layout a row
+     of comparable cards must not produce. */
+  flex: 0 1 256px; min-width: 232px;
+  display: flex; flex-direction: column; gap: 10px;
+  /* These arrive live and a long row is cheap to skip: the browser does not
+     lay out a card until it is near the viewport. The intrinsic size reserves
+     its space so nothing jumps as they stream in. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 250px;
+}
+/* The footer holds its height across states. A card that grows when somebody
+   is invited reflows the whole row, and reflow during a live update is what
+   makes a list feel like it is fighting you. */
+.ag-matched-foot { margin-top: auto; min-height: 38px; display: flex; align-items: center; }
+.ag-matched-foot .ag-btn { width: 100%; justify-content: center; }
+/* Interaction feedback is transform and opacity only — the performance
+   invariant this product keeps everywhere. */
+.ag-matched-card:hover { transform: translateY(-1px); }
+.ag-matched-card { transition: transform 150ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .ag-matched-card { transition: none; }
+  .ag-matched-card:hover { transform: none; }
+}
 .ag-matched-card { display: flex; flex-direction: column; background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); overflow: hidden; }
 /* Top-aligned, not centred: "very strong" is the widest band and squeezes
  * the headline onto two lines in a narrow column, and a centred chip then
