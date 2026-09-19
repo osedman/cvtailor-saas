@@ -165,7 +165,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [representAsk, setRepresentAsk] = useState<{ refs: string[]; format: string } | null>(null)
   /** The deliberate second send. Never a default; see the send bar below. */
   const [resendAsk, setResendAsk] = useState(false)
-  const [paste, setPaste] = useState("")
   const [jdUrl, setJdUrl] = useState("")
   const [extractResult, setExtractResult] = useState<{ requirements: number; constraints: number; filled: string[] } | null>(null)
   const [submissionResult, setSubmissionResult] = useState<{ format: string; entries: number; links: Array<{ url: string }>; snapshot: Snapshot | null } | null>(null)
@@ -229,7 +228,50 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [probePicker, setProbePicker] = useState(false)
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
   const [disclosure, setDisclosure] = useState<Disclosure>({ scores: true, evidence: true, probes: true, notes: false, logistics: true })
+  /*
+   * TYPING MUST NOT RE-RENDER THE SCREEN (19 Sep 2026).
+   *
+   * `intro` and `paste` were component state, so every keystroke in the
+   * client introduction or the CV paste box re-rendered this whole component
+   * — 3,045 lines and seven panes — to update one textarea. The derived lists
+   * were already memoised against exactly this (see step 07's note below), so
+   * the remaining cost was rebuilding the JSX itself, on every character.
+   *
+   * Refs instead. This is the pattern the probe answers already use on the
+   * screening step (`defaultValue` + a handler that does not set state), so
+   * the screen now behaves the same way wherever somebody types. The value is
+   * read at submit time, which is the only moment it is needed.
+   *
+   * `pasteLen` is state ON PURPOSE and the one exception: the Add candidate
+   * button is disabled until there are 100 characters, so that one number has
+   * to reach React. It changes at most twice per paste — crossing the
+   * threshold and back — rather than once per keystroke.
+   */
+  const introRef = useRef("")
+  /*
+   * `intro` still exists as state because the email and document previews
+   * render it live as you type, and losing that would be a silent feature
+   * loss dressed as a performance win. What changed is the FREQUENCY: the ref
+   * holds every keystroke, and state catches up 200ms after you stop. Typing
+   * is smooth, the preview still follows, and the component re-renders a few
+   * times per sentence instead of once per character.
+   */
   const [intro, setIntro] = useState("")
+  const introTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onIntroChange = useCallback((value: string) => {
+    introRef.current = value
+    if (introTimer.current) clearTimeout(introTimer.current)
+    introTimer.current = setTimeout(() => setIntro(value), 200)
+  }, [])
+  useEffect(() => () => { if (introTimer.current) clearTimeout(introTimer.current) }, [])
+  /** The default introduction, set once on load and never over a draft. */
+  const seedIntro = useCallback((text: string) => {
+    if (introRef.current) return
+    introRef.current = text
+    setIntro(text)
+  }, [])
+  const pasteRef = useRef("")
+  const [pasteLen, setPasteLen] = useState(0)
   const [previewFormat, setPreviewFormat] = useState<"document" | "email" | "portal">("document")
   // The compare board advertises S / H / R in the handoff; they act on the
   // card under the pointer or keyboard focus, falling back to the top ranked
@@ -279,7 +321,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       setRole(body.role)
       setBriefJd(body.brief_jd ?? null)
       if (body.agency?.name) setAgencyName(body.agency.name)
-      setIntro((prev) => prev || `Hi — here are the candidates I'd put in front of you for ${body.role?.title ?? "this role"}. Each one has had a screening call with me, and I've noted where the CV overstated or understated the fit.`)
+      seedIntro(`Hi — here are the candidates I'd put in front of you for ${body.role?.title ?? "this role"}. Each one has had a screening call with me, and I've noted where the CV overstated or understated the fit.`)
       setRequirements(body.requirements ?? [])
       setConstraints(body.constraints ?? [])
       // Separate request, and a failure here must not take the role page with
@@ -546,7 +588,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       const res = await fetch(`/api/agency/roles/${roleId}/candidates`, { method: "POST", ...bodyInit })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? "Ingestion failed")
-      setPaste("")
+      pasteRef.current = ""
+      setPasteLen(0)
       await loadCandidates()
     } catch (err) {
       setError(errorMessage(err))
@@ -685,7 +728,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         body: JSON.stringify({
           format,
           disclosure,
-          intro,
+          intro: introRef.current,
           ...(representOverride ? { representOverride: true } : {}),
           ...(format === "portal" ? { recipients: chosenContacts.map((id) => ({ contact_id: id })) } : {}),
         }),
@@ -1532,11 +1575,22 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   <div className="ag-card">
                     <div className="ag-card-head"><span className="ag-card-title">Paste a CV</span></div>
                     <div className="ag-card-body">
-                      <textarea className="ag-textarea" style={{ minHeight: 180 }} placeholder="Paste CV text for candidates who sent a document you cannot upload" value={paste} onChange={(e) => setPaste(e.target.value)} />
+                      <textarea
+                        className="ag-textarea"
+                        style={{ minHeight: 180 }}
+                        placeholder="Paste CV text for candidates who sent a document you cannot upload"
+                        defaultValue={pasteRef.current}
+                        onChange={(e) => {
+                          pasteRef.current = e.target.value
+                          // Only the crossing matters, not the length.
+                          const enough = e.target.value.trim().length >= 100
+                          setPasteLen((n) => (enough === n >= 100 ? n : enough ? 100 : 0))
+                        }}
+                      />
                       <button
                         className="ag-btn ag-btn-primary"
                         style={{ marginTop: 12 }}
-                        onClick={() => { if (paste.trim().length < 100) setError("Paste at least a few paragraphs of CV text"); else ingest({ headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cvText: paste }) }) }}
+                        onClick={() => { const v = pasteRef.current; if (v.trim().length < 100) setError("Paste at least a few paragraphs of CV text"); else ingest({ headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cvText: v }) }) }}
                         disabled={busy !== null}
                       >
                         {busy === "ingest" ? <><span className="ag-spin" /> Reading the CV</> : "Add candidate"}
@@ -2328,8 +2382,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                   className="ag-cfp-intro"
                                   rows={3}
                                   aria-label="Submission introduction"
-                                  value={intro}
-                                  onChange={(e) => setIntro(e.target.value)}
+                                  defaultValue={introRef.current}
+                                  onChange={(e) => onIntroChange(e.target.value)}
                                 />
                               )}
                               <div className="ag-cfp-stats">
@@ -2352,8 +2406,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                   className="ag-textarea"
                                   style={{ minHeight: 68 }}
                                   aria-label="Submission introduction"
-                                  value={intro}
-                                  onChange={(e) => setIntro(e.target.value)}
+                                  defaultValue={introRef.current}
+                                  onChange={(e) => onIntroChange(e.target.value)}
                                 />
                               )}
                             </div>
