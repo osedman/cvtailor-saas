@@ -6226,3 +6226,52 @@ Two things fixed:
 no longer exist. Same class as the orphaned CVs: deletion cascades did not
 reach them. Not yet fixed.
 
+---
+
+## 🌱 19 September 2026 (late) — ten candidates, two roles, and one thing scheduled
+
+**ROL-2417 is seeded and parked at step 04.** Ten candidates, 100 evidence
+rows, zero reviews — real output from the real ingest pipeline, so the scores
+carry correct `inputs_hash` values and step 07 will not refuse them later.
+Scores run 91 → 38 with must-have coverage from 5/5 to 3/5, which is the
+variation the compare board needs to show anything.
+
+**Two roles, on purpose.** The ten CVs are data engineers, so ROL-2417 went
+back to being a data-engineering role — with business-analyst requirements
+every score was noise. **ROL-2418** carries the BA requirements Ose's own
+consumer profile matches and is published for matching. One role per purpose
+rather than one role doing both badly.
+
+### 🐛 I destroyed the first seeding run
+
+Re-pointing the role's requirements meant deleting them — and
+`candidate_evidence.requirement_id` CASCADEs from `requirements`. So every
+evidence row went, every candidate then had zero evidence, and a cleanup step
+meant to remove ONE empty row removed all eleven.
+
+The cleanup was reasonable; the cascade was not foreseen. **Evidence hangs off
+requirements, not only off candidates** — re-pointing a role's requirements is
+destructive to everything scored against them, and anything doing it must
+re-ingest rather than assume the candidates survive. Re-seeded from scratch;
+refs now start at CAN-12 because the sequence does not rewind.
+
+### Scheduled: recommendations on the compare board
+
+Ose, on seeing the compare board populated: the AI should suggest who to
+shortlist from the screening call and the final scores, in a second tab with
+the insight behind it.
+
+Written up in **`docs/NEXT-SESSION-SHORTLIST-RECOMMENDATIONS.md`** rather than
+started, because it is the most dangerous feature in the product — the first
+surface where software would offer an opinion about a person rather than a
+fact about their evidence, against a product whose whole argument is *"we
+structured what you told us, you decide"*.
+
+The handoff carries the lines that cannot move (no automatic rejection, no
+inference about a person, every claim traceable, `MISSING` never filled), the
+`round-delta` precedent for exactly this problem (its lane is **REVISITED**,
+not CONTRADICTION, because deciding two statements conflict is a judgement and
+judgements belong to people), and the one framing question the feature turns
+on: does the tab **suggest a shortlist** or **organise what is known**? Those
+are different products and only one is defensible without a second legal look.
+
