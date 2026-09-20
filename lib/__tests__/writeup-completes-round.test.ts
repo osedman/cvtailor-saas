@@ -152,3 +152,21 @@ describe("the recruiter can say it did not happen", () => {
     expect(src).toContain('setStatus(r.id, "cancelled")')
   })
 })
+
+describe("the round card itself opens on the clock", () => {
+  const card = () => readFileSync(join(process.cwd(), "components/agency/hm-shared.tsx"), "utf8")
+
+  it("does not wait for the recruiter's status to offer the write-up", () => {
+    // The filter and the card are two different places, and moving only the
+    // filter produced the half-fixed screen: the owed band listed the round
+    // and the card inside it still said "Scheduled · nothing to do until this
+    // has happened" over an interview that had finished.
+    expect(tsCode(card())).not.toMatch(/const canWrite = round\.status === "completed"\s*$/m)
+    expect(card()).toContain("round.status === \"scheduled\" && hasEnded")
+  })
+
+  it("says happening now while a round is in the room", () => {
+    expect(card()).toContain("Happening now")
+    expect(card()).toContain("In the room now")
+  })
+})

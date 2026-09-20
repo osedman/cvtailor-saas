@@ -227,7 +227,30 @@ export function RoundActions({ round, onDone }: { round: HiringRound; onDone: ()
   const [error, setError] = useState<string | null>(null)
 
   const decided = round.latest_decision
-  const canWrite = round.status === "completed"
+  /**
+   * When the write-up opens.
+   *
+   * Was `status === "completed"`, i.e. after the RECRUITER pressed "Mark
+   * done". So a round that finished an hour ago rendered as "Scheduled"
+   * with "nothing to do until this has happened" underneath it — over an
+   * interview the hiring manager had just walked out of.
+   *
+   * It opens when the round has ENDED. Saving the write-up is what completes
+   * the round (see recordDebrief), so this is the act that moves it on rather
+   * than something waiting on one.
+   *
+   * A missing duration means the end is unknowable, and unknowable counts as
+   * ended: better to offer the write-up early than to withhold it for ever.
+   */
+  const ends = round.scheduled_at
+    ? Date.parse(round.scheduled_at) + (Number(round.duration_minutes) > 0 ? Number(round.duration_minutes) * 60_000 : 0)
+    : NaN
+  const hasEnded = Number.isFinite(ends) && Date.now() >= ends
+  const hasStarted =
+    !!round.scheduled_at && Number.isFinite(Date.parse(round.scheduled_at)) && Date.parse(round.scheduled_at) <= Date.now()
+  /** Started, not yet ended — the same rule cohortStatus and loopState use. */
+  const inProgress = round.status === "scheduled" && hasStarted && !hasEnded
+  const canWrite = round.status === "completed" || (round.status === "scheduled" && hasEnded)
   // The gate reads from the SERVER's answer, falling back to what just
   // happened in this tab. It used to be component state alone, which meant a
   // client who wrote this up and reloaded got an empty box and no way to
@@ -295,7 +318,13 @@ export function RoundActions({ round, onDone }: { round: HiringRound; onDone: ()
           <span className="ag-pill">{DECISION_LABEL[decided]}</span>
         ) : (
           <span className="ag-pill warn">
-            {canWrite ? (written ? "Needs your decision" : "Needs your write-up") : "Scheduled"}
+            {canWrite
+              ? written
+                ? "Needs your decision"
+                : "Needs your write-up"
+              : inProgress
+                ? "Happening now"
+                : "Scheduled"}
           </span>
         )}
       </div>
@@ -347,7 +376,9 @@ export function RoundActions({ round, onDone }: { round: HiringRound; onDone: ()
 
       {!canWrite && !decided && (
         <p className="agd-aside">
-          Nothing to do until this has happened. Your write-up and decision open here afterwards.
+          {inProgress
+            ? "In the room now. Your write-up opens here the moment it ends."
+            : "Nothing to do until this has happened. Your write-up and decision open here afterwards."}
         </p>
       )}
 
