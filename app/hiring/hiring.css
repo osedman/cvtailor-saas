@@ -671,20 +671,29 @@
 .hm-one-rounds {
   display: flex; flex-direction: column; gap: 6px;
   list-style: none; margin: 14px 0 0; padding: 0;
+  /* The card is align-items: flex-start, so without this the rows hug their
+     own text and float in the middle of a wide card. Capped rather than
+     full-bleed: these are a short list, not a table. */
+  align-self: stretch; max-width: 560px;
 }
+/* Tokens, not translucent white. The first version of this used
+   rgba(253,252,249,.06) on the assumption that .hm-one-card was a dark
+   surface — it is not, it is --ag-paper, so the rows rendered as bare text
+   with no container at all on the deployed build. Verified in the browser,
+   both themes. */
 .hm-one-round {
   display: flex; flex-direction: row; align-items: center; gap: 12px; flex-wrap: wrap;
   padding: 9px 12px; border-radius: var(--r-sm);
-  background: rgba(253, 252, 249, 0.06);
-  border: 1px solid rgba(253, 252, 249, 0.14);
+  background: var(--ag-cream);
+  border: 1px solid var(--ag-border);
 }
-.hm-one-round-who { flex: 1 1 auto; min-width: 0; font-weight: 500; }
-.hm-one-round-when { flex: none; font-family: var(--ag-mono); font-size: var(--t-caption); opacity: 0.72; white-space: nowrap; }
-/* Live is the one state that expires on its own, so it is the one that is
-   allowed to draw the eye. Colour is not the only signal — the label changes
-   to "Happening now" too. */
-.hm-one-round[data-live] { border-color: #ff8a70; background: rgba(255, 138, 112, 0.1); }
-.hm-one-round[data-live] .hm-one-round-when { color: #ff8a70; opacity: 1; }
+.hm-one-round-who { flex: 1 1 auto; min-width: 0; font-size: var(--t-body); font-weight: 500; color: var(--ag-ink); }
+.hm-one-round-when { flex: none; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); color: var(--ag-ink-3); white-space: nowrap; }
+/* Live is the one state that expires on its own, so it is the one allowed to
+   draw the eye. Colour is not the only signal — the label reads "Happening
+   now" rather than a time. */
+.hm-one-round[data-live] { border-color: var(--ag-coral); background: var(--ag-tint-1); }
+.hm-one-round[data-live] .hm-one-round-when { color: var(--ag-coral-deep); font-weight: 500; }
 
 /* The quieter half of the list: roles where someone else holds the next move.
    Lower contrast than the to-do rows above it, because it is information
