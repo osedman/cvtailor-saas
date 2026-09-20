@@ -133,10 +133,15 @@ export default function HiringShortlistPage() {
 
       // Best effort: the shortlist is the point of this screen, and losing
       // the round chips must never turn it into an error state.
+      // The payload is { dashboard, alsoRecruiter } — the rounds are INSIDE
+      // `dashboard`, not at the top level. Read as `body.rounds` first, which
+      // is always undefined, so every round chip silently failed to render
+      // while the endpoint answered a perfectly healthy 200.
       void fetch("/api/hiring/dashboard")
         .then((d) => (d.ok ? d.json() : null))
         .then((body) => {
-          if (body && Array.isArray(body.rounds)) setRounds(body.rounds as RoundRow[])
+          const rs = body?.dashboard?.rounds
+          if (Array.isArray(rs)) setRounds(rs as RoundRow[])
         })
         .catch(() => {})
 
