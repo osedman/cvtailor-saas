@@ -146,6 +146,37 @@ export async function recordDebrief(
     artifactId = created.id as string
   }
 
+  /**
+   * THE WRITE-UP IS WHAT COMPLETES THE ROUND (20 Sep 2026).
+   *
+   * Until now a round became 'completed' only when the RECRUITER pressed
+   * "Mark done" on their own screen, and the hiring manager's "needs your
+   * write-up" list keyed off that status. So the person who was in the room
+   * was blocked from recording what happened by a click from the person who
+   * was not — and the recruiter only knows it happened because somebody told
+   * them. The dependency ran the wrong way round.
+   *
+   * Writing it up is first-hand testimony that the interview took place, and
+   * better evidence than the click it was waiting for. So it completes the
+   * round itself.
+   *
+   * WHY NOT JUST COMPLETE ON THE CLOCK. Because elapsed time cannot tell a
+   * finished interview from a no-show, and a completed round feeds the
+   * handover pack that goes to an employer. The clock changes what a screen
+   * OFFERS; only a person's act changes what the record SAYS.
+   *
+   * Only ever 'scheduled' → 'completed'. A cancelled round stays cancelled:
+   * writing up a round somebody cancelled must not quietly resurrect it.
+   */
+  if (round.status === "scheduled") {
+    const { error: statusError } = await admin
+      .from("interview_rounds")
+      .update({ status: "completed" })
+      .eq("id", input.roundId)
+      .eq("status", "scheduled")
+    if (statusError) throw statusError
+  }
+
   const { data: candidate } = await admin
     .from("candidates")
     .select("ref")

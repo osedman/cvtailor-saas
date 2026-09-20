@@ -58,6 +58,29 @@ interface TodayRow {
   next: NextAction
 }
 
+/**
+ * Has this round started / ended, by the clock.
+ *
+ * The same two facts cohortStatus and loopState use, so this screen cannot
+ * drift from the role header and the recruiter's board. A round with no time
+ * on it is an invitation, not an interview — it has neither started nor
+ * ended. A missing duration means the end is unknowable, and an unknowable
+ * end counts as ended rather than stranding somebody mid-interview for ever.
+ */
+function hasStarted(r: { scheduled_at: string | null }, nowMs: number): boolean {
+  if (!r.scheduled_at) return false
+  const t = Date.parse(r.scheduled_at)
+  return Number.isFinite(t) && t <= nowMs
+}
+
+function hasEnded(r: { scheduled_at: string | null; duration_minutes?: number }, nowMs: number): boolean {
+  if (!hasStarted(r, nowMs)) return false
+  const t = Date.parse(r.scheduled_at as string)
+  const mins = Number(r.duration_minutes)
+  if (!Number.isFinite(mins) || mins <= 0) return true
+  return nowMs >= t + mins * 60_000
+}
+
 export default function HiringInterviewsPage() {
   const [screen, setScreen] = useState<Screen>("loading")
   const [data, setData] = useState<HiringDashboard | null>(null)
@@ -103,6 +126,23 @@ export default function HiringInterviewsPage() {
 
   const rounds = useMemo(() => (data?.rounds ?? []).filter((r) => r.status !== "cancelled"), [data])
 
+  /**
+   * A ticking clock, because this screen's states expire on their own.
+   *
+   * "Happening now" is true for forty-five minutes and then it is not, and a
+   * write-up falls due at a moment nobody clicks. Without this, a hiring
+   * manager sitting on the page as an interview ends would go on being told
+   * nothing is owed until they thought to reload.
+   *
+   * Thirty seconds is chosen against what it drives: the coarsest thing here
+   * is a minute-level label, so anything finer is work for no visible gain.
+   */
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
   /** Rounds grouped by role, candidates grouped inside — the loop as a shape,
    * not a flat list. */
   const byRole = useMemo(() => {
@@ -117,9 +157,33 @@ export default function HiringInterviewsPage() {
     return roles
   }, [rounds])
 
+  /**
+   * What this hiring manager actually owes.
+   *
+   * This used to be `status === "completed"`, which only becomes true when the
+   * RECRUITER presses "Mark done" on their own screen. So an interview that
+   * finished an hour ago sat under "Coming up" saying nothing was owed, and
+   * the person who was in the room could not record what happened until
+   * somebody who was not in it clicked a button. Found 20 Sep 2026 with a
+   * round that had ended 82 minutes earlier.
+   *
+   * A round is owed when it has ENDED and has no write-up — the clock, not a
+   * click. Once written up it is owed as a DECISION instead, which is the
+   * second half of the same job.
+   *
+   * The clock decides what the screen offers; it never decides what the
+   * record says. Completing the round is still a human act — see
+   * recordDebrief, where the write-up itself does it.
+   */
   const owed = useMemo(
-    () => rounds.filter((r) => r.status === "completed" && !r.latest_decision),
-    [rounds]
+    () =>
+      rounds.filter((r) => {
+        if (r.status === "cancelled") return false
+        if (r.latest_decision) return false
+        if (r.status === "completed") return true
+        return hasEnded(r, nowMs)
+      }),
+    [rounds, nowMs]
   )
   // A round with no time on it is an INVITATION, not an interview: the
   // candidate has been asked and has not picked yet. Counting those as
@@ -128,9 +192,18 @@ export default function HiringInterviewsPage() {
   const upcoming = useMemo(
     () =>
       rounds
-        .filter((r) => r.status === "scheduled" && r.scheduled_at)
+        // Coming up means NOT YET STARTED. A round that has begun or ended is
+        // not something ahead of you, and counting it as one is how this
+        // screen came to announce "3 interviews coming up" over one that had
+        // finished and one that was in progress.
+        .filter((r) => r.status === "scheduled" && r.scheduled_at && !hasStarted(r, nowMs))
         .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? "")),
-    [rounds]
+    [rounds, nowMs]
+  )
+  /** Started, not yet ended — the same rule the ladders use. */
+  const inProgress = useMemo(
+    () => rounds.filter((r) => r.status === "scheduled" && hasStarted(r, nowMs) && !hasEnded(r, nowMs)),
+    [rounds, nowMs]
   )
   const stillChoosing = useMemo(
     () => rounds.filter((r) => r.status === "scheduled" && !r.scheduled_at).length,
@@ -200,7 +273,13 @@ export default function HiringInterviewsPage() {
           <>
             <section className="agd-hero">
               <h1 className="agd-h1">
-                {owed.length > 0
+                {/* A round in the room outranks everything, because it is
+                    the only line here that stops being true on its own. */}
+                {inProgress.length > 0
+                  ? inProgress.length === 1
+                    ? `${inProgress[0].candidate_ref}'s round ${inProgress[0].round_number} is happening now.`
+                    : `${inProgress.length} interviews are happening now.`
+                  : owed.length > 0
                   ? `${owed.length} round${owed.length === 1 ? "" : "s"} need${owed.length === 1 ? "s" : ""} your say.`
                   : upcoming.length > 0
                     ? `${upcoming.length} interview${upcoming.length === 1 ? "" : "s"} coming up.`
@@ -284,6 +363,19 @@ export default function HiringInterviewsPage() {
                 </h2>
                 <span className="agd-rule" />
               </div>
+              {/* PIECE 4 (20 Sep 2026): information, not a wall.
+                  A round that has ended but which nobody has marked done is
+                  offered for write-up anyway — the write-up completes it. The
+                  line exists so the hiring manager knows the recruiter has
+                  not confirmed it took place, without that being a condition
+                  of doing their own part. If it did not happen, they simply
+                  do not write it up and tell their recruiter. */}
+              {owed.some((r) => r.status === "scheduled") && (
+                <p className="hm-unconfirmed">
+                  Your recruiter has not confirmed {owed.filter((r) => r.status === "scheduled").length === 1 ? "this one" : "these"} took
+                  place yet. Write it up if it did — that confirms it.
+                </p>
+              )}
               {owed.length > 0 ? (
                 <div className="ag-stack" style={{ gap: 12 }}>
                   {owed.map((r) => (

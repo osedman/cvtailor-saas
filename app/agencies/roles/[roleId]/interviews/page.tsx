@@ -150,6 +150,23 @@ function fmtTime(iso: string): string {
     : d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
 }
 
+/**
+ * Has this round's slot passed, by the clock?
+ *
+ * Used only to choose the WORDS on the cancel button — "Cancel" points at
+ * the future, and after the end time the only thing cancelling can mean is
+ * that the interview did not take place. The state change is identical
+ * either way; nothing here decides anything about the record.
+ */
+function roundHasEnded(r: { scheduledAt: string | null; durationMinutes?: number }, nowMs: number): boolean {
+  if (!r.scheduledAt) return false
+  const t = Date.parse(r.scheduledAt)
+  if (!Number.isFinite(t)) return false
+  const mins = Number(r.durationMinutes)
+  const ends = Number.isFinite(mins) && mins > 0 ? t + mins * 60_000 : t
+  return nowMs >= ends
+}
+
 export default function BookInterviewPage({ params }: { params: Promise<{ roleId: string }> }) {
   const { roleId } = use(params)
   const router = useRouter()
@@ -163,6 +180,13 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
   const [meetingUrl, setMeetingUrl] = useState("")
   const [duration, setDuration] = useState(45)
   const [busy, setBusy] = useState(false)
+  // The cancel button's wording turns over when a slot passes, so the clock
+  // has to move without a reload.
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [])
   const [error, setError] = useState<string | null>(null)
   // The consent link, surfaced once. If the email fails the recruiter still
   // has something to send — the ask has to reach a real person either way.
@@ -752,7 +776,23 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                         {/* Marking it done is the act that moves the round on,
                             so it leads. The consent ask is a different kind of
                             thing — it reaches a person — and cancelling is the
-                            quietest, because it gives the client's time back. */}
+                            quietest, because it gives the client's time back.
+
+                            AFTER THE END TIME THE SECOND BUTTON CHANGES ITS
+                            WORDS (20 Sep 2026). "Cancel" is a sentence about
+                            the future; once the slot has passed the only thing
+                            it can mean is that the interview did not take
+                            place — a no-show, or a call moved by text that
+                            nobody recorded here. Same state change, same freed
+                            slot; the label stops lying about which direction
+                            in time it points.
+
+                            It matters because a completed round feeds the
+                            handover pack. Without a way to say "it did not
+                            happen", the only way to clear a no-show off the
+                            board was to mark it done, which puts an interview
+                            that never occurred into a document that goes to an
+                            employer. */}
                         <button
                           className="ag-btn ag-btn-primary"
                           onClick={() => setStatus(r.id, "completed")}
@@ -764,8 +804,13 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                           className="ag-btn"
                           onClick={() => setStatus(r.id, "cancelled")}
                           disabled={busy}
+                          title={
+                            roundHasEnded(r, nowMs)
+                              ? "The slot has passed. This records that the interview did not take place and gives the time back."
+                              : "Cancel this round and give the client's time back."
+                          }
                         >
-                          Cancel
+                          {roundHasEnded(r, nowMs) ? "It didn't happen" : "Cancel"}
                         </button>
                       </>
                     )}

@@ -750,3 +750,11 @@
 /* Withheld is not the same as absent: the screen must never imply the
    recruiter wrote nothing when they simply did not disclose it. */
 .hm-sl-withheld { margin: 10px 0 0; font-size: var(--t-caption); color: var(--ag-ink-3); }
+
+/* The recruiter has not confirmed a finished round took place. Information,
+   never a wall: the write-up is offered anyway, because writing it up is
+   what confirms it. */
+.hm-unconfirmed {
+  margin: 0 0 12px; font-size: var(--t-caption); line-height: 1.55;
+  color: var(--ag-ink-3);
+}

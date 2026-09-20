@@ -6556,3 +6556,54 @@ payload and greps it, so a leak through any other field is caught too.
 since 14 Aug. Tonight alone that gap hid a 571px layout bug, three
 disagreeing status ladders, a calendar dead end, and a shortlist that dropped
 every field it promised.
+
+---
+
+## 🔧 The write-up completes the round (20 September 2026)
+
+Found on a walk-through: an interview that had ended 82 minutes earlier sat
+under "Coming up" on the hiring manager's screen, above "Needs your write-up
+or decision — **Nothing owed**."
+
+**The dependency pointed the wrong way.** A round became `completed` only when
+the RECRUITER pressed "Mark done", and the HM's owed list keyed off that
+status. But the recruiter is not in the room — Tailr does not host or record
+the call — so their knowledge that it happened is second-hand, learned from
+the HM or the candidate. The person with first-hand knowledge was blocked by
+the person without it, on every round, at fifty candidates.
+
+**Rationalised before building** (product-brainstorming skill). Asking what
+"Mark done" actually encodes: not "time has passed" — the clock knows that —
+but *"it genuinely took place"*, as against a no-show, a call moved by text,
+or one cut to ten minutes. The clock cannot know that, and a completed round
+feeds the handover pack that goes to an employer, so **auto-completing on
+elapsed time is wrong**: it would record interviews that never happened.
+
+The resolution is to remove the gate rather than make it obvious: **the
+write-up is first-hand testimony that the interview took place**, and better
+evidence than the click it was waiting for.
+
+### Built
+
+1. **`owed` reads the clock** — ended, and no write-up — not `status ===
+   "completed"`. `upcoming` means not yet started. Both now agree with
+   cohortStatus and loopState.
+2. **`recordDebrief` completes the round.** Only `scheduled → completed`; a
+   cancelled round stays cancelled, because writing up a round somebody
+   cancelled must not quietly resurrect it after its slot was given away.
+3. **The recruiter can say it did not happen.** After the end time, "Cancel"
+   becomes "It didn't happen" — same state change, same freed slot, but the
+   label stops pointing at the future. Without it the only way to clear a
+   no-show off the board was to mark it done, which puts an interview that
+   never occurred into a document sent to an employer.
+4. **A quiet line, not a wall**: "Your recruiter has not confirmed this took
+   place yet. Write it up if it did — that confirms it." The write-up stays
+   offered; a test asserts it is never disabled on that basis.
+
+Both screens now tick every 30s, because these states expire on their own: a
+hiring manager sitting on the page as an interview ends should not have to
+reload to be asked for the write-up.
+
+The authorship assumption checked out before building — `/api/hiring/debrief`
+already accepts the recruiter as author too (`recordDebrief` takes either
+context), so a recruiter who sat in on a round can write it up.
