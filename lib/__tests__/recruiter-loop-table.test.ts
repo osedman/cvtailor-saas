@@ -122,3 +122,63 @@ describe("no button that cannot do anything", () => {
     expect(says).toMatch(/a signal, not a removal/)
   })
 })
+
+/**
+ * The clock, and the third ladder.
+ *
+ * 20 Sep 2026. Two interview rounds were moved into the past on staging to
+ * test the write-up surface. The cohort table said WRITE-UP DUE; six lines
+ * below it the loop table said "Round 1 booked — waiting on the interview",
+ * and the role header said "Nothing is needed until it happens" about an
+ * interview that already had.
+ *
+ * loopState classified on `status` alone, so a round nobody had marked done
+ * stayed "booked" for ever. cohortStatus had always read the clock. The
+ * comment at the top of this file is about TWO derivations disagreeing; this
+ * was a third, in a different module, and it is why the rule below is pinned
+ * against cohortStatus itself rather than restated.
+ */
+describe("a booked round whose time has passed", () => {
+  const AT = "2026-09-02T09:00:00Z"
+  const before = new Date("2026-09-02T08:00:00Z")
+  const after = new Date("2026-09-02T09:30:00Z")
+  const booked = (o: Partial<RoundFacts> = {}) =>
+    round({ roundNumber: 1, status: "scheduled", candidateResponse: "confirmed", hasDebrief: false, scheduledAt: AT, ...o })
+
+  it("is booked before its time", () => {
+    expect(loopState([booked()], 2, before)?.kind).toBe("booked")
+  })
+
+  it("is the write-up once its time has passed, with nobody marking anything", () => {
+    expect(loopState([booked()], 2, after)?.kind).toBe("write-up-due")
+  })
+
+  it("agrees with cohortStatus on both sides of the moment", async () => {
+    // Pinned against the sibling rather than restated. If either threshold
+    // moves, this fails — which is the only thing that keeps one screen from
+    // contradicting itself again.
+    const { cohortStatus } = await import("../agency/cohort-status")
+    const facts = { status: "scheduled" as const, candidateResponse: "confirmed" as const, scheduledAt: AT, hasDebrief: false, createdAt: "2026-09-01T09:00:00Z" }
+
+    expect(cohortStatus(facts, before)).toBe("booked")
+    expect(loopState([booked()], 2, before)?.kind).toBe("booked")
+
+    expect(cohortStatus(facts, after)).toBe("feedback_due")
+    expect(loopState([booked()], 2, after)?.kind).toBe("write-up-due")
+  })
+
+  it("leaves an UNCONFIRMED round invited, however long ago it was offered", () => {
+    // The candidate never picked a time, so nothing happened and no write-up
+    // is owed. Only a confirmed booking can lapse into a write-up.
+    expect(loopState([booked({ candidateResponse: "pending" })], 2, after)?.kind).toBe("invited")
+  })
+
+  it("leaves a round with no scheduled time alone", () => {
+    expect(loopState([booked({ scheduledAt: null })], 2, after)?.kind).toBe("booked")
+  })
+
+  it("does not disturb a cancelled or declined round", () => {
+    expect(loopState([booked({ status: "cancelled" })], 2, after)?.kind).toBe("to-book")
+    expect(loopState([booked({ candidateResponse: "declined" })], 2, after)?.kind).toBe("to-book")
+  })
+})

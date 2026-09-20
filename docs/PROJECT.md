@@ -6416,3 +6416,46 @@ publishing status, where Google expires refresh tokens after **seven days**. If
 that is it, every hiring manager loses their calendar weekly until the app is
 published — and `calendar.readonly` is a sensitive scope, so verification has
 lead time. Worth checking in the Cloud console before any real HM is onboarded.
+
+---
+
+## 🐛 One screen, three ladders, two of them stale (20 September 2026)
+
+**Symptom.** Two ROL-2417 interviews were moved into the past on staging to
+test the write-up surface. The cohort table said **WRITE-UP DUE**; six lines
+below it the loop table said **"Round 1 booked — waiting on the interview"**,
+and the role header said **"Nothing is needed until it happens"** about an
+interview that already had.
+
+**Root cause.** `loopState` classified on `status` alone. A round nobody has
+pressed "mark done" on is still `'scheduled'`, so it read as *booked* for
+ever, however long ago it happened. `cohortStatus` had always read the clock —
+its comment says so: *"a booked round whose time has passed reads as complete
+even before anyone marks it so, because pretending it is still upcoming is
+worse."*
+
+The header comment in `next-action.ts` is about exactly this risk — `loopState`
+was exported so the recruiter's table and the role header could not disagree.
+They didn't. The third ladder in a different module did.
+
+**Fix.** `loopState` takes an optional `now` and, for a confirmed booking whose
+`scheduledAt` has passed, returns `write-up-due` instead of `booked`. One
+change fixes both stale views, because the role header's sub-state derives from
+`loopState` too. The threshold is the round's START, matching `cohortStatus`
+exactly — a second threshold would have moved the disagreement rather than
+ended it. An unconfirmed invitation is untouched (nothing happened, so nothing
+is owed), as are cancelled and declined rounds.
+
+**A test was enshrining the bug.** `agency-next-action.test.ts` asserted
+`booked` for a round scheduled `2026-09-04`, sixteen days in the past — it
+passed only because the code never looked at the clock. It now passes an
+explicit `now` on both sides of the moment. The new test in
+`recruiter-loop-table.test.ts` is pinned against `cohortStatus` itself rather
+than restating its rule, so if either threshold moves, it fails. Probed: with
+the clock-read removed, three tests fail.
+
+**Not changed, and worth a decision.** The threshold is the round's start, so a
+round reads as *write-up due* while it is still notionally running — at most
+`duration_minutes`. `endsAt` (scheduled_at + duration) already exists on
+`RoundFacts` and would be the more literal trigger, but moving to it means
+moving `cohortStatus` too, since `CohortRoundFacts` carries no `endsAt`.

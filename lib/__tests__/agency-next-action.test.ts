@@ -162,11 +162,25 @@ describe("the interview loop", () => {
     expect(s.candidateRef).toBe("CAN-03")
     expect(nextAction(facts({ ...base, rounds: [round()] }), "recruiter", "r1").waitingOn.label).toBe("Candidate CAN-03")
   })
-  it("a confirmed round is booked and waits on nobody but the date", () => {
-    const s = deriveSubState(facts({ ...base, rounds: [round({ candidateResponse: "confirmed" })] }))
+  it("a confirmed round STILL TO COME is booked and waits on nobody but the date", () => {
+    // An explicit clock, because the fixture's date is fixed and the rule now
+    // reads the clock: this assertion used to pass only because it never
+    // looked, and it was asserting "booked" about a round sixteen days past.
+    const before = new Date("2026-09-04T09:00:00Z")
+    const s = deriveSubState(facts({ ...base, rounds: [round({ candidateResponse: "confirmed" })] }), before)
     expect(s.key).toBe("booked")
     expect(s.party).toBe("nobody")
     expect(s.since).toBe("2026-09-04T10:00:00Z")
+  })
+  it("the same round, once its time has passed, is the client's write-up", () => {
+    // The bug, 20 Sep 2026: this stayed "booked · nothing is needed until it
+    // happens" for ever, while the cohort table on the same screen had long
+    // since said WRITE-UP DUE. Nobody has to press anything for the clock to
+    // move.
+    const after = new Date("2026-09-04T10:30:00Z")
+    const s = deriveSubState(facts({ ...base, rounds: [round({ candidateResponse: "confirmed" })] }), after)
+    expect(s.key).toBe("write-up-due")
+    expect(s.party).toBe("client")
   })
   it("a completed round with no write-up waits on the client, since the slot ended", () => {
     const s = deriveSubState(facts({ ...base, rounds: [round({ status: "completed", candidateResponse: "confirmed" })] }))

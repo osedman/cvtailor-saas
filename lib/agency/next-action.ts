@@ -190,7 +190,29 @@ export type LoopState =
   | { kind: "booked"; round: RoundFacts }
   | { kind: "on-hold"; round: RoundFacts }
 
-export function loopState(rounds: RoundFacts[], planned: number): LoopState | null {
+/**
+ * A booked round whose time has come and gone.
+ *
+ * 20 Sep 2026. `loopState` classified purely on `status`, so a round still
+ * marked 'scheduled' read as "booked · waiting on the interview" for ever,
+ * however long ago it happened. `cohortStatus` in cohort-status.ts had always
+ * read the clock, which is how one screen came to show a cohort row saying
+ * WRITE-UP DUE above a loop row saying "Round 1 booked — waiting on the
+ * interview", and a role header saying "Nothing is needed until it happens"
+ * about an interview that already had.
+ *
+ * The rule is cohort-status.ts's, moved nowhere and copied nowhere: a booked
+ * round whose time has passed reads as happened even before anyone marks it
+ * so, because pretending it is still upcoming is worse. The threshold is the
+ * START, not the end, to match that sibling exactly — the two ladders
+ * disagreeing is the bug being fixed here, and a second threshold would only
+ * move the disagreement rather than end it.
+ */
+function hasHappened(r: RoundFacts, now: Date): boolean {
+  return Boolean(r.scheduledAt) && Date.parse(r.scheduledAt as string) < now.getTime()
+}
+
+export function loopState(rounds: RoundFacts[], planned: number, now: Date = new Date()): LoopState | null {
   if (rounds.length === 0) return null
   const live = rounds.filter((r) => r.status !== "cancelled")
   if (rounds.some((r) => r.decision === "decline")) return { kind: "declined" }
@@ -200,7 +222,10 @@ export function loopState(rounds: RoundFacts[], planned: number): LoopState | nu
     return { kind: "to-book", nextRound: last.roundNumber, since: last.createdAt, candidateRef: last.candidateRef }
   }
   if (last.status === "scheduled") {
-    return last.candidateResponse === "confirmed" ? { kind: "booked", round: last } : { kind: "invited", round: last }
+    if (last.candidateResponse !== "confirmed") return { kind: "invited", round: last }
+    // Nobody has pressed "mark done" yet, but the time has passed, so what is
+    // owed is the write-up — not more waiting.
+    return hasHappened(last, now) ? { kind: "write-up-due", round: last } : { kind: "booked", round: last }
   }
   // completed
   if (!last.hasDebrief) return { kind: "write-up-due", round: last }
@@ -217,7 +242,7 @@ export function loopState(rounds: RoundFacts[], planned: number): LoopState | nu
  * the most wins: the recruiter's own acts first, then the client's, then
  * the candidate's, then the waits nobody can shorten.
  */
-export function deriveSubState(f: RoleFacts): SubState {
+export function deriveSubState(f: RoleFacts, now: Date = new Date()): SubState {
   if (f.status === "closed") return { key: "closed", chip: "CLOSED", party: "nobody", since: f.closedAt }
 
   if (f.phase === "handover" && f.pack) {
@@ -238,7 +263,7 @@ export function deriveSubState(f: RoleFacts): SubState {
   // precedence over them.
   const byCandidate = new Map<string, RoundFacts[]>()
   for (const r of f.rounds) byCandidate.set(r.candidateRef, [...(byCandidate.get(r.candidateRef) ?? []), r])
-  const states = [...byCandidate.entries()].map(([ref, rounds]) => ({ ref, state: loopState(rounds, f.plannedRounds)! }))
+  const states = [...byCandidate.entries()].map(([ref, rounds]) => ({ ref, state: loopState(rounds, f.plannedRounds, now)! }))
 
   const pick = (kind: LoopState["kind"]) => states.find((s) => s.state.kind === kind)
 
