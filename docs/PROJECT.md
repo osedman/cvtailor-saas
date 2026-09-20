@@ -6665,3 +6665,47 @@ and NaN.
 A wave-4 source guard pinned that line by its literal text and broke on the
 rename. Repointed at the SHAPE — the guarantee is that the derived rung still
 exists, not what its local variable is called.
+
+---
+
+## 🐛 A declined candidate was invited to round 2 (20 September 2026)
+
+**The worst bug of the walk-through, and it was not the one reported.** Ose
+reported that the booking page showed no times. Checking the data first showed
+something else: round 2 invitations existed for **CAN-12 and CAN-21** — and
+CAN-21 is the candidate he had just **declined**. **CAN-17, whom he advanced,
+had no round 2 at all.**
+
+**Cause.** `getWaveState` builds the reserve from `client_actions` where
+`action = 'interview'` — the SHORTLIST choice, made before any round existed —
+minus anyone holding a live `scheduled` round. After round 1 every round is
+`completed`, so nothing was filtered: the reserve became everyone originally
+chosen, in shortlist order (CAN-12, CAN-21, CAN-17), and the two free windows
+released the first two.
+
+It is the same mistake as the setup form's, fixed an hour earlier — the
+shortlist choice standing in for the round decision — except here it **creates
+rows**: a real interview round, with a booking token, for somebody who had
+been told "not for this role".
+
+**Fix.** The reserve now reads the latest `round_decisions` row per candidate,
+joined through `interview_rounds` so it is scoped to the role (a decision
+belongs to a round, and a candidate may sit on two roles). Decline and hold
+are both excluded — hold for the same reason this module's header already
+gives about shortlist holds: a deliberate "not now" that must not be
+auto-released. Only the LATEST decision counts, because decisions are
+append-only and a client may change their mind. Someone with no decision stays
+in the reserve, which is what makes wave one work.
+
+Probed: removing the filter puts `['CAN-12','CAN-21','CAN-17']` back and the
+test fails on the exact pair that shipped.
+
+### Data left behind on staging
+
+- CAN-21 holds a round-2 invitation created by this bug (id
+  `a2ab59d8-769d-4c6d-a994-4ded2ef9286d`), with a booking token.
+- CAN-17 is missing the round 2 they were advanced to.
+
+Neither is repaired automatically: cancelling somebody's interview and minting
+somebody else's are both acts with real-world consequences, and this is Ose's
+data to decide about.

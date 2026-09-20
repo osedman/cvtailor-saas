@@ -112,7 +112,7 @@ export async function getWaveState(agencyId: string, roleId: string): Promise<Wa
   const admin = agencyAdmin()
   const { settings } = await getInterviewSettings(agencyId, roleId)
 
-  const [{ data: rounds }, { data: slots }, { data: taken }] = await Promise.all([
+  const [{ data: rounds }, { data: slots }, { data: taken }, { data: decisions }] = await Promise.all([
     admin
       .from("interview_rounds")
       .select("candidate_id, slot_id, status, created_at")
@@ -130,6 +130,19 @@ export async function getWaveState(agencyId: string, roleId: string): Promise<Wa
       .eq("agency_id", agencyId)
       .neq("status", "cancelled")
       .not("slot_id", "is", null),
+    /**
+     * What the client decided at the ROUNDS, which is not what they decided
+     * on the shortlist.
+     *
+     * Joined through interview_rounds so this is scoped to the role — a
+     * decision belongs to a round, and a candidate may sit on two roles.
+     */
+    admin
+      .from("round_decisions")
+      .select("decision, created_at, interview_rounds!inner(candidate_id, role_id)")
+      .eq("agency_id", agencyId)
+      .eq("interview_rounds.role_id", roleId)
+      .order("created_at", { ascending: true }),
   ])
 
   // OPEN, not merely live: somebody who has sat round one and been advanced
@@ -140,8 +153,41 @@ export async function getWaveState(agencyId: string, roleId: string): Promise<Wa
   const heldSlots = new Set((taken ?? []).map((r) => r.slot_id as string))
   const openWindows = (slots ?? []).filter((s) => (!s.role_id || s.role_id === roleId) && !heldSlots.has(s.id as string)).length
 
-  // The reserve: chosen to interview, no live round. In the order the client
-  // decided, which is theirs rather than a ranking of ours.
+  /**
+   * WHAT THE ROUNDS DECIDED SINCE (20 Sep 2026).
+   *
+   * The reserve was built from client_actions alone — the SHORTLIST choice,
+   * made before any round existed — minus anyone with a live scheduled
+   * round. After round 1 every round is `completed`, so nobody is filtered,
+   * and the reserve becomes everyone originally chosen, in shortlist order.
+   *
+   * Ose walked it: round 1 written up, CAN-21 declined, CAN-12 and CAN-17
+   * advanced. Offering windows for round 2 invited CAN-12 and **CAN-21** —
+   * the first two in shortlist order — and left CAN-17, who had been
+   * advanced, with no invitation at all. A candidate told "not for this
+   * role" was invited to another interview.
+   *
+   * Decline and hold are both out. Hold is the same deliberate "not now"
+   * this file's own header already honours at the shortlist level —
+   * releasing it automatically would override the judgement the client just
+   * recorded. Only the latest decision per candidate counts: decisions are
+   * append-only and a client may change their mind.
+   *
+   * Somebody with NO round decision stays in the reserve, which is what
+   * makes wave one work: the first invitation has no prior round to consult.
+   */
+  const latestDecision = new Map<string, string>()
+  for (const d of decisions ?? []) {
+    const rel = (d as Record<string, unknown>).interview_rounds
+    const row = (Array.isArray(rel) ? rel[0] : rel) as { candidate_id?: string } | undefined
+    const id = row?.candidate_id
+    if (!id) continue
+    // Ordered ascending, so the last write wins.
+    latestDecision.set(id, String((d as Record<string, unknown>).decision ?? ""))
+  }
+
+  // The reserve: chosen to interview, no live round, not decided away. In the
+  // order the client decided, which is theirs rather than a ranking of ours.
   const { data: chosen } = await admin
     .from("client_actions")
     .select("candidate_ref, candidate_id, created_at")
@@ -157,6 +203,8 @@ export async function getWaveState(agencyId: string, roleId: string): Promise<Wa
     if (!ref || seen.has(ref)) continue
     seen.add(ref)
     if (id && invitedIds.has(id)) continue
+    const decided = id ? latestDecision.get(id) : undefined
+    if (decided === "decline" || decided === "hold") continue
     reserve.push(ref)
   }
 
