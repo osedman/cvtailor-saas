@@ -172,12 +172,22 @@ describe("the interview loop", () => {
     expect(s.party).toBe("nobody")
     expect(s.since).toBe("2026-09-04T10:00:00Z")
   })
-  it("the same round, once its time has passed, is the client's write-up", () => {
+  it("the same round, while it is running, is happening now", () => {
+    // The fixture round is 10:00-10:45.
+    const during = new Date("2026-09-04T10:30:00Z")
+    const s = deriveSubState(facts({ ...base, rounds: [round({ candidateResponse: "confirmed" })] }), during)
+    expect(s.key).toBe("happening-now")
+    expect(s.chip).toBe("HAPPENING NOW")
+    // Named, but nothing is owed until it ends — no control appears.
+    expect(nextAction(facts({ ...base, rounds: [round({ candidateResponse: "confirmed" })] }), "client", "r1", during).mode).toBe("wait")
+  })
+
+  it("the same round, once it has ENDED, is the client's write-up", () => {
     // The bug, 20 Sep 2026: this stayed "booked · nothing is needed until it
     // happens" for ever, while the cohort table on the same screen had long
     // since said WRITE-UP DUE. Nobody has to press anything for the clock to
     // move.
-    const after = new Date("2026-09-04T10:30:00Z")
+    const after = new Date("2026-09-04T11:00:00Z")
     const s = deriveSubState(facts({ ...base, rounds: [round({ candidateResponse: "confirmed" })] }), after)
     expect(s.key).toBe("write-up-due")
     expect(s.party).toBe("client")

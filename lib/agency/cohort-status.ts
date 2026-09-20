@@ -24,6 +24,18 @@
 export type CohortStatus =
   | "awaiting"
   | "booked"
+  /**
+   * Started, and not yet ended. New on 20 Sep 2026.
+   *
+   * Until now a round was booked or it was past, with nothing in between, so
+   * at 09:01 the board still said "Booked · 09:00" and the one question a
+   * hiring manager actually has — who is in the room right now, and which
+   * round is it — had no answer anywhere in the product.
+   *
+   * This is the only state that needs the round's END as well as its start.
+   * Everything else keys off the start alone.
+   */
+  | "happening_now"
   | "complete"
   | "feedback_due"
   | "no_suitable_time"
@@ -33,6 +45,12 @@ export interface CohortRoundFacts {
   status: "scheduled" | "completed" | "cancelled"
   candidateResponse: "pending" | "confirmed" | "declined" | null
   scheduledAt: string | null
+  /**
+   * scheduled_at + duration. Null when unknown, and then a started round goes
+   * straight to feedback_due exactly as it did before — an absent end time
+   * must never strand a round in "happening now" for ever.
+   */
+  endsAt?: string | null
   hasDebrief: boolean
   /** When the invitation went out — what "no response" is measured from. */
   createdAt: string
@@ -48,7 +66,9 @@ export function cohortStatus(r: CohortRoundFacts, now: Date = new Date()): Cohor
   if (!r.scheduledAt) return "awaiting"
   // A booked round whose time has passed reads as complete even before
   // anyone marks it so, because pretending it is still upcoming is worse.
-  return Date.parse(r.scheduledAt) < now.getTime() ? "feedback_due" : "booked"
+  if (Date.parse(r.scheduledAt) >= now.getTime()) return "booked"
+  const ends = r.endsAt ? Date.parse(r.endsAt) : NaN
+  return Number.isFinite(ends) && now.getTime() < ends ? "happening_now" : "feedback_due"
 }
 
 /** True when an unanswered invitation has waited long enough to chase. */
@@ -61,6 +81,7 @@ export function needsChasing(r: CohortRoundFacts, now: Date = new Date()): boole
 export const STATUS_LABEL: Record<CohortStatus, string> = {
   awaiting: "Awaiting booking",
   booked: "Booked",
+  happening_now: "Happening now",
   complete: "Interview complete",
   feedback_due: "Write-up due",
   no_suitable_time: "No suitable time",
@@ -71,6 +92,7 @@ export const STATUS_LABEL: Record<CohortStatus, string> = {
 export const STATUS_TONE: Record<CohortStatus, "open" | "good" | "attention"> = {
   awaiting: "open",
   booked: "good",
+  happening_now: "attention",
   complete: "good",
   feedback_due: "attention",
   no_suitable_time: "attention",
@@ -78,7 +100,9 @@ export const STATUS_TONE: Record<CohortStatus, "open" | "good" | "attention"> = 
 }
 
 /** The order a board reads best in: what needs someone, then what is settled. */
-const ORDER: CohortStatus[] = ["feedback_due", "no_suitable_time", "awaiting", "booked", "complete", "cancelled"]
+// A round in progress outranks everything: it is the only one that is true
+// for the next forty-five minutes and false afterwards.
+const ORDER: CohortStatus[] = ["happening_now", "feedback_due", "no_suitable_time", "awaiting", "booked", "complete", "cancelled"]
 
 export function statusRank(s: CohortStatus): number {
   const i = ORDER.indexOf(s)
@@ -89,10 +113,12 @@ export function statusRank(s: CohortStatus): number {
 export function cohortSummary(statuses: CohortStatus[]): string {
   if (statuses.length === 0) return "Nobody has been invited yet."
   const n = (s: CohortStatus) => statuses.filter((x) => x === s).length
-  const booked = n("booked") + n("complete") + n("feedback_due")
+  const live = n("happening_now")
+  const booked = n("booked") + n("complete") + n("feedback_due") + live
   const awaiting = n("awaiting")
   const stuck = n("no_suitable_time")
   const parts = [
+    live > 0 && `${live} happening now`,
     booked > 0 && `${booked} booked`,
     awaiting > 0 && `${awaiting} still to book`,
     stuck > 0 && `${stuck} found no suitable time`,

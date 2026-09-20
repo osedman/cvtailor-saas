@@ -180,6 +180,12 @@ export async function getCohortBoard(ctx: AgencyContext, roleId: string): Promis
       status: r.status,
       candidateResponse: r.candidateResponse,
       scheduledAt: r.scheduledAt,
+      // scheduled_at + duration. Without it a started round cannot be told
+      // apart from a finished one, and "happening now" can never be true.
+      endsAt:
+        r.scheduledAt && Number.isFinite(r.durationMinutes)
+          ? new Date(Date.parse(r.scheduledAt) + r.durationMinutes * 60_000).toISOString()
+          : null,
       hasDebrief: r.hasDebrief,
       createdAt: r.createdAt,
     }

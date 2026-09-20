@@ -660,3 +660,34 @@
   .hm-room-state { width: 100%; }
   .hm-room-dec-btn { flex: 1 1 140px; justify-content: center; }
 }
+
+/* ── The headline role's own rounds (20 Sep 2026, frame 20) ───────────────
+   "If an interview is happening the hiring manager should be able to clearly
+   see for who and what round." The card names the role; these name the people
+   and the rounds inside it. Rows, never controls — a wait carries no button,
+   and a round being in progress does not make it something to press.
+   Direction is stated: this sits inside .hm-one-card, and the row that taught
+   us that lesson is .hm-across-row above. */
+.hm-one-rounds {
+  display: flex; flex-direction: column; gap: 6px;
+  list-style: none; margin: 14px 0 0; padding: 0;
+}
+.hm-one-round {
+  display: flex; flex-direction: row; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 9px 12px; border-radius: var(--r-sm);
+  background: rgba(253, 252, 249, 0.06);
+  border: 1px solid rgba(253, 252, 249, 0.14);
+}
+.hm-one-round-who { flex: 1 1 auto; min-width: 0; font-weight: 500; }
+.hm-one-round-when { flex: none; font-family: var(--ag-mono); font-size: var(--t-caption); opacity: 0.72; white-space: nowrap; }
+/* Live is the one state that expires on its own, so it is the one that is
+   allowed to draw the eye. Colour is not the only signal — the label changes
+   to "Happening now" too. */
+.hm-one-round[data-live] { border-color: #ff8a70; background: rgba(255, 138, 112, 0.1); }
+.hm-one-round[data-live] .hm-one-round-when { color: #ff8a70; opacity: 1; }
+
+/* The quieter half of the list: roles where someone else holds the next move.
+   Lower contrast than the to-do rows above it, because it is information
+   rather than a job. */
+.hm-one-rest[data-quiet] { opacity: 0.82; }
+.hm-one-rest[data-quiet] .hm-one-rest-label { opacity: 0.8; }

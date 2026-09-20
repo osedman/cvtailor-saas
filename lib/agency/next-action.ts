@@ -134,6 +134,7 @@ export type SubStateKey =
   | "decision-due"
   | "invited"
   | "booked"
+  | "happening-now"
   | "on-hold"
   | "loop-ended"
   | "pack-generated"
@@ -188,6 +189,8 @@ export type LoopState =
   | { kind: "decision-due"; round: RoundFacts }
   | { kind: "invited"; round: RoundFacts }
   | { kind: "booked"; round: RoundFacts }
+  /** Started, not yet ended. The one state that is only true for its duration. */
+  | { kind: "happening-now"; round: RoundFacts }
   | { kind: "on-hold"; round: RoundFacts }
 
 /**
@@ -208,8 +211,21 @@ export type LoopState =
  * disagreeing is the bug being fixed here, and a second threshold would only
  * move the disagreement rather than end it.
  */
-function hasHappened(r: RoundFacts, now: Date): boolean {
+function hasStarted(r: RoundFacts, now: Date): boolean {
   return Boolean(r.scheduledAt) && Date.parse(r.scheduledAt as string) < now.getTime()
+}
+
+/**
+ * Ended, or unknowable.
+ *
+ * `endsAt` is scheduled_at + duration. When it is missing we treat a started
+ * round as ended, which is the behaviour that shipped this morning: an absent
+ * end time must never strand somebody in "happening now" indefinitely.
+ */
+function hasEnded(r: RoundFacts, now: Date): boolean {
+  if (!hasStarted(r, now)) return false
+  const ends = r.endsAt ? Date.parse(r.endsAt) : NaN
+  return !Number.isFinite(ends) || now.getTime() >= ends
 }
 
 export function loopState(rounds: RoundFacts[], planned: number, now: Date = new Date()): LoopState | null {
@@ -223,9 +239,10 @@ export function loopState(rounds: RoundFacts[], planned: number, now: Date = new
   }
   if (last.status === "scheduled") {
     if (last.candidateResponse !== "confirmed") return { kind: "invited", round: last }
-    // Nobody has pressed "mark done" yet, but the time has passed, so what is
-    // owed is the write-up — not more waiting.
-    return hasHappened(last, now) ? { kind: "write-up-due", round: last } : { kind: "booked", round: last }
+    if (!hasStarted(last, now)) return { kind: "booked", round: last }
+    // Nobody has pressed "mark done" yet. Mid-round it is happening; after it
+    // what is owed is the write-up, not more waiting.
+    return hasEnded(last, now) ? { kind: "write-up-due", round: last } : { kind: "happening-now", round: last }
   }
   // completed
   if (!last.hasDebrief) return { kind: "write-up-due", round: last }
@@ -314,6 +331,15 @@ export function deriveSubState(f: RoleFacts, now: Date = new Date()): SubState {
     return { key: "round-to-book", chip: `ROUND ${nextRound} GOING OUT`, party: "candidate", since: f.lastWindowOfferedAt ?? since, n: count, roundNumber: nextRound, candidateRef: first?.ref }
   }
 
+  /**
+   * A round in the room right now outranks every other rung, including the
+   * recruiter's own jobs. It is the only sub-state that expires on its own,
+   * and for its forty-five minutes it is the truest thing about the role.
+   */
+  const live = pick("happening-now")
+  if (live && live.state.kind === "happening-now")
+    return { key: "happening-now", chip: "HAPPENING NOW", party: "nobody", since: live.state.round.scheduledAt, candidateRef: live.ref, roundNumber: live.state.round.roundNumber }
+
   const writeUp = pick("write-up-due")
   if (writeUp && writeUp.state.kind === "write-up-due")
     return { key: "write-up-due", chip: "WRITE-UP DUE", party: "client", since: writeUp.state.round.endsAt ?? writeUp.state.round.scheduledAt, candidateRef: writeUp.ref, roundNumber: writeUp.state.round.roundNumber }
@@ -366,8 +392,8 @@ function party(sub: SubState, f: RoleFacts, hat: Hat): { party: WaitingParty; la
  * or their interviews screen. Nothing here names a candidate to the client:
  * refs only, as everywhere in the hiring payload.
  */
-export function nextAction(f: RoleFacts, hat: Hat, roleId: string): NextAction {
-  const sub = deriveSubState(f)
+export function nextAction(f: RoleFacts, hat: Hat, roleId: string, now: Date = new Date()): NextAction {
+  const sub = deriveSubState(f, now)
   const who = party(sub, f, hat)
   const base = { key: sub.key, chip: sub.chip, waitingOn: who, since: sub.since }
   const wf = (step?: string) => workflowHref(roleId, step)
@@ -436,6 +462,17 @@ export function nextAction(f: RoleFacts, hat: Hat, roleId: string): NextAction {
         : { ...base, mode: "wait", title: `Round ${rn} is with the candidate to confirm`, detail: "You will see it in your diary once confirmed.", cta: { label: "Your diary", href: clientLoop } }
     case "booked":
       return { ...base, mode: "wait", title: `Round ${rn} with ${ref} is booked`, detail: "Nothing is needed until it happens.", cta: { label: R ? "Open interviews" : "Your diary", href: R ? interviews : clientLoop } }
+    /**
+     * Deliberately mode "wait", not "act". Nothing is owed while a round is
+     * running — the write-up becomes due when it ends. It is named because it
+     * is the one thing a hiring manager wants at 09:01, not because there is
+     * a button to press, and inventing an action here would put a control on
+     * a screen that cannot do anything with it.
+     */
+    case "happening-now":
+      return R
+        ? { ...base, mode: "wait", title: `Round ${rn} with ${ref} is happening now`, detail: `${client} is in the room. The write-up is due when it ends.`, cta: { label: "Open interviews", href: interviews } }
+        : { ...base, mode: "wait", title: `Round ${rn} with ${ref} is happening now`, detail: "Your write-up is due when it ends.", cta: { label: "Your diary", href: clientLoop } }
     case "write-up-due":
       return R
         ? { ...base, mode: "wait", title: `${who.label} is writing up round ${rn}`, detail: `Round ${rn} with ${ref} has happened.`, cta: { label: "Open interviews", href: interviews } }
@@ -547,6 +584,8 @@ export function handoffFor(f: RoleFacts, hat: Hat, roleId: string): Handoff | nu
       return { confirmed: `Round ${sub.roundNumber ?? 1} booked for ${sub.candidateRef ?? "the candidate"}.`, owner, nextTask: task, then: "Once confirmed it sits in the client's diary." }
     case "booked":
       return { confirmed: `${sub.candidateRef ?? "The candidate"} confirmed round ${sub.roundNumber ?? 1}.`, owner, nextTask: task, then: "After the round, the client writes it up before deciding." }
+    case "happening-now":
+      return { confirmed: `Round ${sub.roundNumber ?? 1} with ${sub.candidateRef ?? "the candidate"} started.`, owner, nextTask: task, then: "The write-up becomes due the moment it ends." }
     case "write-up-due":
       return { confirmed: `Round ${sub.roundNumber ?? 1} with ${sub.candidateRef ?? "the candidate"} has happened.`, owner, nextTask: task, then: "The write-up unlocks the round decision." }
     case "decision-due":

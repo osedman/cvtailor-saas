@@ -100,6 +100,9 @@ interface RoundRow {
  */
 function rank(s: LoopState): number {
   switch (s.kind) {
+    // Nothing outranks a round that is running right now: it is the only
+    // line on the screen that stops being true in forty-five minutes.
+    case "happening-now": return -1
     case "close-out": return 0   // yours, and it ends the loop
     case "to-book": return 1     // yours
     case "write-up-due": return 2
@@ -123,6 +126,8 @@ function says(s: LoopState, planned: number): { state: string; waiting: string; 
       return { state: `Round ${s.round.roundNumber} written up`, waiting: "waiting on the client's decision", tone: "wait" }
     case "invited":
       return { state: `Round ${s.round.roundNumber} invited`, waiting: "waiting on the candidate to pick a time", tone: "wait" }
+    case "happening-now":
+      return { state: `Round ${s.round.roundNumber} is happening now`, waiting: "in the room", tone: "act" }
     case "booked":
       return { state: `Round ${s.round.roundNumber} booked`, waiting: "waiting on the interview", tone: "wait" }
     case "on-hold":

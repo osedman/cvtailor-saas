@@ -138,38 +138,60 @@ describe("no button that cannot do anything", () => {
  * was a third, in a different module, and it is why the rule below is pinned
  * against cohortStatus itself rather than restated.
  */
-describe("a booked round whose time has passed", () => {
+describe("a booked round, before / during / after", () => {
   const AT = "2026-09-02T09:00:00Z"
+  const ENDS = "2026-09-02T09:45:00Z"
   const before = new Date("2026-09-02T08:00:00Z")
-  const after = new Date("2026-09-02T09:30:00Z")
+  const during = new Date("2026-09-02T09:30:00Z")
+  const after = new Date("2026-09-02T10:00:00Z")
   const booked = (o: Partial<RoundFacts> = {}) =>
-    round({ roundNumber: 1, status: "scheduled", candidateResponse: "confirmed", hasDebrief: false, scheduledAt: AT, ...o })
+    round({ roundNumber: 1, status: "scheduled", candidateResponse: "confirmed", hasDebrief: false, scheduledAt: AT, endsAt: ENDS, ...o })
 
   it("is booked before its time", () => {
     expect(loopState([booked()], 2, before)?.kind).toBe("booked")
   })
 
-  it("is the write-up once its time has passed, with nobody marking anything", () => {
+  it("is happening now while it is running", () => {
+    expect(loopState([booked()], 2, during)?.kind).toBe("happening-now")
+  })
+
+  it("is the write-up once it has ended, with nobody marking anything", () => {
     expect(loopState([booked()], 2, after)?.kind).toBe("write-up-due")
   })
 
-  it("agrees with cohortStatus on both sides of the moment", async () => {
-    // Pinned against the sibling rather than restated. If either threshold
-    // moves, this fails — which is the only thing that keeps one screen from
-    // contradicting itself again.
+  it("agrees with cohortStatus at all three moments", async () => {
+    // Pinned against the sibling rather than restated. If either ladder's
+    // thresholds move, this fails — which is the only thing that keeps one
+    // screen from contradicting itself again.
     const { cohortStatus } = await import("../agency/cohort-status")
-    const facts = { status: "scheduled" as const, candidateResponse: "confirmed" as const, scheduledAt: AT, hasDebrief: false, createdAt: "2026-09-01T09:00:00Z" }
+    const facts = {
+      status: "scheduled" as const,
+      candidateResponse: "confirmed" as const,
+      scheduledAt: AT,
+      endsAt: ENDS,
+      hasDebrief: false,
+      createdAt: "2026-09-01T09:00:00Z",
+    }
 
     expect(cohortStatus(facts, before)).toBe("booked")
     expect(loopState([booked()], 2, before)?.kind).toBe("booked")
+
+    expect(cohortStatus(facts, during)).toBe("happening_now")
+    expect(loopState([booked()], 2, during)?.kind).toBe("happening-now")
 
     expect(cohortStatus(facts, after)).toBe("feedback_due")
     expect(loopState([booked()], 2, after)?.kind).toBe("write-up-due")
   })
 
+  it("never strands a round in happening-now when the end time is unknown", () => {
+    // An absent endsAt must fall through to the write-up rather than leaving
+    // somebody "in the room" for ever.
+    expect(loopState([booked({ endsAt: null })], 2, during)?.kind).toBe("write-up-due")
+  })
+
   it("leaves an UNCONFIRMED round invited, however long ago it was offered", () => {
     // The candidate never picked a time, so nothing happened and no write-up
-    // is owed. Only a confirmed booking can lapse into a write-up.
+    // is owed. Only a confirmed booking can start or lapse.
     expect(loopState([booked({ candidateResponse: "pending" })], 2, after)?.kind).toBe("invited")
   })
 

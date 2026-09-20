@@ -6459,3 +6459,58 @@ round reads as *write-up due* while it is still notionally running — at most
 `duration_minutes`. `endsAt` (scheduled_at + duration) already exists on
 `RoundFacts` and would be the more literal trigger, but moving to it means
 moving `cohortStatus` too, since `CohortRoundFacts` carries no `endsAt`.
+
+---
+
+## 🔧 The hiring manager's screens, part 1 (20 September 2026)
+
+Frame 20 (`AWRRbEOX6rLsltutFDL3zs`, node `464:2`). Bands A and C built here;
+band B (the shortlist's evidence) follows.
+
+### "Happening now" — the state that did not exist
+
+A round was booked or it was past, with nothing between, so at 09:01 the board
+still said *Booked · 09:00* and the one question a hiring manager actually has
+— who is in the room, and which round — had no answer anywhere.
+
+`cohortStatus` and `loopState` both gain it, with the same threshold: started,
+and not yet ended. This settles the open question from this morning's fix,
+which used the round's START for everything because `CohortRoundFacts` carried
+no end time. It carries one now (`scheduled_at + duration`), and **a missing
+end time still falls through to the write-up** — an absent value must never
+strand somebody "in the room" for ever. A test covers exactly that.
+
+It outranks every other rung on the role header and the recruiter's loop
+table, because it is the only state that stops being true on its own.
+
+It is **mode `wait`, not `act`**: nothing is owed while a round runs, and
+inventing a control would put a button on a screen with nothing to press.
+
+### Tasks: liveness before age
+
+`app/hiring/page.tsx` picked the headline from `acts[0] ?? the OLDEST wait`.
+So a role nobody had touched for a fortnight ("your recruiter is building the
+shortlist") outranked a role with three interviews booked for the next
+morning — and because the glance ladder renders only the headline role, the
+live role's phase was never shown. Ose: *"my tasks isn't reflecting the right
+phase of where the role is at."*
+
+Actions still beat waits — that part was right and has not moved. The tiebreak
+among **waits** is now liveness (`liveRank`), with age kept as the second test.
+
+Two more things on that screen:
+
+- **The headline card now names people and rounds**, not just the role:
+  `CAN-12 · Round 1 · Mon 21 Sep, 09:00`, live ones first and labelled
+  *Happening now*. `live` is computed from the same two facts the ladders use,
+  so it cannot drift from what the rest of the product says.
+- **Quiet roles stop vanishing.** `rest` was `acts` only, so a role with
+  nothing actionable disappeared from the screen entirely — which is how a
+  role could be invisible here while sitting in the middle of its interview
+  loop. They now render as "N other roles are open", lower contrast, no
+  controls.
+
+### Still open
+
+Band B — the shortlist tab, which promises "the evidence behind each" and
+shows a name, a title and the same sentence under every candidate.

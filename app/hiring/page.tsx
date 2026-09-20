@@ -302,6 +302,41 @@ interface ClientTodayRow {
   next: NextAction
 }
 
+/** "Mon 21 Sep, 09:00", or a plain dash when a round has no time yet. */
+function whenLabel(iso: string | null): string {
+  if (!iso) return "No time set"
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return "No time set"
+  return d.toLocaleString(undefined, {
+    weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+  })
+}
+
+/**
+ * How live a wait is. Lower sorts first.
+ *
+ * Only states that mean something is genuinely in motion earn a place above
+ * the rest: a round in the room now, then one that has happened and is owed a
+ * write-up, then one booked, then a candidate still choosing a time.
+ * Everything else keeps its old behaviour and sorts by age.
+ *
+ * This ranks the WAITS only. Anything the hiring manager can act on has
+ * already won before it runs — `acts[0]` is consulted first, and that rule
+ * does not change: an action is a job, a wait is information.
+ */
+function liveRank(key: string): number {
+  switch (key) {
+    case "happening-now": return 0
+    case "write-up-due": return 1
+    case "decision-due": return 2
+    case "booked": return 3
+    case "invited": return 4
+    case "round-to-book":
+    case "windows-to-offer": return 5
+    default: return 9
+  }
+}
+
 export default function HiringDashboardPage() {
   const [screen, setScreen] = useState<Screen>("loading")
   const [today, setToday] = useState<ClientTodayRow[] | null>(null)
@@ -420,6 +455,18 @@ export default function HiringDashboardPage() {
   const firstName = (links[0]?.fullName ?? "").trim().split(/\s+/)[0] ?? ""
   const roleCount = today?.length ?? 0
 
+  /**
+   * How live a wait is. Lower sorts first.
+   *
+   * Only the states that mean something is genuinely in motion earn a place
+   * above the rest: a round in the room now, then one that has happened and
+   * is owed a write-up, then one booked, then a candidate still choosing a
+   * time. Everything else keeps its old behaviour and sorts by age.
+   *
+   * It ranks the WAITS. Anything the hiring manager can act on has already
+   * won before this runs — `acts[0]` is consulted first and that rule does
+   * not change.
+   */
   const acts = (today ?? []).filter((r) => r.next.mode === "act")
   /**
    * The one thing, and everything else.
@@ -434,9 +481,61 @@ export default function HiringDashboardPage() {
     (today ?? [])
       .filter((r) => r.next.mode !== "done")
       .slice()
-      .sort((a, b) => (a.next.since ?? "").localeCompare(b.next.since ?? ""))[0] ??
+      .sort((a, b) => {
+        // LIVENESS BEFORE AGE (20 Sep 2026).
+        //
+        // This was `oldest wait first`, and it put the wrong role at the top
+        // of the screen: a role nobody had touched for a fortnight ("your
+        // recruiter is building the shortlist") outranked a role with three
+        // interviews booked for the next morning, and because the glance
+        // ladder below renders only `first`, the live role's phase was never
+        // shown at all. The hiring manager's own words: "my tasks isn't
+        // reflecting the right phase of where the role is at."
+        //
+        // Age is still the tiebreak; it is simply no longer the first test.
+        const byLive = liveRank(a.next.key) - liveRank(b.next.key)
+        if (byLive !== 0) return byLive
+        return (a.next.since ?? "").localeCompare(b.next.since ?? "")
+      })[0] ??
     null
+  /**
+   * The headline role's own rounds, so the card can name people and rounds
+   * rather than only the role. Live first, then soonest.
+   *
+   * `live` is computed here from the same two facts the ladders use — it has
+   * started and has not ended — so this cannot drift from what the rest of
+   * the product says about the same round.
+   */
+  const firstRounds = useMemo(() => {
+    if (!first) return []
+    const nowMs = Date.parse(todayNow)
+    return (data?.rounds ?? [])
+      .filter((r) => r.role_id === first.role.id && r.status === "scheduled" && r.scheduled_at)
+      .map((r) => {
+        const startsMs = Date.parse(r.scheduled_at as string)
+        const endsMs = startsMs + (r.duration_minutes || 0) * 60_000
+        return { ...r, live: startsMs <= nowMs && nowMs < endsMs }
+      })
+      .sort((a, b) => {
+        if (a.live !== b.live) return a.live ? -1 : 1
+        return Date.parse(a.scheduled_at as string) - Date.parse(b.scheduled_at as string)
+      })
+      .slice(0, 4)
+  }, [first, data, todayNow])
+
   const rest = acts.filter((r) => r !== first)
+  /**
+   * Every other role that is still live, actionable or not.
+   *
+   * `rest` is the hiring manager's own to-do list and keeps its copy. This is
+   * the quieter half: roles where somebody else holds the next move. They
+   * used to disappear from this screen entirely whenever nothing on them was
+   * actionable, which is how a role could be invisible here while sitting in
+   * the middle of its interview loop.
+   */
+  const others = (today ?? []).filter(
+    (r) => r !== first && r.next.mode !== "done" && !acts.includes(r)
+  )
 
   const headline =
     today === null
@@ -658,6 +757,29 @@ export default function HiringDashboardPage() {
                     Role · {first.role.title} · {first.role.ref}
                     {first.next.since ? ` · ${first.next.waitingOn.label.toLowerCase()} since ${ageLabel(first.next.since, todayNow)}` : ""}
                   </p>
+                  {/*
+                    WHO, AND WHICH ROUND (20 Sep 2026, frame 20).
+                    "If an interview is happening the hiring manager should be
+                    able to clearly see in the interview for who and what
+                    round." The headline names the role; these name the people
+                    and the rounds inside it. Rows only, no controls — a wait
+                    carries no button, and one of these being in progress does
+                    not make it something to press.
+                  */}
+                  {firstRounds.length > 0 && (
+                    <ul className="hm-one-rounds">
+                      {firstRounds.map((r) => (
+                        <li key={r.id} className="hm-one-round" data-live={r.live || undefined}>
+                          <span className="hm-one-round-who">
+                            {r.candidate_ref} · Round {r.round_number}
+                          </span>
+                          <span className="hm-one-round-when">
+                            {r.live ? "Happening now" : whenLabel(r.scheduled_at)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   {/* The button exists only when the doing is yours. */}
                   {first.next.mode === "act" && first.next.cta && (
                     <Link className="hm-one-cta" href={first.next.cta.href}>
@@ -689,6 +811,22 @@ export default function HiringDashboardPage() {
                       className="hm-one-rest-row"
                       href={r.next.cta?.href ?? `/hiring/roles/${r.role.id}`}
                     >
+                      <span className="hm-one-rest-title">{r.next.title}</span>
+                      <span className="hm-one-rest-meta">
+                        {r.role.title} · {r.role.ref}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {others.length > 0 && (
+                <div className="hm-one-rest" data-quiet="true">
+                  <p className="hm-one-rest-label">
+                    {others.length === 1 ? "One other role is open" : `${others.length} other roles are open`}
+                  </p>
+                  {others.map((r) => (
+                    <Link key={r.role.id} className="hm-one-rest-row" href={`/hiring/roles/${r.role.id}`}>
                       <span className="hm-one-rest-title">{r.next.title}</span>
                       <span className="hm-one-rest-meta">
                         {r.role.title} · {r.role.ref}
