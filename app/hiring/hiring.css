@@ -401,7 +401,15 @@
    act off the edge: .ag-screen-head losing its primary action at 375px is a
    live defect on five recruiter screens and this must not join them. The
    action keeps its own line on a narrow viewport instead of being clipped. */
-.hm-across-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; }
+/* ROW, SAID OUT LOUD (20 Sep 2026).
+   This composes onto .agd-card, which sets flex-direction: column. Declaring
+   `display: flex` alone inherited that column, so the three children's
+   `flex: 1 1 220px` / `2 1 280px` — written as column WIDTHS — were applied
+   as HEIGHTS down the main axis. Each row rendered 571px tall with its text
+   floating in the middle, and every section below it was pushed off the
+   screen. The screen looked designed wrong; it was one missing property.
+   Never rely on the default direction when composing onto a card class. */
+.hm-across-row { display: flex; flex-direction: row; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; }
 
 /* This role at a glance — 19 Sep 2026, frame 15.
    A ladder, not a progress bar: a bar implies a percentage and there isn't
@@ -438,7 +446,9 @@
 }
 
 /* One candidate's lanes on the client side. */
-.hm-loop-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+/* Also composed onto .agd-card — same column-inheritance trap as
+   .hm-across-row above, found by the guard rather than by a screenshot. */
+.hm-loop-row { display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 10px 14px; }
 
 /* The loop lanes render on the DARK client surface here; the light-side
    palette in agencies.css inverts. Keep the states readable on ink. */
