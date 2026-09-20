@@ -6514,3 +6514,45 @@ Two more things on that screen:
 
 Band B — the shortlist tab, which promises "the evidence behind each" and
 shows a name, a title and the same sentence under every candidate.
+
+---
+
+## 🔧 The hiring manager's screens, part 2 — the shortlist (20 September 2026)
+
+Frame 20 band B. **The evidence was never missing.** The submission snapshot
+has carried `overall`, `must_have_hit/total`, `strengths` (requirement +
+verbatim quote), `gaps`, `probe_areas` and the recruiter's screening
+`narrative` since it was built — and the portal renders them from that same
+snapshot. `lib/agency/client-shortlist.ts` simply dropped every one of them
+while mapping, so the workspace screen promised "the evidence behind each"
+and showed a name, a title and one sentence.
+
+**Nothing here widens disclosure.** Each field is gated by the switch the
+recruiter froze at generation, read back verbatim — applying today's switches
+to yesterday's submission is exactly what an immutable snapshot exists to
+prevent. `notes` defaults to OFF and the other four default on, matching the
+submission builder, so a recruiter who never turned notes on does not have
+their screening narrative appear on a client screen because a later release
+decided it would be useful.
+
+**Withheld is not absent.** When notes are off the screen says "your
+recruiter's screening notes are not part of this submission" rather than
+implying none were written. A test asserts the wording never blames the
+recruiter for writing nothing.
+
+Also on the row: the candidate's round and when it is, with `live` computed
+from the same started-and-not-ended pair the ladders use, so the chip cannot
+drift. And the recruiter's greeting is prose now — it rendered in `.agd-aside`,
+the monospace face this product reserves for machine data, which made a
+human message read like a system log.
+
+8 tests in `lib/__tests__/client-shortlist-disclosure.test.ts`, probed: with
+the notes gate removed, three fail — including one that serialises the whole
+payload and greps it, so a leak through any other field is caught too.
+
+### Outstanding on these screens
+
+**Nobody has walked them signed in as a hiring manager, end to end.** Open
+since 14 Aug. Tonight alone that gap hid a 571px layout bug, three
+disagreeing status ladders, a calendar dead end, and a shortlist that dropped
+every field it promised.

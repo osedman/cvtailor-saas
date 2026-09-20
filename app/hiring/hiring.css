@@ -700,3 +700,53 @@
    rather than a job. */
 .hm-one-rest[data-quiet] { opacity: 0.82; }
 .hm-one-rest[data-quiet] .hm-one-rest-label { opacity: 0.8; }
+
+/* ── The shortlist row (20 Sep 2026, frame 20) ────────────────────────────
+   The screen promised "everyone your recruiter has put in front of you, with
+   the evidence behind each" and rendered a name, a title and one sentence —
+   the same sentence under every candidate. The evidence was in the snapshot
+   all along; the workspace mapper dropped it while the portal rendered it.
+
+   A card, not a strip: the row now carries several lines, so it stops being
+   a table row pretending to be one. Direction is stated, as .hm-across-row
+   above taught us the hard way. */
+.hm-sl-card {
+  display: flex; flex-direction: column; align-items: stretch; gap: 9px;
+  padding: 15px 17px;
+}
+.hm-sl-head { display: flex; flex-direction: row; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.hm-sl-name { font-size: 15px; font-weight: 600; color: var(--ag-ink); }
+.hm-sl-sub { flex: 1 1 auto; min-width: 0; }
+.hm-sl-chip {
+  flex: none; padding: 3px 9px; border-radius: var(--r-sm);
+  border: 1px solid var(--ag-border); background: var(--ag-cream);
+  font-family: var(--ag-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); color: var(--ag-ink-3); white-space: nowrap;
+}
+.hm-sl-chip[data-live] { border-color: var(--ag-coral); background: var(--ag-tint-1); color: var(--ag-coral-deep); }
+
+/* The recruiter's words about this person: prose, and the most readable
+   thing in the card. */
+.hm-sl-note {
+  margin: 0; font-size: var(--t-body); line-height: 1.6; color: var(--ag-ink-2);
+  padding-left: 12px; border-left: 2px solid var(--ag-tint-2);
+}
+.hm-sl-evidence { margin: 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink-2); }
+.hm-sl-gaps { margin: 0; font-size: var(--t-caption); line-height: 1.5; color: var(--ag-ink-3); }
+.hm-sl-foot { display: flex; flex-direction: row; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hm-sl-state { font-size: var(--t-body); color: var(--ag-ink-3); }
+.hm-sl-state[data-mode="act"] { color: var(--ag-coral-deep); font-weight: 500; }
+
+/* A greeting from a person, set as prose — it used to render in .agd-aside,
+   the monospace face this product reserves for machine data. */
+.hm-sl-intro {
+  margin: 0 0 14px; padding: 14px 16px; border-radius: var(--r-md);
+  background: var(--ag-paper); border: 1px solid var(--ag-border);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.hm-sl-intro p { margin: 0; font-size: var(--t-body); line-height: 1.6; color: var(--ag-ink-2); max-width: 70ch; }
+.hm-sl-intro cite { font-style: normal; font-size: var(--t-caption); color: var(--ag-ink-3); }
+
+/* Withheld is not the same as absent: the screen must never imply the
+   recruiter wrote nothing when they simply did not disclose it. */
+.hm-sl-withheld { margin: 10px 0 0; font-size: var(--t-caption); color: var(--ag-ink-3); }

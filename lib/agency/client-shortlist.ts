@@ -47,6 +47,48 @@ export interface ShortlistEntry {
   redacted: boolean
   /** The action this contact already took on the candidate, if any. */
   action: string | null
+  /**
+   * EVERYTHING BELOW IS ALREADY IN THE SNAPSHOT (20 Sep 2026).
+   *
+   * The workspace screen said "everyone your recruiter has put in front of
+   * you, with the evidence behind each", and then rendered a name, a title
+   * and one sentence — the same sentence under every candidate. The evidence
+   * was not missing from the record; this mapper simply dropped it on the
+   * floor while the portal rendered it from the same snapshot.
+   *
+   * Nothing here widens disclosure. Each field is gated by the switch the
+   * recruiter froze at generation, and null means "not disclosed" rather than
+   * "not known" — a distinction the UI has to keep, because saying "no note"
+   * about a note that exists but was withheld would be a lie about the
+   * recruiter.
+   */
+  overall: number | null
+  mustHaveHit: number | null
+  mustHaveTotal: number | null
+  /** The recruiter's screening narrative, written for this client. */
+  narrative: string | null
+  /** Requirement + verbatim CV quote, strongest first. */
+  strengths: Array<{ requirement: string; quote: string }> | null
+  /** Must-haves with nothing under them. Known gaps, stated plainly. */
+  gaps: Array<{ requirement: string; weight: string }> | null
+  /** What the recruiter suggests this client probes at interview. */
+  probeAreas: string[] | null
+}
+
+/**
+ * Which switches the recruiter had on when they pressed send.
+ *
+ * Frozen into the snapshot at generation and read back verbatim — applying
+ * today's switches to yesterday's submission is exactly what an immutable
+ * snapshot exists to prevent. `notes` defaults to OFF; the other four
+ * default on.
+ */
+export interface ShortlistDisclosure {
+  scores: boolean
+  evidence: boolean
+  probes: boolean
+  notes: boolean
+  logistics: boolean
 }
 
 export interface ClientShortlist {
@@ -56,6 +98,7 @@ export interface ClientShortlist {
   contactId: string
   generatedAt: string
   intro: string
+  disclosure: ShortlistDisclosure
   entries: ShortlistEntry[]
 }
 
@@ -88,7 +131,24 @@ export async function getClientShortlist(ctx: HiringContext, roleId: string): Pr
   const link = ctx.links.find((l) => l.contactId === r.contact_id && l.agencyId === r.agency_id)
   if (!link) return null
 
-  const snapshot = (s.snapshot ?? {}) as { intro?: string; shortlisted?: Array<Record<string, unknown>> }
+  const snapshot = (s.snapshot ?? {}) as {
+    intro?: string
+    disclosure?: Partial<ShortlistDisclosure>
+    shortlisted?: Array<Record<string, unknown>>
+  }
+  // Read back exactly as frozen. An older snapshot with no disclosure block
+  // predates the switches, and the submission builder's own defaults are the
+  // honest reading of what the recruiter intended then.
+  const d = snapshot.disclosure ?? {}
+  const disclosure: ShortlistDisclosure = {
+    scores: d.scores !== false,
+    evidence: d.evidence !== false,
+    probes: d.probes !== false,
+    notes: d.notes === true,
+    logistics: d.logistics !== false,
+  }
+  const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null)
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null)
   const { data: actions } = await admin
     .from("client_actions")
     .select("candidate_ref, action, created_at")
@@ -108,6 +168,7 @@ export async function getClientShortlist(ctx: HiringContext, roleId: string): Pr
     contactId: r.contact_id,
     generatedAt: s.generated_at,
     intro: typeof snapshot.intro === "string" ? snapshot.intro : "",
+    disclosure,
     entries: (snapshot.shortlisted ?? []).map((e) => ({
       ref: String(e.ref ?? ""),
       fullName: String(e.full_name ?? ""),
@@ -116,6 +177,25 @@ export async function getClientShortlist(ctx: HiringContext, roleId: string): Pr
       years: typeof e.years === "number" ? e.years : null,
       redacted: e.redacted === true,
       action: latest.get(String(e.ref ?? "")) ?? null,
+      overall: disclosure.scores ? num(e.overall) : null,
+      mustHaveHit: disclosure.scores ? num(e.must_have_hit) : null,
+      mustHaveTotal: disclosure.scores ? num(e.must_have_total) : null,
+      narrative: disclosure.notes ? str(e.narrative) : null,
+      strengths: disclosure.evidence
+        ? ((e.strengths ?? []) as Array<Record<string, unknown>>)
+            .map((x) => ({ requirement: String(x.requirement ?? ""), quote: String(x.quote ?? "") }))
+            .filter((x) => x.requirement && x.quote)
+            .slice(0, 3)
+        : null,
+      gaps: disclosure.evidence
+        ? ((e.gaps ?? []) as Array<Record<string, unknown>>)
+            .map((x) => ({ requirement: String(x.requirement ?? ""), weight: String(x.weight ?? "") }))
+            .filter((x) => x.requirement)
+            .slice(0, 3)
+        : null,
+      probeAreas: disclosure.probes
+        ? ((e.probe_areas ?? []) as unknown[]).map((x) => String(x)).filter(Boolean).slice(0, 3)
+        : null,
     })),
   }
 }
