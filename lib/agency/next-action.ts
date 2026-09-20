@@ -230,6 +230,21 @@ function hasEnded(r: RoundFacts, now: Date): boolean {
 
 export function loopState(rounds: RoundFacts[], planned: number, now: Date = new Date()): LoopState | null {
   if (rounds.length === 0) return null
+  /**
+   * A missing plan must never read as ZERO rounds.
+   *
+   * `job_roles.planned_rounds` is nullable and is null on real roles. The
+   * comparison below is `last.roundNumber >= plan`, and in JavaScript
+   * `1 >= null` is `1 >= 0` — true. So an unset plan would send every
+   * advanced candidate straight to close-out the moment round 1 was decided.
+   *
+   * Both callers already default to 2, so this is defence rather than a live
+   * bug — but the failure is silent, lands on the most consequential rung in
+   * the ladder, and the same null-is-not-false family has bitten this repo
+   * before (placement_reason_iff_outside, 14 Sep). Cheaper to make the
+   * function safe than to rely on every future caller remembering.
+   */
+  const plan = Number.isFinite(planned) && planned > 0 ? planned : 2
   const live = rounds.filter((r) => r.status !== "cancelled")
   if (rounds.some((r) => r.decision === "decline")) return { kind: "declined" }
   const last = [...rounds].sort((a, b) => b.roundNumber - a.roundNumber)[0]
@@ -249,7 +264,7 @@ export function loopState(rounds: RoundFacts[], planned: number, now: Date = new
   if (!last.decision) return { kind: "decision-due", round: last }
   if (last.decision === "hold") return { kind: "on-hold", round: last }
   // advance
-  if (last.roundNumber >= planned) return { kind: "close-out", round: last }
+  if (last.roundNumber >= plan) return { kind: "close-out", round: last }
   void live
   return { kind: "to-book", nextRound: last.roundNumber + 1, since: last.decidedAt, candidateRef: last.candidateRef }
 }

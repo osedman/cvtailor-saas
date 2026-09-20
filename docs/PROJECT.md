@@ -6607,3 +6607,61 @@ reload to be asked for the write-up.
 The authorship assumption checked out before building — `/api/hiring/debrief`
 already accepts the recruiter as author too (`recordDebrief` takes either
 context), so a recruiter who sat in on a round can write it up.
+
+---
+
+## 🐛 Two things a round decision has to change (20 September 2026)
+
+Both found by Ose walking the loop: write up round 1, decline one candidate,
+advance two.
+
+### The declined candidate was offered the next wave
+
+The hiring manager's interview setup read **"3 shortlisted · 3 chosen"**,
+listed the declined candidate, sized the windows **"for 3"** and offered
+**"Invite 3 to interview"** — while the header two inches above it correctly
+said *"offer interview times for 2 candidates"*.
+
+`choices` was seeded from the **shortlist action** — "interview", chosen
+before round 1 existed — and never consulted what the rounds had since
+decided. The next-action layer knew; the form underneath it did not.
+
+Now reads the latest round decision per candidate from the HM's own dashboard
+payload (they made those decisions; nothing is newly disclosed) and unselects
+anyone declined at their last round. `CohortMember` carries only a `decided`
+boolean by design — *"the rail counts people and never needs to know which way
+anyone went"* — so it is deliberately not the source.
+
+**It unselects; it does not hide.** They stay on the list with the reason on
+the row: *"You declined this round · not in the next wave"*. Declining is a
+signal, never a removal.
+
+### Close-out opened after round 1 of 2
+
+The card appeared whenever rounds existed and none was in the diary. After
+round 1, everyone written up and decided, nothing is booked — so it offered
+close-out while two advanced candidates were waiting on round 2.
+
+"No round is in the diary" is not "the loop is finished". It now reads the
+ladder already on that screen: if any candidate is `to-book`, `invited`,
+`booked`, `happening-now`, `write-up-due` or `decision-due`, the loop is
+mid-flight whatever the diary says. `close-out`, `declined` and `on-hold` are
+the resting states, so the door still opens on a role where the client
+declined everybody.
+
+### 🐛 And the null underneath it
+
+`job_roles.planned_rounds` is **null** on real roles, including ROL-2417.
+`loopState` compares `last.roundNumber >= planned`, and in JavaScript
+`1 >= null` is `1 >= 0` — **true**. An unset plan sent every advanced
+candidate straight to close-out the moment round 1 was decided.
+
+Both callers already default to 2, so this was not the live cause — but the
+failure is silent and lands on the most consequential rung in the ladder, and
+the same null-is-not-false family bit us on `placement_reason_iff_outside`
+(14 Sep). `loopState` now defends itself; a test covers null, undefined, 0
+and NaN.
+
+A wave-4 source guard pinned that line by its literal text and broke on the
+rename. Repointed at the SHAPE — the guarantee is that the derived rung still
+exists, not what its local variable is called.

@@ -40,7 +40,12 @@ describe("a fact outranks an inference, and does not replace it", () => {
   it("the derived rung survives, so nothing regresses without the button", () => {
     // The whole design: a role whose client never presses it behaves as
     // before. Deleting the derivation would break every existing role.
-    expect(nextAction).toMatch(/if \(last\.roundNumber >= planned\) return \{ kind: "close-out"/)
+    // Matched on the SHAPE, not the variable name: `planned` became `plan`
+    // on 20 Sep 2026 when loopState started guarding against a null plan
+    // (`1 >= null` is `1 >= 0`, which sent every advanced candidate to
+    // close-out after round 1). The guarantee here is that the derived rung
+    // still exists, not what its local is called.
+    expect(nextAction).toMatch(/if \(last\.roundNumber >= \w+\) return \{ kind: "close-out"/)
   })
 
   it("since comes from the moment the client said so", () => {

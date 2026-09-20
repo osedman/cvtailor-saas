@@ -63,6 +63,23 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
   const [shortlist, setShortlist] = useState<Shortlist | null>(null)
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null)
   const [choices, setChoices] = useState<Record<string, Choice>>({})
+  /**
+   * The latest ROUND decision per candidate, which is not the same thing as
+   * their shortlist action.
+   *
+   * 20 Sep 2026: after writing up round 1 and declining somebody, this screen
+   * offered them again for round 2 — "3 shortlisted · 3 chosen", windows
+   * sized for 3 — while the header two inches above correctly read "offer
+   * interview times for 2 candidates". The selection was seeded from the
+   * SHORTLIST action ("interview", chosen before round 1 ever happened) and
+   * never consulted what the rounds had since decided.
+   *
+   * Read from the hiring manager's own dashboard payload: they made these
+   * decisions, so nothing here is newly disclosed. CohortMember carries only
+   * a `decided` boolean on purpose — "the rail counts people and never needs
+   * to know which way anyone went" — so it is deliberately not the source.
+   */
+  const [roundDecision, setRoundDecision] = useState<Record<string, string | null>>({})
   // The rules the round is scheduled BY (10 Sep 2026). They were three
   // throwaway controls; they are a stored, reusable object now, so the
   // proposal, the capacity check and the recruiter all read the same numbers.
@@ -137,6 +154,39 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                 : ""
       }
       setChoices(initial)
+
+      // Best effort: losing this must not take the screen down, it only makes
+      // the selection less informed.
+      void fetch("/api/hiring/dashboard")
+        .then((d) => (d.ok ? d.json() : null))
+        .then((payload) => {
+          const rs = payload?.dashboard?.rounds
+          if (!Array.isArray(rs)) return
+          const latest: Record<string, { n: number; decision: string | null }> = {}
+          for (const r of rs as Array<Record<string, unknown>>) {
+            if (r.role_id !== roleId || r.status === "cancelled") continue
+            const ref = String(r.candidate_ref ?? "")
+            const n = Number(r.round_number ?? 0)
+            if (!ref) continue
+            if (!latest[ref] || n >= latest[ref].n) {
+              latest[ref] = { n, decision: (r.latest_decision as string | null) ?? null }
+            }
+          }
+          const byRef: Record<string, string | null> = {}
+          for (const [ref, v] of Object.entries(latest)) byRef[ref] = v.decision
+          setRoundDecision(byRef)
+          // Somebody declined at their last round is not in the next wave.
+          // They stay on the list, visibly, with the reason — this unselects
+          // them, it does not remove them.
+          setChoices((prev) => {
+            const next = { ...prev }
+            for (const [ref, decision] of Object.entries(byRef)) {
+              if (decision === "decline" && next[ref] === "interview") next[ref] = ""
+            }
+            return next
+          })
+        })
+        .catch(() => {})
       if (c.ok) setCalendar((await c.json()) as CalendarStatus)
       if (st.ok) {
         const saved = (await st.json()) as { settings: InterviewSettings }
@@ -433,7 +483,11 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                   {shortlist.intro && <p className="agd-sub" style={{ marginBottom: 12 }}>{shortlist.intro}</p>}
                   <div className="hm-setup-list">
                     {shortlist.entries.map((e) => {
-                      const locked = !!e.action
+                      // Declined at their last round: locked out of the next
+                      // wave, and told so in words. Still listed — this is a
+                      // decision being respected, not a candidate removed.
+                      const declinedLastRound = roundDecision[e.ref] === "decline"
+                      const locked = !!e.action || declinedLastRound
                       const c = choices[e.ref] ?? ""
                       return (
                         <div key={e.ref} className={`hm-setup-row${c === "interview" ? " chosen" : ""}`}>
@@ -446,7 +500,11 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                             </span>
                           </div>
                           {locked ? (
-                            <span className="ag-pill">{e.action === "decline" ? "Not for this role" : e.action === "hold" ? "On hold" : e.action === "question" ? "You asked a question" : "Interview"} · already decided</span>
+                            <span className="ag-pill">
+                              {declinedLastRound
+                                ? "You declined this round · not in the next wave"
+                                : `${e.action === "decline" ? "Not for this role" : e.action === "hold" ? "On hold" : e.action === "question" ? "You asked a question" : "Interview"} · already decided`}
+                            </span>
                           ) : (
                             <div className="agd-seg" role="group" aria-label={`Decision for ${e.ref}`}>
                               {([

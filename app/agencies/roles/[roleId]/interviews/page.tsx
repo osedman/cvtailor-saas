@@ -940,6 +940,37 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
             const live = rounds.filter((r) => r.status !== "cancelled")
             const waiting = rounds.filter((r) => r.status === "scheduled")
             if (live.length === 0 || waiting.length > 0) return null
+
+            /**
+             * NOBODY IS STILL OWED A ROUND (20 Sep 2026).
+             *
+             * "No round is in the diary" is not the same as "the loop is
+             * finished". After round 1 of a two-round plan, with everybody
+             * written up and decided, nothing is booked — so this card
+             * appeared and offered close-out while two advanced candidates
+             * were waiting on their round 2. Ose: "the go to close-out button
+             * should not exist till after round 2."
+             *
+             * The ladder on this very screen already knows: a candidate with
+             * a further round to come is `to-book`, and one part-way through
+             * one is invited / booked / happening-now / write-up-due /
+             * decision-due. If any of those is true the loop is mid-flight,
+             * whatever the diary says.
+             *
+             * `close-out`, `declined` and `on-hold` are the resting states —
+             * and the door still opens when everyone has reached one, because
+             * a role where the client declined everybody also has to end.
+             */
+            const OWED: Array<LoopState["kind"]> = [
+              "to-book",
+              "invited",
+              "booked",
+              "happening-now",
+              "write-up-due",
+              "decision-due",
+            ]
+            const midFlight = loopRows.filter((r) => r.state && OWED.includes(r.state.kind))
+            if (midFlight.length > 0) return null
             return (
               <div className="ag-handoff" role="status" style={{ marginTop: 24 }}>
                 <div className="ag-handoff-body">
