@@ -6373,3 +6373,46 @@ a plain `.slice(0, 400)` had produced `"...R07 was not as"` on screen.
   claims no automated decision-making as a clean fact, and a tab that names
   people is the closest thing to one that has ever existed here. It needs a
   paragraph before this goes anywhere near a real candidate.
+
+---
+
+## 🐛 The calendar dead end (20 September 2026)
+
+**Symptom.** Ose, on the hiring-manager availability screen: a "GOOGLE CALENDAR
+CONNECTED" pill above *Scan my Google Calendar*, and the scan returning
+**"Token has been expired or revoked."** every time.
+
+**Root cause, in two halves.** The message is Google's own `error_description`,
+surfaced verbatim from the refresh call — so the OAuth flow and the in-place
+refresh were both working correctly and Google had revoked the *refresh* token.
+Not a code bug.
+
+The code bug was what happened next. `busyBetween` threw and left the row in
+place; `getConnection` reports connected whenever a row exists; and the
+"Connect Google Calendar" link renders only when there is **no** row. So a dead
+token produced a connected pill above a button that could only ever fail, with
+**no way back through the UI at all** — the only escape was a `DELETE` on
+`/api/hiring/calendar/status`, which has no button. Same family as the briefs
+inbox reading "Nothing waiting on you" above an Unauthorised banner: a failed
+state rendering as a healthy one.
+
+**Fix.** `postForm` now throws a typed `TokenRequestError` carrying the
+provider's error **code**, not just its prose. `busyBetween` deletes the stale
+row and throws `CalendarReauthRequired` **only** on `invalid_grant` (or no
+refresh token at all); the busy route answers **409 `{reconnect: true}`**; and
+the screen re-reads calendar status on that flag, so it falls back to "Connect
+Google Calendar" on its own.
+
+**The sharp edge, and why it is tested.** Deleting the row on *any* refresh
+failure would be a worse bug than the dead end — one Google 500 or network blip
+would destroy a working connection. `isRevoked` keys on the code alone, and a
+test asserts it does NOT decide from the human-readable message, because that
+string varies by provider and locale. Probed: with the transient check removed,
+three tests fail. 13 tests in `lib/__tests__/calendar-reauth.test.ts`.
+
+**Still open, and it is not a code item.** The likely reason the refresh token
+was revoked is the Google Cloud OAuth consent screen sitting in **Testing**
+publishing status, where Google expires refresh tokens after **seven days**. If
+that is it, every hiring manager loses their calendar weekly until the app is
+published — and `calendar.readonly` is a sensitive scope, so verification has
+lead time. Worth checking in the Cloud console before any real HM is onboarded.

@@ -37,6 +37,32 @@ export function redirectUri(provider: CalendarProvider): string {
   return `${getBusinessOrigin()}/api/hiring/calendar/callback/${provider}`
 }
 
+/**
+ * A token endpoint refusal, carrying the provider's own error CODE.
+ *
+ * The code is the part that matters: `invalid_grant` means the refresh token
+ * is dead for good and the user has to consent again, while a 500 or a
+ * network blip means try later. Without it the caller can only read the
+ * human-readable description and cannot tell a permanent revocation from a
+ * transient outage — and deleting a good connection because Google had a bad
+ * minute is worse than the dead end it would be fixing.
+ */
+export class TokenRequestError extends Error {
+  readonly code: string
+  readonly status: number
+  constructor(message: string, code: string, status: number) {
+    super(message)
+    this.name = "TokenRequestError"
+    this.code = code
+    this.status = status
+  }
+}
+
+/** Both providers use OAuth 2.0's `invalid_grant` for a revoked or expired refresh token. */
+export function isRevoked(error: unknown): boolean {
+  return error instanceof TokenRequestError && error.code === "invalid_grant"
+}
+
 async function postForm(url: string, form: Record<string, string>): Promise<Record<string, unknown>> {
   const res = await fetch(url, {
     method: "POST",
@@ -44,7 +70,13 @@ async function postForm(url: string, form: Record<string, string>): Promise<Reco
     body: new URLSearchParams(form).toString(),
   })
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
-  if (!res.ok) throw new Error(typeof body.error_description === "string" ? body.error_description : `token request failed (${res.status})`)
+  if (!res.ok) {
+    throw new TokenRequestError(
+      typeof body.error_description === "string" ? body.error_description : `token request failed (${res.status})`,
+      typeof body.error === "string" ? body.error : "unknown",
+      res.status
+    )
+  }
   return body
 }
 

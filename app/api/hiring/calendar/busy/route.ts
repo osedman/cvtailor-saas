@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { requireHiringContext } from "@/lib/agency/client-auth"
-import { busyBetween } from "@/lib/calendar/connections"
+import { busyBetween, CalendarReauthRequired } from "@/lib/calendar/connections"
 import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
@@ -25,6 +25,12 @@ export async function GET(req: NextRequest) {
     const busy = await busyBetween(auth.ctx.userId, new Date(f).toISOString(), new Date(t).toISOString())
     return NextResponse.json({ busy })
   } catch (error) {
+    // 409, and `reconnect: true` so the screen can offer the way back rather
+    // than repeating a scan that can only fail. The stale row has already
+    // been deleted, so a fresh status call reports not-connected.
+    if (error instanceof CalendarReauthRequired) {
+      return NextResponse.json({ error: error.message, reconnect: true }, { status: 409 })
+    }
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }

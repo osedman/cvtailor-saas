@@ -188,6 +188,15 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         setScanError(typeof body?.error === "string" ? body.error : "Could not read your calendar.")
+        // The connection is permanently gone, not merely unhappy: the server
+        // has already deleted the row. Re-read the status so this screen drops
+        // back to "Connect Google Calendar" instead of leaving a connected
+        // pill above a scan button that can now only fail.
+        if (body?.reconnect === true) {
+          const again = await fetch("/api/hiring/calendar/status")
+          if (again.ok) setCalendar((await again.json()) as CalendarStatus)
+          else setCalendar((c) => (c ? { ...c, connection: null } : c))
+        }
         return
       }
       const intervals = (body.busy ?? []) as Interval[]

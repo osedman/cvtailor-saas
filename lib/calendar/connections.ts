@@ -9,9 +9,34 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/server"
-import { PROVIDERS, type CalendarProvider, type ProviderTokens } from "./providers"
+import { PROVIDERS, isRevoked, type CalendarProvider, type ProviderTokens } from "./providers"
 import { open, seal } from "./tokens"
 import type { Interval } from "./windows"
+
+/**
+ * The connection is gone and the person has to consent again.
+ *
+ * Thrown ONLY when the provider says the refresh token is permanently dead
+ * (`invalid_grant`) or there is no refresh token to try. The stale row is
+ * deleted before this is thrown, so the screen falls back to its "Connect
+ * Google Calendar" state instead of showing a connected pill above a button
+ * that can only fail.
+ *
+ * That dead end was the actual bug (20 Sep 2026): a revoked token left the
+ * row in place, `getConnection` reported connected because a row existed, and
+ * the connect link renders only when there is NO row — so the one way out of
+ * the loop was a route with no button on it. Same family as the briefs inbox
+ * saying "Nothing waiting on you" above an Unauthorised banner: a failed
+ * state reading as a healthy one.
+ */
+export class CalendarReauthRequired extends Error {
+  readonly provider: CalendarProvider
+  constructor(provider: CalendarProvider) {
+    super(`${PROVIDERS[provider].label} access has lapsed. Connect it again.`)
+    this.name = "CalendarReauthRequired"
+    this.provider = provider
+  }
+}
 
 export interface ConnectionStatus {
   provider: CalendarProvider
@@ -66,8 +91,23 @@ export async function busyBetween(userId: string, from: string, to: string): Pro
   let access = open(data.access_token as string)
   if (Date.parse(data.expires_at as string) <= Date.now()) {
     const refresh = data.refresh_token ? open(data.refresh_token as string) : null
-    if (!refresh) throw new Error("calendar access expired; connect it again")
-    const fresh = await def.refresh(refresh)
+    if (!refresh) {
+      await deleteConnection(userId)
+      throw new CalendarReauthRequired(provider)
+    }
+    let fresh: ProviderTokens
+    try {
+      fresh = await def.refresh(refresh)
+    } catch (error) {
+      // Only a definitive revocation clears the row. A 500, a timeout or a
+      // rate limit is transient, and deleting a working connection over one
+      // bad minute would be a worse bug than the one this fixes.
+      if (isRevoked(error)) {
+        await deleteConnection(userId)
+        throw new CalendarReauthRequired(provider)
+      }
+      throw error
+    }
     await saveConnection(userId, provider, { ...fresh, refreshToken: fresh.refreshToken ?? refresh })
     access = fresh.accessToken
   }
