@@ -11,6 +11,7 @@ import { readFileSync } from "fs"
 import { join } from "path"
 import { tsCode, sqlCode } from "./helpers/source-scan"
 import { RELEASE_SENTENCE, planRelease } from "../agency/waves"
+import { proposeWindows } from "../calendar/windows"
 import { NUDGE_EVERY_HOURS, PRE_REMINDER_HOURS, dueForNudge, dueForPreReminder } from "../agency/interview-reminders"
 import { CHASE_AFTER_HOURS } from "../agency/cohort-status"
 import { normalise } from "../agency/interview-rules"
@@ -190,5 +191,80 @@ describe("the settings", () => {
     expect(sql).toMatch(/wave_size is null or wave_size between 1 and 50/)
     expect(sql).toMatch(/wave_release_hours between 1 and 336/)
     expect(sql).toMatch(/reschedule_limit between 0 and 10/)
+  })
+})
+
+/**
+ * The notice period is one setting, and every surface has to read it.
+ *
+ * 20 Sep 2026: a hiring manager offered tomorrow-morning windows under a
+ * 24-hour notice rule and the candidate's booking page showed nothing. Both
+ * ends were correct on their own — `listOpenWindows` filters on
+ * `starts_at > now + minNotice` — but the PROPOSER did not know about the
+ * setting, so it suggested windows that were unbookable the moment they were
+ * written, and no screen said why.
+ */
+describe("proposing windows respects the candidate's notice", () => {
+  const base = {
+    candidates: 2,
+    durationMinutes: 45,
+    bufferMinutes: 15,
+    busy: [],
+    days: 10,
+    workingDays: [0, 1, 2, 3, 4, 5, 6],
+    workingHours: { start: 0, end: 23 },
+  }
+
+  it("proposes nothing inside the notice period", () => {
+    const noticeHours = 24
+    const p = proposeWindows({ ...base, from: new Date(), minNoticeMinutes: noticeHours * 60 })
+    const earliest = Date.now() + noticeHours * 3_600_000
+    expect(p.windows.length).toBeGreaterThan(0)
+    for (const w of p.windows) {
+      expect(Date.parse(w.start)).toBeGreaterThan(earliest)
+    }
+  })
+
+  it("still proposes soon when there is no minimum — the testing path", () => {
+    // "No minimum" is a real setting, and the only way to book a window today.
+    const p = proposeWindows({ ...base, from: new Date(), minNoticeMinutes: 0 })
+    const soonest = Math.min(...p.windows.map((w) => Date.parse(w.start)))
+    expect(soonest).toBeLessThan(Date.now() + 24 * 3_600_000)
+  })
+
+  it("defaults to no notice when the caller does not say", () => {
+    // Back-compatible: an omitted setting must not silently start filtering.
+    const p = proposeWindows({ ...base, from: new Date() })
+    expect(p.windows.length).toBeGreaterThan(0)
+  })
+})
+
+describe("offering windows refuses the unbookable ones", () => {
+  const src = read("lib/agency/client-shortlist.ts")
+
+  it("filters the batch against the notice period", () => {
+    expect(src).toContain("minNoticeHours")
+    expect(src).toContain("const bookable = windows.filter")
+  })
+
+  it("explains it in terms of the setting, not as a failure", () => {
+    const raw = readFileSync(join(process.cwd(), "lib/agency/client-shortlist.ts"), "utf8")
+    expect(raw).toMatch(/notice your candidates get/)
+    expect(raw).toMatch(/lower the notice period/)
+  })
+
+  it("refuses in the client batch, not in the shared primitive", () => {
+    // offerSlot is also the recruiter's, and they may seat somebody at short
+    // notice deliberately — so the REFUSAL must not live in it.
+    //
+    // rounds.ts does read minNoticeHours, in listOpenSlots, to LABEL a slot
+    // as too soon. That is the same setting used to describe rather than to
+    // forbid, and it is correct; the first version of this assertion banned
+    // the whole file and failed on it.
+    const rounds = read("lib/agency/rounds.ts")
+    const start = rounds.indexOf("export async function offerSlot")
+    expect(start).toBeGreaterThan(-1)
+    const body = rounds.slice(start, rounds.indexOf("export async function", start + 10))
+    expect(body).not.toContain("minNoticeHours")
   })
 })

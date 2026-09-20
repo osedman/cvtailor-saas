@@ -22,6 +22,7 @@
  */
 
 import { agencyAdmin, writeAudit } from "./db"
+import { getInterviewSettings } from "./interview-settings"
 import { offerSlot } from "./rounds"
 import type { HiringContext } from "./types"
 
@@ -270,9 +271,43 @@ export async function offerWindows(
   const shortlist = await getClientShortlist(ctx, roleId)
   const contactId = shortlist?.contactId ?? ctx.links[0]?.contactId
   if (!contactId) throw new Error("no contact to offer as")
+  /**
+   * A window inside the candidate's notice period is unbookable the moment
+   * it is created.
+   *
+   * 20 Sep 2026: tomorrow-morning windows were offered under a 24-hour
+   * notice rule, and the candidate's booking page showed nothing at all.
+   * Both ends were behaving correctly — `listOpenWindows` filters on
+   * `starts_at > now + minNotice`, which is the same setting — but the offer
+   * did not know about it, so it wrote rows nobody could ever see and no
+   * screen explained the silence.
+   *
+   * Refused here rather than in `offerSlot`: the primitive is shared with
+   * the recruiter, who may legitimately seat somebody at short notice. This
+   * is the client's batch path, and it is the one that produced the ghost
+   * windows.
+   *
+   * The error names the setting and the fix, because the honest answer is
+   * usually "your notice period is longer than the times you picked" rather
+   * than anything being broken.
+   */
+  const { settings } = await getInterviewSettings(shortlist?.agencyId ?? ctx.links[0]?.agencyId ?? "", roleId)
+  const earliest = Date.now() + settings.minNoticeHours * 3_600_000
+  const tooSoon = windows.filter((w) => Date.parse(w.start) < earliest)
+  if (tooSoon.length > 0 && tooSoon.length === windows.length) {
+    return {
+      offered: [],
+      failed: {
+        index: 0,
+        error: `Every window you picked is inside the ${settings.minNoticeHours}-hour notice your candidates get, so none of them could be booked. Pick later times, or lower the notice period above.`,
+      },
+    }
+  }
+
   const offered: string[] = []
-  for (let i = 0; i < Math.min(windows.length, 24); i++) {
-    const w = windows[i]
+  const bookable = windows.filter((w) => Date.parse(w.start) >= earliest)
+  for (let i = 0; i < Math.min(bookable.length, 24); i++) {
+    const w = bookable[i]
     try {
       const { slotId } = await offerSlot(ctx, { contactId, startsAt: w.start, endsAt: w.end, roleId })
       offered.push(slotId)

@@ -269,6 +269,9 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
       busy: intervals,
       from,
       days,
+      // The candidate's notice period is the same setting the booking page
+      // filters on. Offering inside it produces a window nobody can see.
+      minNoticeMinutes: rules.minNoticeHours * 60,
     })
     setProposed(p.windows)
     setShort(p.short)

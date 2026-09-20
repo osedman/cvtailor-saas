@@ -6709,3 +6709,40 @@ test fails on the exact pair that shipped.
 Neither is repaired automatically: cancelling somebody's interview and minting
 somebody else's are both acts with real-world consequences, and this is Ose's
 data to decide about.
+
+---
+
+## 🐛 Windows offered inside the notice period (20 September 2026)
+
+Reported as "I send times for round 2, click in as a candidate, and nothing
+reflects".
+
+**Both ends were behaving correctly.** `listOpenWindows` filters on
+`starts_at > now + minNoticeHours` — the candidate's notice is a real rule —
+and the windows offered were tomorrow 08:00 and 09:00 UTC under a **24-hour**
+notice, so the earliest bookable moment was 19:41 UTC the following day. Every
+window was correctly invisible.
+
+What was broken is that **`proposeWindows` did not know the setting existed**,
+so it suggested times that were unbookable the moment they were written, and
+no screen said why. The capacity banner already counted them ("N inside your
+24-hour notice") — it warned and offered them anyway.
+
+**Ose's call: option A** — the proposal respects the rule rather than warning
+about it.
+
+- `proposeWindows` takes `minNoticeMinutes` and never proposes inside it.
+  Omitted means no filtering, so no caller silently changes behaviour.
+- `offerWindows` filters the batch, and refuses outright when EVERY window is
+  too soon, naming the setting and the fix: *"Every window you picked is
+  inside the 24-hour notice your candidates get… Pick later times, or lower
+  the notice period above."*
+- Refused in the client batch, **not** in `offerSlot`: that primitive is
+  shared with the recruiter, who may legitimately seat somebody at short
+  notice. A first version of the guarding test banned the whole of rounds.ts
+  and failed on `listOpenSlots`, which reads the same setting to LABEL a slot
+  rather than to forbid one — describing is not forbidding.
+
+**For testing**, `min_notice_hours` on ROL-2417 is set to **0**, which is the
+existing "No minimum" option. Windows can be offered and booked immediately.
+Put it back to 24 before treating the role as realistic.

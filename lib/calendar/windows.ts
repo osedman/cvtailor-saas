@@ -40,6 +40,17 @@ export interface ProposalInput {
   perDayMax?: number
   /** Weekdays only by default. 0 = Sunday. */
   workingDays?: number[]
+  /**
+   * The role's minimum notice, in minutes. Windows sooner than this are not
+   * proposed at all.
+   *
+   * 20 Sep 2026: a hiring manager offered tomorrow-morning windows under a
+   * 24-hour notice rule, and the candidate's booking page showed nothing.
+   * Both halves were behaving correctly — the notice filter at booking time
+   * is the same setting — but only one of them knew about it, so the offer
+   * silently produced an unbookable window and neither screen said why.
+   */
+  minNoticeMinutes?: number
 }
 
 export interface Proposal {
@@ -95,6 +106,8 @@ export function proposeWindows(input: ProposalInput): Proposal {
   const days = Math.max(1, input.days ?? 10)
   const busy = merge(input.busy)
   const now = Date.now()
+  // Nothing sooner than the candidate is entitled to be told.
+  const earliest = now + Math.max(0, input.minNoticeMinutes ?? 0) * 60_000
 
   const start = input.from ? new Date(input.from) : new Date(now + 86_400_000)
   start.setHours(0, 0, 0, 0)
@@ -112,7 +125,7 @@ export function proposeWindows(input: ProposalInput): Proposal {
     let cursor = open.getTime()
     let today = 0
     while (cursor + duration <= close.getTime() && today < perDayMax && windows.length < wanted) {
-      if (cursor <= now) {
+      if (cursor <= earliest) {
         cursor += 30 * 60_000
         continue
       }
