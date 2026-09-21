@@ -82,6 +82,7 @@ export async function GET(
       constraints: constraints.data ?? [],
       agency: agency.data ?? null,
       brief_jd: ((brief.data?.jd_raw as string | undefined) ?? "").trim() || null,
+      brief_contact_id: (brief.data?.contact_id as string | null | undefined) ?? null,
       caller_role: auth.ctx.role,
       // null rather than a guess when either read failed: the rail renders
       // nothing on null, and telling a recruiter in handover that they are at

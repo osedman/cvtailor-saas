@@ -10,6 +10,7 @@ import type { HiringFailure } from "@/lib/agency/client-auth"
 import { listClientRoles } from "@/lib/agency/client-header"
 import { getCohortBoard, inviteCohort, remindCohortMember } from "@/lib/agency/cohort"
 import { getWaveState, planRelease, releaseWave } from "@/lib/agency/waves"
+import { getClientShortlist } from "@/lib/agency/client-shortlist"
 import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 60
@@ -42,8 +43,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
       : []
     if (refs.length === 0) return NextResponse.json({ error: "candidateRefs are required" }, { status: 400 })
 
-    const result = await inviteCohort(tie.agencyId, roleId, tie.contactId, refs, auth.ctx.userId)
-    return NextResponse.json(result, { status: 201 })
+    // Only people actually put in front of this client. inviteCohort checks
+    // the ref is on the ROLE, which includes everyone the recruiter screened
+    // out — a hand-built POST could email them booking links naming the
+    // client (21 Sep 2026).
+    const shortlist = await getClientShortlist(auth.ctx, roleId)
+    const sentToClient = new Set((shortlist?.entries ?? []).map((e) => e.ref))
+    const allowed = refs.filter((r) => sentToClient.has(r))
+    const refused = refs.filter((r) => !sentToClient.has(r)).map((r) => ({ candidateRef: r, because: "not on the shortlist sent to you" }))
+    if (allowed.length === 0) return NextResponse.json({ invited: [], skipped: refused }, { status: 400 })
+
+    const result = await inviteCohort(tie.agencyId, roleId, tie.contactId, allowed, auth.ctx.userId)
+    return NextResponse.json({ ...result, skipped: [...result.skipped, ...refused] }, { status: 201 })
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }

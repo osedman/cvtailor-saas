@@ -26,7 +26,7 @@
  *     showed strengths would be selling rather than handing over.
  */
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
@@ -79,7 +79,9 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   /** Delivered packs collapse to a record line — the work is done and the
    *  screen should say so, not hold the full document open forever. */
   const [packOpen, setPackOpen] = useState(false)
-  const [closure, setClosure] = useState<{ sent: number; deferred: number } | null>(null)
+  /** What closing actually did. `failed` stays visible: "everyone was told"
+   *  over failed sends is the success-that-wasn't this product refuses. */
+  const [closure, setClosure] = useState<{ sent: number; deferred: number; failed: number; noContact: number } | "unknown" | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [chosenId, setChosenId] = useState("")
   // The client's decisions, read beside the recruiter's — see the header.
@@ -100,14 +102,17 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   const [checklist, setChecklist] = useState<ChecklistItem[] | null>(null)
   const [checklistBusy, setChecklistBusy] = useState<string | null>(null)
   const loadChecklist = useCallback(async () => {
-    if (!chosenId) return setChecklist(null)
+    // Cleared first: a failed fetch after switching candidates used to leave
+    // the PREVIOUS candidate's checklist on screen, possibly "Complete".
+    setChecklist(null)
+    if (!chosenId) return
     try {
       const res = await fetch(`/api/agency/roles/${roleId}/handover/checklist?candidateId=${encodeURIComponent(chosenId)}`)
-      if (!res.ok) return
+      if (!res.ok) return setError("Could not load the handover checklist. Reload before handing over.")
       const body = await res.json()
       if (Array.isArray(body?.items)) setChecklist(body.items as ChecklistItem[])
     } catch {
-      /* the card shows nothing rather than a guess */
+      setError("Could not load the handover checklist. Reload before handing over.")
     }
   }, [roleId, chosenId])
   useEffect(() => {
@@ -145,6 +150,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   const checklistComplete = checklist !== null && checklist.every((i) => i.resolved)
   const checklistOutstanding = (checklist ?? []).filter((i) => !i.resolved)
 
+  const clientContactRef = useRef<string | null>(null)
   const loadRole = useCallback(async () => {
     try {
       const [roleRes, candRes] = await Promise.all([
@@ -154,6 +160,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
       if (roleRes.status === 401) return router.push("/agencies")
       if (roleRes.ok) {
         const body = await roleRes.json()
+        clientContactRef.current = (body?.role?.contact_id as string | null) || (body?.brief_contact_id as string | null) || null
         if (body?.role) {
           setRole({
             ref: body.role.ref,
@@ -186,7 +193,9 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
         .then((b) => {
           const rows = Array.isArray(b?.contacts) ? b.contacts : []
           setContacts(rows)
-          if (rows.length > 0) setDeliverTo((prev) => prev || rows[0].id)
+          // The role's own client first — a delivered pack is final, and the
+          // first row of the whole address book is often another client.
+          if (rows.length > 0) setDeliverTo((prev) => prev || clientContactRef.current || rows[0].id)
         })
         .catch(() => {})
     } catch {
@@ -257,11 +266,20 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
       })
       const body = (await res.json().catch(() => ({}))) as {
         error?: string
-        closure?: { sent?: number; deferred?: number } | null
+        closure?: { sent?: number; deferred?: number; failed?: number; noContact?: number } | null
       }
       if (!res.ok) throw new Error(body.error ?? "Could not close the role")
       setRole((r) => (r ? { ...r, status: "closed" } : r))
-      if (body.closure) setClosure({ sent: body.closure.sent ?? 0, deferred: body.closure.deferred ?? 0 })
+      setClosure(
+        body.closure
+          ? {
+              sent: body.closure.sent ?? 0,
+              deferred: body.closure.deferred ?? 0,
+              failed: body.closure.failed ?? 0,
+              noContact: body.closure.noContact ?? 0,
+            }
+          : "unknown"
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not close the role")
     } finally {
@@ -761,9 +779,11 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                           </p>
                           <p className="ag-handoff-sub">
                             The pack is with the client and stays on record here.
-                            {closure
-                              ? ` Everyone else was told — ${closure.sent} sent${closure.deferred ? `, ${closure.deferred} still to go` : ""}.`
-                              : " Everyone the loop was opened with is told."}
+                            {closure === "unknown"
+                              ? " We could not confirm the closure emails went — check the audit log before assuming anyone was told."
+                              : closure
+                                ? ` Closure emails: ${closure.sent} sent${closure.deferred ? `, ${closure.deferred} still to go` : ""}${closure.failed ? `, ${closure.failed} failed` : ""}${closure.noContact ? `, ${closure.noContact} with no email on file` : ""}.`
+                                : ""}
                             {" "}The retention clock is running; when it lapses, Tailr forgets.
                           </p>
                         </div>

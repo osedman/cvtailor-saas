@@ -144,17 +144,24 @@ async function sendPreReminder(admin: AgencyClient, row: RoundRow): Promise<bool
   const agencyName = (agency?.notice_from_name as string) || (agency?.name as string) || "your recruiter"
   const company = (contact?.company as string) ?? ""
   const when = new Date(row.scheduled_at)
-  const day = when.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })
-  const time = when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+  // UK time, labelled (see booking.ts fmt). And "tomorrow" only when it IS
+  // tomorrow in the UK: the cron runs at 03:30 and reminds anyone due within
+  // 24h, so a same-day 14:00 interview was headed "Tomorrow" (21 Sep 2026).
+  const tz = "Europe/London"
+  const day = when.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: tz })
+  const time = when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: tz })
+  const ukDate = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: tz })
+  const isToday = ukDate(when) === ukDate(new Date())
+  const lead = isToday ? "Today" : "Tomorrow"
 
   const result = await sendEmail({
     to: candidate.email as string,
-    subject: company ? `Tomorrow: your interview with ${company}` : "Your interview tomorrow",
+    subject: company ? `${lead}: your interview with ${company}` : `Your interview ${lead.toLowerCase()}`,
     html: preReminderHtml({
       candidateName: ((candidate.full_name as string) ?? "").trim().split(/\s+/)[0] || "there",
       agencyName,
       company,
-      when: `${day} at ${time}`,
+      when: `${day} at ${time} (UK time)`,
       minutes: row.duration_minutes ?? 45,
       meetingUrl: row.meeting_url || "",
     }),

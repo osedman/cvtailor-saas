@@ -182,6 +182,12 @@ async function mayReschedule(
   if (round.status === "cancelled" || round.candidate_response !== "confirmed" || !round.scheduled_at) {
     return { allowed: false, because: "" }
   }
+  // A held interview, or one whose time has passed, cannot be moved: under
+  // the "anytime" policy an old link could rewrite a written-up round's time
+  // and take a new window (21 Sep 2026).
+  if (round.status === "completed" || Date.parse(round.scheduled_at as string) <= now.getTime()) {
+    return { allowed: false, because: "This interview has already happened." }
+  }
   const { settings } = await getInterviewSettings(round.agency_id as string, round.role_id as string)
   if (settings.reschedulePolicy === "none") {
     return { allowed: false, because: "This interview cannot be moved online — reply to your recruiter if you need to." }
@@ -232,19 +238,24 @@ export async function rescheduleBooking(rawToken: string, slotId: string): Promi
 
   // Take the new window before letting the old one go: the other order can
   // leave somebody with neither.
-  const { error } = await admin
+  const { data: moved, error } = await admin
     .from("interview_rounds")
     .update({
       slot_id: slotId,
       scheduled_at: window.start,
+      // A new time is owed a fresh reminder.
+      pre_reminded_at: null,
       rescheduled_count: ((round.rescheduled_count as number) ?? 0) + 1,
     })
     .eq("id", round.id as string)
     .eq("slot_id", previousSlot)
+    .select("id")
   if (error) {
     if ((error as { code?: string }).code === "23505") return "taken"
     throw error
   }
+  // Zero rows is not success: another tab moved it first (21 Sep 2026).
+  if (!moved || moved.length === 0) return "already_booked"
 
   const { data: candidate } = await admin
     .from("candidates")
@@ -369,7 +380,7 @@ export async function claimBookingSlot(rawToken: string, slotId: string): Promis
   if (!window) return "not_open"
 
   const { settings } = await getInterviewSettings(round.agency_id as string, round.role_id as string)
-  const { error } = await admin
+  const { data: claimedRows, error } = await admin
     .from("interview_rounds")
     .update({
       slot_id: slotId,
@@ -385,11 +396,16 @@ export async function claimBookingSlot(rawToken: string, slotId: string): Promis
     })
     .eq("id", round.id as string)
     .is("slot_id", null)
+    .select("id")
   if (error) {
     // 23505: the index did its job and somebody else holds this window.
     if ((error as { code?: string }).code === "23505") return "taken"
     throw error
   }
+  // Zero rows is not success. Two tabs, both clicked: the first took a slot,
+  // this update matched nothing — and used to return "claimed" for the
+  // window the candidate does NOT hold (21 Sep 2026).
+  if (!claimedRows || claimedRows.length === 0) return "already_booked"
 
   const { data: candidate } = await admin
     .from("candidates")
@@ -438,6 +454,10 @@ export async function respondToBooking(
 
   if (round.candidate_response === answer) return answer
   if (round.status === "cancelled") return "gone"
+  // An interview that has been HELD is not the candidate's to decline: a
+  // hand-booked round left "pending" could be cancelled after its write-up,
+  // sending the loop back to "to book" (21 Sep 2026).
+  if (round.status === "completed") return "already_answered"
   if (round.candidate_response !== "pending") return "already_answered"
 
   const nowIso = new Date().toISOString()
@@ -555,11 +575,15 @@ export async function sendBookingInvite(
   return { sent: result.sent, reason: result.error ?? result.skipped }
 }
 
+// UK time, labelled. Formatted on the server with no zone, times came out in
+// UTC — an hour early all summer (21 Sep 2026). The booking PAGE still shows
+// the candidate's own zone; an email cannot know it, so it says which it is.
+const EMAIL_TZ = "Europe/London"
 function fmt(d: Date, minutes: number): string {
-  const day = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })
-  const from = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
-  const to = new Date(d.getTime() + minutes * 60_000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
-  return `${day}, ${from} – ${to}`
+  const day = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: EMAIL_TZ })
+  const from = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: EMAIL_TZ })
+  const to = new Date(d.getTime() + minutes * 60_000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: EMAIL_TZ })
+  return `${day}, ${from} – ${to} (UK time)`
 }
 
 export function bookingHtml(o: {

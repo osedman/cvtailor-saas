@@ -64,7 +64,10 @@ describe("the cohort", () => {
   })
 
   it("derives the round number and never accepts one", () => {
-    expect(src).toMatch(/const roundNumber = \(\(existing\?\.\[0\]\?\.round_number as number\) \?\? 0\) \+ 1/)
+    // Derived from what exists via round-number.ts, which skips cancelled
+    // rounds (21 Sep 2026) — and never read from the request.
+    expect(src).toMatch(/const \{ roundNumber, reuseId \} = nextRoundNumber\(/)
+    expect(src).not.toMatch(/round_number:\s*(input|body)\./)
   })
 
   it("does not invite the same person twice", () => {

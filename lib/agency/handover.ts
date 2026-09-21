@@ -23,13 +23,14 @@
 
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
 import { assertChecklistComplete } from "./handover-checklist"
+import { winningRows } from "./evidence-layers"
 import { getCandidateCompliance } from "./compliance"
 import {
   EMPLOYER_CHECK_NOTICE,
   EVIDENCE_LABEL,
   SPONSORSHIP_LABEL,
 } from "./compliance-vocab"
-import type { AgencyContext } from "./types"
+import type { AgencyContext, Strength } from "./types"
 
 export const HANDOVER_ENGINE = "handover-1"
 
@@ -159,14 +160,20 @@ export async function generateHandoverPack(
     ])
   )
 
-  const { data: evidenceRows } = await admin
+  // round_id + created_at decide which LAYER wins (evidence-layers.ts). Read
+  // raw, a requirement with a CV row saying "missing" and a round row saying
+  // "strong" appeared BOTH in the dossier and under Known gaps (21 Sep 2026).
+  const { data: evidenceRows, error: evidenceError } = await admin
     .from("candidate_evidence")
-    .select("requirement_id, strength, quote, source_cite, origin")
+    .select("requirement_id, strength, quote, source_cite, origin, round_id, created_at")
     .eq("candidate_id", input.candidateId)
+  if (evidenceError) throw evidenceError
 
   const evidence: HandoverSnapshot["evidence"] = []
   const gaps: HandoverSnapshot["gaps"] = []
-  for (const e of evidenceRows ?? []) {
+  for (const e of winningRows(
+    (evidenceRows ?? []) as Array<{ requirement_id: string; strength: Strength; quote: string | null; source_cite: string; origin: string; round_id: string | null; created_at: string }>
+  ).values()) {
     const req = reqById.get(e.requirement_id as string)
     if (!req) continue
     if ((e.strength as string) === "missing") {
@@ -303,7 +310,10 @@ export async function generateHandoverPack(
         snapshot,
         engine_version: HANDOVER_ENGINE,
         generated_by: ctx.userId,
-        delivered_to_contact_id: input.contactId ?? null,
+        // Not stored at generation: "delivered to" is set by delivery, which
+        // checks the contact. Storing the request body here let a POST link a
+        // pack to another agency's contact (21 Sep 2026).
+        delivered_to_contact_id: null,
       })
       .select("id")
       .single()
@@ -357,11 +367,33 @@ export async function deliverHandoverPack(
 
   const { data: contact } = await admin
     .from("client_contacts")
-    .select("id")
+    .select("id, company")
     .eq("id", contactId)
     .eq("agency_id", ctx.agencyId)
     .maybeSingle()
   if (!contact) throw new AgencyAccessError("contact not found in your agency")
+
+  // THE ROLE'S CLIENT, not any contact in the address book (21 Sep 2026). A
+  // delivered pack is final, so handing it to Acme when the role is Beta's is
+  // unrecoverable. The role's own contact, the brief's contact, or someone at
+  // the same company.
+  const [{ data: role }, { data: brief }] = await Promise.all([
+    admin.from("job_roles").select("company, contact_id").eq("id", pack.role_id as string).eq("agency_id", ctx.agencyId).maybeSingle(),
+    admin.from("role_briefs").select("contact_id").eq("role_id", pack.role_id as string).eq("agency_id", ctx.agencyId).maybeSingle(),
+  ])
+  const norm = (v: unknown) => String(v ?? "").trim().toLowerCase()
+  const atThisClient =
+    contactId === role?.contact_id ||
+    contactId === brief?.contact_id ||
+    (norm(role?.company) !== "" && norm(contact.company) === norm(role?.company))
+  if (!atThisClient) {
+    throw new AgencyAccessError(`That contact is not at ${role?.company || "this role's client"} — hand the pack to someone at the hiring company.`)
+  }
+
+  // Freeze what is true NOW. The checklist gate above reads today's facts;
+  // the stored draft may predate a reference arriving or right to work being
+  // recorded, and delivery would have stamped that older picture for good.
+  await generateHandoverPack(ctx, { roleId: pack.role_id as string, candidateId: pack.candidate_id as string })
 
   const { error } = await admin
     .from("handover_packs")

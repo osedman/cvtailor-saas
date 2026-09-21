@@ -229,12 +229,19 @@ export async function recordClientDecisions(
       skipped.push(d.ref)
       continue
     }
-    const { data: cand } = await admin
+    // Scoped to THIS role: refs restart at CAN-01 on every role, so an
+    // agency-wide lookup matched two rows once a second role existed,
+    // maybeSingle() errored, the error was ignored and candidate_id was
+    // written NULL — which let the wave re-invite declined candidates
+    // (21 Sep 2026). A failed lookup now throws rather than writing a null.
+    const { data: cand, error: candError } = await admin
       .from("candidates")
       .select("id")
       .eq("agency_id", shortlist.agencyId)
+      .eq("role_id", roleId)
       .eq("ref", d.ref)
       .maybeSingle()
+    if (candError) throw candError
     const { error } = await admin.from("client_actions").insert({
       agency_id: shortlist.agencyId,
       recipient_id: shortlist.recipientId,

@@ -44,7 +44,7 @@ const { rounds, slots, taken, decisions, actions } = vi.hoisted(() => ({
  */
 vi.mock("@/lib/agency/db", () => {
   const make = (table: string) => {
-    const state = { selected: "" }
+    const state = { selected: "", inCol: "", inVals: [] as string[] }
     const api: Record<string, unknown> = {}
     const self = () => api
     api.eq = self
@@ -52,6 +52,11 @@ vi.mock("@/lib/agency/db", () => {
     api.gt = self
     api.neq = self
     api.not = self
+    api.in = (col: string, vals: string[]) => {
+      state.inCol = col
+      state.inVals = vals
+      return api
+    }
     api.select = (cols: string) => {
       state.selected = cols
       return api
@@ -59,11 +64,20 @@ vi.mock("@/lib/agency/db", () => {
     const resolve = () => {
       if (table === "availability_slots") return slots()
       if (table === "round_decisions") return decisions()
-      if (table === "client_actions") return actions()
+      if (table === "job_roles") return { data: { planned_rounds: planned.value }, error: null }
+      if (table === "submissions") return { data: [{ id: "sub-this-role" }], error: null }
+      if (table === "submission_recipients") return { data: [{ id: "rec-this-role" }], error: null }
+      if (table === "client_actions") {
+        // Implements the filter it is handed: only this role's recipients.
+        const all = actions() as { data: Array<Record<string, unknown>>; error: null }
+        const rows = state.inCol === "recipient_id" ? all.data.filter((r) => state.inVals.includes(r.recipient_id as string)) : all.data
+        return { data: rows, error: null }
+      }
       // interview_rounds, twice: the "taken" read asks only for slot_id.
       return state.selected.trim() === "slot_id" ? taken() : rounds()
     }
     api.order = () => Promise.resolve(resolve())
+    api.maybeSingle = () => Promise.resolve(resolve())
     api.then = (res: (v: unknown) => unknown) => Promise.resolve(resolve()).then(res)
     return api
   }
@@ -71,7 +85,7 @@ vi.mock("@/lib/agency/db", () => {
 })
 vi.mock("@/lib/agency/cohort", () => ({ inviteCohort: vi.fn() }))
 vi.mock("@/lib/agency/interview-settings", () => ({
-  getInterviewSettings: async () => ({ settings: { waveSize: null, waveReleaseHours: 24 } }),
+  getInterviewSettings: async () => ({ settings: { waveSize: null, waveReleaseHours: 24, minNoticeHours: 24, durationMinutes: 45 } }),
 }))
 
 import { getWaveState } from "@/lib/agency/waves"
@@ -79,23 +93,27 @@ import { getWaveState } from "@/lib/agency/waves"
 const ROLE = "role1"
 /** Round 1 completed for all three — nobody holds a live round. */
 const completedRound1 = [
-  { candidate_id: "id-12", slot_id: "s1", status: "completed", created_at: "2026-09-20T13:00:00Z" },
-  { candidate_id: "id-21", slot_id: "s2", status: "completed", created_at: "2026-09-20T15:00:00Z" },
-  { candidate_id: "id-17", slot_id: "s3", status: "completed", created_at: "2026-09-20T19:00:00Z" },
+  { id: "r1-12", candidate_id: "id-12", round_number: 1, slot_id: "s1", status: "completed", created_at: "2026-09-20T13:00:00Z" },
+  { id: "r1-21", candidate_id: "id-21", round_number: 1, slot_id: "s2", status: "completed", created_at: "2026-09-20T15:00:00Z" },
+  { id: "r1-17", candidate_id: "id-17", round_number: 1, slot_id: "s3", status: "completed", created_at: "2026-09-20T19:00:00Z" },
 ]
+/** planned_rounds on the role; tests that care set it. */
+const planned = { value: 2 as number | null }
 /** Shortlist order, which is the order the reserve keeps. */
 const chosenAtShortlist = [
-  { candidate_ref: "CAN-12", candidate_id: "id-12", created_at: "2026-09-19T10:00:00Z" },
-  { candidate_ref: "CAN-21", candidate_id: "id-21", created_at: "2026-09-19T10:00:01Z" },
-  { candidate_ref: "CAN-17", candidate_id: "id-17", created_at: "2026-09-19T10:00:02Z" },
+  { candidate_ref: "CAN-12", candidate_id: "id-12", recipient_id: "rec-this-role", created_at: "2026-09-19T10:00:00Z" },
+  { candidate_ref: "CAN-21", candidate_id: "id-21", recipient_id: "rec-this-role", created_at: "2026-09-19T10:00:01Z" },
+  { candidate_ref: "CAN-17", candidate_id: "id-17", recipient_id: "rec-this-role", created_at: "2026-09-19T10:00:02Z" },
 ]
 const decision = (candidateId: string, d: string, at: string) => ({
+  round_id: `r1-${candidateId.replace("id-", "")}`,
   decision: d,
   created_at: at,
   interview_rounds: { candidate_id: candidateId, role_id: ROLE },
 })
 
 beforeEach(() => {
+  planned.value = 2
   for (const m of [rounds, slots, taken, decisions, actions]) m.mockReset()
   rounds.mockReturnValue({ data: completedRound1, error: null })
   slots.mockReturnValue({ data: [{ id: "free1", role_id: ROLE }, { id: "free2", role_id: ROLE }], error: null })
@@ -145,15 +163,43 @@ describe("the reserve after round one", () => {
     expect(state.reserve).toContain("CAN-21")
   })
 
-  it("keeps everyone when no round has been decided — wave one is not a special case", async () => {
+  it("a written-up round with NO decision yet is not an advance — nobody is invited onward", async () => {
+    // 21 Sep 2026: the old rule read "no decline or hold" as "go", so writing
+    // up round 1 made everyone due a round-2 invite before the client decided.
     decisions.mockReturnValue({ data: [], error: null })
+    const state = await getWaveState("a1", ROLE)
+    expect(state.reserve).toEqual([])
+  })
+
+  it("wave one: chosen with no round yet is in the reserve", async () => {
+    rounds.mockReturnValue({ data: [], error: null })
     const state = await getWaveState("a1", ROLE)
     expect(state.reserve).toEqual(["CAN-12", "CAN-21", "CAN-17"])
   })
 
+  it("advanced after the FINAL planned round goes to close-out, not another round", async () => {
+    planned.value = 1
+    decisions.mockReturnValue({
+      data: [decision("id-12", "advance", "2026-09-20T20:00:00Z")],
+      error: null,
+    })
+    const state = await getWaveState("a1", ROLE)
+    expect(state.reserve).not.toContain("CAN-12")
+  })
+
+  it("a missing plan is two rounds, never zero", async () => {
+    planned.value = null
+    decisions.mockReturnValue({
+      data: [decision("id-12", "advance", "2026-09-20T20:00:00Z")],
+      error: null,
+    })
+    const state = await getWaveState("a1", ROLE)
+    expect(state.reserve).toContain("CAN-12")
+  })
+
   it("still excludes anyone holding a live invitation", async () => {
     rounds.mockReturnValue({
-      data: [{ candidate_id: "id-12", slot_id: null, status: "scheduled", created_at: "2026-09-20T22:00:00Z" }],
+      data: [{ id: "r2-12", candidate_id: "id-12", round_number: 2, slot_id: null, status: "scheduled", created_at: "2026-09-20T22:00:00Z" }],
       error: null,
     })
     const state = await getWaveState("a1", ROLE)
@@ -168,5 +214,23 @@ describe("the decision read is scoped", () => {
     // A candidate may sit on two roles; a decision belongs to a round.
     expect(src).toContain('interview_rounds!inner(candidate_id, role_id)')
     expect(src).toContain('.eq("interview_rounds.role_id", roleId)')
+  })
+})
+
+describe("the reserve is this role's, not the agency's", () => {
+  it("ignores another role's interview choices, though its refs look the same", async () => {
+    // 21 Sep 2026, live demo: ROL-2418's wave read ROL-2417's older choices
+    // first — refs repeat across roles — found none on ROL-2418, invited nobody.
+    rounds.mockReturnValue({ data: [], error: null })
+    actions.mockReturnValue({
+      data: [
+        { candidate_ref: "CAN-12", candidate_id: "other-12", recipient_id: "rec-other-role", created_at: "2026-09-19T10:00:00Z" },
+        { candidate_ref: "CAN-01", candidate_id: "id-01", recipient_id: "rec-this-role", created_at: "2026-09-21T17:10:00Z" },
+        { candidate_ref: "CAN-02", candidate_id: "id-02", recipient_id: "rec-this-role", created_at: "2026-09-21T17:10:01Z" },
+      ],
+      error: null,
+    })
+    const state = await getWaveState("agency1", ROLE)
+    expect(state.reserve).toEqual(["CAN-01", "CAN-02"])
   })
 })

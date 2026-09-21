@@ -82,7 +82,7 @@ export async function sendClosureNotices(
 
   const agencyId = role.agency_id as string
 
-  const [{ data: agency }, { data: candidates }, { data: rounds }, { data: placements }] =
+  const [{ data: agency }, { data: candidates }, { data: rounds }, { data: placements }, { data: packs }] =
     await Promise.all([
       admin
         .from("agencies")
@@ -99,6 +99,11 @@ export async function sendClosureNotices(
         .from("placements")
         .select("candidate_id, status")
         .eq("role_id", roleId),
+      admin
+        .from("handover_packs")
+        .select("candidate_id, generated_at, delivered_at")
+        .eq("role_id", roleId)
+        .order("generated_at", { ascending: false }),
     ])
 
   const pool = candidates ?? []
@@ -113,6 +118,16 @@ export async function sendClosureNotices(
       .filter((p) => ["offered", "accepted", "started"].includes(p.status as string))
       .map((p) => p.candidate_id as string)
   )
+
+  // THE HIRE IS NOT AN UNSUCCESSFUL CANDIDATE (21 Sep 2026). A contract hire
+  // has no placement row, and the checklist lets "placement" be marked not
+  // applicable — so a placement alone missed them and the person who got the
+  // job was emailed that the role had closed. The handover pack names the
+  // hire: whoever a pack was delivered for, and the current pick (the newest
+  // pack), are never sent a closure notice.
+  const packRows = packs ?? []
+  for (const p of packRows) if (p.delivered_at && p.candidate_id) placed.add(p.candidate_id as string)
+  if (packRows[0]?.candidate_id) placed.add(packRows[0].candidate_id as string)
 
   const ids = pool.map((c) => c.id as string)
   const { data: notices } = await admin

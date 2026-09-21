@@ -115,12 +115,12 @@ export async function getWaveState(agencyId: string, roleId: string): Promise<Wa
   const [{ data: rounds }, { data: slots }, { data: taken }, { data: decisions }] = await Promise.all([
     admin
       .from("interview_rounds")
-      .select("candidate_id, slot_id, status, created_at")
+      .select("id, candidate_id, round_number, slot_id, status, created_at")
       .eq("agency_id", agencyId)
       .eq("role_id", roleId),
     admin
       .from("availability_slots")
-      .select("id, role_id")
+      .select("id, role_id, starts_at, ends_at")
       .eq("agency_id", agencyId)
       .is("revoked_at", null)
       .gt("ends_at", new Date().toISOString()),
@@ -139,7 +139,7 @@ export async function getWaveState(agencyId: string, roleId: string): Promise<Wa
      */
     admin
       .from("round_decisions")
-      .select("decision, created_at, interview_rounds!inner(candidate_id, role_id)")
+      .select("round_id, decision, created_at, interview_rounds!inner(candidate_id, role_id)")
       .eq("agency_id", agencyId)
       .eq("interview_rounds.role_id", roleId)
       .order("created_at", { ascending: true }),
@@ -151,7 +151,20 @@ export async function getWaveState(agencyId: string, roleId: string): Promise<Wa
   const invitedIds = new Set(open.map((r) => r.candidate_id as string))
   const awaiting = open.filter((r) => !r.slot_id).length
   const heldSlots = new Set((taken ?? []).map((r) => r.slot_id as string))
-  const openWindows = (slots ?? []).filter((s) => (!s.role_id || s.role_id === roleId) && !heldSlots.has(s.id as string)).length
+  // BOOKABLE windows only — the same rules the candidate's booking page
+  // applies (booking.ts listOpenWindows): outside the notice period and long
+  // enough for the interview. Counting a window 10h away under a 24h rule as
+  // capacity invited people to a page with nothing they could pick
+  // (21 Sep 2026).
+  const notBefore = Date.now() + settings.minNoticeHours * 3_600_000
+  const duration = settings.durationMinutes * 60_000
+  const openWindows = (slots ?? []).filter(
+    (s) =>
+      (!s.role_id || s.role_id === roleId) &&
+      !heldSlots.has(s.id as string) &&
+      Date.parse(s.starts_at as string) > notBefore &&
+      Date.parse(s.ends_at as string) - Date.parse(s.starts_at as string) >= duration
+  ).length
 
   /**
    * WHAT THE ROUNDS DECIDED SINCE (20 Sep 2026).
@@ -176,24 +189,79 @@ export async function getWaveState(agencyId: string, roleId: string): Promise<Wa
    * Somebody with NO round decision stays in the reserve, which is what
    * makes wave one work: the first invitation has no prior round to consult.
    */
-  const latestDecision = new Map<string, string>()
+  /**
+   * WHERE EACH CANDIDATE'S LOOP STANDS, from their LATEST live round
+   * (21 Sep 2026). The rule used to be "any decline or hold keeps you out",
+   * which read a completed-but-UNDECIDED round as an advance — so writing up
+   * round 1 made the candidate due a round-2 invite before the client had
+   * decided — and it never read planned_rounds, so someone advanced after the
+   * final round was invited to one more instead of going to close-out.
+   *
+   * Eligible for the reserve: no live round yet (wave one), or the latest
+   * live round was ADVANCED and more rounds are planned. Everything else —
+   * awaiting a decision, declined, on hold, advanced after the final round —
+   * stays out. Decisions are append-only and the latest row per round wins.
+   */
+  const latestByRound = new Map<string, string>()
   for (const d of decisions ?? []) {
-    const rel = (d as Record<string, unknown>).interview_rounds
-    const row = (Array.isArray(rel) ? rel[0] : rel) as { candidate_id?: string } | undefined
-    const id = row?.candidate_id
-    if (!id) continue
+    const rid = (d as Record<string, unknown>).round_id as string | undefined
     // Ordered ascending, so the last write wins.
-    latestDecision.set(id, String((d as Record<string, unknown>).decision ?? ""))
+    if (rid) latestByRound.set(rid, String((d as Record<string, unknown>).decision ?? ""))
+  }
+  const { data: roleRow } = await admin
+    .from("job_roles")
+    .select("planned_rounds")
+    .eq("id", roleId)
+    .eq("agency_id", agencyId)
+    .maybeSingle()
+  // A missing plan must never read as zero rounds (see loopState).
+  const planned = Number(roleRow?.planned_rounds) > 0 ? Number(roleRow?.planned_rounds) : 2
+  const lastLive = new Map<string, { id: string; round_number: number; status: string }>()
+  for (const r of rounds ?? []) {
+    if (r.status === "cancelled") continue
+    const id = r.candidate_id as string
+    const seen = lastLive.get(id)
+    if (!seen || (r.round_number as number) > seen.round_number) {
+      lastLive.set(id, { id: r.id as string, round_number: r.round_number as number, status: r.status as string })
+    }
+  }
+  const dueAnotherRound = (candidateId: string): boolean => {
+    const last = lastLive.get(candidateId)
+    if (!last) return true
+    const decided = latestByRound.get(last.id)
+    return decided === "advance" && last.round_number < planned
   }
 
   // The reserve: chosen to interview, no live round, not decided away. In the
   // order the client decided, which is theirs rather than a ranking of ours.
-  const { data: chosen } = await admin
-    .from("client_actions")
-    .select("candidate_ref, candidate_id, created_at")
+  //
+  // SCOPED TO THIS ROLE (21 Sep 2026). This read used to be agency-wide, and
+  // candidate refs repeat across roles (every role has a CAN-01). On staging
+  // the ROL-2418 wave picked up ROL-2417's older choices first, found none of
+  // them on ROL-2418, and invited nobody — "wave released, 0 invited" during
+  // a live demo. A choice belongs to a submission, and a submission to a role.
+  const { data: submissions, error: submissionError } = await admin
+    .from("submissions")
+    .select("id")
     .eq("agency_id", agencyId)
-    .eq("action", "interview")
-    .order("created_at", { ascending: true })
+    .eq("role_id", roleId)
+  if (submissionError) throw submissionError
+  const submissionIds = (submissions ?? []).map((s) => s.id as string)
+  const { data: recipients, error: recipientError } = submissionIds.length
+    ? await admin.from("submission_recipients").select("id").eq("agency_id", agencyId).in("submission_id", submissionIds)
+    : { data: [], error: null }
+  if (recipientError) throw recipientError
+  const recipientIds = (recipients ?? []).map((r) => r.id as string)
+  const { data: chosen, error: chosenError } = recipientIds.length
+    ? await admin
+        .from("client_actions")
+        .select("candidate_ref, candidate_id, created_at")
+        .eq("agency_id", agencyId)
+        .eq("action", "interview")
+        .in("recipient_id", recipientIds)
+        .order("created_at", { ascending: true })
+    : { data: [], error: null }
+  if (chosenError) throw chosenError
 
   const seen = new Set<string>()
   const reserve: string[] = []
@@ -203,8 +271,7 @@ export async function getWaveState(agencyId: string, roleId: string): Promise<Wa
     if (!ref || seen.has(ref)) continue
     seen.add(ref)
     if (id && invitedIds.has(id)) continue
-    const decided = id ? latestDecision.get(id) : undefined
-    if (decided === "decline" || decided === "hold") continue
+    if (id && !dueAnotherRound(id)) continue
     reserve.push(ref)
   }
 

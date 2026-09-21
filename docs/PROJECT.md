@@ -6832,3 +6832,64 @@ signed off.
 - **To add a staging tester:** their address must be on `EMAIL_ALLOWLIST`
   (Vercel, Preview scope) — setting it REPLACES the default list, so keep
   `o.oifoh@gmail.com,ose@lean-frame.com,@lean-frame.com` in it.
+
+## 🐛 Demo-day fixes: waves, speed, interview loop, handover (21 September 2026)
+
+Found live during Ose's demo, then two review passes over the interview loop
+and handover. All staging; no migration.
+
+**Speed — every button ~30s.** Supabase edge logs: ~4,700 of 4,800 queries
+in 3h came from Vercel **IAD (Virginia)** to a database in **eu-west-1
+(Ireland)** — 223ms average per call vs 72ms from London, 6s worst. One click
+runs dozens of calls in sequence. `vercel.json` now pins `"regions":
+["dub1"]`. Only this branch's deploys read it; production's `main` is
+untouched.
+
+**Interview loop**
+- 🐛 **The wave invited nobody** on ROL-2418: `getWaveState` read
+  `client_actions` agency-wide, and refs repeat across roles. Now scoped
+  through the role's submissions → recipients.
+- 🐛 `recordClientDecisions` looked candidates up by ref agency-wide →
+  `maybeSingle` errored → `candidate_id` written NULL → declined candidates
+  re-invited. Scoped to the role; a failed lookup throws.
+- 🐛 The reserve read "written up, not decided" as an advance and ignored
+  `planned_rounds`. Now: latest live round must be ADVANCED with rounds still
+  planned (or no round yet). Also fixes "In reserve" counting declined people.
+- 🐛 A cancelled round kept its number, so re-invites became "round 2" and
+  close-out came one interview early. `round-number.ts` reuses the cancelled
+  row's number (the unique key forces reuse — the 23505 hit by hand today).
+- 🐛 Wave capacity counted windows inside the notice period / too short.
+- 🐛 Booking and reschedule returned "claimed" when the guarded update
+  matched zero rows (two tabs). Reschedule now resets the pre-reminder.
+- 🐛 An old booking link could decline or move an interview already held.
+- 🐛 Candidate emails showed UTC times unlabelled (an hour early in BST);
+  a same-day reminder said "Tomorrow". Now UK time, labelled, Today/Tomorrow.
+- 🐛 A hiring manager's cohort POST could invite anyone on the role, not just
+  the shortlist sent to them.
+- 🐛 One transcription error skipped the day's reminders and wave releases.
+- A concurrent release colliding on a round number now skips that person
+  instead of aborting the rest of the wave.
+
+**Handover / close-out**
+- 🐛 **The hire could be emailed "the role closed"** — exemption keyed on
+  placements only. The delivered pack's candidate and the current pick are
+  now exempt.
+- 🐛 The pack could list a requirement as evidenced AND under Known gaps
+  (evidence layers read raw). Uses `winningRows`, latest layer wins.
+- 🐛 Delivery froze a stale draft; it now regenerates first.
+- 🐛 A pack could be delivered to a contact at another client (and the
+  dropdown defaulted to the first contact in the address book). Delivery now
+  requires the role's contact, the brief's contact, or the same company; the
+  dropdown defaults to the role's client.
+- 🐛 Generation stored an unchecked `delivered_to_contact_id` from the body.
+- 🐛 Changing the pick showed the old candidate "confirmed" on reload
+  (earliest pack) — now the newest pack.
+- 🐛 Closure result said "everyone was told" over failed or unknown sends.
+- 🐛 A referee's notice was stamped sent before the email was attempted.
+- 🐛 Failed reference / checklist loads read as empty or as the previous
+  candidate's checklist.
+
+**Open — needs Ose:** closing a role starts retention on the HIRE too, and
+`placements.candidate_id` cascades, so the purge deletes the placement (fee,
+rebate) with them. Needs a migration and a decision (exempt the hire from
+retention, or make the placement survive with `set null`).

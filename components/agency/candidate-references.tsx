@@ -44,7 +44,7 @@ export function CandidateReferences({
   onRefsChange,
 }: {
   candidateId: string
-  onRefsChange?: (refs: ReferenceListRow[]) => void
+  onRefsChange?: (refs: ReferenceListRow[] | null) => void
 }) {
   const [refs, setRefs] = useState<ReferenceListRow[] | null>(null)
   const [newRef, setNewRef] = useState({ refereeName: "", refereeEmail: "", relationship: "" })
@@ -56,13 +56,22 @@ export function CandidateReferences({
     if (!candidateId) return setRefs(null)
     try {
       const res = await fetch(`/api/agency/candidates/${candidateId}/references`)
-      if (!res.ok) return setRefs([])
+      // A failed load must not read as "No referees named yet" — and the
+      // parent's outstanding-references warning must not silently vanish.
+      if (!res.ok) {
+        setRefs(null)
+        onRefsChange?.(null)
+        return setError("Could not load references. Reload the page before handing anything over.")
+      }
       const body = await res.json()
       const rows = Array.isArray(body?.references) ? (body.references as ReferenceListRow[]) : []
+      setError(null)
       setRefs(rows)
       onRefsChange?.(rows)
     } catch {
-      setRefs([])
+      setRefs(null)
+      onRefsChange?.(null)
+      setError("Could not load references. Reload the page before handing anything over.")
     }
     // onRefsChange is a notification, not an input; re-running on its identity
     // would refetch every parent render.

@@ -18,6 +18,7 @@
  * person for the same round is how somebody ends up holding two windows.
  */
 
+import { nextRoundNumber } from "./round-number"
 import { agencyAdmin, writeAudit } from "./db"
 import { mintBookingToken, sendSelfBookingInvite } from "./booking"
 import { listOpenSlots, listRoundsForRole } from "./rounds"
@@ -88,26 +89,45 @@ export async function inviteCohort(
       continue
     }
 
-    // Round numbers are derived, never supplied.
-    const roundNumber = ((existing?.[0]?.round_number as number) ?? 0) + 1
-    const { data: round, error: insertError } = await admin
-      .from("interview_rounds")
-      .insert({
-        agency_id: agencyId,
-        role_id: roleId,
-        candidate_id: candidateId,
-        contact_id: contactId,
-        round_number: roundNumber,
-        // No slot and no time: this IS the invitation to choose.
-        slot_id: null,
-        scheduled_at: null,
-        status: "scheduled",
-        candidate_response: "pending",
-        wave,
-      })
-      .select("id")
-      .single()
-    if (insertError) throw insertError
+    // Round numbers are derived, never supplied — and a cancelled round's
+    // number is still owed (see round-number.ts).
+    const { roundNumber, reuseId } = nextRoundNumber(
+      (existing ?? []).map((r) => ({ id: r.id as string, round_number: r.round_number as number, status: r.status as string }))
+    )
+    const invitation = {
+      contact_id: contactId,
+      // No slot and no time: this IS the invitation to choose.
+      slot_id: null,
+      scheduled_at: null,
+      status: "scheduled",
+      candidate_response: "pending",
+      candidate_responded_at: null,
+      wave,
+    }
+    const { data: round, error: insertError } = reuseId
+      ? await admin
+          .from("interview_rounds")
+          .update({ ...invitation, updated_at: new Date().toISOString() })
+          .eq("id", reuseId)
+          .eq("agency_id", agencyId)
+          .eq("status", "cancelled")
+          .select("id")
+          .single()
+      : await admin
+          .from("interview_rounds")
+          .insert({ agency_id: agencyId, role_id: roleId, candidate_id: candidateId, round_number: roundNumber, ...invitation })
+          .select("id")
+          .single()
+    if (insertError) {
+      // 23505: a concurrent release (the cron and a click) took this round
+      // number a moment ago. That person IS invited — skip them and keep
+      // going, rather than aborting everyone after them in the wave.
+      if ((insertError as { code?: string }).code === "23505" || (insertError as { code?: string }).code === "PGRST116") {
+        result.skipped.push({ candidateRef: ref, because: "already invited" })
+        continue
+      }
+      throw insertError
+    }
 
     const roundId = round.id as string
     const token = await mintBookingToken(admin, roundId)

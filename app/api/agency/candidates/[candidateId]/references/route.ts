@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
-import { addReferee, listReferences, requestReference } from "@/lib/agency/references"
+import { addReferee, listReferences, requestReference, markReferenceNoticeSent } from "@/lib/agency/references"
 import { sendEmail } from "@/lib/email"
 import { getAppOrigin } from "@/lib/site-url"
 
@@ -102,6 +102,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
         isChase: request.isChase,
       }),
     })
+    // The notice is the email: stamped only when it actually went.
+    if (sent.sent) await markReferenceNoticeSent(auth.ctx, referenceId)
     // Never log the referee's address; return the link once so a failed send
     // does not strand the request.
     return NextResponse.json({ ok: true, emailed: sent.sent, url })

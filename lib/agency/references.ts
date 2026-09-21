@@ -180,8 +180,10 @@ export async function requestReference(
     .update({
       request_token_hash: hashToken(raw),
       status: isChase ? "chasing" : "requested",
-      // Stamped once, on the first ask. A chase is not a new notice.
-      notice_sent_at: (ref.notice_sent_at as string | null) ?? new Date().toISOString(),
+      // notice_sent_at is NOT stamped here. The notice is the email, and the
+      // email has not been attempted yet — stamping first recorded "notice
+      // sent" for referees whose email failed (21 Sep 2026). The caller stamps
+      // it with markReferenceNoticeSent() once the send actually succeeds.
     })
     .eq("id", referenceId)
     .eq("agency_id", ctx.agencyId)
@@ -199,7 +201,7 @@ export async function requestReference(
     entityType: "reference",
     entityRef: (candidate?.ref as string) ?? "",
     action: isChase ? "reference_chased" : "reference_requested",
-    toValue: { reference_id: referenceId, notice_sent: true },
+    toValue: { reference_id: referenceId },
   })
 
   return {
@@ -210,6 +212,22 @@ export async function requestReference(
     agencyName: (agency?.name as string) ?? "the agency",
     isChase,
   }
+}
+
+/**
+ * Record that the fair-processing notice actually reached the referee.
+ * Called only after sendEmail reports success. Stamped once: a chase is not a
+ * new notice, so an existing stamp is left alone.
+ */
+export async function markReferenceNoticeSent(ctx: AgencyContext, referenceId: string): Promise<void> {
+  const admin = agencyAdmin()
+  const { error } = await admin
+    .from("candidate_references")
+    .update({ notice_sent_at: new Date().toISOString() })
+    .eq("id", referenceId)
+    .eq("agency_id", ctx.agencyId)
+    .is("notice_sent_at", null)
+  if (error) throw error
 }
 
 export interface RefereeView {

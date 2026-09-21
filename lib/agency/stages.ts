@@ -59,9 +59,11 @@ export async function getStagesForRoles(
   const shortlisted = new Set((reviews ?? []).filter((r) => r.decision === "shortlist").map((r) => r.candidate_id as string))
   const placementBy = new Map((placements.data ?? []).map((p) => [`${p.role_id}:${p.candidate_id}`, { status: p.status as string }]))
   const firstPack = new Map<string, string>()
+  // The NEWEST pack is the current pick. Keeping the first one meant a
+  // recruiter who changed the pick saw the old candidate "confirmed" again on
+  // reload (21 Sep 2026). Rows arrive oldest first, so the last write wins.
   for (const p of packs.data ?? []) {
-    const rid = p.role_id as string
-    if (!firstPack.has(rid) && p.candidate_id) firstPack.set(rid, p.candidate_id as string)
+    if (p.candidate_id) firstPack.set(p.role_id as string, p.candidate_id as string)
   }
 
   for (const roleId of ids) {

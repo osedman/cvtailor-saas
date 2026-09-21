@@ -26,6 +26,7 @@
  * writes go through the service role in the same operation as the audit row.
  */
 
+import { nextRoundNumber } from "./round-number"
 import { getInterviewSettings } from "./interview-settings"
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
 import { mintBookingToken, sendBookingInvite } from "./booking"
@@ -468,29 +469,35 @@ export async function scheduleRound(
 
   const { data: existing } = await admin
     .from("interview_rounds")
-    .select("round_number")
+    .select("id, round_number, status")
     .eq("role_id", input.roleId)
     .eq("candidate_id", input.candidateId)
-    .order("round_number", { ascending: false })
-    .limit(1)
-  const roundNumber = ((existing?.[0]?.round_number as number) ?? 0) + 1
-
-  const { data: round, error } = await admin
-    .from("interview_rounds")
-    .insert({
-      agency_id: ctx.agencyId,
-      role_id: input.roleId,
-      candidate_id: input.candidateId,
-      contact_id: slot.contact_id as string,
-      round_number: roundNumber,
-      slot_id: input.slotId,
-      scheduled_at: slot.starts_at as string,
-      duration_minutes: input.durationMinutes ?? 45,
-      meeting_url: (input.meetingUrl ?? "").slice(0, MAX_URL),
-      status: "scheduled",
-    })
-    .select("id")
-    .single()
+  // A cancelled round's number is still owed; its row is reused (round-number.ts).
+  const { roundNumber, reuseId } = nextRoundNumber(
+    (existing ?? []).map((r) => ({ id: r.id as string, round_number: r.round_number as number, status: r.status as string }))
+  )
+  const booking = {
+    contact_id: slot.contact_id as string,
+    slot_id: input.slotId,
+    scheduled_at: slot.starts_at as string,
+    duration_minutes: input.durationMinutes ?? 45,
+    meeting_url: (input.meetingUrl ?? "").slice(0, MAX_URL),
+    status: "scheduled",
+  }
+  const { data: round, error } = reuseId
+    ? await admin
+        .from("interview_rounds")
+        .update({ ...booking, candidate_response: "pending", candidate_responded_at: null, updated_at: new Date().toISOString() })
+        .eq("id", reuseId)
+        .eq("agency_id", ctx.agencyId)
+        .eq("status", "cancelled")
+        .select("id")
+        .single()
+    : await admin
+        .from("interview_rounds")
+        .insert({ agency_id: ctx.agencyId, role_id: input.roleId, candidate_id: input.candidateId, round_number: roundNumber, ...booking })
+        .select("id")
+        .single()
   // The partial unique index on slot_id IS the booking mechanism: a race
   // surfaces here as a duplicate-key error rather than two people in one slot.
   if (error) {

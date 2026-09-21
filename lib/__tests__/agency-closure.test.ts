@@ -29,8 +29,14 @@ const admin = vi.hoisted(() => ({
     chain.eq = (c: string, v: unknown) => { filters.push((r) => r[c] === v); return chain }
     chain.in = (c: string, vs: unknown[]) => { filters.push((r) => vs.includes(r[c])); return chain }
     chain.limit = () => chain
+    let sortBy: { col: string; asc: boolean } | null = null
+    chain.order = (col: string, o?: { ascending?: boolean }) => { sortBy = { col, asc: o?.ascending !== false }; return chain }
     chain.update = (p: Row) => { mode = "update"; patch = p; return chain }
-    const rows = () => (store.tables[table] ?? []).filter((r) => filters.every((f) => f(r)))
+    const rows = () => {
+      const out = (store.tables[table] ?? []).filter((r) => filters.every((f) => f(r)))
+      if (sortBy) { const { col, asc } = sortBy; out.sort((x, y) => (String(x[col]) < String(y[col]) ? -1 : 1) * (asc ? 1 : -1)) }
+      return out
+    }
     const settle = () => {
       if (mode === "update") {
         const hit = rows()
@@ -232,5 +238,18 @@ describe("volume", () => {
     // Four sends means three gaps. Asserting a floor, not a duration, so this
     // does not become a flaky timing test.
     expect(elapsed).toBeGreaterThanOrEqual(3 * 100)
+  })
+})
+
+describe("the hire is never told the role closed", () => {
+  it("a contract hire with a delivered pack and no placement row gets no closure email", async () => {
+    // 21 Sep 2026: the exemption keyed on placements alone, and "placement"
+    // can be marked not applicable on the checklist, so the person who got the
+    // job was emailed that the role had ended and their data would be deleted.
+    store.tables.placements = []
+    store.tables.handover_packs = [{ role_id: "role-1", candidate_id: "c4", generated_at: "2026-09-20T10:00:00Z", delivered_at: "2026-09-20T11:00:00Z" }]
+    await sendClosureNotices(admin as never, "role-1", { spacingMs: 0 })
+    const c4 = (store.tables.candidates ?? []).find((c) => c.id === "c4")
+    expect(store.mail.some((m) => m.to === c4?.email)).toBe(false)
   })
 })
