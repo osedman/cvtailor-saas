@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { AgencyAccessError, agencyAdmin, requireAgencyContext } from "@/lib/agency/db"
+import { getStagesForRoles } from "@/lib/agency/stages"
 import { CV_TEXT_LIMIT, extractFileText, ingestCandidate } from "@/lib/agency/ingest"
 import { errorMessage } from "@/lib/error-message"
 
@@ -50,7 +51,7 @@ export async function GET(
       )
     }
 
-    const [candidates, scores, evidence, reviews, decisions] = await Promise.all([
+    const [candidates, scores, evidence, reviews, decisions, stageMap] = await Promise.all([
       auth.db
         .from("candidates")
         .select(
@@ -70,6 +71,9 @@ export async function GET(
         .from("recruiter_reviews")
         .select("candidate_id, decision, decision_note")
         .eq("role_id", roleId),
+      // The client's round decisions, read beside the recruiter's call —
+      // never written into it (decided 21 Sep 2026, Figma frame 21).
+      getStagesForRoles(auth.ctx, [roleId]),
     ])
     if (candidates.error) throw candidates.error
 
@@ -80,6 +84,9 @@ export async function GET(
       evidence: (evidence.data ?? []).filter((e) => candidateIds.has(e.candidate_id)),
       reviews: reviews.data ?? [],
       decisions: decisions.data ?? [],
+      stages: Object.fromEntries(stageMap.get(roleId)?.byCandidate ?? []),
+      suggestedHireId: stageMap.get(roleId)?.suggestedId ?? null,
+      pickedHireId: stageMap.get(roleId)?.pickedId ?? null,
     })
   } catch (error) {
     return NextResponse.json(

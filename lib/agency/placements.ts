@@ -91,11 +91,39 @@ export interface PlacementView {
 const cap = (v: string | null | undefined, n: number) => (v ?? "").trim().slice(0, n)
 
 /**
- * Did the client ever advance this candidate on this role?
+ * The client's latest word on this candidate: the latest decision on their
+ * most recent decided round, or null.
  *
- * Read from round_decisions through the candidate's own rounds. 'advance' is
- * the only value that means "take them forward" — hold and decline do not,
- * and a candidate with no rounds at all has no advance decision either.
+ * 21 Sep 2026: this used to be "was there EVER an advance row", so CAN-12 —
+ * advanced at round 1, declined at round 2 — counted as having come through
+ * the process, and a placement for them would not have asked how the hire
+ * happened. round_decisions is append-only and the latest row wins, per
+ * round; across rounds, the most recent decided round is the client's
+ * current position. Cancelled rounds carry no decision that counts.
+ *
+ * Pure, and exported for the test.
+ */
+export function latestLoopDecision(
+  rounds: Array<{ id: string; round_number: number; status: string }>,
+  decisions: Array<{ round_id: string; decision: string; created_at: string }>
+): string | null {
+  const latestByRound = new Map<string, { decision: string; at: string }>()
+  for (const d of decisions) {
+    const seen = latestByRound.get(d.round_id)
+    if (!seen || d.created_at > seen.at) latestByRound.set(d.round_id, { decision: d.decision, at: d.created_at })
+  }
+  const decided = rounds
+    .filter((r) => r.status !== "cancelled" && latestByRound.has(r.id))
+    .sort((a, b) => b.round_number - a.round_number)
+  return decided.length ? latestByRound.get(decided[0].id)!.decision : null
+}
+
+/**
+ * Did the client take this candidate forward on this role?
+ *
+ * True only when their latest decision (see latestLoopDecision) is
+ * 'advance'. Hold and decline do not count, and a candidate with no rounds
+ * at all has no advance decision either.
  *
  * Exported so the screen can ask the same question BEFORE the recruiter
  * starts filling the form, rather than being refused after it.
@@ -106,23 +134,28 @@ export async function hasAdvanceDecision(
   roleId: string,
   candidateId: string
 ): Promise<boolean> {
-  const { data: rounds } = await admin
+  const { data: rounds, error: roundErr } = await admin
     .from("interview_rounds")
-    .select("id")
+    .select("id, round_number, status")
     .eq("agency_id", agencyId)
     .eq("role_id", roleId)
     .eq("candidate_id", candidateId)
+  if (roundErr) throw roundErr
   const roundIds = (rounds ?? []).map((r) => r.id as string)
   if (roundIds.length === 0) return false
 
-  const { data: decisions } = await admin
+  const { data: decisions, error: decisionErr } = await admin
     .from("round_decisions")
-    .select("decision")
+    .select("round_id, decision, created_at")
     .eq("agency_id", agencyId)
     .in("round_id", roundIds)
-    .eq("decision", "advance")
-    .limit(1)
-  return (decisions ?? []).length > 0
+  if (decisionErr) throw decisionErr
+  return (
+    latestLoopDecision(
+      (rounds ?? []).map((r) => ({ id: r.id as string, round_number: r.round_number as number, status: r.status as string })),
+      (decisions ?? []).map((d) => ({ round_id: d.round_id as string, decision: d.decision as string, created_at: d.created_at as string }))
+    ) === "advance"
+  )
 }
 
 /** start_date + rebate_weeks, computed rather than stored so a corrected

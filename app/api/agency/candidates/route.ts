@@ -20,6 +20,7 @@
 import { NextResponse } from "next/server"
 import { AgencyAccessError, agencyAdmin, requireAgencyContext } from "@/lib/agency/db"
 import { errorMessage } from "@/lib/error-message"
+import { getStagesForRoles } from "@/lib/agency/stages"
 
 export const maxDuration = 15
 
@@ -48,10 +49,12 @@ export async function GET() {
     const ids = rows.map((c) => c.id as string)
     const roleIds = [...new Set(rows.map((c) => c.role_id as string).filter(Boolean))]
 
-    const [{ data: roles }, { data: reviews }, { data: scores }] = await Promise.all([
+    const [{ data: roles }, { data: reviews }, { data: scores }, stages] = await Promise.all([
       admin.from("job_roles").select("id, ref, title, company, status").in("id", roleIds),
       admin.from("recruiter_reviews").select("candidate_id, decision").in("candidate_id", ids),
       admin.from("score_breakdowns").select("candidate_id, overall").in("candidate_id", ids),
+      // What the client decided, beside the recruiter's call and never in it.
+      getStagesForRoles(auth.ctx, roleIds),
     ])
 
     const roleById = new Map((roles ?? []).map((r) => [r.id as string, r]))
@@ -78,6 +81,7 @@ export async function GET() {
           roleCompany: (role?.company as string) ?? "",
           roleClosed: role?.status === "closed",
           decision: decisionBy.get(c.id as string) ?? null,
+          stage: stages.get(c.role_id as string)?.byCandidate.get(c.id as string) ?? null,
           score: scoreBy.get(c.id as string) ?? null,
           source: c.source,
           addedAt: c.ingested_at,

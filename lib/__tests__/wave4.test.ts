@@ -132,11 +132,13 @@ describe("a hire that skipped the loop says so", () => {
     expect(input).toMatch(/outsideProcessReason\?: string/)
   })
 
-  it("only an advance decision counts", () => {
+  it("only the client's LATEST decision counts as an advance", () => {
     const fn = placements.slice(placements.indexOf("export async function hasAdvanceDecision"))
-    expect(fn.slice(0, 900)).toMatch(/\.eq\("decision", "advance"\)/)
+    // Latest word, not "ever advanced" (21 Sep 2026, the CAN-12 case).
+    expect(fn.slice(0, 1400)).toMatch(/latestLoopDecision\(/)
+    expect(fn.slice(0, 1400)).toMatch(/=== "advance"/)
     // No rounds at all is no advance decision either.
-    expect(fn.slice(0, 900)).toMatch(/if \(roundIds\.length === 0\) return false/)
+    expect(fn.slice(0, 1400)).toMatch(/if \(roundIds\.length === 0\) return false/)
   })
 
   it("refuses the record rather than accepting an incomplete one", () => {
