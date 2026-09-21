@@ -12,6 +12,7 @@ import {
   writeAudit,
   type AgencyClient,
 } from "./db"
+import { effectiveEvidence } from "./evidence-layers"
 import {
   computeScore,
   ENGINE_VERSION,
@@ -75,7 +76,12 @@ export async function loadScoringState(
       requirementsPromise,
       admin
         .from("candidate_evidence")
-        .select("requirement_id, strength")
+        // round_id and created_at decide which LAYER wins once a round has
+        // added evidence of its own — see evidence-layers.ts. Selecting only
+        // requirement_id and strength made the winner "whichever row Postgres
+        // returned last", which is fine with one row per requirement and
+        // silently wrong with two.
+        .select("requirement_id, strength, round_id, created_at")
         .eq("candidate_id", candidateId),
       admin
         .from("candidate_reviews")
@@ -100,10 +106,11 @@ export async function loadScoringState(
     }
   }
 
-  const evidenceMap: Record<string, Strength> = {}
-  for (const row of evidence ?? []) {
-    evidenceMap[row.requirement_id] = row.strength as Strength
-  }
+  // The latest layer wins; a recruiter override still beats it, which
+  // scoring.ts applies on top.
+  const evidenceMap = effectiveEvidence(
+    (evidence ?? []) as Array<{ requirement_id: string; strength: Strength; round_id: string | null; created_at: string }>
+  )
 
   const stored = (breakdown?.baselines ?? {}) as Partial<ScoringBaselines>
   const baselines: ScoringBaselines = {
