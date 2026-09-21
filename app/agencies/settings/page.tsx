@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
 import { SignOut } from "@/components/agency/sign-out"
+import { TeamSection } from "@/components/agency/team-section"
 // Runtime values come from the server-import-free module; the shape is a
 // type-only import, which is erased at compile time. Importing the constants
 // from lib/agency/settings would drag agencyAdmin — and the service-role key —
@@ -237,6 +238,8 @@ export default function AgencySettingsPage() {
             </p>
           ) : (
             <div className="ag-stack" style={{ gap: 18, maxWidth: 760, marginTop: 8 }}>
+              {/* Acts immediately — not part of this page's Save (Figma frame 22). */}
+              <TeamSection agencyName={settings.name} />
               <section className="ag-card ag-setting">
                 <h2 className="ag-setting-title">Retention</h2>
                 <p className="ag-note">

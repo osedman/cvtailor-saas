@@ -6783,3 +6783,52 @@ the client's "I'm done deciding", already outranking every derived rung in
 `deriveSubState`. Close-out should open with the hire pre-selected and the
 declined shown as not advanced — pre-selected, never decided, because
 recording a placement starts the retention clock and stays a human act.
+
+## ✅ The hiring manager's decisions reach the recruiter (21 September 2026)
+
+**Decided by Ose:** nothing writes back to `recruiter_reviews`. The
+recruiter's call and the client's decisions are two layers, side by side.
+Figma frame 21 (v2, after a ui-ux-pro-max pass), signed off.
+
+- **`lib/agency/stage.ts`** — `stageOf()`, the recruiter-side stage. Built ON
+  `loopState` rather than beside it; adds the two facts it does not see (a
+  placement outranks everything; "I'm done deciding" makes an advance final).
+  `suggestedHire()` is exactly one taken forward, or nobody.
+  **`lib/agency/stages.ts`** loads it per role through `getRoleFactsBatch`.
+- **Close-out** — the hire is a real radio group with each candidate's round
+  trail. One candidate taken forward is pre-selected and tagged Suggested,
+  with where the suggestion came from. "Confirm … as the hire" is a separate
+  act; references and the pack open only after it. An existing handover pack
+  counts as the confirmed pick. Nothing records, closes or hides anyone.
+- **Candidates table** — "Decision" renamed **Your call**; **What the client
+  decided** beside it; a summary strip; card layout under 720px. Filters stay
+  on the recruiter's call only.
+- **`hasAdvanceDecision`** now reads the client's LATEST word (latest decision
+  on the most recent decided round). CAN-12 — advanced R1, declined R2 — used
+  to count as advanced, so a placement for them skipped the off-process reason.
+- **Verified against staging ROL-2417** by running the real loader: CAN-17
+  taken forward R2 (suggested), CAN-12 not advanced R2, CAN-21 not advanced R1
+  with its cancelled R2 visible, `hasAdvanceDecision(CAN-12)` false.
+  ROL-2417 test settings restored first: notice 24h, wave 48h, planned 2.
+- **Not built (dropped from the v2 frame):** role-facts counts, the cohort
+  board's "In reserve" still counting declined candidates.
+- **Not yet clicked by a person** — the local preview was not signed in.
+
+## ✅ Settings → Team: add a teammate from the product (21 September 2026)
+
+`POST /api/agency/team` existed and no screen called it — adding a recruiter
+meant SQL. Found while adding Yemi as a staging tester. Figma frame 22,
+signed off.
+
+- **`components/agency/team-section.tsx`**, first section of Settings: member
+  list (role, suspended, "has not signed in yet"), owner-only role change and
+  suspend/reactivate, and an add form (recruiter or viewer). Acts immediately.
+  Suspend, never delete.
+- **🐛 The invite answered `201 {added:true}` when staging refused the email.**
+  Same shape as the `200 {enabled:false}` lesson. It now returns
+  `email: { sent, skipped }`, and the screen says "on the team, but we could
+  not email them" with the `EMAIL_ALLOWLIST` fix. Same-role re-invites change
+  nothing and say so.
+- **To add a staging tester:** their address must be on `EMAIL_ALLOWLIST`
+  (Vercel, Preview scope) — setting it REPLACES the default list, so keep
+  `o.oifoh@gmail.com,ose@lean-frame.com,@lean-frame.com` in it.
