@@ -6746,3 +6746,40 @@ about it.
 **For testing**, `min_notice_hours` on ROL-2417 is set to **0**, which is the
 existing "No minimum" option. Windows can be offered and booked immediately.
 Put it back to 24 before treating the role as realistic.
+
+---
+
+## 📋 Scheduled: the hiring manager's decisions reaching the recruiter
+
+Ose, after walking the loop to a final decision: *"I went to the agent side and
+it still has all the candidates from the shortlist. The hiring manager's
+decisions should be reflected — and especially at close-out, this should be
+automatic."*
+
+Verified on staging and written up in
+**`docs/NEXT-SESSION-DECISIONS-REACH-THE-RECRUITER.md`** rather than started,
+because the framing question has to be settled first.
+
+**The gap.** `agency.round_decisions` is read by `handover.ts` and — as of
+this session — `waves.ts`. Nothing else. Every recruiter surface that asks
+"who is on this shortlist" keys on `recruiter_reviews.decision`, which is a
+shortlist-stage fact frozen before any interview happened. So on ROL-2417,
+with CAN-12 declined at round 2, CAN-17 advanced twice and CAN-21 declined at
+round 1, all three still read `shortlist`.
+
+**Sharpest at close-out**, which offers a picker of every candidate on the
+role for "who got the job" — when the system already knows that exactly one
+has `advance` on the final round.
+
+**The question to settle:** does a round decision write back to
+`recruiter_reviews`, or does every surface learn to read the loop? Write-back
+fixes every screen for free but collapses "the recruiter did not shortlist
+them" into "the client interviewed them twice and passed", and there is
+deliberately no machine path that writes `'reject'`. Deriving it is consistent
+with the four ladders unified this session. Ose's call.
+
+**The signal for "automatic" already exists**: `role_decision_completions`,
+the client's "I'm done deciding", already outranking every derived rung in
+`deriveSubState`. Close-out should open with the hire pre-selected and the
+declined shown as not advanced — pre-selected, never decided, because
+recording a placement starts the retention clock and stays a human act.
