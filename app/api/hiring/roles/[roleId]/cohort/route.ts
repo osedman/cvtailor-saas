@@ -79,7 +79,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
       waveSize: wave.waveSize,
       waveStillRunning: wave.nextReleaseAt !== null && Date.parse(wave.nextReleaseAt) > Date.now(),
     })
-    return NextResponse.json({ ...board, wave: { ...wave, plan } })
+    // DISCLOSURE (22 Sep 2026). getCohortBoard carries live candidate names
+    // for every round on the role — the recruiter's view. The client sees
+    // only people on the shortlist sent to THEM, named as that snapshot names
+    // them (and not at all if erased). Everyone else is not theirs to see.
+    const shortlist = await getClientShortlist(auth.ctx, roleId)
+    const sent = new Map((shortlist?.entries ?? []).map((e) => [e.ref, e]))
+    const members = board.members
+      .filter((m) => sent.has(m.candidateRef))
+      .map((m) => {
+        const e = sent.get(m.candidateRef)!
+        return { ...m, candidateName: e.redacted || !e.fullName ? m.candidateRef : e.fullName }
+      })
+    return NextResponse.json({ ...board, members, wave: { ...wave, plan } })
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }

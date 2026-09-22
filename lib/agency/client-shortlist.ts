@@ -172,7 +172,9 @@ export async function getClientShortlist(ctx: HiringContext, roleId: string): Pr
     disclosure,
     entries: (snapshot.shortlisted ?? []).map((e) => ({
       ref: String(e.ref ?? ""),
-      fullName: String(e.full_name ?? ""),
+      // An erased candidate's name never leaves the server — hiding it in the
+      // UI still shipped it to the browser (22 Sep 2026).
+      fullName: e.redacted === true ? "" : String(e.full_name ?? ""),
       currentTitle: typeof e.current_title === "string" ? e.current_title : null,
       location: typeof e.location === "string" ? e.location : null,
       years: typeof e.years === "number" ? e.years : null,
