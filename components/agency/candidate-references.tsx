@@ -125,6 +125,46 @@ export function CandidateReferences({
     }
   }
 
+  /**
+   * Take a referee off (22 Sep 2026). A wrong address or the wrong person
+   * used to be permanent, and the only move left was to email a stranger.
+   *
+   * Two different acts, and the server decides which: deleted outright while
+   * nothing has been sent, withdrawn once the request has gone. The confirm
+   * says which one is about to happen, because "remove" meaning two things
+   * without saying so is how people delete what they meant to keep.
+   */
+  async function remove(r: ReferenceListRow) {
+    const contacted = Boolean(r.noticeSentAt)
+    const ok = window.confirm(
+      contacted
+        ? `${r.refereeName} has already been asked. We cannot unsend that, so they will be marked as not answering and no more chasers will go. Their record stays. Continue?`
+        : `Remove ${r.refereeName}? Nothing has been sent to them, so there is nothing to undo — the row goes entirely.`
+    )
+    if (!ok) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/candidates/${candidateId}/references`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referenceId: r.id }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not remove that referee.")
+        return
+      }
+      // The link panel belongs to a referee who may no longer be here.
+      setAskedLink((prev) => (prev?.id === r.id ? null : prev))
+      await load()
+    } catch {
+      setError("Could not remove that referee. Nothing has changed.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const total = refs?.length ?? 0
   const received = (refs ?? []).filter((r) => r.status === "received").length
 
@@ -156,6 +196,18 @@ export function CandidateReferences({
             {r.status !== "received" && r.status !== "declined" && (
               <button className="ag-btn ag-btn-secondary" onClick={() => ask(r.id)} disabled={busy}>
                 {r.status === "drafted" ? "Ask" : "Chase"}
+              </button>
+            )}
+            {/* A reference already given stays: those are the referee's own
+                words, and removing them would be editing the evidence. */}
+            {r.status !== "received" && (
+              <button
+                className="ag-btn ag-btn-secondary"
+                onClick={() => remove(r)}
+                disabled={busy}
+                aria-label={`Remove ${r.refereeName}`}
+              >
+                Remove
               </button>
             )}
             {askedLink?.id === r.id && !askedLink.emailed && (

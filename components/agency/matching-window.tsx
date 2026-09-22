@@ -111,11 +111,13 @@ const MatchedCard = memo(function MatchedCard({
   inviting,
   canInvite,
   onInvite,
+  onWithdraw,
 }: {
   person: MatchedPerson
   inviting: boolean
   canInvite: boolean
   onInvite: (recommendationId: string) => void
+  onWithdraw: (recommendationId: string) => void
 }) {
   const p = person
   const hits = p.evidence.filter((e) => e.strength !== "missing").length
@@ -158,9 +160,23 @@ const MatchedCard = memo(function MatchedCard({
         {p.appliedAt ? (
           <span className="ag-meta">Applied</span>
         ) : p.invitedAt ? (
-          <span className="ag-meta">
-            Invited · {new Date(p.invitedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-          </span>
+          <>
+            <span className="ag-meta">
+              Invited · {new Date(p.invitedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+            </span>
+            {/* Inviting the wrong person used to put "a recruiter asked about
+                you" on a stranger's page for good (22 Sep 2026). The match
+                stays — they still match, and still chose to be seen — but the
+                asking is taken back. */}
+            <button
+              className="ag-btn ag-btn-secondary"
+              disabled={inviting || !canInvite}
+              onClick={() => onWithdraw(p.recommendationId)}
+              aria-label={`Take back the invitation to ${p.name}`}
+            >
+              {inviting ? "Working…" : "Take it back"}
+            </button>
+          </>
         ) : (
           <button
             className="ag-btn ag-btn-primary"
@@ -184,6 +200,7 @@ export function MatchingWindow({
   matched,
   inviting,
   onInvite,
+  onWithdraw,
   canInvite,
   pool,
   minScore,
@@ -200,6 +217,8 @@ export function MatchingWindow({
   matched: { people: MatchedPerson[]; bucket: string } | null
   inviting: string | null
   onInvite: (recommendationId: string) => void
+  /** Take back an invitation that went to the wrong person (22 Sep 2026). */
+  onWithdraw: (recommendationId: string) => void
   canInvite: boolean
   /** Everyone who may be shown, not only those a scan accepted. */
   pool: { people: PoolPerson[] } | null
@@ -434,6 +453,7 @@ export function MatchingWindow({
                     inviting={inviting === p.recommendationId}
                     canInvite={canInvite}
                     onInvite={onInvite}
+                    onWithdraw={onWithdraw}
                   />
                 ))}
               </div>

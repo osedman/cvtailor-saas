@@ -18,6 +18,7 @@ import { requireAgencyContext, AgencyAccessError } from "@/lib/agency/db"
 import {
   getPlacementForCandidate,
   setPlacement,
+  voidPlacement,
   hasAdvanceDecision,
   PLACEMENT_STATUSES,
   type PlacementStatus,
@@ -108,6 +109,41 @@ export async function PUT(
     if (error instanceof AgencyAccessError) {
       // "say what happened" is an incomplete record, not a permission failure.
       const incomplete = /teaches nobody|travels with the record/.test(errorMessage(error))
+      return NextResponse.json({ error: errorMessage(error) }, { status: incomplete ? 422 : 403 })
+    }
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+  }
+}
+
+/**
+ * DELETE { placementId, reason } → void a placement.
+ *
+ * For a placement recorded against the wrong candidate or at the wrong fee.
+ * NOT `declined` or `fell_through`: those are outcomes about a person, and
+ * using one to correct a clerical mistake writes a false fact about somebody's
+ * career into an audited table. The row survives, out of every number, with
+ * the reason on the record. See voidPlacement().
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const auth = await requireAgencyContext()
+    if (!auth.ok) {
+      return NextResponse.json(
+        { error: auth.failure === "unauthenticated" ? "Unauthorised" : "No agency membership" },
+        { status: auth.failure === "unauthenticated" ? 401 : 403 }
+      )
+    }
+    const body = await req.json().catch(() => ({}))
+    const placementId = typeof body?.placementId === "string" ? body.placementId : ""
+    const reason = typeof body?.reason === "string" ? body.reason : ""
+    if (!placementId) return NextResponse.json({ error: "placementId is required" }, { status: 400 })
+
+    await voidPlacement(auth.ctx, placementId, reason)
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    if (error instanceof AgencyAccessError) {
+      // A missing reason is an incomplete record, not a permission failure.
+      const incomplete = /say why/.test(errorMessage(error))
       return NextResponse.json({ error: errorMessage(error) }, { status: incomplete ? 422 : 403 })
     }
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })

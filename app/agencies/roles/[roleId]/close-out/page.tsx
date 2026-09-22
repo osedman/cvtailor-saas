@@ -92,6 +92,43 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   const [refs, setRefs] = useState<ReferenceListRow[] | null>(null)
   const [pack, setPack] = useState<HandoverSnapshot | null>(null)
   const [packId, setPackId] = useState<string | null>(null)
+
+  /**
+   * Void an undelivered pack (22 Sep 2026). The pick can then change and the
+   * right pack be generated; the voided row stays for the audit. Refused by
+   * the server once the pack has been handed over.
+   */
+  async function voidPack() {
+    if (!packId) return
+    const reason = window.prompt(
+      "Void this pack? It stops being the record for this candidate and you can generate the right one.\n\nWhy is it being voided?"
+    )
+    if (reason === null) return
+    if (!reason.trim()) {
+      setError("Say why this pack is being voided.")
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/handover`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packId, reason }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not void that pack.")
+        return
+      }
+      setPackId(null)
+      setPack(null)
+    } catch {
+      setError("Could not void that pack. Nothing has changed.")
+    } finally {
+      setBusy(false)
+    }
+  }
   const [contacts, setContacts] = useState<Array<{ id: string; company: string; full_name: string }>>([])
   const [deliverTo, setDeliverTo] = useState("")
   const [deliveredTo, setDeliveredTo] = useState<string | null>(null)
@@ -691,6 +728,22 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                           title="Until it is handed over, the pack is a draft — re-freezing pulls in anything completed since (right to work, references, rounds)."
                         >
                           {busy ? "Re-freezing…" : "Re-freeze with the latest record"}
+                        </button>
+                      )}
+                      {/* Void: the way out of a pack frozen against the wrong
+                          candidate (22 Sep 2026). Generation returns the
+                          existing pack rather than minting twins, so without
+                          this the mistake IS the record. Only while
+                          undelivered — the server and a DB constraint both
+                          refuse it once the client has it. */}
+                      {!deliveredTo && packId && (
+                        <button
+                          className="ag-btn ag-btn-secondary"
+                          style={{ color: "var(--ag-coral-deep)" }}
+                          onClick={voidPack}
+                          disabled={busy}
+                        >
+                          {busy ? "Voiding…" : "Void this pack"}
                         </button>
                       )}
                     </div>

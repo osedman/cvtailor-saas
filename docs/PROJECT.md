@@ -7006,3 +7006,57 @@ waited for.
   yet mention the CV — the largest open gap.**
 - No migration. 1,588 tests green, build clean. **Not yet clicked by a
   person: staging sign-in is still outstanding.**
+
+## 🗑 Six ways out, and the lines they do not cross (22 September 2026)
+
+Ose: "go through the app and find where logically there needs to be a delete
+function and add it." A survey found six objects a user could create and
+never remove, plus one capability with no way to reach it.
+
+**Migration `20260922120000_agency_soft_deletes.sql` — Ose runs it in
+tailr-staging. The four soft deletes below do not work until he has.**
+
+- **Discard a role** — `closed` is an OUTCOME: it starts the retention clock
+  and tells candidates the role is filled, which is the wrong verb for a
+  role added twice. Discarding leaves every list and count, and is REFUSED
+  once the role has candidates or a submission, with "close it instead".
+- **Archive a client contact** — a hard delete is refused by Postgres
+  anyway: rounds and packs attribute actions to a contact with RESTRICT. The
+  row and its attribution stay; the person leaves the address book and every
+  picker. Access is NOT revoked with it, and the confirm says so — a client
+  mid-shortlist should not lose their page because someone tidied up.
+- **Remove a referee** — deleted outright while nothing has been sent,
+  withdrawn (`declined`) once the request has gone, because an email cannot
+  be unsent. The response says WHICH, so the screen never claims a deletion
+  that did not happen. A reference already given stays: those are the
+  referee's own words.
+- **Void a placement** — `declined` and `fell_through` are outcomes about a
+  person; using one to correct a clerical mistake writes a false fact about
+  somebody's career into an audited table. A void takes the row out of fill
+  rate, fee value and rebate exposure, with a reason in writing.
+- **Void an UNDELIVERED handover pack** — generation returns the existing
+  pack rather than minting twins, so a pack frozen against the wrong
+  candidate WAS the record. A delivered pack is refused by the route and by
+  a check constraint: the client has it.
+- **Take back a matched-person invitation** — the state goes back to `seen`
+  and the "a recruiter asked about you" card leaves their /found page. The
+  match itself stays. Refused once they have applied.
+- **🐛 Disconnect a calendar** — `DELETE /api/hiring/calendar/status` has
+  existed since the calendar shipped and NO screen ever called it. A hiring
+  manager could hand Tailr their diary and had no way to take it back.
+
+**Left deliberately undeletable**, and the migration touches none of them:
+candidates after a notice (a sent notice cannot be unsent), round decisions
+and client actions (append-only), members (suspended), audit rows,
+candidate erasure outside `purge_candidate()`, and frozen submissions.
+
+- **Every reason column is wrapped in `coalesce`.** A CHECK refuses only on
+  FALSE and NULL is not FALSE — the hole `placement_reason_iff_outside`
+  shipped with on 14 Sep. Both directions and a whitespace-only value are
+  covered.
+- **24 guard tests** (`agency-soft-deletes.test.ts`), scans rather than
+  mocks. **One was vacuous and was caught by probe-mutating it**: a
+  1600-character slice ran past the function under test and read the NEXT
+  function's guard, so deleting the real one left the suite green. Sliced by
+  function body now, and the probe fails correctly.
+- 1,612 tests green, build clean. **Not yet clicked by a person.**

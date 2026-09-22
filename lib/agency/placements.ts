@@ -342,6 +342,9 @@ export async function getPlacementForCandidate(
     .select("*")
     .eq("role_id", candidate.role_id as string)
     .eq("candidate_id", candidateId)
+    // A voided placement is out of every read and every number (22 Sep
+    // 2026). The row survives for the audit; it is no longer a placement.
+    .is("voided_at", null)
     .maybeSingle()
   if (!data) return null
   return shape(data, { ref: candidate.ref as string, name: candidate.full_name as string })
@@ -364,6 +367,7 @@ export async function listPlacementsForRole(
     .from("placements")
     .select("*")
     .eq("role_id", roleId)
+    .is("voided_at", null)
     .order("offered_at", { ascending: false })
   if (!rows?.length) return []
 
@@ -376,4 +380,71 @@ export async function listPlacementsForRole(
   )
 
   return rows.map((r) => shape(r, byId.get(r.candidate_id as string) ?? {}))
+}
+
+/**
+ * Void a placement — the correction that `declined` and `fell_through` are
+ * not (22 Sep 2026).
+ *
+ * Those two are OUTCOMES, and outcomes are about a person: "they turned it
+ * down", "they left inside the rebate window". Recording a placement against
+ * the wrong candidate, or at the wrong fee, is neither — it is a mistake
+ * about the record, and using an outcome to fix it writes a false fact about
+ * somebody's career into an audited table.
+ *
+ * Soft, and with a reason in writing, because a placement is money: it
+ * carries the fee, the rebate window and the invoice date, and a hard delete
+ * would take the trail of what was claimed with it. A voided row leaves fill
+ * rate, fee value and rebate exposure; it does not leave the audit.
+ */
+export async function voidPlacement(
+  ctx: AgencyContext,
+  placementId: string,
+  reason: string
+): Promise<void> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  const trimmed = (reason ?? "").trim().slice(0, 500)
+  if (!trimmed) throw new AgencyAccessError("say why this placement is being voided")
+
+  const { data: row, error: readError } = await admin
+    .from("placements")
+    .select("id, agency_id, role_id, candidate_id, status, voided_at")
+    .eq("id", placementId)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!row || row.agency_id !== ctx.agencyId) {
+    throw new AgencyAccessError("that placement is not on this agency")
+  }
+  if (row.voided_at) return
+
+  // The audit row is keyed to the CANDIDATE, exactly as setPlacement's is:
+  // 'placement' is not a value of the audit_log entity_type constraint, and
+  // the pair of them have to stay in step (audit-entity-types.test.ts).
+  // Reading the ref here also keeps the trail human — 'CAN-04', not a uuid.
+  const { data: candidate } = await admin
+    .from("candidates")
+    .select("ref")
+    .eq("id", row.candidate_id as string)
+    .maybeSingle()
+
+  const { error } = await admin
+    .from("placements")
+    .update({ voided_at: new Date().toISOString(), voided_by: ctx.userId, void_reason: trimmed })
+    .eq("id", placementId)
+    .eq("agency_id", ctx.agencyId)
+    .is("voided_at", null)
+  if (error) throw error
+
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    roleId: row.role_id as string,
+    candidateId: row.candidate_id as string,
+    actorId: ctx.userId,
+    entityType: "candidate",
+    entityRef: (candidate?.ref as string) ?? "",
+    action: "placement_voided",
+    fromValue: { status: row.status as string },
+    reason: trimmed,
+  })
 }

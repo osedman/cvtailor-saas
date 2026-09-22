@@ -230,6 +230,88 @@ export async function markReferenceNoticeSent(ctx: AgencyContext, referenceId: s
   if (error) throw error
 }
 
+/**
+ * Take a referee off a candidate — the way back out of a typo (22 Sep 2026).
+ *
+ * Until now a referee, once added, was permanent: the wrong address or the
+ * wrong person could only be moved FORWARD, into an email to a stranger.
+ *
+ * Two outcomes, and which one you get is not a choice:
+ *
+ *   · NOTHING HAS BEEN SENT — the row is deleted outright. Nobody was
+ *     contacted, no notice went out, and this person never knew they were
+ *     named. Keeping a record of a mistake about a third party who was never
+ *     told they were in our database is not a trail; it is the thing the
+ *     trail is supposed to protect them from.
+ *   · THE REQUEST HAS GONE — the row is kept and marked `declined`, which is
+ *     already the enum's word for "this referee is not answering". A sent
+ *     email cannot be unsent, and the referee may reply after the recruiter
+ *     has moved on; the record of what they were told has to survive.
+ *
+ * Audited either way, and returns which of the two happened so the screen
+ * can say it rather than guess.
+ */
+export async function removeReferee(
+  ctx: AgencyContext,
+  referenceId: string
+): Promise<{ outcome: "deleted" | "withdrawn" }> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  const { data: row, error: readError } = await admin
+    .from("candidate_references")
+    .select("id, candidate_id, candidate_ref, status, notice_sent_at, received_at")
+    .eq("id", referenceId)
+    .eq("agency_id", ctx.agencyId)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!row) throw new AgencyAccessError("that referee is not on this agency")
+
+  // A reference already given belongs to the referee, not to us. Their words
+  // are the record; removing them would be editing evidence.
+  if (row.received_at) {
+    throw new AgencyAccessError("this referee has already answered — their reference stays on the record")
+  }
+
+  // "Contacted" is the notice, not the status: markReferenceNoticeSent()
+  // stamps it in the same operation as the email, so it is the one field
+  // that cannot be true without a message having left.
+  const contacted = row.notice_sent_at !== null
+
+  if (!contacted) {
+    const { error } = await admin
+      .from("candidate_references")
+      .delete()
+      .eq("id", referenceId)
+      .eq("agency_id", ctx.agencyId)
+      // Guarded: if the request went out between the read and the delete,
+      // this matches zero rows and the row survives, which is the safe way
+      // to lose the race.
+      .is("notice_sent_at", null)
+    if (error) throw error
+  } else {
+    const { error } = await admin
+      .from("candidate_references")
+      .update({ status: "declined" })
+      .eq("id", referenceId)
+      .eq("agency_id", ctx.agencyId)
+    if (error) throw error
+  }
+
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    candidateId: row.candidate_id as string,
+    actorId: ctx.userId,
+    entityType: "reference",
+    entityRef: (row.candidate_ref as string) ?? "",
+    action: contacted ? "referee_withdrawn" : "referee_deleted",
+    reason: contacted
+      ? "Referee withdrawn after the request had been sent"
+      : "Referee removed before anything was sent",
+  })
+
+  return { outcome: contacted ? "withdrawn" : "deleted" }
+}
+
 export interface RefereeView {
   agencyName: string
   candidateName: string

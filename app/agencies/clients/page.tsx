@@ -166,6 +166,46 @@ export default function ClientAccessPage() {
     }
   }
 
+  /**
+   * Take a contact out of the address book (22 Sep 2026).
+   *
+   * Archive, not delete: rounds and handover packs attribute actions to this
+   * person with RESTRICT, so the row has to survive. It leaves this list, the
+   * recipient pickers and the role contact dropdown.
+   *
+   * Access is NOT revoked with it. A client halfway through a shortlist
+   * should not lose the page they are reading because somebody tidied up, so
+   * the confirm names the separate act rather than doing it quietly.
+   */
+  async function archiveContact(row: ClientAccessRow) {
+    const stillHasAccess = row.state === "linked" || row.state === "invited"
+    const ok = window.confirm(
+      stillHasAccess
+        ? `Archive ${row.company}? They leave your address book and the recipient lists.\n\nThis does NOT take away their access — ${row.state === "linked" ? "they can still sign in" : "their invite still works"}. Use ${row.state === "linked" ? "\u201cRemove access\u201d" : "\u201cRevoke invite\u201d"} first if that is what you want.`
+        : `Archive ${row.company}? They leave your address book and the recipient lists. Everything they have already done stays on the record.`
+    )
+    if (!ok) return
+    setBusyContact(row.contactId)
+    setError(null)
+    try {
+      const res = await fetch("/api/agency/contacts", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId: row.contactId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not archive that client.")
+        return
+      }
+      await load()
+    } catch {
+      setError("Could not archive that client. Nothing has changed.")
+    } finally {
+      setBusyContact(null)
+    }
+  }
+
   function patchRow(contactId: string, patch: Partial<ClientAccessRow>) {
     setRows((prev) => (prev ? prev.map((r) => (r.contactId === contactId ? { ...r, ...patch } : r)) : prev))
   }
@@ -561,6 +601,20 @@ export default function ClientAccessPage() {
                           Remove access
                         </button>
                       )}
+                      {/* Archive: the address book's own delete (22 Sep
+                          2026). A hard delete is refused by Postgres the
+                          moment this person has done anything — the FKs are
+                          RESTRICT and that attribution is the point. Access
+                          is a separate act and is not silently revoked with
+                          it; the confirm says so. */}
+                      <button
+                        className="ag-btn ag-btn-secondary"
+                        disabled={busy}
+                        onClick={() => archiveContact(row)}
+                        aria-label={`Archive ${row.company}`}
+                      >
+                        Archive
+                      </button>
                       {busy && <span className="ag-spin" />}
                     </div>
                   </div>

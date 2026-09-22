@@ -225,9 +225,71 @@ export async function listJobRoles(db: AgencyClient, ctx: AgencyContext): Promis
     .from("job_roles")
     .select("*")
     .eq("agency_id", ctx.agencyId)
+    // Discarded roles leave every list (22 Sep 2026). A role created twice or
+    // by mistake used to have only "close" as a way out, and closing is an
+    // outcome: it starts the retention clock and tells candidates the role is
+    // filled. This is the other verb. Discarding is refused once the role has
+    // anyone on it — see discardJobRole().
+    .is("discarded_at", null)
     .order("created_at", { ascending: false })
   if (error) throw error
   return (data ?? []) as JobRole[]
+}
+
+/**
+ * Discard a role — the way out of a typo, which "close" was never meant to be.
+ *
+ * REFUSED once the role is real: any candidate on it, any submission sent, any
+ * notice out. By then people are involved and their records hang off it, and
+ * making it vanish from the recruiter's screens would leave a candidate's data
+ * attached to something nobody can see. Closing is the honest act there.
+ *
+ * Soft, because job_roles is the parent of most of this schema: candidates,
+ * submissions, rounds, placements and audit rows all point at it with RESTRICT
+ * or CASCADE, and neither answer is right for a mistake.
+ */
+export async function discardJobRole(
+  ctx: AgencyContext,
+  roleId: string,
+  reason: string
+): Promise<void> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  const trimmed = (reason ?? "").trim().slice(0, 500)
+  // The DB constraint refuses a blank reason too — this is the readable error.
+  if (!trimmed) throw new AgencyAccessError("say why this role is being discarded")
+
+  const role = await getJobRole(admin, ctx, roleId)
+  if (!role) throw new AgencyAccessError("that role is not on this agency")
+  if (role.discarded_at) return
+
+  const [{ count: candidates }, { count: submissions }] = await Promise.all([
+    admin.from("candidates").select("id", { count: "exact", head: true }).eq("agency_id", ctx.agencyId).eq("role_id", roleId),
+    admin.from("submissions").select("id", { count: "exact", head: true }).eq("agency_id", ctx.agencyId).eq("role_id", roleId),
+  ])
+  if ((candidates ?? 0) > 0 || (submissions ?? 0) > 0) {
+    throw new AgencyAccessError(
+      "this role has people on it — close it instead, which tells them and starts the retention clock"
+    )
+  }
+
+  const { error } = await admin
+    .from("job_roles")
+    .update({ discarded_at: new Date().toISOString(), discarded_by: ctx.userId, discard_reason: trimmed })
+    .eq("id", roleId)
+    .eq("agency_id", ctx.agencyId)
+    .is("discarded_at", null)
+  if (error) throw error
+
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    roleId,
+    actorId: ctx.userId,
+    entityType: "role",
+    entityRef: role.ref,
+    action: "discarded",
+    reason: trimmed,
+  })
 }
 
 export async function getJobRole(

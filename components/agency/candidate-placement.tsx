@@ -29,6 +29,8 @@ const LABEL: Record<Status, string> = {
 }
 
 interface Placement {
+  /** Needed to void it — the correction that `declined` is not. */
+  id: string
   status: Status
   startDate: string | null
   feePercent: number | null
@@ -108,6 +110,41 @@ export function CandidatePlacement({
       }
     })()
   }, [candidateId, hydrate])
+
+  /**
+   * Void the placement (22 Sep 2026). It leaves fill rate, fee value and
+   * rebate exposure; the row and its reason stay for the audit. The reason is
+   * required by the route AND by a DB constraint, so it is asked for here.
+   */
+  const voidIt = useCallback(async () => {
+    if (!placement) return
+    const reason = window.prompt(
+      "Void this placement? It comes out of your fill rate, fee value and rebate exposure. The record stays for the audit.\n\nWhy is it being voided?"
+    )
+    if (reason === null) return
+    if (!reason.trim()) {
+      toast.error("Say why this placement is being voided.")
+      return
+    }
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/agency/candidates/${candidateId}/placement`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ placementId: placement.id, reason }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body?.error || "Could not void that placement.")
+      setPlacement(null)
+      setOpen(false)
+      toast.success("Voided. It leaves your numbers; the record stays for the audit.")
+      onSaved?.()
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }, [candidateId, placement, onSaved])
 
   const save = useCallback(async () => {
     setBusy(true)
@@ -262,6 +299,21 @@ export function CandidatePlacement({
               {placement && (
                 <button className="ag-btn" onClick={() => { setOpen(false); hydrate(placement) }} disabled={busy}>
                   Cancel
+                </button>
+              )}
+              {/* Void — for a placement recorded against the wrong candidate
+                  or at the wrong fee (22 Sep 2026). NOT `declined` or `fell
+                  through`: those are outcomes about a person, and using one
+                  to fix a clerical mistake writes a false fact about
+                  somebody's career into an audited table. */}
+              {placement && (
+                <button
+                  className="ag-btn"
+                  style={{ color: "var(--ag-coral-deep)" }}
+                  onClick={() => void voidIt()}
+                  disabled={busy}
+                >
+                  Void this placement
                 </button>
               )}
               <span className="ag-note" style={{ color: "var(--ag-ink-3)" }}>

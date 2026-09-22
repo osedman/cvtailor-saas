@@ -115,6 +115,10 @@ export async function generateHandoverPack(
     .eq("agency_id", ctx.agencyId)
     .eq("role_id", input.roleId)
     .eq("candidate_id", input.candidateId)
+    // A voided pack is not the pack (22 Sep 2026): voiding exists so a draft
+    // frozen against the wrong candidate can be abandoned and the right one
+    // generated, and re-attaching to it here would defeat exactly that.
+    .is("voided_at", null)
     .order("generated_at", { ascending: true })
     .limit(1)
     .maybeSingle()
@@ -429,4 +433,64 @@ export async function deliverHandoverPack(
   } catch {
     /* audited inside notify; delivery stands */
   }
+}
+
+/**
+ * Void an UNDELIVERED handover pack (22 Sep 2026).
+ *
+ * A pack is frozen at generation, and until now there was no way back from
+ * one frozen against the wrong candidate: generation returns the existing
+ * row rather than minting twins, so the mistake was the record.
+ *
+ * DELIVERED PACKS CANNOT BE VOIDED, and the check constraint enforces it as
+ * well as this function. The client has it; a product that could un-send it
+ * would be lying about what they hold. The DB refuses, so a future caller
+ * that forgets this rule fails loudly rather than quietly rewriting history.
+ */
+export async function voidHandoverPack(
+  ctx: AgencyContext,
+  packId: string,
+  reason: string
+): Promise<void> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  const trimmed = (reason ?? "").trim().slice(0, 500)
+  if (!trimmed) throw new AgencyAccessError("say why this pack is being voided")
+
+  const { data: pack, error: readError } = await admin
+    .from("handover_packs")
+    .select("id, agency_id, role_id, candidate_id, candidate_ref, delivered_at, voided_at")
+    .eq("id", packId)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!pack || pack.agency_id !== ctx.agencyId) {
+    throw new AgencyAccessError("that pack is not on this agency")
+  }
+  if (pack.voided_at) return
+  if (pack.delivered_at) {
+    throw new AgencyAccessError(
+      "this pack has been handed over — the client has it, and it stays on the record as it was sent"
+    )
+  }
+
+  const { error } = await admin
+    .from("handover_packs")
+    .update({ voided_at: new Date().toISOString(), voided_by: ctx.userId, void_reason: trimmed })
+    .eq("id", packId)
+    .eq("agency_id", ctx.agencyId)
+    // Guarded: delivery between the read and the write leaves the pack alone.
+    .is("delivered_at", null)
+    .is("voided_at", null)
+  if (error) throw error
+
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    roleId: pack.role_id as string,
+    candidateId: (pack.candidate_id as string) ?? null,
+    actorId: ctx.userId,
+    entityType: "handover",
+    entityRef: (pack.candidate_ref as string) ?? "",
+    action: "pack_voided",
+    reason: trimmed,
+  })
 }

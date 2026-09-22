@@ -248,6 +248,67 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       setInviting(null)
     }
   }
+  /**
+   * Take an invitation back (22 Sep 2026). The person stays on the matched
+   * list — they still match and still chose to be seen — but the "a recruiter
+   * asked about you" card leaves their /found page. Refused once they have
+   * applied, by the route.
+   */
+  async function withdrawInvite(recommendationId: string) {
+    setInviting(recommendationId)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/matching/invite`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendationId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not take that invitation back.")
+        return
+      }
+      await loadMatched()
+    } catch {
+      setError("Could not take that invitation back.")
+    } finally {
+      setInviting(null)
+    }
+  }
+  const [discarding, setDiscarding] = useState(false)
+  /**
+   * Discard the role. The reason is required by both the route and the DB
+   * constraint, so it is asked for here rather than sent empty and refused.
+   */
+  async function discardRole() {
+    const reason = window.prompt(
+      "Discard this role? It leaves your lists; the record stays for the audit.\n\nWhy are you discarding it?"
+    )
+    if (reason === null) return
+    if (!reason.trim()) {
+      setError("Say why this role is being discarded.")
+      return
+    }
+    setDiscarding(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not discard this role.")
+        return
+      }
+      router.push("/agencies")
+    } catch {
+      setError("Could not discard this role. Nothing has changed.")
+    } finally {
+      setDiscarding(false)
+    }
+  }
   const [probePicker, setProbePicker] = useState(false)
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
   const [disclosure, setDisclosure] = useState<Disclosure>({ scores: true, evidence: true, probes: true, notes: false, logistics: true })
@@ -1184,6 +1245,27 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       </div>
                     </div>
                   </div>
+                  {/*
+                    Discard — the way out of a role created twice or by
+                    mistake (22 Sep 2026). Not "close": closing is an outcome
+                    that starts the retention clock and tells candidates the
+                    role is filled. The server refuses this the moment anyone
+                    is on the role, and says to close it instead.
+                  */}
+                  <div className="ag-card">
+                    <div className="ag-card-head"><span className="ag-card-title">Discard this role</span><span className="ag-pill">Audit logged</span></div>
+                    <div className="ag-card-body">
+                      <p className="ag-note" style={{ marginBottom: 10 }}>
+                        For a role added twice, or by mistake. It leaves your lists and counts, and the
+                        record stays for the audit. Once anyone is on the role this is refused — close it
+                        instead, which tells the candidates and starts the retention clock.
+                      </p>
+                      <button className="ag-btn ag-btn-secondary" disabled={discarding} onClick={() => void discardRole()}>
+                        {discarding ? "Discarding…" : "Discard this role"}
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="ag-card">
                     <div className="ag-card-head"><span className="ag-card-title">Recruiter notes</span><span className="ag-pill">Private</span></div>
                     <div className="ag-card-body">
@@ -2801,6 +2883,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
           matched={matched}
           pool={pool}
           inviting={inviting}
+          onWithdraw={withdrawInvite}
           onInvite={invite}
           canInvite={callerRole !== "viewer"}
           minScore={minScoreDraft}

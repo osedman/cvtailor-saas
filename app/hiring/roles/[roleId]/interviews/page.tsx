@@ -62,6 +62,37 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
   const [screen, setScreen] = useState<"loading" | "ready" | "none" | "unauthed" | "error">("loading")
   const [shortlist, setShortlist] = useState<Shortlist | null>(null)
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null)
+  const [disconnecting, setDisconnecting] = useState(false)
+
+  /**
+   * Hand the diary access back (22 Sep 2026). Confirmed, because the windows
+   * already offered are not withdrawn with it — those are promises made to
+   * candidates and they stay until they are withdrawn one by one.
+   */
+  async function disconnectCalendar() {
+    const ok = window.confirm(
+      "Disconnect your calendar? Tailr stops reading your busy time. Times you have already offered stay offered — withdraw those separately if you need to."
+    )
+    if (!ok) return
+    setDisconnecting(true)
+    setScanError(null)
+    try {
+      const res = await fetch("/api/hiring/calendar/status", { method: "DELETE" })
+      if (!res.ok) {
+        setScanError("We could not disconnect your calendar. Nothing has changed — try again.")
+        return
+      }
+      const again = await fetch("/api/hiring/calendar/status")
+      if (again.ok) setCalendar((await again.json()) as CalendarStatus)
+      // A scan's results belong to a calendar that is no longer connected.
+      setProposed(null)
+      setBusy(null)
+    } catch {
+      setScanError("We could not disconnect your calendar. Nothing has changed — try again.")
+    } finally {
+      setDisconnecting(false)
+    }
+  }
   const [choices, setChoices] = useState<Record<string, Choice>>({})
   /**
    * The latest ROUND decision per candidate, which is not the same thing as
@@ -624,6 +655,21 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                         </button>
                         <button type="button" className="agd-tbtn" disabled={chosen.length === 0} onClick={() => propose([])}>
                           Propose without scanning
+                        </button>
+                        {/*
+                          Disconnect. The DELETE has existed since the
+                          calendar shipped and no screen ever called it: you
+                          could hand Tailr access to your diary and had no way
+                          to take it back (22 Sep 2026). Granting access needs
+                          a click, so withdrawing it should not need an email.
+                        */}
+                        <button
+                          type="button"
+                          className="agd-tbtn"
+                          disabled={disconnecting}
+                          onClick={() => void disconnectCalendar()}
+                        >
+                          {disconnecting ? "Disconnecting…" : "Disconnect"}
                         </button>
                       </>
                     ) : (

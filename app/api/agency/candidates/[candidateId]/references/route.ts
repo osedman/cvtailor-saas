@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
-import { addReferee, listReferences, requestReference, markReferenceNoticeSent } from "@/lib/agency/references"
+import { addReferee, listReferences, requestReference, markReferenceNoticeSent, removeReferee } from "@/lib/agency/references"
 import { sendEmail } from "@/lib/email"
 import { getAppOrigin } from "@/lib/site-url"
 
@@ -110,5 +110,34 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
   } catch (e) {
     if (e instanceof AgencyAccessError) return NextResponse.json({ error: e.message }, { status: 403 })
     return NextResponse.json({ error: e instanceof Error ? e.message : "Could not send that request" }, { status: 500 })
+  }
+}
+
+/**
+ * DELETE { referenceId } → take a referee off this candidate.
+ *
+ * Deleted outright if nothing has been sent; withdrawn (status `declined`)
+ * if the request has already gone, because an email cannot be unsent. The
+ * response says which happened, so the screen can tell the truth about it
+ * rather than claim a deletion that did not occur. See removeReferee().
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const auth = await requireAgencyContext()
+    if (!auth.ok) {
+      return NextResponse.json(
+        { error: auth.failure === "unauthenticated" ? "Unauthorised" : "No agency membership" },
+        { status: auth.failure === "unauthenticated" ? 401 : 403 }
+      )
+    }
+    const body = await req.json().catch(() => ({}))
+    const referenceId = typeof body?.referenceId === "string" ? body.referenceId : ""
+    if (!referenceId) return NextResponse.json({ error: "referenceId is required" }, { status: 400 })
+
+    const { outcome } = await removeReferee(auth.ctx, referenceId)
+    return NextResponse.json({ ok: true, outcome })
+  } catch (e) {
+    if (e instanceof AgencyAccessError) return NextResponse.json({ error: e.message }, { status: 403 })
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Could not remove that referee" }, { status: 500 })
   }
 }

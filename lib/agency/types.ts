@@ -46,6 +46,15 @@ export interface JobRole {
   recruiter_notes: string
   status: RoleStatus
   closed_at: string | null
+  /**
+   * Discarded, which is NOT closed (22 Sep 2026). Closing is an outcome that
+   * starts retention and tells candidates; discarding is the way out of a
+   * typo, allowed only while nobody is on the role. Discarded roles leave
+   * every list — see discardJobRole() in db.ts.
+   */
+  discarded_at: string | null
+  discarded_by: string | null
+  discard_reason: string | null
   created_at: string
   updated_at: string
 }
