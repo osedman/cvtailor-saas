@@ -103,8 +103,17 @@ export function getMarketingOrigin(): string {
   return normaliseOrigin(process.env.NEXT_PUBLIC_MARKETING_URL) ?? "https://www.gettailr.com"
 }
 
+const BUSINESS_DEFAULT = "https://agencies.gettailr.com"
+
+/**
+ * Where business links point. 22 Sep 2026: this had no preview fallback, so
+ * on staging every hiring-manager invite and teammate invite linked to
+ * agencies.gettailr.com — which answers 404, because there is no B2B
+ * production yet. "The client invite link is not working." The same fix
+ * getAppOrigin got on 15 Sep: a preview links to itself.
+ */
 export function getBusinessOrigin(): string {
-  return normaliseOrigin(process.env.NEXT_PUBLIC_BUSINESS_URL) ?? "https://agencies.gettailr.com"
+  return normaliseOrigin(process.env.NEXT_PUBLIC_BUSINESS_URL) ?? nonProductionOrigin() ?? BUSINESS_DEFAULT
 }
 
 /** Absolute B2B URL, e.g. businessPath('/agencies') → https://agencies.gettailr.com/agencies */
@@ -123,8 +132,14 @@ export function originHost(origin: string): string {
 }
 
 /** Derived, never a constant — the business domain is expected to change. */
+/**
+ * The CONFIGURED business host, for host routing in proxy.ts. Deliberately
+ * not the preview fallback above: on a preview the fallback host is the same
+ * host as the app, and host-splitting a host from itself would redirect in a
+ * loop. Links fall back; routing does not.
+ */
 export function getBusinessHost(): string {
-  return originHost(getBusinessOrigin())
+  return originHost(normaliseOrigin(process.env.NEXT_PUBLIC_BUSINESS_URL) ?? BUSINESS_DEFAULT)
 }
 
 /** Absolute product URL, e.g. appPath('/tailor') → https://app.gettailr.com/tailor */

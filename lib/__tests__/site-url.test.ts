@@ -150,3 +150,24 @@ describe('site-url', () => {
     }
   })
 })
+
+describe('business links on a preview (22 Sep 2026)', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('a staging invite links to staging, not the 404ing agencies.gettailr.com', async () => {
+    vi.stubEnv('NEXT_PUBLIC_BUSINESS_URL', '')
+    vi.stubEnv('VERCEL_ENV', 'preview')
+    vi.stubEnv('VERCEL_BRANCH_URL', 'cvtailor-saas-git-staging-x.vercel.app')
+    const { getBusinessOrigin, getBusinessHost } = await import('../site-url')
+    expect(getBusinessOrigin()).toBe('https://cvtailor-saas-git-staging-x.vercel.app')
+    // Routing keeps the configured host, so a preview never host-splits itself.
+    expect(getBusinessHost()).toBe('agencies.gettailr.com')
+  })
+
+  it('production is unchanged', async () => {
+    vi.stubEnv('NEXT_PUBLIC_BUSINESS_URL', '')
+    vi.stubEnv('VERCEL_ENV', 'production')
+    const { getBusinessOrigin } = await import('../site-url')
+    expect(getBusinessOrigin()).toBe('https://agencies.gettailr.com')
+  })
+})
