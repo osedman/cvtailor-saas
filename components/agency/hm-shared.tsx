@@ -92,33 +92,21 @@ export function showsHiringRail(pathname: string): boolean {
 
 export function hiringNavFor(pathname: string): HiringNavItem[] {
   /*
-   * FIVE PLACES, ONE PER PHASE (19 Sep 2026, Ose — Figma frame 15).
+   * THREE PLACES, ONE QUESTION EACH (22 Sep 2026, Ose — Figma frame 23).
    *
-   * This was Home and Interviews. Two items meant everything else lived on
-   * the dashboard, and a hiring manager with six live roles had one screen
-   * that was a roles list, a task list, a rounds list and a diary at once.
-   * Frame 03 argued against a stacked sidebar and was right about the
-   * RECRUITER's eighteen links; the client's side has five things in it, and
-   * naming them is what stops the dashboard being a corridor.
-   *
-   * Each place reaches real data. A nav item opening an empty screen is the
-   * same broken promise as a button that cannot do anything.
+   * Replaces the five of frame 15 (My roles, Tasks, Shortlist, Interviews,
+   * Decisions), which sliced the same things three ways — by task, by role
+   * and by phase across every role — so Tasks and My roles were one list
+   * drawn twice and a candidate on the Shortlist screen did not say which
+   * role they were for. Shortlist, the rounds and the decision are now
+   * stages INSIDE a role's room, so everything under /hiring/roles/ lights
+   * Roles.
    */
-  const onCohort = /^\/hiring\/roles\/[^/]+\/interviews/.test(pathname)
-  // A role page is a door opened from a task, so Tasks stays lit there — the
-  // same reasoning that kept Home lit before. The TRAILING SLASH matters:
-  // /hiring/roles exactly is My roles, /hiring/roles/<id> is a door out of
-  // Tasks. Without it, My roles could never light.
-  const onRoleDoor = /^\/hiring\/roles\/.+/.test(pathname) && !onCohort
-
-  const exact = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
-
+  const under = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
   return [
-    { href: "/hiring/roles", label: "My roles", on: pathname === "/hiring/roles" },
-    { href: "/hiring", label: "Tasks", on: pathname === "/hiring" || onRoleDoor },
-    { href: "/hiring/shortlist", label: "Shortlist", on: exact("/hiring/shortlist") },
-    { href: "/hiring/interviews", label: "Interviews", on: exact("/hiring/interviews") || onCohort },
-    { href: "/hiring/decisions", label: "Decisions", on: exact("/hiring/decisions") },
+    { href: "/hiring", label: "To do", on: pathname === "/hiring" },
+    { href: "/hiring/roles", label: "Roles", on: under("/hiring/roles") },
+    { href: "/hiring/diary", label: "Diary", on: under("/hiring/diary") },
   ]
 }
 

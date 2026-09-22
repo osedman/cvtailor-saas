@@ -150,11 +150,16 @@ export async function getClientShortlist(ctx: HiringContext, roleId: string): Pr
   }
   const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null)
   const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null)
+  // Every shortlist sent to THIS person on THIS role, newest choice per ref
+  // (22 Sep 2026). Read from the latest recipient row only, a re-sent
+  // shortlist wiped every earlier choice back to "not decided" — and the
+  // setup screen then let the same person be chosen twice.
+  const myRecipientIds = flat.filter((x) => x.r.contact_id === r.contact_id).map((x) => x.r.id)
   const { data: actions } = await admin
     .from("client_actions")
     .select("candidate_ref, action, created_at")
     .eq("agency_id", r.agency_id)
-    .eq("recipient_id", r.id)
+    .in("recipient_id", myRecipientIds)
     .order("created_at", { ascending: false })
   const latest = new Map<string, string>()
   for (const a of actions ?? []) {

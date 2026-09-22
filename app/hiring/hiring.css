@@ -758,3 +758,130 @@
   margin: 0 0 12px; font-size: var(--t-caption); line-height: 1.55;
   color: var(--ag-ink-3);
 }
+
+/* ============================================================
+   The three places and the role room — Figma frame 23 (22 Sep 2026).
+   Tokens only, so the surface follows whichever theme is in force.
+   ============================================================ */
+
+/* Room head and stage bar. The current stage carries weight AND words (a
+   screen-reader suffix), done stages carry a tick, and stages not reached
+   are plain text rather than links. */
+.hm-room-head { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.hm-back { font-size: var(--t-small); color: var(--ag-ink-3); text-decoration: none; width: fit-content; }
+.hm-back:hover { color: var(--ag-ink); }
+.hm-room-title { margin: 2px 0 0; }
+.hm-stagebar ol { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 10px 0 0; padding: 0; }
+.hm-stagebar li { display: flex; align-items: center; gap: 6px; }
+.hm-stagebar li + li::before { content: "→"; color: var(--ag-ink-3); font-size: var(--t-small); }
+.hm-stage {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 6px 14px;
+  border: 1px solid var(--ag-line-2); border-radius: var(--r-pill); background: var(--ag-paper);
+  font-size: var(--t-small); font-weight: 500; color: var(--ag-ink-3); text-decoration: none;
+}
+.hm-stagebar li[data-state="done"] .hm-stage { color: var(--ag-ink); }
+.hm-stagebar li[data-state="current"] .hm-stage { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); font-weight: 600; }
+.hm-stagebar li[data-here] .hm-stage { box-shadow: 0 0 0 3px var(--ag-tint-2); }
+a.hm-stage:hover { border-color: var(--ag-ink-3); }
+a.hm-stage:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; }
+.hm-stage-lede { margin: 0 0 12px; }
+
+/* The written-down hand-off at the foot of every stage. */
+.hm-handoff {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 18px;
+  padding: 14px 18px; border: 1px solid var(--ag-border); border-radius: 12px; background: var(--ag-paper);
+}
+.hm-handoff[data-ready] { background: var(--ag-tint-1); border-color: var(--ag-tint-2); }
+.hm-handoff p { flex: 1 1 280px; margin: 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink); }
+
+/* To do: one row per owed thing. The coral bar is a second signal, never the
+   only one — the row's words say what is owed. */
+.hm-todo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.hm-todo-row {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap; min-height: 72px;
+  padding: 14px 16px 14px 18px; border: 1px solid var(--ag-border); border-left: 4px solid var(--ag-line-2);
+  border-radius: 12px; background: var(--ag-paper);
+}
+.hm-todo-row[data-urgent] { border-color: var(--ag-tint-2); border-left-color: var(--ag-coral); }
+.hm-todo-text { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.hm-todo-title { font-size: 15.5px; font-weight: 600; color: var(--ag-ink); overflow-wrap: anywhere; }
+.hm-todo-meta { font-size: var(--t-small); color: var(--ag-ink-3); overflow-wrap: anywhere; }
+.hm-todo-cta { min-height: 40px; }
+
+/* Quiet lists: coming up, the rest of a round, history, outcomes. */
+.hm-quiet-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--ag-border); border-radius: 10px; background: var(--ag-paper); }
+.hm-quiet-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid var(--ag-border); font-size: var(--t-body); color: var(--ag-ink); }
+.hm-quiet-list li:first-child { border-top: none; }
+.hm-quiet-list li > span:last-child { color: var(--ag-ink-3); font-size: var(--t-small); }
+.hm-quiet-list li > span[data-decision="advance"] { color: var(--ag-coral-deep); font-weight: 500; }
+.hm-quiet-list a { color: var(--ag-ink); text-decoration: none; font-weight: 500; }
+.hm-quiet-list a:hover { text-decoration: underline; }
+.hm-q-strong { font-weight: 600; }
+
+/* A finished round: one line, opened on request. */
+.hm-history { border: 1px solid var(--ag-border); border-radius: 10px; background: var(--ag-paper); }
+.hm-history > summary { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; list-style: none; min-height: 44px; }
+.hm-history > summary::-webkit-details-marker { display: none; }
+.hm-history > summary > span:first-child { font-weight: 600; color: var(--ag-ink); }
+.hm-history-sum { flex: 1; color: var(--ag-ink-3); font-size: var(--t-small); }
+.hm-history-open { color: var(--ag-coral-deep); font-size: var(--t-small); font-weight: 500; }
+.hm-history[open] .hm-history-open { visibility: hidden; }
+.hm-history > summary:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: -2px; border-radius: 10px; }
+.hm-history .hm-quiet-list { border: none; border-top: 1px solid var(--ag-border); border-radius: 0 0 10px 10px; }
+
+/* Plain explanation cards (no shortlist here, round not started, preparing). */
+.hm-note-card { padding: 18px 20px; border: 1px solid var(--ag-border); border-radius: 12px; background: var(--ag-paper); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.hm-note-card p { margin: 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink-2); }
+.hm-note-card .hm-note-title { font-weight: 600; color: var(--ag-ink); font-size: 15.5px; }
+
+/* Roles list. */
+.hm-role-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.hm-role-link { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border: 1px solid var(--ag-border); border-radius: 12px; background: var(--ag-paper); text-decoration: none; }
+.hm-role-link:hover { border-color: var(--ag-line-2); }
+.hm-role-link:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; }
+.hm-role-title { font-size: 16px; font-weight: 600; color: var(--ag-ink); }
+.hm-role-meta { font-size: var(--t-small); color: var(--ag-ink-3); }
+.hm-role-progress { display: flex; gap: 4px; margin: 4px 0; }
+.hm-role-progress > span { flex: 1; height: 6px; border-radius: 3px; background: var(--ag-border); }
+.hm-role-progress > span[data-state="done"] { background: var(--ag-coral-deep); }
+.hm-role-progress > span[data-state="current"] { background: var(--ag-coral); }
+.hm-role-next { font-size: var(--t-body); color: var(--ag-ink-2); }
+.hm-role-next[data-yours] { color: var(--ag-coral-deep); font-weight: 600; }
+
+/* Shortlist stage additions. */
+.hm-sl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.hm-sl-state[data-tone="fwd"] { color: var(--ag-coral-deep); background: var(--ag-tint-1); }
+.hm-decision-head { margin: 0 0 6px; }
+
+/* Diary. */
+.hm-diary { list-style: none; margin: 0; padding: 0; border: 1px solid var(--ag-border); border-radius: 10px; background: var(--ag-paper); }
+.hm-diary li { display: grid; grid-template-columns: minmax(180px, 220px) 1fr auto; gap: 14px; align-items: center; padding: 13px 16px; border-top: 1px solid var(--ag-border); }
+.hm-diary li:first-child { border-top: none; }
+.hm-diary-when { font-weight: 600; color: var(--ag-ink); font-variant-numeric: tabular-nums; }
+.hm-diary a { color: var(--ag-ink); text-decoration: none; }
+.hm-diary a:hover { text-decoration: underline; }
+.hm-diary-join { font-size: var(--t-small); color: var(--ag-coral-deep); }
+.hm-diary-join[data-none] { color: var(--ag-ink-3); }
+
+/* The delivered handover pack: a document, printable. */
+.hm-pack { margin-top: 12px; padding: 24px 28px; border: 1px solid var(--ag-border); border-radius: 14px; background: var(--ag-paper); }
+.hm-pack-eyebrow { margin: 0 0 6px; font-size: var(--t-small); color: var(--ag-ink-3); }
+.hm-pack-actions { margin: 12px 0 4px; }
+.hm-pack-section { margin-top: 20px; }
+.hm-pack-section h3 { margin: 0 0 8px; font-size: 15.5px; font-weight: 600; color: var(--ag-ink); }
+.hm-pack-section ul { margin: 0; padding-left: 18px; line-height: 1.6; color: var(--ag-ink-2); font-size: var(--t-body); }
+.hm-pack-section p { margin: 0 0 6px; font-size: var(--t-body); line-height: 1.6; color: var(--ag-ink-2); }
+.hm-pack-src { color: var(--ag-ink-3); font-size: var(--t-small); }
+.hm-pack-q { font-weight: 600; color: var(--ag-ink); }
+.hm-pack-ref { padding: 10px 0; border-top: 1px solid var(--ag-border); }
+.hm-pack-footer { margin-top: 24px; font-size: var(--t-small); color: var(--ag-ink-3); }
+@media print {
+  .hm-rail, .agd-topbar, .hm-side-band, .hm-room-head, .ag-print-hide { display: none !important; }
+  .hm-pack { border: none; padding: 0; }
+}
+
+@media (max-width: 720px) {
+  .hm-todo-cta { width: 100%; justify-content: center; }
+  .hm-diary li { grid-template-columns: 1fr; gap: 4px; }
+  .hm-pack { padding: 18px 16px; }
+}

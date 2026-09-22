@@ -116,17 +116,23 @@ describe("writing up a round completes it", () => {
 })
 
 describe("the screens read the clock, not a click", () => {
-  const src = () => tsCode(readFileSync(join(process.cwd(), "app/hiring/interviews/page.tsx"), "utf8"))
+  // Since frame 23 the rules live in lib/agency/hm-room.ts and the shared
+  // hook; the pages read them. Scanned together.
+  const src = () =>
+    ["lib/agency/hm-room.ts", "components/agency/hm-room.tsx", "app/hiring/roles/[roleId]/round/[n]/page.tsx", "app/hiring/diary/page.tsx", "app/hiring/page.tsx"]
+      .map((f) => tsCode(readFileSync(join(process.cwd(), f), "utf8")))
+      .join("\n")
 
   it("owed no longer waits for status completed alone", () => {
     // The exact shape of the bug: `status === "completed" && !latest_decision`
     // as the WHOLE definition of what a hiring manager owes.
     expect(src()).not.toMatch(/rounds\.filter\(\(r\) => r\.status === "completed" && !r\.latest_decision\)/)
-    expect(src()).toContain("hasEnded(r, nowMs)")
+    expect(src()).toMatch(/export function roundEnded\(r: HiringRound, now: number\)/)
+    expect(src()).toMatch(/if \(r\.status === "cancelled" \|\| !roundEnded\(r, now\)\) return null/)
   })
 
   it("coming up means not yet started", () => {
-    expect(src()).toContain("!hasStarted(r, nowMs)")
+    expect(src()).toContain("!roundStarted(r, now)")
   })
 
   it("the clock ticks, so a state can expire while the page is open", () => {

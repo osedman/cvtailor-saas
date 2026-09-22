@@ -24,6 +24,12 @@ const nextConfig = {
       // Not permanent: the business may want briefs back.
       { source: '/agencies/briefs', destination: '/agencies', permanent: false },
       { source: '/hiring/briefs/new', destination: '/hiring', permanent: false },
+      // The hiring manager's five places became three (22 Sep 2026, Figma
+      // frame 23). The cross-role phase lists are stages inside each role
+      // now; old links land on the place that answers the same question.
+      { source: '/hiring/shortlist', destination: '/hiring/roles', permanent: false },
+      { source: '/hiring/decisions', destination: '/hiring/roles', permanent: false },
+      { source: '/hiring/interviews', destination: '/hiring/diary', permanent: false },
     ]
   },
 }

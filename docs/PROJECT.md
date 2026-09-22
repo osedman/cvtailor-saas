@@ -6918,3 +6918,36 @@ the whole flow rather than just the nav item.
   step too — the "Brief agreed & clarified" glance row, the Brief rung, and
   briefs that never became a role (no longer shown as roles or "with your
   recruiter" cards, since nothing can answer them).
+
+## ✅ The hiring manager's three places (22 September 2026)
+
+Ose: the HM side was "too busy" — rounds, shortlist, tasks vs roles did not
+make sense or flow. Mapped all seven screens first: they sliced the same
+things three ways (task, role, phase across all roles); Tasks and My roles
+were one list drawn twice (Interviews drew it a third time); finished rounds
+rendered as full cards beside live ones; nothing handed off. Figma frame 23
+(+ band F, handover) signed off.
+
+- **To do** (`/hiring`): one row per thing OWED, across roles, each opening
+  the exact step (`buildTodo` in `lib/agency/hm-room.ts`). Fixes the old
+  one-rung-per-role rule that hid an owed write-up behind "round to book".
+- **Roles** (`/hiring/roles`): one row per role with its stage; opens the
+  ROLE ROOM. Finished roles stay listed.
+- **Role room**: Shortlist → Round 1…N → Decision → Handover, one page per
+  stage (`/hiring/roles/[id]/{shortlist,round/[n],decision,handover}`), a
+  stage bar, and a written hand-off at the foot of each. The bare role URL
+  opens the current stage. Only the live round is open; earlier rounds are one
+  line each ("Round 1 · 2 advanced"), write-ups one click away.
+- **Diary** (`/hiring/diary`): upcoming interviews + offered times. Nothing
+  finished.
+- Shortlist tells the current truth: a later round outranks the shortlist
+  choice; a re-sent shortlist no longer wipes earlier choices (actions read
+  across every recipient row of this contact); email/document submissions say
+  so instead of pointing at a page that 404s.
+- **Handover reaches the client** for the first time: `handover_delivered`
+  (client-facing notify kind) emails the contact it was delivered to, and
+  `GET /api/hiring/roles/[id]/handover` serves the sealed pack only to that
+  contact. Until now "delivered" reached nobody.
+- Old `/hiring/shortlist|interviews|decisions` redirect. Client ladder CTAs
+  point at the room. Verified against staging data for Ose's HM login.
+- Earlier the same day (bb3af14): two HM payload name leaks closed.

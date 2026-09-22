@@ -32,42 +32,38 @@ describe("HiringNav — which place is lit", () => {
       "/hiring",
       "/hiring/roles",
       "/hiring/roles/abc",
+      "/hiring/roles/abc/shortlist",
+      "/hiring/roles/abc/round/2",
+      "/hiring/roles/abc/decision",
+      "/hiring/roles/abc/handover",
       "/hiring/roles/abc/interviews",
-      "/hiring/shortlist",
-      "/hiring/interviews",
-      "/hiring/decisions",
+      "/hiring/diary",
     ]) {
-      expect(hiringNavFor(path).filter((i) => i.on)).toHaveLength(1)
+      expect(hiringNavFor(path).filter((i) => i.on), path).toHaveLength(1)
     }
   })
 
-  it("lights each place on its own path", () => {
-    expect(lit("/hiring")).toBe("Tasks")
-    expect(lit("/hiring/roles")).toBe("My roles")
-    expect(lit("/hiring/shortlist")).toBe("Shortlist")
-    expect(lit("/hiring/interviews")).toBe("Interviews")
-    expect(lit("/hiring/decisions")).toBe("Decisions")
+  it("three places, one question each (Figma frame 23, 22 Sep 2026)", () => {
+    expect(hiringNavFor("/hiring").map((i) => i.label)).toEqual(["To do", "Roles", "Diary"])
+    expect(lit("/hiring")).toBe("To do")
+    expect(lit("/hiring/roles")).toBe("Roles")
+    expect(lit("/hiring/diary")).toBe("Diary")
   })
 
-  it("keeps Tasks lit on a role page, which is a door out of a task", () => {
-    expect(lit("/hiring/roles/abc")).toBe("Tasks")
+  it("every stage of a role's room lights Roles — the room is inside Roles", () => {
+    for (const p of ["/hiring/roles/abc", "/hiring/roles/abc/shortlist", "/hiring/roles/abc/round/1", "/hiring/roles/abc/decision", "/hiring/roles/abc/handover", "/hiring/roles/abc/interviews"]) {
+      expect(lit(p), p).toBe("Roles")
+    }
   })
 
-  it("does NOT light Tasks on My roles", () => {
-    // /hiring is a prefix of every path here. A startsWith would light Tasks
-    // on all five and My roles would be unreachable-looking.
-    expect(lit("/hiring/roles")).not.toBe("Tasks")
-  })
-
-  it("lights Interviews, not Tasks, on a role's own cohort screen", () => {
-    // It lit "Home" while a nav item literally named Interviews pointed
-    // somewhere else (found 11 Sep 2026).
-    expect(lit("/hiring/roles/abc/interviews")).toBe("Interviews")
+  it("does NOT light To do on Roles", () => {
+    // /hiring is a prefix of every path here; To do is exact-match only.
+    expect(lit("/hiring/roles")).not.toBe("To do")
   })
 
   it("matches whole segments, never a prefix of a sibling", () => {
-    expect(lit("/hiring/interviewsX")).not.toBe("Interviews")
-    expect(lit("/hiring/rolesX")).not.toBe("My roles")
+    expect(lit("/hiring/diaryX")).not.toBe("Diary")
+    expect(lit("/hiring/rolesX")).not.toBe("Roles")
   })
 
   it("carries no door to the brief form", () => {
@@ -124,10 +120,12 @@ describe("the rail lives in the shell, not in every page", () => {
     for (const path of [
       "app/hiring/page.tsx",
       "app/hiring/roles/page.tsx",
-      "app/hiring/shortlist/page.tsx",
-      "app/hiring/decisions/page.tsx",
-      "app/hiring/interviews/page.tsx",
+      "app/hiring/diary/page.tsx",
       "app/hiring/roles/[roleId]/page.tsx",
+      "app/hiring/roles/[roleId]/shortlist/page.tsx",
+      "app/hiring/roles/[roleId]/round/[n]/page.tsx",
+      "app/hiring/roles/[roleId]/decision/page.tsx",
+      "app/hiring/roles/[roleId]/handover/page.tsx",
       "app/hiring/roles/[roleId]/interviews/page.tsx",
     ]) {
       expect(code(path)).not.toMatch(/<HiringNav \/>|<HiringSidebar \/>/)

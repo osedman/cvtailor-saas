@@ -69,15 +69,18 @@ describe("no screen still says the recruiter books", () => {
 
 describe("the hiring manager's screens count honestly", () => {
   it("an invitation with no time is not an interview coming up", () => {
-    // It rendered as "No time set · Scheduled" under "Coming up".
-    const src = read("app/hiring/interviews/page.tsx")
-    expect(src).toMatch(/r\.status === "scheduled" && r\.scheduled_at/)
-    expect(src).toMatch(/stillChoosing/)
+    // It rendered as "No time set · Scheduled" under "Coming up". Since
+    // frame 23 the Diary and To do's "coming up" both require a time, and a
+    // round still waiting for one reads "Choosing a time" in its room.
+    for (const p of ["app/hiring/diary/page.tsx", "app/hiring/page.tsx"]) {
+      expect(read(p), p).toMatch(/r\.status === "scheduled" && r\.scheduled_at/)
+    }
+    expect(read("app/hiring/roles/[roleId]/round/[n]/page.tsx")).toMatch(/Choosing a time/)
   })
 
   it("windows are offered from the role, where the rules apply", () => {
     // Offering them here attached them to no role, so they obeyed no rule.
-    const src = read("app/hiring/interviews/page.tsx")
+    const src = read("app/hiring/diary/page.tsx")
     expect(src).not.toMatch(/<OfferTimes/)
     expect(read("components/agency/hm-shared.tsx")).not.toMatch(/export function OfferTimes/)
   })

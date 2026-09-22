@@ -55,7 +55,9 @@ describe("sign out", () => {
   })
 
   it("the hiring manager's dashboard offers it too, on their own door", () => {
-    const hm = readFileSync(path.join(process.cwd(), "app/hiring/page.tsx"), "utf8")
+    // Every hiring place renders through HmFrame (frame 23), which carries it.
+    expect(readFileSync(path.join(process.cwd(), "app/hiring/page.tsx"), "utf8")).toContain("<HmFrame")
+    const hm = readFileSync(path.join(process.cwd(), "components/agency/hm-room.tsx"), "utf8")
     expect(hm).toContain("<SignOut")
     // A hiring manager is a client, not staff: signing out returns them to the
     // consumer login, not the agency one.

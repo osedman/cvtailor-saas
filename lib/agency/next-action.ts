@@ -414,7 +414,9 @@ export function nextAction(f: RoleFacts, hat: Hat, roleId: string, now: Date = n
   const wf = (step?: string) => workflowHref(roleId, step)
   const interviews = phaseHref("interviews", roleId)
   const closeOut = phaseHref("handover", roleId)
-  const clientLoop = "/hiring/interviews"
+  // The role room (Figma frame 23): the bare URL opens the stage the role is
+  // at, so a write-up or decision CTA lands on the right round.
+  const clientLoop = `/hiring/roles/${roleId}`
   const clientSetup = `/hiring/roles/${roleId}/interviews`
   const R = hat === "recruiter"
   const ref = sub.candidateRef ?? "the candidate"

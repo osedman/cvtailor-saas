@@ -24,6 +24,7 @@
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
 import { assertChecklistComplete } from "./handover-checklist"
 import { winningRows } from "./evidence-layers"
+import { notify } from "./notify"
 import { getCandidateCompliance } from "./compliance"
 import {
   EMPLOYER_CHECK_NOTICE,
@@ -411,4 +412,21 @@ export async function deliverHandoverPack(
     action: "delivered",
     toValue: { pack_id: packId, contact_id: contactId },
   })
+
+  // Tell the employer contact it is there (22 Sep 2026). Until now
+  // "delivered" was a label only: nothing reached the client. Never fatal —
+  // the delivery is recorded whether or not the email goes.
+  try {
+    const { data: role } = await admin.from("job_roles").select("title").eq("id", pack.role_id as string).maybeSingle()
+    await notify(admin, {
+      kind: "handover_delivered",
+      agencyId: ctx.agencyId,
+      actorId: ctx.userId,
+      contactId,
+      roleId: pack.role_id as string,
+      roleTitle: (role?.title as string) ?? "your role",
+    })
+  } catch {
+    /* audited inside notify; delivery stands */
+  }
 }

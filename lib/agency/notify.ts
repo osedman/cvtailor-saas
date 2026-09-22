@@ -46,6 +46,8 @@ export type NotifyOutcome =
  * flow (22 Sep 2026). */
 export type NotifyEvent =
   | { kind: "invite_accepted"; contactId: string }
+  /** Client-facing: the employer contact the pack was delivered to. */
+  | { kind: "handover_delivered"; contactId: string; roleId: string; roleTitle: string }
   | { kind: "debrief_recorded"; roleId: string; candidateRef: string }
   | { kind: "consent_answered"; roleId: string; candidateRef: string }
   | { kind: "reference_submitted"; roleId: string; candidateRef: string }
@@ -67,11 +69,10 @@ type Recipient = { email: string; name: string; userId: string | null }
  * manager unless somebody edits this function on purpose.
  */
 export function facesClient(kind: NotifyEvent["kind"]): boolean {
-  // The only client-facing kind was brief_answered, removed with the brief
-  // flow on 22 Sep 2026. Nothing faces the client now; the wall stays, so a
-  // future client-facing kind is still an explicit edit here.
-  void kind
-  return false
+  // handover_delivered (22 Sep 2026): the pack is for the employer, so the
+  // contact it was delivered to is told it is ready. It replaced
+  // brief_answered as the one client-facing kind.
+  return kind === "handover_delivered"
 }
 
 /**
@@ -315,6 +316,16 @@ function copyFor(input: NotifyInput): Copy {
   const agencyOrigin = getBusinessOrigin()
 
   switch (input.kind) {
+    case "handover_delivered":
+      return {
+        subject: `Your handover pack is ready: ${input.roleTitle}`,
+        eyebrow: "Handover",
+        heading: "Your handover pack is ready.",
+        body: `Your recruiter has handed over the record for ${esc(input.roleTitle)} — the evidence, your interview write-ups, the references and what was never evidenced. It is in your workspace to read, print or save.`,
+        ctaLabel: "Open the handover",
+        ctaUrl: `${agencyOrigin}/hiring/roles/${input.roleId}/handover`,
+      }
+
     case "invite_accepted":
       return {
         subject: "Your client activated their access",

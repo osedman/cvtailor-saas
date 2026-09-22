@@ -160,7 +160,7 @@ describe("the plan is the role's number, never a literal", () => {
   it("and no screen hardcodes it any more", () => {
     // Both hiring-manager screens passed planned={2} while the role carried a
     // real number, so a three-round process was told it was on its last.
-    for (const p of ["app/hiring/roles/[roleId]/page.tsx", "app/hiring/interviews/page.tsx"]) {
+    for (const p of ["app/hiring/roles/[roleId]/round/[n]/page.tsx", "app/hiring/roles/[roleId]/decision/page.tsx"]) {
       expect(read(p)).not.toMatch(/planned=\{2\}/)
     }
   })

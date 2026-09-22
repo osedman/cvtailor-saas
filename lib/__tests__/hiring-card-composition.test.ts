@@ -77,7 +77,9 @@ describe("hiring.css flex containers state their direction", () => {
         for (const cls of attr.match(/\bhm-[a-z0-9-]+/g) ?? []) composed.add(cls)
       }
     }
-    expect(composed.size).toBeGreaterThan(0)
+    // Frame 23 (22 Sep 2026) rebuilt the hiring places without composing
+    // onto agd-card, so the set can legitimately be empty; the rule still
+    // applies to anything that composes onto it again.
 
     const offenders = all
       .filter((b) => [...composed].some((c) => b.selector.includes(`.${c}`)))

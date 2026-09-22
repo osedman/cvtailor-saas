@@ -1,163 +1,104 @@
 "use client"
 
 /**
- * My roles — every role this hiring manager is named on, and where each is.
+ * Roles — where is each hire? Figma frame 23, band E (22 Sep 2026).
  *
- * Split out of the dashboard 19 Sep 2026 (Figma frame 15). The dashboard was
- * a roles list, a task list, a rounds list and a diary on one screen; naming
- * the five places is what stops it being a corridor.
- *
- * This place answers ONE question: what am I on, and where has each got to.
- * Not what needs me — that is Tasks — so the rows carry the ladder and the
- * party a role is waiting on, and only the roles where the act is genuinely
- * the hiring manager's carry a control.
- *
- * Reads /api/hiring/today, the same ladder Tasks and the role header read.
- * No second derivation: two would disagree the first time either changed.
+ * One row per role: its stage on the same bar the room uses, and one line of
+ * what is next — in bold when it is yours. The row opens the role's room at
+ * the stage it is at. Finished roles stay listed under "Finished"; a role
+ * never disappears because it is quiet.
  */
 
-import { useEffect, useState } from "react"
+import { useMemo } from "react"
 import Link from "next/link"
-import { SignOut } from "@/components/agency/sign-out"
+import { HmFrame, useHiringData } from "@/components/agency/hm-room"
 import { EmptyBand } from "@/components/agency/hm-shared"
-import type { NextAction } from "@/lib/agency/next-action"
+import { buildTodo, currentStage, roomStages, stageHref, stageIndex, stageLabel } from "@/lib/agency/hm-room"
+import { toSummary } from "@/components/agency/hm-room"
 
-type Screen = "loading" | "unauthed" | "not_linked" | "error" | "ready"
+export default function RolesPage() {
+  const { screen, roles, rounds, nowMs: now } = useHiringData()
+  const todo = useMemo(() => buildTodo(roles.map(toSummary), rounds, now), [roles, rounds, now])
 
-interface TodayRow {
-  role: { id: string; ref: string; title: string; company: string; recruiterName: string | null }
-  subState: { key: string; chip: string }
-  next: NextAction
-}
+  const rows = roles.map((r) => {
+    const mine = rounds.filter((x) => x.role_id === r.role.id)
+    const stages = roomStages(mine)
+    // The handover stage needs the pack; a list of roles does not fetch one
+    // per row. A role the ladder calls handed over reads as Decision here and
+    // Handover inside its room — never further along than the facts say.
+    const current = currentStage(mine, r.subState.key, false)
+    const owed = todo.filter((t) => t.role.id === r.role.id)
+    return { r, stages, current, owed, finished: r.next.mode === "done" }
+  })
+  const open = rows.filter((x) => !x.finished)
+  const finished = rows.filter((x) => x.finished)
 
-export default function MyRolesPage() {
-  const [screen, setScreen] = useState<Screen>("loading")
-  const [rows, setRows] = useState<TodayRow[]>([])
-
-  useEffect(() => {
-    let live = true
-    ;(async () => {
-      try {
-        const res = await fetch("/api/hiring/today")
-        if (!live) return
-        if (res.status === 401) return setScreen("unauthed")
-        if (res.status === 403) return setScreen("not_linked")
-        if (!res.ok) return setScreen("error")
-        const body = (await res.json()) as { roles?: TodayRow[] }
-        setRows(Array.isArray(body.roles) ? body.roles : [])
-        setScreen("ready")
-      } catch {
-        if (live) setScreen("error")
-      }
-    })()
-    return () => {
-      live = false
-    }
-  }, [])
-
-  const yours = rows.filter((r) => r.next.mode === "act")
+  const RoleRow = ({ x }: { x: (typeof rows)[number] }) => {
+    const ci = stageIndex(x.stages, x.current)
+    return (
+      <li className="hm-role-row">
+        <Link className="hm-role-link" href={stageHref(x.r.role.id, x.current)}>
+          <span className="hm-role-title">{x.r.role.title}</span>
+          <span className="hm-role-meta">
+            {x.r.role.ref}
+            {x.r.role.recruiterName ? ` · with ${x.r.role.recruiterName}` : ""} · stage: {stageLabel(x.current)}
+          </span>
+          <span className="hm-role-progress" aria-hidden="true">
+            {x.stages.map((s, i) => (
+              <span key={i} data-state={i < ci ? "done" : i === ci ? "current" : "next"} />
+            ))}
+          </span>
+          <span className="hm-role-next" data-yours={x.owed.length > 0 || x.r.next.mode === "act" || undefined}>
+            {x.owed.length > 0
+              ? x.owed.map((t) => `${t.verb} · ${t.who}`).join(" — ")
+              : x.r.next.mode === "act"
+                ? x.r.next.title
+                : `${x.r.next.title}${x.r.next.mode === "wait" ? ` · ${x.r.next.waitingOn.label}` : ""}`}
+          </span>
+        </Link>
+      </li>
+    )
+  }
 
   return (
-    <main className="ag-main agd-main hm-main">
-      <div className="agd-topbar">
-        <div className="ag-brand-mark" aria-hidden="true">T</div>
-        <span className="agd-crumb">
-          <Link href="/hiring" style={{ color: "inherit", textDecoration: "none" }}>Hiring</Link> / My roles
-        </span>
-        <span className="agd-spacer" />
-        {screen === "ready" && (
-          <>
-            <span className="ag-pill hm-role-chip">Hiring manager</span>
-            <SignOut door="consumer" />
-          </>
-        )}
-      </div>
+    <HmFrame screen={screen} crumb={<><Link href="/hiring" style={{ color: "inherit", textDecoration: "none" }}>Hiring</Link> / Roles</>}>
+      <section className="agd-hero">
+        <h1 className="agd-h1">Your roles</h1>
+        <p className="agd-sub">
+          Every role your recruiter has opened with you, and the stage each is at. Open one to walk it
+          from shortlist to handover.
+        </p>
+      </section>
 
-      <div className="agd-page" aria-busy={screen === "loading"}>
-        {screen === "loading" && (
-          <div className="ag-card">
-            <div className="ag-card-body" style={{ textAlign: "center", padding: 48 }}>
-              <span className="ag-spin" />
+      {rows.length === 0 ? (
+        <EmptyBand
+          title="No roles yet."
+          body="When your recruiter opens a role with you named on it, it appears here."
+        />
+      ) : (
+        <>
+          <section className="agd-band" aria-labelledby="hm-open">
+            <div className="agd-eyebrow-row">
+              <h2 className="agd-eyebrow" id="hm-open">In progress</h2>
+              <span className="agd-rule" />
             </div>
-          </div>
-        )}
-        {screen === "unauthed" && (
-          <EmptyBand title="Sign in to see your roles." body="Your email address and a link we send you — no password." />
-        )}
-        {screen === "not_linked" && (
-          <EmptyBand
-            title="This account has no client access yet."
-            body="Hiring-manager access is given by invitation only — ask your recruiter for one."
-          />
-        )}
-        {screen === "error" && (
-          <EmptyBand title="We could not load your roles." body="Reload the page. If it keeps failing, tell your recruiter." />
-        )}
-
-        {screen === "ready" && (
-          <>
-            <section className="agd-hero">
-              <h1 className="agd-h1">
-                {rows.length === 0
-                  ? "No roles yet."
-                  : rows.length === 1
-                    ? "One role."
-                    : `${rows.length} roles.`}
-              </h1>
-              <p className="agd-sub">
-                Everything your recruiter has opened for you, and where each one has got to.{" "}
-                {yours.length > 0
-                  ? `${yours.length === 1 ? "One is" : `${yours.length} are`} waiting on you — those carry a button.`
-                  : "Nothing here is waiting on you right now."}
-              </p>
-            </section>
-
-            <section className="agd-band" aria-labelledby="hm-roles">
+            {open.length > 0 ? (
+              <ul className="hm-role-list">{open.map((x) => <RoleRow key={x.r.role.id} x={x} />)}</ul>
+            ) : (
+              <p className="ag-note">Nothing in progress — every role below is finished.</p>
+            )}
+          </section>
+          {finished.length > 0 && (
+            <section className="agd-band" aria-labelledby="hm-finished">
               <div className="agd-eyebrow-row">
-                <h2 className="agd-eyebrow" id="hm-roles">Your roles</h2>
+                <h2 className="agd-eyebrow" id="hm-finished">Finished</h2>
                 <span className="agd-rule" />
               </div>
-              {rows.length > 0 ? (
-                <div className="ag-stack" style={{ gap: 10 }}>
-                  {rows.map((r) => (
-                    <article key={r.role.id} className="agd-card hm-static hm-across-row">
-                      <span className="hm-across-who">
-                        <Link href={`/hiring/roles/${r.role.id}`} className="agd-eyebrow" style={{ color: "inherit" }}>
-                          {r.role.title} →
-                        </Link>
-                        <span className="ag-meta">
-                          {r.role.ref}
-                          {r.role.company ? ` · ${r.role.company}` : ""}
-                          {r.role.recruiterName ? ` · ${r.role.recruiterName}` : ""}
-                        </span>
-                      </span>
-                      <span className="hm-across-what" data-mode={r.next.mode}>
-                        {r.next.title}
-                      </span>
-                      {/* No control on somebody else's turn — the same rule
-                          the recruiter's loop table keeps. */}
-                      {r.next.mode === "act" && r.next.cta ? (
-                        <Link className="agd-tbtn primary" href={r.next.cta.href}>
-                          {r.next.cta.label} →
-                        </Link>
-                      ) : (
-                        <span className="ag-meta hm-across-wait">
-                          {r.next.mode === "done" ? "nothing outstanding" : r.next.waitingOn.label}
-                        </span>
-                      )}
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <EmptyBand
-                  title="No roles yet."
-                  body="Every role your recruiter opens for you appears here, with where it has got to. They open the role; you are named on it."
-                />
-              )}
+              <ul className="hm-role-list">{finished.map((x) => <RoleRow key={x.r.role.id} x={x} />)}</ul>
             </section>
-          </>
-        )}
-      </div>
-    </main>
+          )}
+        </>
+      )}
+    </HmFrame>
   )
 }

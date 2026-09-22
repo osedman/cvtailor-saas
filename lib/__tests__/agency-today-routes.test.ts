@@ -70,12 +70,21 @@ describe("the header renders where the plan says", () => {
     // The header owns the owner select now; the sidebar box that held it goes.
     expect(src).not.toMatch(/ag-active-role/)
   })
-  it("the client's role page — client", () => {
-    expect(read("app/hiring/roles/[roleId]/page.tsx")).toMatch(/<RoleHeader roleId=\{roleId\} hat="client" \/>/)
+  it("the client's role room — every stage page carries the room header (frame 23)", () => {
+    for (const p of [
+      "app/hiring/roles/[roleId]/shortlist/page.tsx",
+      "app/hiring/roles/[roleId]/round/[n]/page.tsx",
+      "app/hiring/roles/[roleId]/decision/page.tsx",
+      "app/hiring/roles/[roleId]/handover/page.tsx",
+    ]) {
+      expect(read(p), p).toMatch(/<RoomHeader room=\{room\} roleId=\{roleId\}/)
+    }
   })
   it("both homes read their queue from the ladder's routes", () => {
     expect(read("app/agencies/page.tsx")).toMatch(/fetch\("\/api\/agency\/today"\)/)
-    expect(read("app/hiring/page.tsx")).toMatch(/fetch\("\/api\/hiring\/today"\)/)
+    // The hiring side loads once, in the shared hook every place uses.
+    expect(read("components/agency/hm-room.tsx")).toMatch(/fetch\("\/api\/hiring\/today"\)/)
+    expect(read("app/hiring/page.tsx")).toMatch(/useHiringData\(\)/)
   })
 })
 

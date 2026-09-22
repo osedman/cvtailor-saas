@@ -65,6 +65,7 @@ import { notify, facesClient, resolvePreference, type NotifyEvent } from "../age
 /** Every kind, and the side it is allowed to reach. */
 const CLASSIFICATION: Record<NotifyEvent["kind"], "agency" | "client"> = {
   invite_accepted: "agency",
+  handover_delivered: "client",
   debrief_recorded: "agency",
   consent_answered: "agency",
   reference_submitted: "agency",
@@ -413,5 +414,25 @@ describe("migration 29 and the event list stay in step", () => {
           .toContain(`'${kind}'`)
       }
     }
+  })
+})
+
+describe("the handover reaches the employer contact (22 Sep 2026)", () => {
+  it("goes to that contact only, and links to their handover stage", async () => {
+    const admin = fakeAdmin({
+      client_contacts: { data: { email: "hm@client.test", full_name: "Dana Hall", agency_id: "a1" } },
+    })
+    const out = await notify(admin, {
+      kind: "handover_delivered",
+      agencyId: "a1",
+      actorId: "rec-1",
+      contactId: "c1",
+      roleId: "role-9",
+      roleTitle: "Senior Engineer",
+    })
+    expect(out).toBe("sent")
+    const call = sendEmail.mock.calls[0]![0] as SendArgs
+    expect(call.to).toBe("hm@client.test")
+    expect(call.html).toContain("/hiring/roles/role-9/handover")
   })
 })

@@ -174,7 +174,7 @@ describe("the screen tells the truth about withholding", () => {
   it("says the notes are not part of the submission rather than implying none exist", async () => {
     const { readFileSync } = await import("fs")
     const { join } = await import("path")
-    const src = readFileSync(join(process.cwd(), "app/hiring/shortlist/page.tsx"), "utf8")
+    const src = readFileSync(join(process.cwd(), "app/hiring/roles/[roleId]/shortlist/page.tsx"), "utf8")
     // Withheld is not the same as absent, and the wording must not blame the
     // recruiter for writing nothing.
     expect(src).toContain("not part of this submission")
