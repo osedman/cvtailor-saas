@@ -71,7 +71,8 @@ interface RoleRow {
   steps: { label: string; state: StepState }[]
 }
 
-const STEP_LABELS = ["Brief", "Shortlist", "R1", "R2", "Decide"]
+// No "Brief" step: the client-brief flow was removed (22 Sep 2026).
+const STEP_LABELS = ["Shortlist", "R1", "R2", "Decide"]
 
 
 /** "in 3 hours" / "in 40 minutes" — only ever used inside 24 hours. */
@@ -141,24 +142,12 @@ function buildAttention(d: HiringDashboard, now: number): AttnCard[] {
     })
   }
 
-  for (const brief of d.briefs) {
-    if (brief.status !== "submitted") continue
-    cards.push({
-      key: `brief:${brief.id}`,
-      sev: "calm",
-      when: "With your recruiter",
-      title: brief.role_title || "Untitled brief",
-      body: "Your brief is with the agency. Nothing is needed from you until they come back on it.",
-      meta: brief.team || brief.location || "Awaiting a reply",
-    })
-  }
-
   const rank: Record<Sev, number> = { now: 0, soon: 1, calm: 2 }
   return cards.sort((a, b) => rank[a.sev] - rank[b.sev]).slice(0, 3)
 }
 
 /**
- * The step rail: BRIEF → SHORTLIST → R1 → R2 → DECIDE.
+ * The step rail: SHORTLIST → R1 → R2 → DECIDE.
  *
  * SHORTLIST is deliberately coarse. A client sees none of the recruiter's
  * shortlisting work — no candidates, no scores, no evidence (the disclosure
@@ -171,7 +160,6 @@ function buildSteps(brief: HiringBrief | null, rounds: HiringRound[]): RoleRow["
   const decided = rounds.some((r) => r.latest_decision !== null)
   const owed = rounds.some((r) => r.status === "completed" && !r.latest_decision)
 
-  const briefState: StepState = !brief ? "none" : brief.status === "declined" ? "blocked" : "done"
   const shortlist: StepState =
     rounds.length > 0 ? "done" : brief?.status === "accepted" ? "waiting" : "none"
 
@@ -182,7 +170,6 @@ function buildSteps(brief: HiringBrief | null, rounds: HiringRound[]): RoleRow["
   }
 
   const states: StepState[] = [
-    briefState,
     shortlist,
     first ? roundState([first]) : "none",
     later.length ? roundState(later) : "none",
@@ -228,7 +215,10 @@ function buildRoles(d: HiringDashboard, now: number): RoleRow[] {
   const rows: RoleRow[] = []
   const claimed = new Set<string>()
 
-  for (const brief of d.briefs) {
+  // Only briefs that became a role. With the brief inbox gone, a brief that
+  // was never accepted can never be answered, and would sit here as a role
+  // "with your recruiter" for ever (22 Sep 2026).
+  for (const brief of d.briefs.filter((b) => b.role_id)) {
     const rounds = brief.role_id ? d.rounds.filter((r) => r.role_id === brief.role_id) : []
     if (brief.role_id) claimed.add(brief.role_id)
     rows.push({
@@ -277,9 +267,6 @@ function glanceFor(
   const mine = rounds.filter((r) => r.role_id === row.role.id && r.status !== "cancelled")
   const key = row.subState.key
 
-  // A role only reaches this workspace once the recruiter has opened it, so
-  // the brief is behind us the moment there is anything to show at all.
-  const briefDone = true
   // They have seen a shortlist once they have acted on one — a round exists
   // only because somebody was chosen from it.
   const shortlistDone = mine.length > 0
@@ -287,7 +274,6 @@ function glanceFor(
   const ended = ["take-to-close-out", "pack-generated", "handed-over", "closed", "loop-ended"].includes(key)
 
   return [
-    { label: "Brief agreed & clarified", done: briefDone },
     { label: "Shortlist reviewed", done: shortlistDone },
     { label: "Candidates interviewed", done: interviewed },
     { label: "Hire selected", done: ended },

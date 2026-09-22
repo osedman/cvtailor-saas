@@ -93,6 +93,12 @@ describe("the hiring manager cannot start a role", () => {
     expect(code("app/hiring/page.tsx")).not.toMatch(/Post a brief/)
   })
 
+  it("the dashboard shows no Brief step (22 Sep 2026)", () => {
+    const src = code("app/hiring/page.tsx")
+    expect(src).not.toMatch(/"Brief agreed/)
+    expect(src).not.toMatch(/STEP_LABELS = \["Brief"/)
+  })
+
   it("and the brief form and its API are gone", () => {
     expect(existsSync(join(process.cwd(), "app/hiring/briefs/new/page.tsx"))).toBe(false)
     expect(existsSync(join(process.cwd(), "app/api/hiring/briefs/route.ts"))).toBe(false)
