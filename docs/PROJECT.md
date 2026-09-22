@@ -6914,3 +6914,7 @@ the whole flow rather than just the nav item.
 - KEPT: the `role_briefs` table and its reads — roles already minted from a
   brief still show the brief's JD and contact. No migration.
 - Roles are created by the recruiter only.
+- **Follow-up (552978e):** the hiring manager's dashboard drops the Brief
+  step too — the "Brief agreed & clarified" glance row, the Brief rung, and
+  briefs that never became a role (no longer shown as roles or "with your
+  recruiter" cards, since nothing can answer them).
