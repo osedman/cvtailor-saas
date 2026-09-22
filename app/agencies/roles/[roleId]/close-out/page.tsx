@@ -213,6 +213,11 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   const chosen = candidates.find((c) => c.id === chosenId) ?? null
   const suggested = candidates.find((c) => c.id === suggestedId) ?? null
   const suggestedStage = suggestedId ? stages[suggestedId] ?? null : null
+  // Close-out is about the people the client INTERVIEWED (22 Sep 2026, Ose):
+  // the hire comes from the loop, so the picker lists only those with a
+  // round on this role — plus whoever is already the pick, so a confirmed
+  // choice never vanishes from under the recruiter.
+  const inLoop = candidates.filter((c) => (stages[c.id]?.trail.length ?? 0) > 0 || c.id === chosenId)
   const interviewed = candidates.filter((c) => (stages[c.id]?.trail.length ?? 0) > 0).length
   const stillDeciding = Object.values(stages).some((s) => s?.kind === "awaiting-client" || s?.kind === "booked")
   const client = role?.company || "Your client"
@@ -355,8 +360,8 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
 
           {/* 1. Who was chosen — suggested from the loop, confirmed by a person */}
           <section className="ag-card ag-print-hide" style={{ padding: "20px 24px", marginTop: 8 }}>
-            {candidates.length === 0 ? (
-              <p className="ag-note">No candidates on this role yet.</p>
+            {inLoop.length === 0 ? (
+              <p className="ag-note">Nobody has been interviewed on this role yet. Once the client has met candidates, they appear here.</p>
             ) : confirmed && chosen ? (
               <div className="ag-hire-done">
                 <span className="ag-hire-who">
@@ -395,7 +400,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                     </span>
                   </legend>
                   <div className="ag-hire-list">
-                    {candidates.map((c) => {
+                    {inLoop.map((c) => {
                       const stage = stages[c.id] ?? null
                       const on = chosenId === c.id
                       return (

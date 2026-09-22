@@ -142,3 +142,12 @@ describe("nothing writes back", () => {
     }
   })
 })
+
+describe("close-out lists only the people the client interviewed (22 Sep 2026)", () => {
+  it("the picker maps the interviewed list, not every candidate on the role", () => {
+    const page = tsCode(readFileSync(join(process.cwd(), "app/agencies/roles/[roleId]/close-out/page.tsx"), "utf8"))
+    expect(page).toMatch(/const inLoop = candidates\.filter\(\(c\) => \(stages\[c\.id\]\?\.trail\.length \?\? 0\) > 0 \|\| c\.id === chosenId\)/)
+    expect(page).toMatch(/\{inLoop\.map\(\(c\) => \{/)
+    expect(page).not.toMatch(/\{candidates\.map\(\(c\) => \{/)
+  })
+})
