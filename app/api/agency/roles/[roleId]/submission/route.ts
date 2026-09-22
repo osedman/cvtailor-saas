@@ -256,6 +256,17 @@ export async function POST(
       probes: d.probes !== false,
       notes: d.notes === true,
       logistics: d.logistics !== false,
+      /**
+       * The CV itself (22 Sep 2026). On by default, because showing the
+       * client the CV is how the process works and a default of OFF would
+       * make the normal case the one you have to remember. The switch still
+       * exists so a recruiter can withhold it deliberately, and — like the
+       * other five — it freezes here rather than being read at render time.
+       *
+       * The DOCUMENT is not frozen with it: see lib/agency/cv-disclosure.ts
+       * for why purge would otherwise never reach it.
+       */
+      cv: d.cv !== false,
     }
 
     const snapshot = {

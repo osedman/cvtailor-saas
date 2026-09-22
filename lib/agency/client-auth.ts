@@ -641,15 +641,32 @@ export async function acceptInvite(
  * NEVER return, in any shape, to a client:
  *   · job_roles.recruiter_notes      — the recruiter's private thinking
  *   · candidate_reviews.notes        — likewise, per candidate
- *   · candidates.full_name, .email, .cv_storage_path, or any CV text
- *   · candidate_evidence (any row)   — quotes, strengths, sources
+ *   · candidates.email, .phone, or any way of contacting them directly
+ *   · candidates.cv_storage_path     — the file itself never travels
  *   · score_breakdowns / overrides   — the agency's method is the agency's
  *   · another contact's briefs, slots, rounds or decisions
  *
- * A candidate appears to a client as their REF ('CAN-01') and nothing more,
- * until the recruiter deliberately discloses more through a submission
- * snapshot or a handover pack. If a future feature needs a name here, that is
- * a product decision with a DPIA attached — not a widened select.
+ * DISCLOSABLE THROUGH A SUBMISSION, AND ONLY THROUGH ONE (changed 22 Sep
+ * 2026, Ose's decision — this is how the process works today: a hiring
+ * manager reads the CV and the evidence and decides from them):
+ *   · candidates.full_name           — unless the candidate asked to be
+ *                                      withheld; `redacted` outranks every
+ *                                      switch, in both directions
+ *   · candidate_evidence             — requirement + verbatim quote
+ *   · candidates.cv_text             — through lib/agency/cv-disclosure.ts,
+ *                                      contact details stripped, served live
+ *                                      so purge still erases it, gated on the
+ *                                      snapshot's frozen `cv` switch, and
+ *                                      audited on every single view
+ *
+ * The line that did NOT move: a client still cannot reach a candidate
+ * without the recruiter. Names and evidence are a judgement; a phone number
+ * is a way around the fee.
+ *
+ * Outside a submission a candidate is still their REF ('CAN-01') and nothing
+ * more. The dashboard select()s below disclose nothing new — the door is the
+ * submission snapshot and the CV route, not this function. The DPIA on this
+ * disclosure is OPEN: docs/DPIA-DECISIONS.md, 22 Sep 2026.
  * ══════════════════════════════════════════════════════════════════════════
  *
  * Scoping: every query is filtered to the caller's OWN contact ids, which

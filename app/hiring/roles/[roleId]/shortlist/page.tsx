@@ -12,6 +12,7 @@
 
 import { use, useEffect, useState } from "react"
 import { HandOff, HmFrame, RoomHeader, useRoom } from "@/components/agency/hm-room"
+import { CandidateDetail } from "@/components/agency/hm-candidate"
 import type { ShortlistEntry, ShortlistDisclosure } from "@/lib/agency/client-shortlist"
 import { outcomeByRef, outcomeSentence, plannedFor, stageHref } from "@/lib/agency/hm-room"
 
@@ -33,6 +34,19 @@ export default function ShortlistStage({ params }: { params: Promise<{ roleId: s
   const { roleId } = use(params)
   const room = useRoom(roleId)
   const [list, setList] = useState<Loaded>({ state: "loading" })
+  /**
+   * Which candidates are open. A Set rather than one id: reading two people
+   * side by side is the actual job, and an accordion that closes the last
+   * one makes comparing them a memory test (22 Sep 2026).
+   */
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const toggle = (ref: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev)
+      if (next.has(ref)) next.delete(ref)
+      else next.add(ref)
+      return next
+    })
 
   useEffect(() => {
     let live = true
@@ -123,6 +137,28 @@ export default function ShortlistStage({ params }: { params: Promise<{ roleId: s
                     <p className="hm-sl-gaps">Known gaps: {e.gaps.map((g) => g.requirement).join(" · ")}</p>
                   )}
                   {e.redacted && <p className="ag-meta">Name withheld at the candidate&apos;s request.</p>}
+                  {/*
+                    The rest of what the recruiter disclosed, and the CV.
+                    Collapsed by default: the list's job is to be scannable,
+                    and the detail's job is to be read.
+                  */}
+                  <button
+                    className="hm-sl-more"
+                    onClick={() => toggle(e.ref)}
+                    aria-expanded={open.has(e.ref)}
+                    aria-controls={`cand-${e.ref}`}
+                  >
+                    {open.has(e.ref)
+                      ? "Hide the evidence"
+                      : list.disclosure.cv && !e.redacted
+                        ? "See the evidence and CV"
+                        : "See the evidence"}
+                  </button>
+                  {open.has(e.ref) && (
+                    <div id={`cand-${e.ref}`}>
+                      <CandidateDetail roleId={roleId} entry={e} disclosure={list.disclosure} />
+                    </div>
+                  )}
                 </li>
               )
             })}

@@ -90,6 +90,8 @@ export interface ShortlistDisclosure {
   probes: boolean
   notes: boolean
   logistics: boolean
+  /** The CV itself, through the CV route. See lib/agency/cv-disclosure.ts. */
+  cv: boolean
 }
 
 export interface ClientShortlist {
@@ -147,6 +149,17 @@ export async function getClientShortlist(ctx: HiringContext, roleId: string): Pr
     probes: d.probes !== false,
     notes: d.notes === true,
     logistics: d.logistics !== false,
+    /**
+     * The CV, and the one switch that defaults the OTHER way on read.
+     *
+     * The builder defaults `cv` to true from 22 Sep 2026. A snapshot with no
+     * `cv` key at all predates the decision — it was sent to this client
+     * under the old rule, which promised the CV would not reach them.
+     * Reading that absence as "true" would disclose, retroactively and
+     * silently, documents sent under a different promise. So: missing means
+     * NO. Only a snapshot that says so discloses a CV.
+     */
+    cv: d.cv === true,
   }
   const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null)
   const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null)
@@ -193,7 +206,10 @@ export async function getClientShortlist(ctx: HiringContext, roleId: string): Pr
         ? ((e.strengths ?? []) as Array<Record<string, unknown>>)
             .map((x) => ({ requirement: String(x.requirement ?? ""), quote: String(x.quote ?? "") }))
             .filter((x) => x.requirement && x.quote)
-            .slice(0, 3)
+            // Was 3. The shortlist card shows one and the candidate detail
+            // shows the lot, and a cap of 3 silently decided which evidence
+            // the client was allowed to weigh (22 Sep 2026).
+            .slice(0, 24)
         : null,
       gaps: disclosure.evidence
         ? ((e.gaps ?? []) as Array<Record<string, unknown>>)

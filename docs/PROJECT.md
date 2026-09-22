@@ -6951,3 +6951,58 @@ rendered as full cards beside live ones; nothing handed off. Figma frame 23
 - Old `/hiring/shortlist|interviews|decisions` redirect. Client ladder CTAs
   point at the room. Verified against staging data for Ose's HM login.
 - Earlier the same day (bb3af14): two HM payload name leaks closed.
+
+## 🔓 The hiring manager sees the name, the evidence and the CV (22 September 2026)
+
+**Ose's decision, against the rule that was written into the code.**
+`lib/agency/client-auth.ts` said a client must never be returned a
+candidate's name, any CV text or any evidence row, and that needing
+otherwise was "a product decision with a DPIA attached". Ose: that is how
+the process works today — a hiring manager reads the CV and the evidence and
+decides from them. The rule changed; the DPIA is logged as OPEN rather than
+waited for.
+
+- **`lib/agency/cv-disclosure.ts`** — `redactContactDetails`, the only door.
+  Strips emails, UK and international phone numbers, personal links and UK
+  postcodes; keeps dates, salaries, headcounts, versions, the city and the
+  name. 19 tests probe BOTH directions, because a redactor that deleted the
+  document would pass a one-directional suite.
+- **A sixth disclosure switch, `cv`**, frozen into the submission snapshot
+  like the other five. **Defaults ON when generating** — this is the normal
+  case — and **reads OFF for any snapshot that predates it**: a submission
+  sent under the old promise is never retroactively widened. Four tests.
+- **Served live, never frozen.** `purge_candidate()` nulls `cv_text`; a copy
+  sealed inside a submissions row would survive the erasure it exists to
+  honour. The frozen part is the decision, the live part is the document.
+- **The CV file never travels** — text only. `cv_storage_path` stays on the
+  never list, along with email, phone and any way to reach the candidate:
+  a client who can ring them directly can cut the agency out of its fee.
+  Ose's call, asked and answered.
+- **`candidates.redacted` outranks the switch**, checked against the
+  snapshot AND against the live row at serve time, so withdrawing after the
+  submission was sent takes effect immediately.
+- **Every view is audited** (`cv_viewed_by_client`, naming contact,
+  submission and redaction version) in the same operation. A failed audit
+  write means no CV.
+- **`GET /api/hiring/roles/[roleId]/candidates/[candidateRef]/cv`** refuses
+  in five ways before it opens, and is scoped to the SUBMISSION, never the
+  ref — refs repeat across roles.
+- **The evidence cap went from 3 to 24.** The mapper was quietly deciding
+  which evidence the client was allowed to weigh.
+- **`components/agency/hm-candidate.tsx`** — the candidate detail in the
+  role room: score, recruiter's note, every quote, gaps, probe areas, and a
+  "withheld in this submission" block so a switch that is off never reads as
+  "nothing known". The CV has four outcomes — loading, the document, a
+  refusal with its reason, a failure with a retry — and none of them renders
+  as an empty one.
+- **🐛 Fixed in passing:** `hiring.css` applied the dark-ground coral
+  (`#ff8368`) in EVERY theme, so error text and `.agd-date` sat at about
+  2.2:1 on cream in light mode. Dark is a user toggle now, not the surface.
+- **Figma frame 24** (v2, after a ui-ux-pro-max pass), bands E and F.
+  Awaiting Ose's review.
+- **DPIA: `docs/DPIA-DECISIONS.md`**, new. Every disclosure decision, open
+  or cleared, with what a reviewer has to decide. A scheduled task emails
+  Ose the open items every Sunday. **The Art 14 notice at ingestion does not
+  yet mention the CV — the largest open gap.**
+- No migration. 1,588 tests green, build clean. **Not yet clicked by a
+  person: staging sign-in is still outstanding.**

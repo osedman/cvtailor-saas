@@ -181,3 +181,73 @@ describe("the screen tells the truth about withholding", () => {
     expect(src).not.toMatch(/your recruiter (wrote|left) no notes/i)
   })
 })
+
+/**
+ * The CV switch, added 22 Sep 2026 when Ose changed the rule: a hiring
+ * manager reads the CV and the evidence and decides from them.
+ *
+ * It is the one switch that defaults the opposite way on READ to the way it
+ * defaults on WRITE, and the asymmetry is the whole point. New submissions
+ * include the CV unless the recruiter says otherwise. Submissions sent
+ * BEFORE the rule changed were sent under a promise that the CV would not
+ * reach this client, and no later release gets to break that promise
+ * quietly on their behalf.
+ */
+describe("the CV switch", () => {
+  it("is on when the recruiter froze it on", async () => {
+    withSnapshot({ scores: true, evidence: true, probes: true, notes: true, logistics: true, cv: true })
+    const list = await getClientShortlist(ctx, "role1")
+    expect(list!.disclosure.cv).toBe(true)
+  })
+
+  it("is off when the recruiter froze it off", async () => {
+    withSnapshot({ scores: true, evidence: true, probes: true, notes: true, logistics: true, cv: false })
+    const list = await getClientShortlist(ctx, "role1")
+    expect(list!.disclosure.cv).toBe(false)
+  })
+
+  it("is OFF for a submission sent before the rule changed — never retroactive", async () => {
+    // The key is absent, not false: this snapshot predates the switch.
+    withSnapshot({ scores: true, evidence: true, probes: true, notes: true, logistics: true })
+    const list = await getClientShortlist(ctx, "role1")
+    expect(list!.disclosure.cv).toBe(false)
+  })
+
+  it("is OFF for a snapshot that names no switches at all", async () => {
+    withSnapshot(undefined)
+    const list = await getClientShortlist(ctx, "role1")
+    expect(list!.disclosure.cv).toBe(false)
+    // The other five keep their own defaults — this is one switch, not a mood.
+    expect(list!.disclosure.scores).toBe(true)
+    expect(list!.disclosure.notes).toBe(false)
+  })
+})
+
+/**
+ * Evidence was capped at three quotes by the mapper, which quietly decided
+ * which evidence the client was allowed to weigh. The cap is now 24 — a
+ * guard against a runaway row, not an editorial judgement.
+ */
+describe("the evidence cap", () => {
+  it("passes through more than three quotes", async () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({
+      requirement: `Requirement ${i + 1}`,
+      quote: `Quote number ${i + 1}.`,
+    }))
+    recipients.mockReturnValue({
+      data: [{
+        id: "r1", agency_id: "a1", contact_id: "c1", submission_id: "s1", revoked_at: null,
+        submissions: {
+          id: "s1", role_id: "role1", generated_at: "2026-09-22T10:00:00Z",
+          snapshot: {
+            intro: "", disclosure: { evidence: true, cv: true },
+            shortlisted: [{ ...entry, strengths: many }],
+          },
+        },
+      }],
+      error: null,
+    })
+    const list = await getClientShortlist(ctx, "role1")
+    expect(list!.entries[0].strengths).toHaveLength(8)
+  })
+})
