@@ -32,10 +32,6 @@ describe("the role's contact", () => {
     // grouped by role once rather than read per role.
     expect(src).toMatch(/\(role\.contact_id as string \| null\) \?\? briefByRole\.get\(roleId\)/)
   })
-  it("a client-written brief copies its contact onto the minted role, so both paths converge", () => {
-    const src = read("lib/agency/briefs.ts")
-    expect(src).toMatch(/contact_id: \(brief\.contact_id as string \| null\) \?\? null/)
-  })
   it("intake names the hiring manager, the planned rounds and the start target", () => {
     const src = read("app/agencies/roles/[roleId]/page.tsx")
     expect(src).toMatch(/id="role-contact"/)

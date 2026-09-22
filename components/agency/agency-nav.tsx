@@ -56,7 +56,6 @@ export type AgencyNavKey =
   | "today"
   | "roles"
   | "candidates"
-  | "briefs"
   | "clients"
   | "audit"
   | "settings"
@@ -85,7 +84,8 @@ const ITEMS: Array<{ key: AgencyNavKey; label: string; href: string; group: NavG
   // so a person was reachable only through the role they were on. It is a
   // destination now — the count always implied one (22 Aug walk-through).
   { key: "candidates", label: "Candidates", href: "/agencies/candidates", group: "work" },
-  { key: "briefs", label: "Client briefs", href: "/agencies/briefs", group: "work" },
+  // "Client briefs" removed 22 Sep 2026 (Ose): the whole client-brief flow
+  // went. Roles are created by the recruiter; the old URL redirects home.
   { key: "clients", label: "Client access", href: "/agencies/clients", group: "desk" },
   { key: "audit", label: "Audit log", href: "/agencies/audit", group: "desk" },
   { key: "settings", label: "Settings", href: "/agencies/settings", group: "desk" },
@@ -94,7 +94,6 @@ const ITEMS: Array<{ key: AgencyNavKey; label: string; href: string; group: NavG
 
 /** Where "up" goes from inside a role: the level directly above it. */
 const UP = ITEMS.find((i) => i.key === "roles")!
-const BRIEFS = ITEMS.find((i) => i.key === "briefs")!
 
 export function AgencyNav({
   current,
@@ -113,29 +112,6 @@ export function AgencyNav({
   inRole?: boolean
 }) {
   const router = useRouter()
-  const [waiting, setWaiting] = useState(0)
-
-  useEffect(() => {
-    let live = true
-    fetch("/api/agency/briefs?status=submitted")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (live && Array.isArray(d?.briefs)) setWaiting(d.briefs.length)
-      })
-      // Chrome must never break a page: a failed count renders as no badge,
-      // which reads the same as none waiting. The inbox still tells the truth.
-      .catch(() => {})
-    return () => {
-      live = false
-    }
-  }, [])
-
-  const briefsBadge = waiting > 0 && (
-    <span className="ag-pill" style={{ marginLeft: 8 }}>
-      {waiting}
-    </span>
-  )
-
   if (inRole) {
     return (
       <div>
@@ -148,15 +124,6 @@ export function AgencyNav({
           </span>
           All roles
         </button>
-        {/* The one desk item that is about something waiting rather than
-            somewhere to go, so it earns a row inside a role — but only while
-            it has something to say. */}
-        {waiting > 0 && (
-          <button className="ag-step" onClick={() => router.push(BRIEFS.href)}>
-            {BRIEFS.label}
-            {briefsBadge}
-          </button>
-        )}
       </div>
     )
   }
@@ -181,7 +148,6 @@ export function AgencyNav({
                   onClick={isCurrent ? undefined : () => router.push(item.href)}
                 >
                   {item.label}
-                  {item.key === "briefs" && briefsBadge}
                 </button>
                 {isCurrent && sections && sections.length > 0 && (
                   <nav className="agd-nav ag-nav-sections" aria-label="On this page">

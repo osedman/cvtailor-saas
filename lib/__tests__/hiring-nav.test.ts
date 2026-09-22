@@ -80,9 +80,8 @@ describe("HiringNav — which place is lit", () => {
 
 describe("the hiring manager cannot start a role", () => {
   /**
-   * The ROUTE deliberately survives: deleting it would leave the recruiter's
-   * briefs inbox unable to ever receive a new brief, which is a separate
-   * decision. What is gone is every door to it from the workspace.
+   * 22 Sep 2026: the whole client-brief flow was removed (Ose) — the form,
+   * its API and the recruiter's inbox. Roles are created by the recruiter.
    */
   it("the dashboard offers no way to post one", () => {
     expect(code("app/hiring/page.tsx")).not.toMatch(/hiring\/briefs/)
@@ -94,9 +93,9 @@ describe("the hiring manager cannot start a role", () => {
     expect(code("app/hiring/page.tsx")).not.toMatch(/Post a brief/)
   })
 
-  it("but the route itself still answers", () => {
-    expect(existsSync(join(process.cwd(), "app/hiring/briefs/new/page.tsx"))).toBe(true)
-    expect(existsSync(join(process.cwd(), "app/api/hiring/briefs/route.ts"))).toBe(true)
+  it("and the brief form and its API are gone", () => {
+    expect(existsSync(join(process.cwd(), "app/hiring/briefs/new/page.tsx"))).toBe(false)
+    expect(existsSync(join(process.cwd(), "app/api/hiring/briefs/route.ts"))).toBe(false)
   })
 })
 
@@ -124,7 +123,6 @@ describe("the rail lives in the shell, not in every page", () => {
       "app/hiring/interviews/page.tsx",
       "app/hiring/roles/[roleId]/page.tsx",
       "app/hiring/roles/[roleId]/interviews/page.tsx",
-      "app/hiring/briefs/new/page.tsx",
     ]) {
       expect(code(path)).not.toMatch(/<HiringNav \/>|<HiringSidebar \/>/)
     }

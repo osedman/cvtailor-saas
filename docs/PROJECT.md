@@ -6893,3 +6893,24 @@ untouched.
 `placements.candidate_id` cascades, so the purge deletes the placement (fee,
 rebate) with them. Needs a migration and a decision (exempt the hire from
 retention, or make the placement survive with `set null`).
+
+## ✂️ The client-brief flow is removed (22 September 2026)
+
+Ose: the recruiter's "Client briefs" page "doesn't work — there's no button to
+create the brief". By design it had none: it was an INBOX for briefs a hiring
+manager filed at `/hiring/briefs/new`, and that form had already lost every
+door from the workspace, so the inbox could never fill. Ose chose to remove
+the whole flow rather than just the nav item.
+
+- Deleted: `/agencies/briefs`, `/hiring/briefs/new`, `/api/agency/briefs/**`,
+  `/api/hiring/briefs/**` (incl. JD extract), `lib/agency/briefs.ts`,
+  `brief-limits.ts`, and their tests.
+- Nav: "Client briefs" and its badge fetch are gone.
+- Notifications: `brief_filed` / `brief_answered` removed; `facesClient()`
+  now returns false for every kind (the wall stays for a future one).
+- `next.config.js` redirects `/agencies/briefs` → `/agencies` and
+  `/hiring/briefs/new` → `/hiring` (not permanent), so "New brief" emails
+  already delivered do not 404.
+- KEPT: the `role_briefs` table and its reads — roles already minted from a
+  brief still show the brief's JD and contact. No migration.
+- Roles are created by the recruiter only.

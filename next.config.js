@@ -19,6 +19,11 @@ const nextConfig = {
       // people's inboxes link to it, and those cannot be edited — without this
       // they would 404 forever. Send them to the home page instead.
       { source: '/walkthrough', destination: '/', permanent: true },
+      // The client-brief flow was removed (22 Sep 2026). "New brief" emails
+      // already delivered link to the inbox, so it redirects rather than 404s.
+      // Not permanent: the business may want briefs back.
+      { source: '/agencies/briefs', destination: '/agencies', permanent: false },
+      { source: '/hiring/briefs/new', destination: '/hiring', permanent: false },
     ]
   },
 }

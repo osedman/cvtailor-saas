@@ -39,7 +39,7 @@ const agDisplay = Fraunces({ subsets: ["latin"], weight: "variable", variable: "
 
 export const metadata: Metadata = {
   title: "Hiring — Tailr",
-  description: "Your interviews, briefs and decisions, from the agency working your roles.",
+  description: "Your interviews and decisions, from the agency working your roles.",
   // A private workspace reached only by invite; never indexed.
   robots: { index: false, follow: false },
 }

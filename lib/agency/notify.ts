@@ -42,10 +42,9 @@ export type NotifyOutcome =
   | "failed"
 
 /** The events that cross the wall. Each one is the answer to an ask Tailr
- * already sends, except brief_filed, which had no ask at all. */
+ * already sends. brief_filed and brief_answered went with the client-brief
+ * flow (22 Sep 2026). */
 export type NotifyEvent =
-  | { kind: "brief_filed"; contactId: string; roleTitle: string }
-  | { kind: "brief_answered"; contactId: string; roleTitle: string; accepted: boolean }
   | { kind: "invite_accepted"; contactId: string }
   | { kind: "debrief_recorded"; roleId: string; candidateRef: string }
   | { kind: "consent_answered"; roleId: string; candidateRef: string }
@@ -68,7 +67,11 @@ type Recipient = { email: string; name: string; userId: string | null }
  * manager unless somebody edits this function on purpose.
  */
 export function facesClient(kind: NotifyEvent["kind"]): boolean {
-  return kind === "brief_answered"
+  // The only client-facing kind was brief_answered, removed with the brief
+  // flow on 22 Sep 2026. Nothing faces the client now; the wall stays, so a
+  // future client-facing kind is still an explicit edit here.
+  void kind
+  return false
 }
 
 /**
@@ -312,36 +315,12 @@ function copyFor(input: NotifyInput): Copy {
   const agencyOrigin = getBusinessOrigin()
 
   switch (input.kind) {
-    case "brief_filed":
-      return {
-        subject: `New brief: ${input.roleTitle}`,
-        eyebrow: "A brief arrived",
-        heading: "A hiring manager filed a brief.",
-        body: `They are asking you to hire for ${esc(input.roleTitle)}. It is waiting in your brief inbox, where you can accept it into a role or decline it with a note back to them.`,
-        ctaLabel: "Open the brief",
-        ctaUrl: `${agencyOrigin}/agencies/briefs`,
-      }
-
-    case "brief_answered":
-      return {
-        subject: input.accepted
-          ? `Your brief was accepted: ${input.roleTitle}`
-          : `An update on your brief: ${input.roleTitle}`,
-        eyebrow: "Your brief",
-        heading: input.accepted ? "Your brief was accepted." : "Your recruiter replied to your brief.",
-        body: input.accepted
-          ? `Your recruiter has taken on ${esc(input.roleTitle)} and started work. You will see candidates here as they are put forward.`
-          : `Your recruiter has replied about ${esc(input.roleTitle)}, with a note explaining where things stand. Open it to read their reply.`,
-        ctaLabel: "See your briefs",
-        ctaUrl: `${agencyOrigin}/hiring`,
-      }
-
     case "invite_accepted":
       return {
         subject: "Your client activated their access",
         eyebrow: "Client access",
         heading: "Your client is in.",
-        body: "The hiring manager you invited has signed in for the first time. They can now file briefs, give availability and write up rounds without going through you.",
+        body: "The hiring manager you invited has signed in for the first time. They can now give availability and write up rounds without going through you.",
         ctaLabel: "Open clients",
         ctaUrl: `${agencyOrigin}/agencies/clients`,
       }
