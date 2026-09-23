@@ -131,6 +131,23 @@ describe("the kind travels the whole way", () => {
     expect(route).toMatch(/kind: request\.kind/)
   })
 
+  /**
+   * 23 Sep 2026: the first cut of this migration put a subquery inside a
+   * CHECK and Postgres refused the whole script (0A000). Ose found it by
+   * running it. A CHECK is row-local and immutable; `select` inside one is
+   * never legal, so this scans every CHECK in the migration for one.
+   */
+  it("puts no subquery inside a check constraint", () => {
+    const checks = migration.match(/check\s*\(([\s\S]*?)\)\s*;/gi) ?? []
+    expect(checks.length).toBeGreaterThan(0)
+    for (const c of checks) expect(c).not.toMatch(/\bselect\b/i)
+  })
+
+  it("names the four legal values of references_wanted, character first", () => {
+    expect(migration).toMatch(/references_wanted = array\['character', 'hr'\]::text\[\]/)
+    expect(migration).not.toMatch(/array\['hr', 'character'\]/)
+  })
+
   it("defaults existing rows to character rather than inventing a third state", () => {
     // Every reference taken before today WAS asked the character questions.
     expect(migration).toMatch(/default 'character'/)

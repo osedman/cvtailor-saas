@@ -43,14 +43,29 @@ alter table agency.candidate_references
 alter table agency.candidates
   add column if not exists references_wanted text[] not null default array['character']::text[];
 
+-- A CHECK CANNOT CONTAIN A SUBQUERY. The first cut of this migration wrote
+-- the no-duplicates rule as `array_length(...) = (select count(distinct k)
+-- from unnest(...) k)` and Postgres refused the whole script with 0A000,
+-- "cannot use subquery in check constraint" — correctly, because a CHECK
+-- must be immutable and row-local, and a subquery is neither.
+--
+-- The fix is not a cleverer expression: it is to name the four legal values.
+-- With two kinds there are exactly four, the list reads as the rule it is,
+-- and duplicates and unknown values are both impossible by construction.
+--
+-- ORDER IS CANONICAL: character first. An array is ordered and
+-- ['hr','character'] would be refused, so anything writing this column sorts
+-- it. That is a deliberate constraint on writers rather than a looser check
+-- here — two spellings of one fact is how a column starts disagreeing with
+-- itself.
 alter table agency.candidates
   drop constraint if exists candidates_references_wanted_check;
 alter table agency.candidates
   add constraint candidates_references_wanted_check check (
-    references_wanted <@ array['character', 'hr']::text[]
-    -- No duplicates: array_length of the deduped array must match.
-    and coalesce(array_length(references_wanted, 1), 0)
-      = coalesce((select count(distinct k) from unnest(references_wanted) k), 0)
+    references_wanted = array[]::text[]
+    or references_wanted = array['character']::text[]
+    or references_wanted = array['hr']::text[]
+    or references_wanted = array['character', 'hr']::text[]
   );
 
 -- The checklist asks "which kinds are in?" per candidate on every close-out.
