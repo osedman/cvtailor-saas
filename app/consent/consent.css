@@ -188,12 +188,79 @@
   margin-left: 10px;
 }
 
+
+/* ── The referee's dates and hints (23 Sep 2026, Figma frame 24 band H) ──
+ *
+ * The dates are free text, not a date picker: a picker demands a precision
+ * nobody has about a job they left in 2021, and "spring 2021" is a more
+ * honest answer than a wrong day. Two fields side by side above 480px and
+ * stacked below it, because a phone keyboard leaves no room for a pair. */
+.cs-fieldset {
+  margin: 0 0 4px;
+  padding: 0;
+  border: 0;
+}
+.cs-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 480px) {
+  .cs-pair { grid-template-columns: 1fr; }
+}
+.cs-input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  min-height: 44px;
+  border: 1px solid var(--cs-line);
+  border-radius: 10px;
+  background: var(--cs-paper);
+  color: var(--cs-ink);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.cs-input:focus { outline: none; border-color: var(--cs-coral); box-shadow: 0 0 0 3px var(--cs-tint); }
+.cs-input:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* A hint is guidance, not a label: it sits under the question and never
+ * replaces it, because a placeholder that vanishes on focus is not a label. */
+.cs-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--cs-ink-3);
+}
+
+/* "We still work together". The whole row is the target — a 13px checkbox
+ * on a phone is not one. */
+.cs-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin-top: 10px;
+  font-size: 15px;
+  color: var(--cs-ink-2);
+  cursor: pointer;
+}
+.cs-check input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--cs-coral);
+  cursor: pointer;
+}
+
 /* The doorway animates nothing, but the focus ring is a transition on some
  * browsers' defaults — say so explicitly rather than rely on that. */
 @media (prefers-reduced-motion: reduce) {
   .cs-option,
   .cs-btn,
-  .cs-textarea {
+  .cs-textarea,
+  .cs-input {
     transition: none !important;
     animation: none !important;
   }

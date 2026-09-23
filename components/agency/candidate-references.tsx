@@ -20,7 +20,15 @@ export interface ReferenceListRow {
   refereeName: string
   relationship: string
   status: "drafted" | "requested" | "chasing" | "received" | "declined"
+  /** Character or HR (23 Sep 2026). Decides which form their link opens and
+   *  what the request email says they are being asked for. */
+  kind: "character" | "hr"
   noticeSentAt: string | null
+}
+
+const KIND_LABEL: Record<ReferenceListRow["kind"], string> = {
+  character: "Character",
+  hr: "HR",
 }
 
 const STATUS_TONE: Record<ReferenceListRow["status"], string> = {
@@ -47,7 +55,12 @@ export function CandidateReferences({
   onRefsChange?: (refs: ReferenceListRow[] | null) => void
 }) {
   const [refs, setRefs] = useState<ReferenceListRow[] | null>(null)
-  const [newRef, setNewRef] = useState({ refereeName: "", refereeEmail: "", relationship: "" })
+  const [newRef, setNewRef] = useState<{
+    refereeName: string
+    refereeEmail: string
+    relationship: string
+    kind: ReferenceListRow["kind"]
+  }>({ refereeName: "", refereeEmail: "", relationship: "", kind: "character" })
   const [askedLink, setAskedLink] = useState<{ id: string; url: string; emailed: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -97,7 +110,9 @@ export function CandidateReferences({
         setError(typeof body?.error === "string" ? body.error : "Could not add that referee.")
         return
       }
-      setNewRef({ refereeName: "", refereeEmail: "", relationship: "" })
+      // The kind persists between adds: naming two character referees in a
+      // row is the common case, and resetting it invites the wrong form.
+      setNewRef((prev) => ({ refereeName: "", refereeEmail: "", relationship: "", kind: prev.kind }))
       await load()
     } finally {
       setBusy(false)
@@ -188,7 +203,7 @@ export function CandidateReferences({
             <span className="ag-grow" style={{ minWidth: 0 }}>
               <span style={{ fontSize: 13 }}>{r.refereeName}</span>
               <span className="ag-meta" style={{ display: "block" }}>
-                {r.relationship || "Referee"}
+                {KIND_LABEL[r.kind]} · {r.relationship || "Referee"}
                 {r.noticeSentAt ? " · notice sent" : " · no notice yet"}
               </span>
             </span>
@@ -225,6 +240,37 @@ export function CandidateReferences({
         className="ag-stack"
         style={{ gap: 8, marginTop: 14, borderTop: "1px solid var(--ag-border)", paddingTop: 12 }}
       >
+        {/*
+          Which kind, chosen BEFORE the name (23 Sep 2026, Figma frame 24
+          band C). It decides which form their link opens and what the
+          request email says they are being asked for, so it is part of who
+          this referee is — not a setting applied afterwards. Radios rather
+          than a select: two options that must be read, and neither is a
+          default the recruiter should sleepwalk past.
+        */}
+        <fieldset className="ag-kind-pick">
+          <legend className="ag-field-label">What are you asking them for?</legend>
+          {([
+            ["character", "Character reference", "Someone who worked with them — when, and what they were like to work with."],
+            ["hr", "HR reference", "The employer's HR team, confirming dates and job title. Facts only."],
+          ] as const).map(([value, label, hint]) => (
+            <label key={value} className="ag-kind-opt" htmlFor={`ref-kind-${value}`}>
+              <input
+                id={`ref-kind-${value}`}
+                type="radio"
+                name="referee-kind"
+                value={value}
+                checked={newRef.kind === value}
+                onChange={() => setNewRef({ ...newRef, kind: value })}
+              />
+              <span>
+                <b>{label}</b>
+                <span className="ag-meta" style={{ display: "block" }}>{hint}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+
         <label className="ag-field-label" htmlFor="ref-name">
           Referee name
         </label>

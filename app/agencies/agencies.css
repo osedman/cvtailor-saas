@@ -2433,3 +2433,41 @@ a.ag-rh-next:hover { opacity: 0.86; }
   .ag-team-select { width: 100%; }
   .ag-team-submit { justify-content: center; }
 }
+
+/* ── Which kind of reference (23 Sep 2026, Figma frame 24 band C) ─────────
+ * Two options that must both be read before one is picked, so radios with
+ * their reasons beside them rather than a select. The row is the target: a
+ * 13px radio is not one on a touch screen. */
+.ag-kind-pick {
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ag-kind-opt {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--ag-border);
+  border-radius: 8px;
+  background: var(--ag-bg-2);
+  font-size: var(--t-caption);
+  line-height: 1.5;
+  color: var(--ag-ink);
+  cursor: pointer;
+}
+.ag-kind-opt:has(input:checked) {
+  background: var(--ag-tint-1);
+  border-color: var(--ag-tint-2);
+}
+.ag-kind-opt input {
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ag-coral);
+  cursor: pointer;
+}

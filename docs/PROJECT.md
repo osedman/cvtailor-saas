@@ -7060,3 +7060,43 @@ candidate erasure outside `purge_candidate()`, and frozen submissions.
   function's guard, so deleting the real one left the suite green. Sliced by
   function body now, and the probe fails correctly.
 - 1,612 tests green, build clean. **Not yet clicked by a person.**
+
+## 📝 A reference is a character reference or an HR one (23 September 2026)
+
+Ose: references need to be "either character reference or HR reference", the
+recruiter picks which a candidate needs, and the character link should ask
+"simple date when they worked together, and two questions that can reflect
+the experience". Figma frame 24, bands C and H.
+
+**Migration `20260923090000_reference_kind.sql` — Ose runs it in
+tailr-staging BEFORE this code is used.**
+
+- **`candidate_references.kind`** ('character' | 'hr', default 'character')
+  decides which form the link opens and what the request email says. Every
+  reference taken before today WAS asked the character questions, so that is
+  what they are — 'unknown' would be more honest about our history and less
+  honest about what the referee answered.
+- **`candidates.references_wanted`** (text[]) is the recruiter's pick of
+  which kinds THIS candidate needs. An array, not two booleans, so "neither"
+  stays expressible instead of looking like an unanswered question.
+- **The character form is now the dates plus two questions.** Was four open
+  boxes, three of which overlapped. "How did you work with them, and for how
+  long?" became the dates; what remains is "What were they like to work
+  with?" and "Would you work with them again, and why?".
+- **The HR form asks facts only** — dates, job title, and an optional
+  factual note. No "what were they like": an HR team is usually not
+  permitted to answer it, so asking invites a reply they have to refuse. The
+  email says so before they click, and the subject differs.
+- **The dates are free text, not a date picker.** A picker demands a
+  precision nobody has about a job they left in 2021, and "spring 2021" is a
+  more honest answer than a wrong day. Plus "we still work together", which
+  clears the end date so the two cannot contradict each other.
+- **Answer keys are stable and that is the point.** Q1 (now the dates) and
+  Q3 (dropped) are NOT reused; the character form keeps Q2 and Q4, HR gets
+  H1/H2, the dates get D1/D2/D3. Reusing a key would silently re-label
+  something a referee already said about a real person.
+- **🐛 Caught in my own test:** the scan for "no 'unknown' state" matched the
+  migration's own COMMENT explaining why 'unknown' was not used — the same
+  trap as the scan that matched its own documentation. Comments stripped
+  before scanning.
+- 19 new tests, 1,631 green, build clean. **Not yet clicked by a person.**

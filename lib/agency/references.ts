@@ -22,6 +22,32 @@ import type { AgencyContext } from "./types"
 
 export type ReferenceStatus = "drafted" | "requested" | "received" | "chasing" | "declined"
 
+/**
+ * What a referee is being asked for (23 Sep 2026, Ose's decision).
+ *
+ * A CHARACTER reference is a person who worked with them, answering what
+ * they were like to work with. An HR reference is the employer's HR team
+ * confirming facts — dates and job title — and usually not permitted to say
+ * anything else. Asking both the same four open questions, which is what we
+ * did until today, invites HR to refuse a question we should not have put.
+ *
+ * The kind decides which form the referee's link opens. It is fixed when the
+ * referee is added, because it is also what the request email says they are
+ * being asked for.
+ */
+export type ReferenceKind = "character" | "hr"
+export const REFERENCE_KINDS: ReferenceKind[] = ["character", "hr"]
+
+export const KIND_LABEL: Record<ReferenceKind, string> = {
+  character: "Character reference",
+  hr: "HR reference",
+}
+
+/** Guard for anything arriving from a request body or a database row. */
+export function asReferenceKind(v: unknown): ReferenceKind {
+  return v === "hr" ? "hr" : "character"
+}
+
 const MAX_NAME = 200
 const MAX_ANSWER = 4000
 
@@ -43,6 +69,7 @@ export interface ReferenceRow {
   refereeEmail: string
   relationship: string
   status: ReferenceStatus
+  kind: ReferenceKind
   noticeSentAt: string | null
   receivedAt: string | null
 }
@@ -55,7 +82,7 @@ export async function listReferences(
   const { data, error } = await admin
     .from("candidate_references")
     .select(
-      "id, candidate_id, candidate_ref, referee_name, referee_email, relationship, status, notice_sent_at, received_at"
+      "id, candidate_id, candidate_ref, referee_name, referee_email, relationship, status, kind, notice_sent_at, received_at"
     )
     .eq("agency_id", ctx.agencyId)
     .eq("candidate_id", candidateId)
@@ -69,6 +96,7 @@ export async function listReferences(
     refereeEmail: (r.referee_email as string) ?? "",
     relationship: (r.relationship as string) ?? "",
     status: (r.status as ReferenceStatus) ?? "drafted",
+    kind: asReferenceKind(r.kind),
     noticeSentAt: (r.notice_sent_at as string | null) ?? null,
     receivedAt: (r.received_at as string | null) ?? null,
   }))
@@ -79,6 +107,8 @@ export interface AddRefereeInput {
   refereeName: string
   refereeEmail: string
   relationship?: string
+  /** Character or HR. Anything unrecognised reads as character. */
+  kind?: ReferenceKind | string
 }
 
 /** Record a referee the candidate has named. Nothing is sent yet. */
@@ -111,6 +141,7 @@ export async function addReferee(
       referee_email: email,
       relationship: cap(input.relationship, MAX_NAME),
       status: "drafted",
+      kind: asReferenceKind(input.kind),
       created_by: ctx.userId,
     })
     .select("id")
@@ -123,7 +154,7 @@ export async function addReferee(
     actorId: ctx.userId,
     entityType: "reference",
     entityRef: (candidate.ref as string) ?? "",
-    action: "referee_added",
+    action: `referee_added_${asReferenceKind(input.kind)}`,
     // The referee's name and address stay out of the log; they are a third
     // party whose data we hold on the thinnest possible basis.
     toValue: { reference_id: data.id as string },
@@ -139,6 +170,8 @@ export interface ReferenceRequest {
   candidateName: string
   agencyName: string
   isChase: boolean
+  /** What they are being asked for — the email says so before they click. */
+  kind: ReferenceKind
 }
 
 /**
@@ -159,7 +192,7 @@ export async function requestReference(
 
   const { data: ref, error } = await admin
     .from("candidate_references")
-    .select("id, agency_id, candidate_id, referee_name, referee_email, status, notice_sent_at")
+    .select("id, agency_id, candidate_id, referee_name, referee_email, status, kind, notice_sent_at")
     .eq("id", referenceId)
     .eq("agency_id", ctx.agencyId)
     .maybeSingle()
@@ -211,6 +244,7 @@ export async function requestReference(
     candidateName: (candidate?.full_name as string) ?? "the candidate",
     agencyName: (agency?.name as string) ?? "the agency",
     isChase,
+    kind: asReferenceKind(ref.kind),
   }
 }
 
@@ -318,6 +352,8 @@ export interface RefereeView {
   refereeName: string
   relationship: string
   status: ReferenceStatus
+  /** Which form this link opens. The page cannot infer it. */
+  kind: ReferenceKind
 }
 
 /** What the referee's page renders. Token only — no account, ever. */
@@ -327,7 +363,7 @@ export async function peekReference(rawToken: string): Promise<RefereeView | nul
 
   const { data: ref, error } = await admin
     .from("candidate_references")
-    .select("id, agency_id, candidate_id, referee_name, relationship, status")
+    .select("id, agency_id, candidate_id, referee_name, relationship, status, kind")
     .eq("request_token_hash", hashToken(rawToken))
     .maybeSingle()
   if (error) throw error
@@ -344,6 +380,7 @@ export async function peekReference(rawToken: string): Promise<RefereeView | nul
     refereeName: (ref.referee_name as string) ?? "",
     relationship: (ref.relationship as string) ?? "",
     status: (ref.status as ReferenceStatus) ?? "requested",
+    kind: asReferenceKind(ref.kind),
   }
 }
 
