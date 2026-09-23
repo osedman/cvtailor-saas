@@ -18,6 +18,7 @@ import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "
 import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey, isSourcingStep } from "@/lib/agency/steps"
 import { STRENGTHS, strengthWeightLabel } from "@/lib/agency/strengths"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
+import { BriefChip, useBriefStatus, type BriefStatusPayload } from "@/components/agency/brief-chip"
 import { MatchingWindow, type PoolPerson } from "@/components/agency/matching-window"
 import { RecommendationPanel } from "@/components/agency/recommendation-panel"
 import { roleLandingPath, type PhaseKey } from "@/lib/agency/phases"
@@ -276,6 +277,52 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     }
   }
   const [discarding, setDiscarding] = useState(false)
+  /**
+   * The brief this role runs on, and the ones it could (frame 25, bands C
+   * and D). One fetch feeds the chip under the header and the connect card
+   * in intake. Refetched after connecting, because connecting rewrites the
+   * role's planned rounds, contact and interview rules.
+   */
+  const briefStatusInitial = useBriefStatus(roleId, "recruiter")
+  const [briefStatus, setBriefStatus] = useState<BriefStatusPayload | null | "error">(null)
+  const [available, setAvailable] = useState<Array<{ id: string; title: string; version: number; state: string; contactName: string; summary: string; approvedAt: string | null }>>([])
+  const [pickBrief, setPickBrief] = useState("")
+  const [connecting, setConnecting] = useState(false)
+  useEffect(() => {
+    if (briefStatusInitial && briefStatusInitial !== "error") {
+      setBriefStatus(briefStatusInitial)
+      setAvailable(((briefStatusInitial as unknown as { available?: typeof available }).available ?? []))
+    } else if (briefStatusInitial === "error") setBriefStatus("error")
+  }, [briefStatusInitial])
+  async function connectBrief() {
+    if (!pickBrief) return
+    const chosen = available.find((b) => b.id === pickBrief)
+    if (!window.confirm(`Connect this role to “${chosen?.title ?? "the brief"}” v${chosen?.version ?? ""}? Its planned rounds, client contact and interview rules are copied onto the role now.`)) return
+    setConnecting(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/brief`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ briefId: pickBrief }) })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) return setError(typeof body?.error === "string" ? body.error : "Could not connect the brief.")
+      const again = await fetch(`/api/agency/roles/${roleId}/brief`)
+      if (again.ok) {
+        const b = (await again.json()) as BriefStatusPayload & { available?: typeof available }
+        setBriefStatus(b)
+        setAvailable(b.available ?? [])
+      }
+      // The role itself changed under us: planned rounds, contact and rules.
+      const fresh = await fetch(`/api/agency/roles/${roleId}`)
+      if (fresh.ok) {
+        const b = await fresh.json()
+        if (b.role) setRole(b.role)
+      }
+      announceRoleChanged()
+    } catch {
+      setError("Could not connect the brief.")
+    } finally {
+      setConnecting(false)
+    }
+  }
   /**
    * Discard the role. The reason is required by both the route and the DB
    * constraint, so it is asked for here rather than sent empty and refused.
@@ -1076,6 +1123,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       <main className="ag-main">
         <div className="ag-screen">
           {role && <RoleHeader roleId={roleId} hat="recruiter" />}
+          {role && <BriefChip roleId={roleId} hat="recruiter" data={briefStatus} />}
           {/* ONE LINE, NOT TWO (13 Sep 2026). The eyebrow named the step and
               the buttons moved between steps — the same subject, stacked as
               two full-width bands, so the role header was followed by four
@@ -1245,6 +1293,49 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       </div>
                     </div>
                   </div>
+                  {/*
+                    Run this role on a brief (frame 25, band C). Only APPROVED
+                    briefs at this client are offered; an unsigned one is
+                    listed greyed with the reason so nobody hunts for it.
+                    Connecting COPIES the config and stamps the version.
+                  */}
+                  <div className="ag-card">
+                    <div className="ag-card-head">
+                      <span className="ag-card-title">Run this role on a brief?</span>
+                      <span className="ag-pill">Audit logged</span>
+                    </div>
+                    <div className="ag-card-body">
+                      {briefStatus && briefStatus !== "error" && briefStatus.status ? (
+                        <p className="ag-note" style={{ marginBottom: 10 }}>
+                          On <b>{briefStatus.status.title}</b> v{briefStatus.status.version}. Planned rounds, the client contact and the interview rules came from it.
+                          {briefStatus.status.movedOnTo ? ` The brief has since been approved as v${briefStatus.status.movedOnTo} — reconnect below to follow it, or keep v${briefStatus.status.version}.` : ""}
+                        </p>
+                      ) : (
+                        <p className="ag-note" style={{ marginBottom: 10 }}>
+                          {role.company ? `Briefs with ${role.company} only. ` : "Name the company above to see its briefs. "}
+                          Connecting sets planned rounds, the client contact and the interview rules from the agreed terms.
+                        </p>
+                      )}
+                      <label className="ag-label" htmlFor="role-brief">Brief</label>
+                      <select id="role-brief" className="ag-input" value={pickBrief} onChange={(e) => setPickBrief(e.target.value)}>
+                        <option value="">{available.length === 0 ? "No briefs with this client yet" : "Choose an approved brief…"}</option>
+                        {available.map((b) => (
+                          <option key={b.id} value={b.id} disabled={b.state !== "approved"}>
+                            {b.title || "Untitled"} · v{b.version} · {b.state === "approved" ? `approved · ${b.summary}` : b.state === "draft" ? "draft — not sent yet" : b.state === "sent" ? `waiting on ${b.contactName} — cannot connect yet` : "waiting on you — cannot connect yet"}
+                          </option>
+                        ))}
+                      </select>
+                      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
+                        <button className="ag-btn ag-btn-primary" onClick={() => void connectBrief()} disabled={!pickBrief || connecting}>
+                          {connecting ? "Connecting…" : "Connect and apply its configuration"}
+                        </button>
+                        <button className="ag-btn ag-btn-secondary" onClick={() => router.push("/agencies/briefs")}>
+                          Start a new brief
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   {/*
                     Discard — the way out of a role created twice or by
                     mistake (22 Sep 2026). Not "close": closing is an outcome

@@ -1003,3 +1003,11 @@ a.hm-stage:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2
 @media (prefers-reduced-motion: reduce) {
   .hm-sl-more { transition: none; }
 }
+
+/* ---- 8. The brief, on the client side (frame 25, band B) ----------------- */
+.hm-brief-sigs { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 12px 0 8px; font-size: var(--t-caption); color: var(--ag-ink-2); }
+.hm-brief-sigs span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; border: 2px solid var(--ag-coral); vertical-align: -1px; }
+.hm-brief-sigs span[data-on]::before { background: var(--ag-ink); border-color: var(--ag-ink); }
+.hm-brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
+.hm-brief-actions .agd-tbtn { min-height: 44px; }
+@media (max-width: 480px) { .hm-brief-actions { flex-direction: column; align-items: stretch; } .hm-brief-actions .agd-tbtn { width: 100%; text-align: center; } }

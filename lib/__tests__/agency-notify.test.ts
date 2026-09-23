@@ -66,6 +66,12 @@ import { notify, facesClient, resolvePreference, type NotifyEvent } from "../age
 const CLASSIFICATION: Record<NotifyEvent["kind"], "agency" | "client"> = {
   invite_accepted: "agency",
   handover_delivered: "client",
+  // The client brief (23 Sep 2026): three to the contact, two to the agency.
+  brief_sent: "client",
+  brief_changed: "client",
+  brief_approved: "client",
+  brief_amended_by_client: "agency",
+  brief_approved_by_client: "agency",
   debrief_recorded: "agency",
   consent_answered: "agency",
   reference_submitted: "agency",

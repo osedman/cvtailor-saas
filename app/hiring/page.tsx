@@ -13,7 +13,7 @@
  * wait, and the screen said nothing needed you.
  */
 
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { HmFrame, toSummary, useHiringData } from "@/components/agency/hm-room"
 import { fmtWhen } from "@/components/agency/hm-shared"
@@ -23,7 +23,41 @@ export default function ToDoPage() {
   const data = useHiringData()
   const { screen, roles, rounds, alsoRecruiter, agencyName, nowMs: now } = data
 
-  const todo = useMemo(() => buildTodo(roles.map(toSummary), rounds, now), [roles, rounds, now])
+  const roundsTodo = useMemo(() => buildTodo(roles.map(toSummary), rounds, now), [roles, rounds, now])
+  /**
+   * The brief's door (frame 25, band D). A brief waiting on the client's
+   * signature is one more kind of thing OWED, and it goes above the rest:
+   * nothing on a role can start until its terms are agreed.
+   */
+  const [briefs, setBriefs] = useState<Array<{ id: string; title: string; agencyName: string; version: number; state: string; waitingOn: string | null; changedKeys: string[] }>>([])
+  useEffect(() => {
+    let live = true
+    fetch("/api/hiring/briefs")
+      .then(async (r) => {
+        if (!live || !r.ok) return
+        const b = (await r.json()) as { briefs?: typeof briefs }
+        setBriefs(Array.isArray(b.briefs) ? b.briefs : [])
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
+  const todo = useMemo(() => {
+    const briefRows = briefs
+      .filter((b) => b.waitingOn === "client")
+      .map((b) => ({
+        key: `brief:${b.id}`,
+        verb: b.version === 1 || b.changedKeys.length === 0 ? "Approve the brief" : `Review the changed brief (v${b.version})`,
+        who: b.title || "the search",
+        role: { id: "", ref: `v${b.version}`, title: b.agencyName },
+        when: b.changedKeys.length > 0 && b.version > 1 ? `${b.changedKeys.length} line${b.changedKeys.length === 1 ? "" : "s"} changed · your approval cleared` : `${b.agencyName} sent the terms of the search`,
+        href: `/hiring/briefs/${b.id}`,
+        cta: "Review",
+        urgent: true,
+      }))
+    return [...briefRows, ...roundsTodo]
+  }, [briefs, roundsTodo])
   const ownedRoles = new Set(todo.map((t) => t.role.id)).size
 
   // Coming up: the next booked interviews, then roles waiting on somebody

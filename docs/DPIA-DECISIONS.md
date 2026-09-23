@@ -16,6 +16,33 @@ cannot go quiet just because nobody opened this file.
 
 ---
 
+## 2026-09-23 · The brief fixes what the client is shown, before any candidate exists
+
+**Status: OPEN** — folds into the 22 Sep CV item; no new data category.
+
+The client brief (frame 25) carries a **disclosure default** — score, evidence
+quotes, recruiter notes, the CV, logistics — that the client AGREES to and
+the recruiter can still override per submission. It changes nothing about
+what MAY be disclosed (the 22 Sep decision did that); it changes WHEN the
+decision is made and by whom: up front, jointly, on a signed version, rather
+than by the recruiter alone at send time.
+
+What a reviewer should note:
+1. The Art 14 notice at ingestion still does not describe the CV disclosure
+   (open from 22 Sep). With the brief, the honest wording is now
+   knowable per role BEFORE ingestion, which is the right time to say it.
+2. The brief names client-side people (contact ids) as interviewers and
+   offer authority. These are the agency's client contacts, already held;
+   nothing new is collected about them.
+3. `brief_config` is copied onto the role and outlives the brief's later
+   versions. It contains no candidate data.
+
+Implemented: `lib/agency/brief-options.ts` (disclosure section),
+`lib/agency/search-briefs.ts` (`connectRoleToBrief` copies it),
+`20260923120000_search_briefs.sql`.
+
+---
+
 ## 2026-09-22 · The hiring manager sees the name, the evidence and the CV
 
 **Status: OPEN** — built on staging, no DPIA, no legal review.

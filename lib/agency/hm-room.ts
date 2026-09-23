@@ -21,8 +21,17 @@ export function stageId(s: RoomStage): string {
   return s.key === "round" ? `round-${s.n}` : s.key
 }
 
-export function stageLabel(s: RoomStage): string {
-  if (s.key === "round") return `Round ${s.n}`
+/**
+ * "Round 2 · Panel" when the role runs on a brief whose plan names the round,
+ * "Round 2" when it does not. Names come from the role's COPIED plan (frame
+ * 25 band D) — never the live brief — and a round beyond the plan (a third
+ * round on a two-round brief) simply has no name, which is itself the tell.
+ */
+export function stageLabel(s: RoomStage, roundNames: string[] = []): string {
+  if (s.key === "round") {
+    const name = roundNames[s.n - 1]
+    return name ? `Round ${s.n} · ${name.charAt(0).toUpperCase()}${name.slice(1)}` : `Round ${s.n}`
+  }
   return { shortlist: "Shortlist", decision: "Decision", handover: "Handover" }[s.key]
 }
 

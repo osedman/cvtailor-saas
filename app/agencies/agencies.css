@@ -2471,3 +2471,84 @@ a.ag-rh-next:hover { opacity: 0.86; }
   accent-color: var(--ag-coral);
   cursor: pointer;
 }
+
+/* ── The client brief (23 Sep 2026, Figma frame 25) ───────────────────────
+ * Two tiers, one pill; selects, steppers and chips over fixed sets; a review
+ * that both sides render. Tokens only, so the dark toggle needs nothing. */
+.ag-brief-tier { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: var(--r-pill); font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; white-space: nowrap; }
+.ag-brief-tier-1 { background: var(--ag-tint-2); color: var(--ag-coral-deep); }
+.ag-brief-tier-2 { background: var(--ag-bg-2); color: var(--ag-ink-3); border: 1px solid var(--ag-border); }
+
+.ag-brief-form { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.ag-brief-form:disabled { opacity: 0.6; }
+.ag-brief-section { padding: 18px 22px 20px; background: var(--ag-bg-2); border: 1px solid var(--ag-border); border-radius: 12px; display: flex; flex-direction: column; gap: 12px; }
+.ag-brief-section-head { display: flex; align-items: center; gap: 10px; }
+.ag-brief-section-title { margin: 0; flex: 1; font-size: var(--t-lead); font-weight: 600; color: var(--ag-ink); }
+.ag-brief-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: start; }
+.ag-brief-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ag-brief-hint { margin: 0; font-size: var(--t-micro); line-height: 1.5; color: var(--ag-ink-3); }
+
+.ag-brief-round { display: grid; grid-template-columns: 80px repeat(3, minmax(120px, 1fr)) minmax(200px, 1.4fr) auto; gap: 12px; align-items: start; padding: 12px 0; border-top: 1px solid var(--ag-border); }
+.ag-brief-round:first-of-type { border-top: 0; padding-top: 0; }
+.ag-brief-round-n { padding-top: 26px; font-weight: 600; color: var(--ag-ink); font-size: var(--t-small); }
+.ag-brief-round-remove { align-self: end; }
+@media (max-width: 900px) { .ag-brief-round { grid-template-columns: 1fr 1fr; } .ag-brief-round-n { padding-top: 0; grid-column: 1 / -1; } }
+
+/* Stepper: 44px targets, tabular figures so the value does not shuffle. */
+.ag-brief-stepper { display: grid; grid-template-columns: 44px 1fr 44px; align-items: stretch; min-height: 44px; border: 1px solid var(--ag-border); border-radius: 8px; background: var(--ag-paper); overflow: hidden; }
+.ag-brief-stepper button { border: 0; background: transparent; color: var(--ag-ink); font-size: 18px; font-weight: 600; cursor: pointer; }
+.ag-brief-stepper button:hover:not(:disabled) { background: var(--ag-bg-2); }
+.ag-brief-stepper button:disabled { color: var(--ag-ink-4); cursor: not-allowed; }
+.ag-brief-stepper output { display: flex; align-items: center; justify-content: center; font-size: var(--t-body); color: var(--ag-ink); font-variant-numeric: tabular-nums; }
+
+/* Chips: pressed state in fill AND border AND weight — never colour alone. */
+.ag-brief-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ag-brief-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; border-radius: var(--r-pill); border: 1px solid var(--ag-border); background: var(--ag-paper); color: var(--ag-ink-2); font-size: var(--t-small); font-weight: 500; cursor: pointer; transition: background 160ms ease, border-color 160ms ease; }
+.ag-brief-chip[aria-pressed="true"] { background: var(--ag-tint-1); border-color: var(--ag-coral); color: var(--ag-coral-deep); font-weight: 600; }
+.ag-brief-chip-tag { font-family: var(--ag-mono); font-size: 9px; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); }
+@media (pointer: coarse) { .ag-brief-chip { min-height: 44px; } }
+
+.ag-brief-title { font-size: var(--t-h1, 28px); font-weight: 600; margin: 6px 0 8px; }
+.ag-brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
+.ag-brief-start { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 12px; align-items: end; }
+.ag-brief-start .ag-label { grid-column: 1 / -1; }
+.ag-brief-start .ag-note { grid-column: 1 / -1; }
+@media (max-width: 640px) { .ag-brief-start { grid-template-columns: 1fr; } }
+
+/* Signatures, in words. */
+.ag-brief-sigs { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 12px 16px; margin: 0 0 14px; border: 1px solid var(--ag-border); border-radius: 10px; background: var(--ag-bg-2); font-size: var(--t-small); color: var(--ag-ink-2); }
+.ag-brief-sigs span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; border: 2px solid var(--ag-coral); vertical-align: -1px; }
+.ag-brief-sigs span[data-on]::before { background: var(--ag-ink); border-color: var(--ag-ink); }
+
+/* The one-page review. */
+.ag-brief-review { display: flex; flex-direction: column; gap: 4px; }
+.ag-brief-tier-head { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--ag-border); }
+.ag-brief-tier-head:first-child { margin-top: 0; }
+.ag-brief-tier-head h3 { margin: 0; flex: 1; font-size: var(--t-lead); font-weight: 600; color: var(--ag-ink); }
+.ag-brief-line { display: grid; grid-template-columns: 220px minmax(0, 1fr) auto auto; gap: 8px 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--ag-border); }
+.ag-brief-line[data-changed] { background: var(--ag-tint-1); margin: 0 -10px; padding-left: 10px; padding-right: 10px; border-radius: 8px; }
+.ag-brief-line-k { font-size: var(--t-small); color: var(--ag-ink-3); }
+.ag-brief-line-v { font-size: var(--t-body); font-weight: 500; color: var(--ag-ink); line-height: 1.5; }
+.ag-brief-line-prev { display: block; font-size: var(--t-small); font-weight: 400; color: var(--ag-ink-3); text-decoration: line-through; }
+.ag-brief-changed { font-family: var(--ag-mono); font-size: 9px; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); background: var(--ag-tint-2); padding: 4px 8px; border-radius: var(--r-pill); }
+.ag-brief-change { min-height: 40px; }
+@media (max-width: 720px) { .ag-brief-line { grid-template-columns: 1fr auto; } .ag-brief-line-k { grid-column: 1 / -1; } }
+
+/* The list. */
+.ag-brief-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ag-brief-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border: 1px solid var(--ag-border); border-radius: 12px; background: var(--ag-paper); }
+.ag-brief-row[data-waiting] { border-color: var(--ag-tint-2); background: var(--ag-tint-1); }
+.ag-brief-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; color: inherit; text-decoration: none; }
+.ag-brief-row-title { font-size: var(--t-lead); font-weight: 600; color: var(--ag-ink); }
+
+/* ON BRIEF V2 · 1 DIFFERENCE — the same chip both sides. */
+.ag-brief-chips-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 4px; }
+.ag-brief-chip-on { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 10px; border-radius: var(--r-pill); border: 1px solid var(--ag-border); background: var(--ag-bg-2); font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-2); text-decoration: none; }
+.ag-brief-chip-warn { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 10px; border-radius: var(--r-pill); background: var(--ag-tint-2); font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); cursor: pointer; }
+.ag-brief-diff { position: relative; }
+.ag-brief-diff summary { list-style: none; }
+.ag-brief-diff summary::-webkit-details-marker { display: none; }
+.ag-brief-diff ul { margin: 8px 0 4px; padding: 10px 14px 10px 28px; border: 1px solid var(--ag-tint-2); border-radius: 10px; background: var(--ag-tint-1); font-size: var(--t-small); line-height: 1.55; color: var(--ag-ink-2); }
+.ag-brief-diff .ag-meta { margin: 0 0 6px; }
+
+@media (prefers-reduced-motion: reduce) { .ag-brief-chip { transition: none; } }

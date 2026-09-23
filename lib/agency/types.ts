@@ -55,6 +55,15 @@ export interface JobRole {
   discarded_at: string | null
   discarded_by: string | null
   discard_reason: string | null
+  /**
+   * The brief this role runs on (23 Sep 2026, frame 25): a COPY of the
+   * approved config, stamped with the version. Never read live — see
+   * lib/agency/search-briefs.ts. All four are set together or not at all.
+   */
+  brief_id: string | null
+  brief_version: number | null
+  brief_config: unknown | null
+  brief_connected_at: string | null
   created_at: string
   updated_at: string
 }

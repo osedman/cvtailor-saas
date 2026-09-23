@@ -79,8 +79,13 @@ describe("the hiring manager cannot start a role", () => {
    * 22 Sep 2026: the whole client-brief flow was removed (Ose) — the form,
    * its API and the recruiter's inbox. Roles are created by the recruiter.
    */
-  it("the dashboard offers no way to post one", () => {
-    expect(code("app/hiring/page.tsx")).not.toMatch(/hiring\/briefs/)
+  it("the dashboard offers no way to post one — only to review one the recruiter sent", () => {
+    // 23 Sep 2026: /hiring/briefs/[id] is the client's REVIEW of a brief the
+    // recruiter drafted (frame 25). There is still no form to write one and
+    // no route that mints a role. The To-do links to review, never to create.
+    const src = code("app/hiring/page.tsx")
+    expect(src).not.toMatch(/hiring\/briefs\/new/)
+    expect(src).not.toMatch(/Post a brief|Write a brief|New brief/)
   })
 
   it("and does not tell them to do it anyway", () => {
@@ -95,9 +100,13 @@ describe("the hiring manager cannot start a role", () => {
     expect(src).not.toMatch(/STEP_LABELS = \["Brief"/)
   })
 
-  it("and the brief form and its API are gone", () => {
+  it("and the old brief FORM is gone; the client's route is read-and-sign only", () => {
     expect(existsSync(join(process.cwd(), "app/hiring/briefs/new/page.tsx"))).toBe(false)
-    expect(existsSync(join(process.cwd(), "app/api/hiring/briefs/route.ts"))).toBe(false)
+    // The list route exists again (23 Sep 2026) and is GET-only: a client
+    // reads briefs sent to them and cannot create one.
+    const list = code("app/api/hiring/briefs/route.ts")
+    expect(list).toMatch(/export async function GET/)
+    expect(list).not.toMatch(/export async function (POST|PUT|DELETE)/)
   })
 })
 

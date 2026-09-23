@@ -56,6 +56,7 @@ export type AgencyNavKey =
   | "today"
   | "roles"
   | "candidates"
+  | "briefs"
   | "clients"
   | "audit"
   | "settings"
@@ -84,8 +85,9 @@ const ITEMS: Array<{ key: AgencyNavKey; label: string; href: string; group: NavG
   // so a person was reachable only through the role they were on. It is a
   // destination now — the count always implied one (22 Aug walk-through).
   { key: "candidates", label: "Candidates", href: "/agencies/candidates", group: "work" },
-  // "Client briefs" removed 22 Sep 2026 (Ose): the whole client-brief flow
-  // went. Roles are created by the recruiter; the old URL redirects home.
+  // Briefs, again — as the terms of a search agreed with a client (23 Sep
+  // 2026, frame 25), not the JD inbox that was removed the day before.
+  { key: "briefs", label: "Briefs", href: "/agencies/briefs", group: "work" },
   { key: "clients", label: "Client access", href: "/agencies/clients", group: "desk" },
   { key: "audit", label: "Audit log", href: "/agencies/audit", group: "desk" },
   { key: "settings", label: "Settings", href: "/agencies/settings", group: "desk" },

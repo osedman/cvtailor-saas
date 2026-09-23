@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { SignOut } from "@/components/agency/sign-out"
 import { EmptyBand } from "@/components/agency/hm-shared"
+import { BriefChip, useBriefStatus } from "@/components/agency/brief-chip"
 import type { NextAction } from "@/lib/agency/next-action"
 import type { HiringRound, HiringSlot } from "@/lib/agency/types"
 import {
@@ -170,7 +171,7 @@ export function HmFrame({
  * weight; stages not reached yet are shown but not links — a door to a room
  * with nothing in it yet is a broken promise.
  */
-export function StageBar({ roleId, stages, current, here }: { roleId: string; stages: RoomStage[]; current: RoomStage; here: RoomStage }) {
+export function StageBar({ roleId, stages, current, here, roundNames = [] }: { roleId: string; stages: RoomStage[]; current: RoomStage; here: RoomStage; roundNames?: string[] }) {
   const ci = stageIndex(stages, current)
   return (
     <nav className="hm-stagebar" aria-label="Stages of this role">
@@ -181,7 +182,7 @@ export function StageBar({ roleId, stages, current, here }: { roleId: string; st
           const label = (
             <>
               {state === "done" && <span aria-hidden="true">✓ </span>}
-              {stageLabel(s)}
+              {stageLabel(s, roundNames)}
               {state === "current" && <span className="ag-sr-only"> (where this role is now)</span>}
             </>
           )
@@ -213,6 +214,11 @@ export function RoomHeader({
   here: RoomStage
 }) {
   const title = room.row?.role.title || room.rounds[0]?.role_title || "This role"
+  // The brief this role runs on, if any (frame 25, band D): the chip and the
+  // round names come from the role's COPIED plan through the client's own
+  // route, so the same sentence appears here as on the recruiter's header.
+  const brief = useBriefStatus(roleId, "client")
+  const roundNames = brief && brief !== "error" ? brief.roundNames ?? [] : []
   return (
     <section className="hm-room-head">
       <Link className="hm-back" href="/hiring/roles">← Roles</Link>
@@ -222,7 +228,8 @@ export function RoomHeader({
           .filter(Boolean)
           .join(" · ")}
       </p>
-      <StageBar roleId={roleId} stages={room.stages} current={room.current} here={here} />
+      <BriefChip roleId={roleId} hat="client" data={brief} />
+      <StageBar roleId={roleId} stages={room.stages} current={room.current} here={here} roundNames={roundNames} />
     </section>
   )
 }

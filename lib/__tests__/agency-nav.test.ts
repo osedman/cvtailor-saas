@@ -205,8 +205,15 @@ describe("every agency screen uses the shared nav", () => {
 describe("the nav itself", () => {
   const nav = read("components/agency/agency-nav.tsx")
 
-  it("offers no client-brief inbox — the brief flow was removed (22 Sep 2026)", () => {
-    expect(nav).not.toMatch(/\/agencies\/briefs/)
+  /**
+   * 22 Sep 2026: the client-brief INBOX was removed and this asserted its
+   * absence. 23 Sep 2026: briefs are back as a different object — the terms
+   * of a search, drafted by the recruiter and signed by both sides (frame
+   * 25). The nav offers the page; it still does not fetch a badge, because
+   * "waiting on you" is read on the page, not polled from the rail.
+   */
+  it("offers Briefs — the terms of a search, not the old inbox", () => {
+    expect(nav).toMatch(/href: "\/agencies\/briefs"/)
     expect(nav).not.toMatch(/\/api\/agency\/briefs/)
   })
 

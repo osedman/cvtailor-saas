@@ -7100,3 +7100,64 @@ tailr-staging BEFORE this code is used.**
   trap as the scan that matched its own documentation. Comments stripped
   before scanning.
 - 19 new tests, 1,631 green, build clean. **Not yet clicked by a person.**
+
+## 📜 The client brief, again — the terms of a search, signed by both sides (23 September 2026)
+
+Ose: set the client brief up again, but as the thing that DRIVES the role —
+rounds, basic rules the client reviews and can amend, approved on their
+side; a role connects to an approved brief and inherits it. Figma frame 25,
+signed off; band A redrawn to Ose's "as much dropdown as possible".
+
+**Migration `20260923120000_search_briefs.sql` — Ose runs it in
+tailr-staging BEFORE any of this is used.**
+
+- **What it is.** The 13 Aug brief was a JD inbox and died because the client
+  had no door to it. This one is a contract about HOW the search runs, in
+  two tiers: the client AGREES rounds (purpose, format, who, length),
+  decision turnaround, interview windows/notice/buffer/cap, what they are
+  shown, and the feedback promise; the client ACKNOWLEDGES fee/rebate/
+  invoice, ownership window, offer authority and ceiling, start target,
+  shortlist size, references wanted. One optional note is the only typing.
+- **The rule, once.** `search_brief_versions` carries the whole config per
+  version with two signatures. **Approved = both signatures on the SAME
+  version.** Amending, by either side, is a new row signed by its author —
+  the other side's approval was on the old row, which is what "clears"
+  means. Nothing is ever un-signed. The DB refuses a signature on an unsent
+  draft. `briefState()` in `lib/agency/brief-options.ts` is the whole state
+  machine (draft → sent → amended → approved → superseded), pure and tested.
+- **`brief-options.ts` imports nothing** — option sets, defaults,
+  `normaliseBrief` (every out-of-set value snaps to the default; references
+  kept in canonical order for the candidates constraint), `diffBrief`,
+  `applyClientAmendment` (tier-1 keys only), and `describe()` so both sides
+  render one sentence per line and never a uuid.
+- **`search-briefs.ts`** — create · save draft · send · amend · approve ·
+  discard an unsent draft, for the recruiter; read (own contact ids only,
+  never a draft) · amend tier-1 · approve, for the client;
+  `connectRoleToBrief` and `roleBriefStatus`. Every write audits. Five
+  notify kinds: three face the client (sent, changed, approved), two the
+  agency (client amended, client approved); the prefs constraint widened
+  for the agency two only — `agency-notify.test.ts` fails the build if a
+  client-facing kind becomes a preference.
+- **Connecting COPIES.** `job_roles.brief_config` + `brief_version`, plus
+  planned_rounds, contact_id and the one-to-one interview rules (round-1
+  duration, notice, buffer, max/day). The brief's time-of-day windows are
+  NOT mapped onto the settings' date windows — different facts. A DB check
+  refuses half a connection. **Divergence is computed on read**
+  (`roleBriefStatus`), never stored; the brief moving on to v3 does not
+  touch a running role, it reports it.
+- **Screens.** `/agencies/briefs` (list, waiting-on-you first) and
+  `/agencies/briefs/[id]` (band A form for a draft; band B review + amend
+  once sent). `/hiring/briefs/[id]` (band B: four lines with Change, seven
+  to read, "Approve v1" that becomes "Send v2 back" the moment a line
+  differs). A brief awaiting the client's signature is a To-do row above
+  everything — the door the first brief never had. Intake step 01 gains
+  "Run this role on a brief?" offering approved briefs at that company,
+  unsigned ones greyed with the reason. The same ON BRIEF Vn · N
+  DIFFERENCES chip on the recruiter's header and the client's room; the
+  room's stage bar reads round NAMES from the copied plan.
+- **Tests:** 21 on the pure module, 12 scans on the server half (approved
+  = both; current-version-only approval; amendment inserts and never
+  nulls a signature; client reads scoped and tiered; copy-not-live; grants).
+  Three removal-era tests (22 Sep) rewritten to the new object rather than
+  deleted: the client still cannot write a brief or mint a role.
+- 1,666 tests green, build clean. **Not yet clicked by a person.**
