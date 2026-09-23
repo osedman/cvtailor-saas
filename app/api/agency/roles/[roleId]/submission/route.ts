@@ -51,6 +51,9 @@ export async function GET(
       .from("submissions")
       .select("id, format, engine_version, generated_at, snapshot")
       .eq("role_id", roleId)
+      // RLS admits every agency the caller belongs to; the ACTING agency is
+      // the boundary, as on every sibling read (23 Sep E2E).
+      .eq("agency_id", auth.ctx.agencyId)
       .order("generated_at", { ascending: false })
     if (error) throw error
     return NextResponse.json({ submissions: data ?? [] })

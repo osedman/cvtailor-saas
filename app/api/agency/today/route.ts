@@ -31,6 +31,7 @@ export async function GET() {
       .from("job_roles")
       .select("id, status, created_at")
       .eq("agency_id", auth.ctx.agencyId)
+      .is("discarded_at", null)
       .neq("status", "closed")
       .order("created_at", { ascending: false })
       .limit(60)

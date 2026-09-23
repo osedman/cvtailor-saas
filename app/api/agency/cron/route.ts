@@ -152,7 +152,15 @@ async function run(req: NextRequest) {
   }
 
   for (const notice of due ?? []) {
-    const outcome = await sendOneNotice(admin, notice.id)
+    // One row that throws must not stop the rest of the day's notices, nor
+    // the scans, reminders and wave releases below (23 Sep E2E).
+    let outcome: Awaited<ReturnType<typeof sendOneNotice>>
+    try {
+      outcome = await sendOneNotice(admin, notice.id)
+    } catch {
+      summary.notices_failed++
+      continue
+    }
     if (outcome === "sent") summary.notices_sent++
     else if (outcome === "suppressed_list" || outcome === "suppressed_no_contact")
       summary.notices_suppressed++

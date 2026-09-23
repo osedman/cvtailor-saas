@@ -85,6 +85,14 @@ export default function BriefPage({ params }: { params: Promise<{ briefId: strin
     setBusy(kind)
     setError(null)
     try {
+      // Sending freezes v1. Anything typed since the last save has to be IN
+      // v1, so a send is a save first — the E2E found edits dropped and a
+      // title the screen showed refused by the server, which read the DB.
+      if (kind === "send" && (pending > 0 || title !== brief.title)) {
+        const saved = await fetch(`/api/agency/briefs/${briefId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ config: draft, title }) })
+        const sb = await saved.json().catch(() => ({}))
+        if (!saved.ok) return setError(typeof sb?.error === "string" ? sb.error : "Could not save before sending. Nothing was sent.")
+      }
       let res: Response
       if (kind === "save") {
         res = await fetch(`/api/agency/briefs/${briefId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ config: draft, title }) })

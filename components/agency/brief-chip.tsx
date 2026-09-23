@@ -43,7 +43,11 @@ export function useBriefStatus(roleId: string, hat: "recruiter" | "client") {
 }
 
 export function BriefChip({ roleId, hat, data }: { roleId: string; hat: "recruiter" | "client"; data: BriefStatusPayload | null | "error" }) {
-  if (!data || data === "error" || !data.status) return null
+  if (!data) return null
+  // A failed check must not read as "runs on no brief" — the divergence
+  // chip would silently vanish exactly when it matters.
+  if (data === "error") return <div className="ag-brief-chips-row"><span className="ag-brief-chip-warn">Could not check the brief</span></div>
+  if (!data.status) return null
   const s = data.status
   const n = s.differences.length
   const href = hat === "recruiter" ? `/api/agency/roles/${roleId}/brief` : `/hiring/briefs/${s.briefId}`

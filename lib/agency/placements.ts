@@ -240,6 +240,11 @@ export async function setPlacement(
     .select("id, status, fee_value, start_date")
     .eq("role_id", candidate.role_id as string)
     .eq("candidate_id", candidateId)
+    // A voided placement is not a placement. The unique key still holds the
+    // row, so the upsert below lands ON it — and revives it: voided_at
+    // cleared, offered_at re-stamped, as a fresh record (23 Sep E2E found
+    // the save returning 200 while every read filtered the row out).
+    .is("voided_at", null)
     .maybeSingle()
 
   /**
@@ -278,6 +283,9 @@ export async function setPlacement(
     outside_process_reason: advanced ? null : outsideReason,
     notes: cap(input.notes, MAX_NOTES),
     updated_at: now,
+    voided_at: null,
+    voided_by: null,
+    void_reason: null,
   }
   // Each status stamps its own moment, and only on arrival — re-saving an
   // accepted placement must not move the day it was accepted.

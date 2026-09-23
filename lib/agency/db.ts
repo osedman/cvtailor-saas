@@ -302,6 +302,10 @@ export async function getJobRole(
     .select("*")
     .eq("id", roleId)
     .eq("agency_id", ctx.agencyId)
+    // A discarded role is not a role (23 Sep E2E): without this, /parse,
+    // /submission and /brief kept serving and mutating one that had left
+    // every list.
+    .is("discarded_at", null)
     .maybeSingle()
   if (error) throw error
   return (data as JobRole) ?? null

@@ -245,6 +245,13 @@ export interface ClientAccessRow {
   /** The invite the state refers to — null when linked or never invited. */
   inviteId: string | null
   expiresAt: string | null
+  /**
+   * The linked person is ALSO an active member of this agency (23 Sep 2026).
+   * Removing their client access leaves their recruiter login untouched, and
+   * the screen has to say so — otherwise "they're still in" reads as a
+   * removal that failed.
+   */
+  alsoMember: boolean
 }
 
 /** A brief as its own author sees it. List shape: the body fields

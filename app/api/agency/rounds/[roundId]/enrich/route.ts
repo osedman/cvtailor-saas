@@ -92,6 +92,11 @@ export async function POST(
         { status: auth.failure === "unauthenticated" ? 401 : 403 }
       )
     }
+    // Enrichment deletes and rewrites candidate_evidence and rescores. Every
+    // sibling write route refuses a viewer; this one did not (23 Sep E2E).
+    if (auth.ctx.role === "viewer") {
+      return NextResponse.json({ error: "Viewers have read only access" }, { status: 403 })
+    }
     const limited = await checkRateLimit(auth.ctx.userId, "ai")
     if (limited) return limited
 

@@ -16,6 +16,34 @@ cannot go quiet just because nobody opened this file.
 
 ---
 
+## 2026-09-23 · Found by the E2E: two erasure/credential gaps that pre-date this week
+
+**Status: OPEN** — both need a migration; neither is new this week, both
+were found by the 23 Sep end-to-end test (`docs/E2E-2026-09-23.md`).
+
+1. **The `/rights` credential is stored in plaintext.** `candidates.rights_token`
+   defaults to a hex string and is matched directly; every agency member
+   (viewers included) can read it under the members SELECT policy and act
+   on the candidate's rights doorway — grant right-to-represent, file a
+   rights request — in the candidate's name. No expiry, no revocation. The
+   other four doorways store sha256 + expiry. Fix: hash the column, mint
+   raw once, revoke `authenticated` SELECT on the column, add
+   `revoked_at`/expiry. A reviewer should treat the current state as a
+   confidentiality weakness on the data-subject-rights channel itself.
+2. **Purge does not reach two snapshots.** `agency.purge_candidate()` deletes
+   the row and cascades, but `submissions.snapshot` keeps the candidate's
+   name, quotes and narrative per entry and stays servable to any live
+   portal token (3 live on staging), and `handover_packs.snapshot` keeps
+   the name with `candidate_id` nulled. Erasure is therefore incomplete
+   for anyone who was ever submitted. Fix: strip that ref's entry from
+   `snapshot->'shortlisted'` and void/redact packs on erasure.
+
+Also logged, lower: the doorway rate tier (`auth`, 15/day per IP) can lock
+out every candidate behind one office address — an availability issue on
+the rights/consent doorways, not a disclosure one.
+
+---
+
 ## 2026-09-23 · The brief fixes what the client is shown, before any candidate exists
 
 **Status: OPEN** — folds into the 22 Sep CV item; no new data category.

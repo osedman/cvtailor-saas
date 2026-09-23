@@ -416,9 +416,27 @@ export async function listClientAccess(ctx: AgencyContext): Promise<ClientAccess
     .from("client_contacts")
     .select("id, company, email, full_name, user_id")
     .eq("agency_id", ctx.agencyId)
+    // Archived contacts left the address book (22 Sep 2026); this list is
+    // the access table for the same address book, so they leave it too.
+    .is("archived_at", null)
     .order("company")
   if (error) throw error
   if (!contacts || contacts.length === 0) return []
+
+  // Which linked people also hold a membership here. Both staging testers
+  // do (a recruiter who is also the client contact), and without this flag
+  // removing their client access looks like it did nothing.
+  const linkedUserIds = contacts.map((c) => c.user_id as string | null).filter((u): u is string => Boolean(u))
+  const memberIds = new Set<string>()
+  if (linkedUserIds.length > 0) {
+    const { data: members } = await admin
+      .from("members")
+      .select("user_id")
+      .eq("agency_id", ctx.agencyId)
+      .eq("status", "active")
+      .in("user_id", linkedUserIds)
+    for (const m of members ?? []) memberIds.add(m.user_id as string)
+  }
 
   const { data: invites, error: inviteError } = await admin
     .from("client_invites")
@@ -462,6 +480,7 @@ export async function listClientAccess(ctx: AgencyContext): Promise<ClientAccess
       state,
       inviteId,
       expiresAt,
+      alsoMember: Boolean(contact.user_id) && memberIds.has(contact.user_id as string),
     }
   })
 }

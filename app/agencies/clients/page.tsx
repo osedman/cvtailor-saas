@@ -134,6 +134,22 @@ export default function ClientAccessPage() {
 
   useEffect(() => {
     load()
+    /**
+     * Re-read when the tab comes back (23 Sep 2026). The rows were loaded
+     * once and never again, so a client who accepted while this tab sat
+     * open still showed "Invited · Revoke invite"; revoking then correctly
+     * failed ("invite already accepted — unlink the contact to remove
+     * access"), the optimistic row rolled back to the STALE state, and the
+     * "Remove access" button never appeared. That is "I can't remove access
+     * even if they're in", and it was a refresh away the whole time.
+     */
+    const onFocus = () => void load()
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onFocus)
+    return () => {
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onFocus)
+    }
   }, [load])
 
   async function addContact() {
@@ -243,6 +259,10 @@ export default function ClientAccessPage() {
     } catch (e) {
       setRows((prev) => (prev ? prev.map((r) => (r.contactId === rollback.contactId ? rollback : r)) : prev))
       setError(e instanceof Error ? e.message : failMessage)
+      // The server refused because the world moved on (an invite accepted
+      // under us, a link already gone). Re-read, so the row offers the act
+      // that is now the right one rather than the one that just failed.
+      void load()
       return null
     } finally {
       setBusyContact(null)
@@ -317,7 +337,7 @@ export default function ClientAccessPage() {
   async function removeAccess(row: ClientAccessRow) {
     if (
       !window.confirm(
-        `Remove ${row.company}'s access? They stop being able to sign in and post briefs or see interview rounds with you. Everything they have already sent you stays, the removal is written to the audit log, and you can invite them again later.`
+        `Remove ${row.company}'s client access? Their hiring workspace with you closes on their next click. Everything they have already done stays on the record, the removal is audited, and you can invite them again later.${row.alsoMember ? "\n\nThey are ALSO a recruiter on this agency. That login is separate and stays — suspend them under Settings → Team if that is what you mean." : ""}`
       )
     ) {
       return
@@ -568,6 +588,9 @@ export default function ClientAccessPage() {
                         <span className="ag-meta">{expiry ? `Expired ${expiry}` : "Invite ran out"}</span>
                       )}
                       {row.state === "linked" && <span className="ag-meta">Signs in as this address</span>}
+                      {row.state === "linked" && row.alsoMember && (
+                        <span className="ag-meta">Also a recruiter here — removing client access leaves that login</span>
+                      )}
                     </div>
 
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>

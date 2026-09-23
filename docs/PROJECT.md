@@ -7161,3 +7161,52 @@ tailr-staging BEFORE any of this is used.**
   Three removal-era tests (22 Sep) rewritten to the new object rather than
   deleted: the client still cannot write a brief or mint a role.
 - 1,666 tests green, build clean. **Not yet clicked by a person.**
+
+## 🧪 End-to-end test on staging, and what it found (23 September 2026)
+
+Ose: "run a full end-to-end test, find bugs and performance issues, test it
+through other scenarios/paths/routes logically, use real world to test it,
+then document it and report back." Full report: **`docs/E2E-2026-09-23.md`**.
+Five testers in parallel against the real staging schema and data (writes
+rolled back, refs only). No browser session, so nothing was seen rendered.
+
+- **The bug Ose hit — "can't remove client access even if they're in".**
+  The Client access page loaded once and never again; a stale "Invited" row
+  offered Revoke, which correctly failed ("already accepted — unlink the
+  contact"), rolled back to the stale row, and "Remove access" never
+  appeared. Supabase logs: no PATCH ever reached `client_contacts`; no
+  `unlinked` audit row exists. **Fixed:** re-read on focus and after any
+  failed action; rows say when the person is ALSO a recruiter here (both
+  staging testers are), and the confirm names Settings → Team for that.
+- **15 fixed this session**, the worst four: the client's interview room
+  re-read the raw snapshot and leaked `full_name` for a redacted candidate
+  and private notes when notes were frozen off; the CV redactor missed US
+  numbers, left `+44 77` behind and passed scheme-less LinkedIn links (v2,
+  10 new tests); the nudge cron killed the candidate's booking link BEFORE
+  attempting the email (every non-founder nudge on staging); every
+  submission froze `cv: true` with no switch and no preview line for the
+  recruiter. Plus: partial brief payloads reset disclosure to defaults and
+  cleared the client's signature; send dropped unsaved edits; a voided pack
+  still named the hire; a voided placement could not be re-recorded;
+  `references_wanted` had no writer or reader; a revoked recipient still
+  tied a client to the role; viewers could run enrichment; GET /submission
+  was not scoped to the acting agency; discarded roles leaked into Today,
+  the dashboard and `getJobRole`; one throwing notice 500'd the daily cron;
+  the brief chip hid a failed check and reported a phantom difference.
+- **Needs Ose (migrations or decisions):** `candidates.rights_token` is
+  stored in PLAINTEXT and readable by every member (HIGH, DPIA-logged);
+  purge leaves the candidate's name in `submissions.snapshot` and
+  `handover_packs.snapshot` (HIGH, DPIA-logged); `authenticated` still holds
+  writes on five audit-coupled tables; nine missing indexes (SQL in the
+  report); the doorway rate tier locks shared IPs.
+- **Performance:** the per-call latency is fixed; the call COUNT is not.
+  Submission POST ≈105 calls (~25 deep); an HM room click ≈80 (the index
+  page loads everything to compute a redirect, then the stage page loads it
+  again); close-out ≈74 across nine fetches; the brief chip ≈48 because
+  `listBriefsForCompany` calls `loadBrief` in a loop; the candidates
+  endpoint pulls every `score_breakdowns` and `candidate_evidence` row in
+  the agency with no filter. Ranked table with fixes in the report.
+- **Checked and fine** is a long list in the report — RLS, grants,
+  constraints, the token doorways, the email guard, notify's wall, the
+  brief's two-signature rule, all probed, not read.
+- 1,679 tests green, build clean. **Still not clicked by a person.**

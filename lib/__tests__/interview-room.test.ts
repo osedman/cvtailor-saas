@@ -81,20 +81,24 @@ describe("the door only opens for somebody you were sent", () => {
     expect(lib).toMatch(/if \(!entry\) return null/)
   })
 
-  it("reads the person out of the frozen snapshot, never the live row", () => {
-    // What the client sees is what the client was sent. Reading candidates
-    // directly here would widen disclosure by accident the next time that
-    // table grows a column.
-    expect(lib).toMatch(/snapshot\.shortlisted/)
+  it("reads the person out of the GATED shortlist entry — never the raw snapshot, never the live row", () => {
+    // 23 Sep 2026 E2E: this module re-read submissions.snapshot and handed
+    // the room `full_name` for a redacted candidate and `narrative` (the
+    // recruiter's private notes) when the recruiter had frozen notes OFF.
+    // getClientShortlist already applies every switch and the redaction.
+    // There is one place the disclosure line is drawn, and it is not here.
+    expect(lib).toMatch(/shortlist\.entries\.find\(/)
+    expect(lib).not.toMatch(/snapshot\.shortlisted/)
+    expect(lib).not.toMatch(/\.from\("submissions"\)/)
     // The candidates table IS read — for the id alone, to find the rounds.
-    // What it must never supply is anything ABOUT the person: name, title and
-    // narrative come from the frozen snapshot, so this cannot widen the day
-    // that table grows a column.
     expect(lib).toMatch(/\.from\("candidates"\)\s*\.select\("id"\)/)
     expect(lib).not.toMatch(/\.select\("id, full_name|candidate\.full_name|candidate\.current_title/)
-    for (const field of ["fullName", "currentTitle", "narrative", "strengths", "gaps"]) {
-      expect(lib, field).toMatch(new RegExp(`${field}: (str|strList|num)\\(entry\\.`))
+    for (const field of ["fullName", "currentTitle", "mustHaveHit", "mustHaveTotal"]) {
+      expect(lib, field).toMatch(new RegExp(`${field}: entry\\.${field}`))
     }
+    expect(lib).toMatch(/narrative: entry\.narrative \?\? ""/)
+    expect(lib).toMatch(/entry\.strengths \?\? \[\]/)
+    expect(lib).toMatch(/entry\.gaps \?\? \[\]/)
   })
 
   it("scopes rounds to the caller's own contact ids", () => {

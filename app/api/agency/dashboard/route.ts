@@ -82,7 +82,7 @@ export async function GET() {
       contactsRes,
       briefsRes,
     ] = await Promise.all([
-      db.from("job_roles").select("id, ref, title, company, salary_band, status, created_by, created_at, closed_at").eq("agency_id", ctx.agencyId).order("created_at", { ascending: false }),
+      db.from("job_roles").select("id, ref, title, company, salary_band, status, created_by, created_at, closed_at").eq("agency_id", ctx.agencyId).is("discarded_at", null).order("created_at", { ascending: false }),
       db.from("candidates").select("id, ref, full_name, role_id, parse_status, retention_expires_at").eq("agency_id", ctx.agencyId),
       db.from("candidate_reviews").select("candidate_id, status, communication, motivation").eq("agency_id", ctx.agencyId),
       db.from("recruiter_reviews").select("candidate_id, decision").eq("agency_id", ctx.agencyId),

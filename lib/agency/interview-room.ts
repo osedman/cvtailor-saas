@@ -87,13 +87,13 @@ export async function getInterviewRoom(
 
   const admin = agencyAdmin()
 
-  const { data: snapRow } = await admin
-    .from("submissions")
-    .select("snapshot")
-    .eq("id", shortlist.submissionId)
-    .maybeSingle()
-  const snapshot = (snapRow?.snapshot ?? {}) as { shortlisted?: Array<Record<string, unknown>> }
-  const entry = (snapshot.shortlisted ?? []).find((e) => str(e.ref) === candidateRef)
+  // THE GATED ENTRY, NOT THE RAW SNAPSHOT (23 Sep 2026 E2E). This used to
+  // re-read submissions.snapshot and hand the room `full_name` for a
+  // redacted candidate and `narrative` (= the recruiter's private notes)
+  // when the recruiter had frozen notes OFF. getClientShortlist already
+  // applied every switch and the redaction; there is exactly one place the
+  // disclosure line is drawn, and it is not here.
+  const entry = shortlist.entries.find((e) => e.ref === candidateRef)
   // Sent the shortlist, but this person was not on it.
   if (!entry) return null
 
@@ -178,13 +178,15 @@ export async function getInterviewRoom(
     },
     candidate: {
       ref: candidateRef,
-      fullName: str(entry.full_name),
-      currentTitle: str(entry.current_title) || null,
-      narrative: str(entry.narrative),
-      strengths: strList(entry.strengths),
-      gaps: strList(entry.gaps),
-      mustHaveHit: num(entry.must_have_hit),
-      mustHaveTotal: num(entry.must_have_total),
+      // Empty when withheld — the mapper blanks it for a redacted candidate.
+      fullName: entry.fullName,
+      currentTitle: entry.currentTitle,
+      // Null when the recruiter froze notes off; the room says "withheld".
+      narrative: entry.narrative ?? "",
+      strengths: (entry.strengths ?? []).map((s) => `${s.requirement}: ${s.quote}`),
+      gaps: (entry.gaps ?? []).map((g) => g.requirement),
+      mustHaveHit: entry.mustHaveHit,
+      mustHaveTotal: entry.mustHaveTotal,
     },
     rounds,
     currentRoundId: owed?.id ?? null,

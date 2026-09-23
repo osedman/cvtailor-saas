@@ -88,7 +88,7 @@ interface SnapshotEntry {
   gaps: Array<{ requirement: string; weight: string }>
   probe_areas?: string[]
 }
-interface Disclosure { scores: boolean; evidence: boolean; probes: boolean; notes: boolean; logistics: boolean }
+interface Disclosure { scores: boolean; evidence: boolean; probes: boolean; notes: boolean; logistics: boolean; cv: boolean }
 interface Snapshot {
   generated_at: string
   disclosure?: Disclosure
@@ -358,7 +358,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   }
   const [probePicker, setProbePicker] = useState(false)
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
-  const [disclosure, setDisclosure] = useState<Disclosure>({ scores: true, evidence: true, probes: true, notes: false, logistics: true })
+  const [disclosure, setDisclosure] = useState<Disclosure>({ scores: true, evidence: true, probes: true, notes: false, logistics: true, cv: true })
   /*
    * TYPING MUST NOT RE-RENDER THE SCREEN (19 Sep 2026).
    *
@@ -2654,6 +2654,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                     </ul>
                                   </div>
                                 )}
+                                {disclosure.cv && (
+                                  <p className="ag-meta">Their CV travels with this submission — as text, with phone, email and links removed. Opening it is recorded.</p>
+                                )}
                                 {disclosure.logistics && (r.comp || r.location || r.availability) && (
                                   <div className="ag-cfp-logistics">
                                     {r.comp && <span><span className="ag-field-label" style={{ marginBottom: 2 }}>Comp</span>{r.comp}</span>}
@@ -2839,6 +2842,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             ["probes", "Probe areas"],
                             ["notes", "Your call notes"],
                             ["logistics", "Comp and logistics"],
+                            // The CV itself (22 Sep 2026): on by default, the
+                            // recruiter's to withhold. The E2E found it
+                            // freezing ON with no switch and no mention.
+                            ["cv", "The CV (contact details removed)"],
                           ] as const).map(([key, label]) => (
                             <button
                               key={key}

@@ -33,7 +33,7 @@
  */
 
 /** Bumped when the redaction rules change, so a reviewer can tell which ran. */
-export const CV_REDACTION_VERSION = "v1-2026-09-22"
+export const CV_REDACTION_VERSION = "v2-2026-09-23"
 
 export interface RedactedCv {
   /** The CV text with contact details replaced by a marker. */
@@ -63,13 +63,34 @@ const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
  * treated as a number is nine digits, so a date range ("2021-2024") and a
  * salary ("£65,000") survive.
  */
-const PHONE = /(?:(?:\+|00)\d{1,3}[\s.-]?)?(?:\(0\d{1,4}\)|0\d{1,4})[\s.-]?\d{3,4}[\s.-]?\d{3,4}\b|\b\+\d{9,15}\b/g
+const PHONE = new RegExp(
+  [
+    // International: +44 7700 900123, +1 415 555 0123, 0044 …, with spaces,
+    // dots or dashes between groups. Greedy over the whole run of digits,
+    // because "+44 77" surviving is a phone number to anyone who reads it.
+    String.raw`(?:\+|00)\d{1,3}(?:[\s.-]?\(?\d{1,4}\)?){2,5}`,
+    // UK national: 07700 900123, (0161) 496 0123, 0161-496-0123.
+    String.raw`(?:\(0\d{1,4}\)|0\d{1,4})[\s.-]?\d{3,4}[\s.-]?\d{3,4}`,
+    // North American: (415) 555-0123, 415-555-0123, 415.555.0123 — missed by
+    // v1 (23 Sep 2026 E2E), and a CV from a US employer is not rare.
+    String.raw`\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}`,
+  ].join("|"),
+  "g"
+)
 
 /**
  * Personal links. LinkedIn, GitHub and the rest are a way to reach someone,
  * so they go the same way as the phone number.
  */
-const LINK = /\b(?:https?:\/\/|www\.)[^\s<>()]+/gi
+const LINK = new RegExp(
+  [
+    String.raw`\b(?:https?:\/\/|www\.)[^\s<>()]+`,
+    // Scheme-less social handles — "linkedin.com/in/priya" is how people
+    // actually write it on a CV, and v1 let it through (23 Sep 2026 E2E).
+    String.raw`\b(?:linkedin|github|gitlab|twitter|x|instagram|facebook|medium|behance|dribbble)\.com\/[^\s<>()]+`,
+  ].join("|"),
+  "gi"
+)
 
 /**
  * A UK postcode, full or outward-only, which is the piece of an address

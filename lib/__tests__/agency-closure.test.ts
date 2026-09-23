@@ -28,6 +28,9 @@ const admin = vi.hoisted(() => ({
     chain.select = () => { mode = "select"; return chain }
     chain.eq = (c: string, v: unknown) => { filters.push((r) => r[c] === v); return chain }
     chain.in = (c: string, vs: unknown[]) => { filters.push((r) => vs.includes(r[c])); return chain }
+    // Implements the filter it is handed, like the rest — a mock that ignores
+    // `.is("voided_at", null)` would agree with code that forgot it.
+    chain.is = (c: string, v: unknown) => { filters.push((r) => (v === null ? r[c] == null : r[c] === v)); return chain }
     chain.limit = () => chain
     let sortBy: { col: string; asc: boolean } | null = null
     chain.order = (col: string, o?: { ascending?: boolean }) => { sortBy = { col, asc: o?.ascending !== false }; return chain }
@@ -251,5 +254,18 @@ describe("the hire is never told the role closed", () => {
     await sendClosureNotices(admin as never, "role-1", { spacingMs: 0 })
     const c4 = (store.tables.candidates ?? []).find((c) => c.id === "c4")
     expect(store.mail.some((m) => m.to === c4?.email)).toBe(false)
+  })
+
+  it("a VOIDED pack does not name the hire — the wrongly-packed person is told like everyone else", async () => {
+    // 23 Sep 2026 E2E: void exists to abandon a pack frozen against the
+    // wrong candidate. Counting it as "the hire" exempted that person from
+    // the closure notice for good — the exact ghosting this file prevents.
+    store.tables.placements = []
+    store.tables.handover_packs = [
+      { role_id: "role-1", candidate_id: "c4", generated_at: "2026-09-21T10:00:00Z", delivered_at: null, voided_at: "2026-09-21T12:00:00Z" },
+    ]
+    await sendClosureNotices(admin as never, "role-1", { spacingMs: 0 })
+    const c4 = (store.tables.candidates ?? []).find((c) => c.id === "c4")
+    expect(store.mail.some((m) => m.to === c4?.email)).toBe(true)
   })
 })

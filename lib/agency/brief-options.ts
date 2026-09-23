@@ -227,7 +227,12 @@ export function normaliseBrief(input: unknown, base: BriefConfig = DEFAULT_BRIEF
   })
   const daysIn = Array.isArray(o.interviewDays) ? o.interviewDays : base.interviewDays
   const interviewDays = WEEKDAYS.filter((d) => daysIn.includes(d))
-  const d = (o.disclosure && typeof o.disclosure === "object" ? o.disclosure : {}) as Record<string, unknown>
+  // Absent means "unchanged", not "back to the product default". The first
+  // cut fell to defaults for disclosure, note, offer authority, ceiling and
+  // start target when the key was missing — so a title-only amend rewrote
+  // what the client would be shown and cleared the client's signature for a
+  // change nobody made (found in the 23 Sep E2E).
+  const d = (o.disclosure && typeof o.disclosure === "object" ? o.disclosure : base.disclosure) as Record<string, unknown>
   const refsIn = Array.isArray(o.referencesWanted) ? o.referencesWanted : base.referencesWanted
   // Canonical order — the DB constraint on candidates.references_wanted
   // refuses ['hr','character'], and this is where that promise is kept.
@@ -235,11 +240,13 @@ export function normaliseBrief(input: unknown, base: BriefConfig = DEFAULT_BRIEF
   const windowFrom = time(o.windowFrom, base.windowFrom)
   let windowTo = time(o.windowTo, base.windowTo)
   if (windowTo <= windowFrom) windowTo = base.windowTo > windowFrom ? base.windowTo : TIME_STEPS[TIME_STEPS.length - 1]
-  const startTargetMonth = typeof o.startTargetMonth === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(o.startTargetMonth) ? o.startTargetMonth : null
+  const startTargetMonth =
+    o.startTargetMonth === undefined ? base.startTargetMonth : typeof o.startTargetMonth === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(o.startTargetMonth) ? o.startTargetMonth : null
   const feePercentRaw = typeof o.feePercent === "number" ? o.feePercent : Number(o.feePercent)
   const feePercent = Number.isFinite(feePercentRaw) ? Math.min(50, Math.max(0, Math.round(feePercentRaw * 2) / 2)) : base.feePercent
   const ceilingRaw = typeof o.offerCeiling === "number" ? o.offerCeiling : Number(o.offerCeiling)
-  const offerCeiling = o.offerCeiling === null || o.offerCeiling === undefined || !Number.isFinite(ceilingRaw) ? null : Math.max(0, Math.round(ceilingRaw / 1000) * 1000)
+  const offerCeiling =
+    o.offerCeiling === undefined ? base.offerCeiling : o.offerCeiling === null || !Number.isFinite(ceilingRaw) ? null : Math.max(0, Math.round(ceilingRaw / 1000) * 1000)
 
   return {
     rounds: rounds.length > 0 ? rounds : base.rounds,
@@ -265,12 +272,12 @@ export function normaliseBrief(input: unknown, base: BriefConfig = DEFAULT_BRIEF
     rebateShape: pick(REBATE_SHAPES, o.rebateShape, base.rebateShape),
     invoicePoint: pick(INVOICE_POINTS, o.invoicePoint, base.invoicePoint),
     ownershipMonths: pick<number>(OWNERSHIP_MONTHS, o.ownershipMonths, base.ownershipMonths),
-    offerAuthorityContactId: uuidish(o.offerAuthorityContactId) ? o.offerAuthorityContactId : null,
+    offerAuthorityContactId: o.offerAuthorityContactId === undefined ? base.offerAuthorityContactId : uuidish(o.offerAuthorityContactId) ? o.offerAuthorityContactId : null,
     offerCeiling,
     startTargetMonth,
     shortlistSize: clampInt(o.shortlistSize, SHORTLIST_SIZE.min, SHORTLIST_SIZE.max, base.shortlistSize),
     referencesWanted,
-    note: typeof o.note === "string" ? o.note.trim().slice(0, 600) : "",
+    note: o.note === undefined ? base.note : typeof o.note === "string" ? o.note.trim().slice(0, 600) : "",
   }
 }
 

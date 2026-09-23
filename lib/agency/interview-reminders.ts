@@ -95,19 +95,32 @@ export async function runInterviewReminders(now: Date = new Date()): Promise<Rem
   for (const row of (data ?? []) as unknown as RoundRow[]) {
     try {
       if (dueForNudge(row, now)) {
+        // Minting replaces the hash the candidate already holds. If the new
+        // email never goes (allow-list, Resend down), the old link must keep
+        // working — so remember it, and put it back on a failed send (23 Sep
+        // E2E: every nudge to a non-founder address on staging killed the
+        // candidate's link and gave them nothing for 72h).
+        const { data: before } = await admin.from("interview_rounds").select("booking_token_hash").eq("id", row.id).maybeSingle()
         const token = await mintBookingToken(admin, row.id)
         const sent = await sendSelfBookingInvite(admin, row.id, token)
-        await admin.from("interview_rounds").update({ last_reminded_at: now.toISOString() }).eq("id", row.id)
-        if (sent.sent) run.nudged += 1
-        else run.skipped += 1
+        if (sent.sent) {
+          await admin.from("interview_rounds").update({ last_reminded_at: now.toISOString() }).eq("id", row.id)
+          run.nudged += 1
+        } else {
+          await admin.from("interview_rounds").update({ booking_token_hash: before?.booking_token_hash ?? null }).eq("id", row.id)
+          run.skipped += 1
+        }
         await stamp(admin, row, "booking_nudged", { sent: sent.sent })
         continue
       }
       if (dueForPreReminder(row, now)) {
         const sent = await sendPreReminder(admin, row)
-        await admin.from("interview_rounds").update({ pre_reminded_at: now.toISOString() }).eq("id", row.id)
-        if (sent) run.reminded += 1
-        else run.skipped += 1
+        // Stamped on SEND, not on attempt — a transient failure must retry
+        // next run rather than mark the reminder as done.
+        if (sent) {
+          await admin.from("interview_rounds").update({ pre_reminded_at: now.toISOString() }).eq("id", row.id)
+          run.reminded += 1
+        } else run.skipped += 1
         await stamp(admin, row, "booking_pre_reminded", { sent })
       }
     } catch {

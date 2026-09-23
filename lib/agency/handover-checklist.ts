@@ -32,7 +32,7 @@ export interface ChecklistItem {
 }
 
 export const CHECKLIST: Array<{ key: ChecklistItemKey; label: string; derivedFrom: string }> = [
-  { key: "references", label: "References received", derivedFrom: "at least one reference with status received" },
+  { key: "references", label: "References received", derivedFrom: "a received reference of every kind this candidate needs (character, HR, or both)" },
   { key: "right_to_work", label: "Right to work seen", derivedFrom: "compliance record says the evidence was seen" },
   { key: "placement", label: "Placement recorded", derivedFrom: "a placement row that is offered, accepted or started" },
   { key: "start_date", label: "Start date agreed", derivedFrom: "a start date on the placement" },
@@ -41,16 +41,25 @@ export const CHECKLIST: Array<{ key: ChecklistItemKey; label: string; derivedFro
 
 export async function getChecklist(ctx: AgencyContext, roleId: string, candidateId: string): Promise<ChecklistItem[]> {
   const admin = agencyAdmin()
-  const [refs, compliance, placement, items] = await Promise.all([
-    admin.from("candidate_references").select("status").eq("agency_id", ctx.agencyId).eq("candidate_id", candidateId),
+  const [refs, compliance, placement, items, cand] = await Promise.all([
+    admin.from("candidate_references").select("status, kind").eq("agency_id", ctx.agencyId).eq("candidate_id", candidateId),
     admin.from("candidate_compliance").select("rtw_evidence").eq("agency_id", ctx.agencyId).eq("candidate_id", candidateId).maybeSingle(),
     admin.from("placements").select("status, start_date").eq("agency_id", ctx.agencyId).eq("role_id", roleId).eq("candidate_id", candidateId).maybeSingle(),
     admin.from("handover_items").select("item, state, reason, resolved_at").eq("agency_id", ctx.agencyId).eq("role_id", roleId).eq("candidate_id", candidateId),
+    admin.from("candidates").select("references_wanted").eq("agency_id", ctx.agencyId).eq("id", candidateId).maybeSingle(),
   ])
-  for (const r of [refs, compliance, placement, items]) if (r.error) throw r.error
+  for (const r of [refs, compliance, placement, items, cand]) if (r.error) throw r.error
+
+  // Which KINDS this candidate needs (23 Sep 2026): the recruiter's pick,
+  // defaulted from the role's brief at ingest. Every wanted kind must have a
+  // received reference; "none wanted" is satisfied by nothing. Until this
+  // read, one received character reference cleared a candidate the brief
+  // said needed HR too.
+  const wanted = (Array.isArray(cand.data?.references_wanted) ? (cand.data!.references_wanted as string[]) : ["character"]).filter((k) => k === "character" || k === "hr")
+  const receivedKinds = new Set((refs.data ?? []).filter((r) => r.status === "received").map((r) => (r.kind === "hr" ? "hr" : "character")))
 
   const derived: Record<ChecklistItemKey, boolean> = {
-    references: (refs.data ?? []).some((r) => r.status === "received"),
+    references: wanted.every((k) => receivedKinds.has(k)),
     right_to_work: compliance.data?.rtw_evidence === "seen",
     placement: !!placement.data && ["offered", "accepted", "started"].includes(placement.data.status as string),
     start_date: !!placement.data?.start_date,

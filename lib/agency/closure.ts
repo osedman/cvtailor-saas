@@ -103,6 +103,10 @@ export async function sendClosureNotices(
         .from("handover_packs")
         .select("candidate_id, generated_at, delivered_at")
         .eq("role_id", roleId)
+        // A voided pack was frozen against the WRONG candidate; counting it
+        // as "the hire" would exempt that person from the closure notice for
+        // good — the exact ghosting this file exists to prevent (23 Sep E2E).
+        .is("voided_at", null)
         .order("generated_at", { ascending: false }),
     ])
 

@@ -452,7 +452,7 @@ export async function recruiterAmend(ctx: AgencyContext, briefId: string, input:
   if (!view) throw new AgencyAccessError("that brief is not on this agency")
   if (view.state === "draft") return saveDraft(ctx, briefId, input)
 
-  const config = normaliseBrief(input.config, view.latest.config)
+  const config = normaliseBrief(input.config ?? view.latest.config, view.latest.config)
   const changes = diffBrief(view.latest.config, config)
   if (changes.length === 0 && (input.title === undefined || input.title.trim() === view.title)) {
     throw new AgencyAccessError("nothing changed — there is no new version to send")
@@ -511,7 +511,7 @@ export async function discardDraft(ctx: AgencyContext, briefId: string): Promise
   assertWriter(ctx)
   const admin = agencyAdmin()
   const view = await loadBrief(ctx.agencyId, briefId)
-  if (!view) return
+  if (!view) throw new AgencyAccessError("that brief is not on this agency")
   if (view.state !== "draft") throw new AgencyAccessError("this brief has been sent to the client and stays on the record")
   const { error } = await admin.from("search_briefs").update({ discarded_at: new Date().toISOString(), discarded_by: ctx.userId }).eq("id", briefId).is("discarded_at", null)
   if (error) throw error
@@ -618,6 +618,7 @@ export async function connectRoleToBrief(ctx: AgencyContext, roleId: string, bri
       updated_at: now,
     })
     .eq("id", roleId)
+    .eq("agency_id", ctx.agencyId)
   if (error) throw error
 
   const current = await getInterviewSettings(ctx.agencyId, roleId)
@@ -661,15 +662,26 @@ export async function roleBriefStatus(agencyId: string, roleId: string): Promise
   const { data: role } = await admin.from("job_roles").select("brief_id, brief_version, brief_config, planned_rounds, contact_id").eq("id", roleId).eq("agency_id", agencyId).maybeSingle()
   if (!role?.brief_id || !role.brief_config) return null
   const copy = normaliseBrief(role.brief_config)
-  const view = await loadBrief(agencyId, role.brief_id as string)
-  const settings = (await getInterviewSettings(agencyId, roleId)).settings
+  const [view, settingsRow] = await Promise.all([loadBrief(agencyId, role.brief_id as string), getInterviewSettings(agencyId, roleId)])
+  const settings = settingsRow.settings
 
   const differences: RoleBriefStatus["differences"] = []
   const cmp = (key: string, label: string, brief: string | number | null, actual: string | number | null) => {
     if (String(brief ?? "") !== String(actual ?? "")) differences.push({ key, label, brief: String(brief ?? "—"), role: String(actual ?? "—") })
   }
   cmp("planned_rounds", "Planned rounds", copy.rounds.length, role.planned_rounds == null ? copy.rounds.length : Number(role.planned_rounds))
-  cmp("contact_id", "Client contact", view?.names[view.contactId] ?? "the brief's contact", role.contact_id ? (view?.names[role.contact_id as string] ?? "another contact") : "none")
+  // Compared by ID, shown by name. Two contacts with one display name are
+  // still two people, and a brief that has since been discarded (view null)
+  // is "the brief is gone", not "a difference" — the E2E found this chip
+  // reporting a phantom difference no action could clear.
+  if (view && String(role.contact_id ?? "") !== view.contactId) {
+    differences.push({
+      key: "contact_id",
+      label: "Client contact",
+      brief: view.names[view.contactId] ?? "the brief's contact",
+      role: role.contact_id ? (view.names[role.contact_id as string] ?? "another contact") : "none",
+    })
+  }
   cmp("duration", "Interview length", copy.rounds[0]?.durationMinutes ?? null, settings.durationMinutes)
   cmp("notice", "Notice to candidates (h)", copy.noticeHours, settings.minNoticeHours)
   cmp("buffer", "Buffer (min)", copy.bufferMinutes, settings.bufferMinutes)

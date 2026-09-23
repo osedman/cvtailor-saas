@@ -36,6 +36,28 @@ describe("redactContactDetails — what must never survive", () => {
     expect(r.removed.phones).toBeGreaterThan(0)
   })
 
+  it.each([
+    "(415) 555-0123",
+    "415-555-0123",
+    "415.555.0123",
+    "+1 (415) 555-0123",
+    "+1 415 555 0123",
+    "+44 7700 900123",
+    "+44 (0)7700 900123",
+    "0044 7700 900123",
+  ])("removes the phone number %s, whole — no '+44 77' left behind", (phone) => {
+    const r = redactContactDetails(`Call me on ${phone} any time`)
+    expect(r.text).not.toMatch(/\d{3}/)
+    expect(r.text).not.toMatch(/\+\d/)
+    expect(r.removed.phones).toBeGreaterThan(0)
+  })
+
+  it("removes scheme-less social links", () => {
+    const r = redactContactDetails("linkedin.com/in/priya-raman · github.com/praman · x.com/praman")
+    expect(r.text).not.toMatch(/\.com\//)
+    expect(r.removed.links).toBe(3)
+  })
+
   it("removes personal links", () => {
     const r = redactContactDetails("linkedin: https://www.linkedin.com/in/priya-raman and github.com work at www.github.com/praman")
     expect(r.text).not.toContain("linkedin.com/in")

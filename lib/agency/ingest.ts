@@ -137,6 +137,9 @@ export async function ingestCandidate(
     })
     if (refError) throw refError
 
+    const { data: roleBrief } = await db.from("job_roles").select("brief_config").eq("id", roleId).maybeSingle()
+    const briefRefs = (roleBrief?.brief_config as { referencesWanted?: unknown } | null)?.referencesWanted
+    const referencesWanted = (["character", "hr"] as const).filter((k) => (Array.isArray(briefRefs) ? briefRefs.includes(k) : k === "character"))
     const { data: candidate, error: candError } = await db
       .from("candidates")
       .insert({
@@ -156,6 +159,10 @@ export async function ingestCandidate(
         cv_text: cvText,
         parse_status: "parsed",
         parsed_at: new Date().toISOString(),
+        // The kinds of reference this person will need, from the role's
+        // brief if it runs on one (23 Sep 2026). Changeable per person at
+        // close-out. Canonical order — the constraint refuses the other.
+        references_wanted: referencesWanted,
       })
       .select("*")
       .single()
