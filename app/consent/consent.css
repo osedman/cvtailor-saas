@@ -265,3 +265,65 @@
     animation: none !important;
   }
 }
+
+/* ── The form's rhythm (ui-ux-pro-max pass, 23 Sep 2026) ────────────────────
+ *
+ * Ose's screenshot: the legend was 13px grey under 16px bold questions, the
+ * two date inputs sat at different heights because their labels were
+ * different lengths, and "Would you work with them again" was jammed against
+ * the textarea above it. One block class with one vertical gap fixes the
+ * rhythm; one label class at one weight fixes the hierarchy; short labels fix
+ * the alignment. Spacing is a 4/8 scale: 24 between blocks, 8 label→hint,
+ * 8 hint→field. */
+.cs-q {
+  display: block;
+  margin: 24px 0 0;
+  min-width: 0;
+}
+.cs-q-label {
+  display: block;
+  margin: 0;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--cs-ink);
+}
+.cs-q .cs-hint { margin-top: 6px; }
+.cs-q .cs-textarea,
+.cs-q .cs-pair { margin-top: 10px; }
+
+/* "From" / "To". Small, quiet, the same length — the question is the legend
+ * above them, so these only have to name the box. */
+.cs-sub {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--cs-ink-3);
+}
+.cs-sub .cs-input { margin-top: 6px; }
+
+/* A focus ring you can see from across the room. The border alone read as a
+ * hover state; the ring is the affordance, the border just agrees with it. */
+.cs-input:focus-visible,
+.cs-textarea:focus-visible {
+  outline: none;
+  border-color: var(--cs-coral);
+  box-shadow: 0 0 0 4px var(--cs-tint);
+}
+
+/* Two buttons of equal standing. Side by side where there is room; one
+ * above the other on a phone, primary first, both full width and 48px. */
+.cs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
+}
+.cs-actions .cs-btn { min-height: 48px; }
+.cs-actions .cs-btn-quiet { margin-left: 0; }
+@media (max-width: 480px) {
+  .cs-actions { flex-direction: column; }
+  .cs-actions .cs-btn { width: 100%; }
+}

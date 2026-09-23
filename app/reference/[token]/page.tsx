@@ -49,16 +49,34 @@ type Screen = "loading" | "invalid" | "ready" | "done"
  * them, and for how long?", which is now the dates, so the character form
  * starts at Q2 rather than renumbering and colliding with old answers.
  */
-const DATE_QUESTIONS: Record<ReferenceKind, { from: string; to: string; hint: string }> = {
+/**
+ * `from` / `to` are what gets STORED against the answer, so they read as full
+ * questions in the record. `fromLabel` / `toLabel` are what the referee sees,
+ * and they are short on purpose: two labels of unequal length put the two
+ * inputs at different heights, which is exactly what the first render did
+ * (Figma frame 24 band H, and Ose's screenshot of 23 Sep 2026).
+ */
+const DATE_QUESTIONS: Record<
+  ReferenceKind,
+  { legend: string; from: string; to: string; fromLabel: string; toLabel: string; hint: string; still: string }
+> = {
   character: {
+    legend: "When did you work together?",
     from: "When did you start working together?",
-    to: "When did you stop?",
+    to: "When did you stop working together?",
+    fromLabel: "From",
+    toLabel: "To",
     hint: "Month and year is plenty — a rough answer is better than none.",
+    still: "We still work together",
   },
   hr: {
+    legend: "When were they employed?",
     from: "When did their employment start?",
     to: "When did it end?",
+    fromLabel: "From",
+    toLabel: "To",
     hint: "Month and year.",
+    still: "They still work here",
   },
 }
 
@@ -233,21 +251,19 @@ export default function ReferencePage({ params }: { params: Promise<{ token: str
           exactly as you write them.
         </p>
         <p className="cs-body">
-          <b>You are under no obligation.</b> There is a &quot;prefer not to&quot; button at the
+          <b>You are under no obligation.</b>{" "}There is a &quot;prefer not to&quot; button at the
           bottom, and choosing it tells us to stop asking.
         </p>
 
         {/* The dates. Free text on purpose: a date picker demands a
             precision most people do not have about a job they left in 2021,
             and "spring 2021" is a more honest answer than a wrong day. */}
-        <fieldset className="cs-fieldset">
-          <legend className="cs-legend">
-            <b>{kind === "hr" ? "When were they employed?" : "When did you work together?"}</b>
-          </legend>
+        <fieldset className="cs-fieldset cs-q">
+          <legend className="cs-q-label">{dates.legend}</legend>
           <p className="cs-hint">{dates.hint}</p>
           <div className="cs-pair">
-            <label className="cs-body" htmlFor={`ref-${DATE_KEYS.from}`}>
-              {dates.from}
+            <label className="cs-sub" htmlFor={`ref-${DATE_KEYS.from}`}>
+              {dates.fromLabel}
               <input
                 id={`ref-${DATE_KEYS.from}`}
                 className="cs-input"
@@ -257,8 +273,8 @@ export default function ReferencePage({ params }: { params: Promise<{ token: str
                 onChange={(e) => setAnswers((a) => ({ ...a, [DATE_KEYS.from]: e.target.value.slice(0, 100) }))}
               />
             </label>
-            <label className="cs-body" htmlFor={`ref-${DATE_KEYS.to}`}>
-              {dates.to}
+            <label className="cs-sub" htmlFor={`ref-${DATE_KEYS.to}`}>
+              {dates.toLabel}
               <input
                 id={`ref-${DATE_KEYS.to}`}
                 className="cs-input"
@@ -282,13 +298,13 @@ export default function ReferencePage({ params }: { params: Promise<{ token: str
                 setAnswers((a) => ({ ...a, [DATE_KEYS.to]: e.target.checked ? "" : a[DATE_KEYS.to] ?? "" }))
               }}
             />
-            <span>{kind === "hr" ? "They still work here" : "We still work together"}</span>
+            <span>{dates.still}</span>
           </label>
         </fieldset>
 
         {questions.map((q) => (
-          <label className="cs-body" key={q.key} htmlFor={`ref-${q.key}`}>
-            <b>{q.question}</b>
+          <label className="cs-q" key={q.key} htmlFor={`ref-${q.key}`}>
+            <span className="cs-q-label">{q.question}</span>
             {q.hint && <span className="cs-hint">{q.hint}</span>}
             <textarea
               id={`ref-${q.key}`}
@@ -308,17 +324,19 @@ export default function ReferencePage({ params }: { params: Promise<{ token: str
           </p>
         )}
 
-        <button className="cs-btn" onClick={() => submit(false)} disabled={saving}>
-          {saving ? "Sending…" : "Send my reference"}
-        </button>
-        {/* Equal standing, not a footnote. */}
-        <button
-          className="cs-btn cs-btn-quiet"
-          onClick={() => submit(true)}
-          disabled={saving}
-        >
-          I&apos;d prefer not to
-        </button>
+        <div className="cs-actions">
+          <button className="cs-btn" onClick={() => submit(false)} disabled={saving} aria-busy={saving}>
+            {saving ? "Sending…" : "Send my reference"}
+          </button>
+          {/* Equal standing, not a footnote. */}
+          <button
+            className="cs-btn cs-btn-quiet"
+            onClick={() => submit(true)}
+            disabled={saving}
+          >
+            I&apos;d prefer not to
+          </button>
+        </div>
 
         <p className="cs-foot">
           <b>What we hold about you.</b> Your name, your email address and your relationship to{" "}
