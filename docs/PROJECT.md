@@ -7210,3 +7210,14 @@ rolled back, refs only). No browser session, so nothing was seen rendered.
   constraints, the token doorways, the email guard, notify's wall, the
   brief's two-signature rule, all probed, not read.
 - 1,679 tests green, build clean. **Still not clicked by a person.**
+
+## 🧭 The brief screens had no sidebar (24 September 2026)
+
+Ose: "This brief screen is rendering the nav bar weird." Both brief pages
+(`/agencies/briefs` and `/agencies/briefs/[briefId]`) rendered `AgencyNav`
+straight into the app frame with no `ag-sidebar` aside around it — so no
+Tailr brand block, no agency switcher, no sign-out, no footer, and the nav
+squeezed to its own width with the active pill clipped at the left edge.
+Every other agency page wraps the nav in that aside. Now they both do, with
+a footer that says what a brief is. Verified rendered on both pages in the
+dev preview. Tests green.

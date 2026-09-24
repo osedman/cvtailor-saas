@@ -11,7 +11,9 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
+import { SignOut } from "@/components/agency/sign-out"
 import type { BriefState, BriefSide } from "@/lib/agency/brief-options"
 
 interface Row {
@@ -95,7 +97,22 @@ export default function BriefsPage() {
 
   return (
     <div className="ag-app ag-themed">
-      <AgencyNav current="briefs" />
+      <aside className="ag-sidebar">
+        <button className="ag-brand" style={{ border: "none", background: "none", cursor: "pointer" }} onClick={() => router.push("/agencies")}>
+          <div className="ag-brand-mark">T</div>
+          <div style={{ textAlign: "left" }}>
+            <div className="ag-brand-name">Tailr</div>
+            <div className="ag-brand-sub">For agencies</div>
+          </div>
+        </button>
+        <AgencySwitcher />
+        <AgencyNav current="briefs" />
+        <SignOut />
+        <div className="ag-sidebar-foot">
+          <div className="ag-meta" style={{ marginBottom: 6 }}>Signed by both sides</div>
+          <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>A brief is the terms of a search. Nothing here changes a live role until the client signs.</div>
+        </div>
+      </aside>
       <main className="ag-main">
         <div className="ag-screen-head">
           <div>

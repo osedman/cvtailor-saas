@@ -12,7 +12,9 @@
 import { use, useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
+import { SignOut } from "@/components/agency/sign-out"
 import { BriefForm, type ContactOption } from "@/components/agency/brief-form"
 import { BriefReview } from "@/components/agency/brief-review"
 import { diffBrief, type BriefConfig, type BriefState } from "@/lib/agency/brief-options"
@@ -117,7 +119,22 @@ export default function BriefPage({ params }: { params: Promise<{ briefId: strin
 
   return (
     <div className="ag-app ag-themed">
-      <AgencyNav current="briefs" />
+      <aside className="ag-sidebar">
+        <button className="ag-brand" style={{ border: "none", background: "none", cursor: "pointer" }} onClick={() => router.push("/agencies")}>
+          <div className="ag-brand-mark">T</div>
+          <div style={{ textAlign: "left" }}>
+            <div className="ag-brand-name">Tailr</div>
+            <div className="ag-brand-sub">For agencies</div>
+          </div>
+        </button>
+        <AgencySwitcher />
+        <AgencyNav current="briefs" />
+        <SignOut />
+        <div className="ag-sidebar-foot">
+          <div className="ag-meta" style={{ marginBottom: 6 }}>Signed by both sides</div>
+          <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>Send makes it a version the client can see. Their signature makes it the terms.</div>
+        </div>
+      </aside>
       <main className="ag-main">
         <Link href="/agencies/briefs" className="ag-back">
           ← Briefs
