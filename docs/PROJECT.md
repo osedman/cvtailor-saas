@@ -7262,3 +7262,13 @@ they want to reverse."
 - The company guard on connect is trimmed and case-blind. "Follow vN" on a
   moved-on brief is a button now, not a hunt through the list.
 1,679 tests green. Still not clicked by a person — no staging sign-in.
+
+## 🏷 Connecting a brief names the role (24 September 2026)
+
+Ose: "Shouldn't the role pull the role title from the brief?" Yes. A role
+made from intake is "Untitled role" until someone types; the brief already
+names the search. Connect now copies the brief's title onto a role whose
+title is blank or "Untitled role" — a title the recruiter typed stays. The
+old title rides in the connect audit row and the reverse puts it back.
+Ose also asked for a JD attachment on the brief — needs a column, a
+storage path and a Figma frame; parked pending his call (see chat).

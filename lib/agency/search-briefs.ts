@@ -597,7 +597,7 @@ export async function connectRoleToBrief(ctx: AgencyContext, roleId: string, bri
   if (!view) throw new AgencyAccessError("that brief is not on this agency")
   if (view.state !== "approved") throw new AgencyAccessError(`this brief is ${view.state === "draft" ? "still a draft" : `waiting on ${view.waitingOn === "client" ? "the client" : "you"}`} — a role connects only to an approved brief`)
 
-  const { data: role } = await admin.from("job_roles").select("id, ref, company, brief_id, brief_version, planned_rounds, contact_id").eq("id", roleId).eq("agency_id", ctx.agencyId).is("discarded_at", null).maybeSingle()
+  const { data: role } = await admin.from("job_roles").select("id, ref, title, company, brief_id, brief_version, planned_rounds, contact_id").eq("id", roleId).eq("agency_id", ctx.agencyId).is("discarded_at", null).maybeSingle()
   if (!role) throw new AgencyAccessError("that role is not on this agency")
   if (role.company && view.company && role.company.trim().toLowerCase() !== view.company.trim().toLowerCase()) {
     throw new AgencyAccessError(`this brief is with ${view.company}; the role is for ${role.company}`)
@@ -605,9 +605,14 @@ export async function connectRoleToBrief(ctx: AgencyContext, roleId: string, bri
 
   const c = view.latest.config
   const now = new Date().toISOString()
+  // A role made from intake has no name yet; the brief names the search.
+  // A title the recruiter typed is theirs and stays.
+  const roleTitle = String(role.title ?? "").trim()
+  const unnamed = !roleTitle || roleTitle.toLowerCase() === "untitled role"
   const { error } = await admin
     .from("job_roles")
     .update({
+      ...(unnamed && view.title.trim() ? { title: view.title.trim() } : {}),
       brief_id: briefId,
       brief_version: view.currentVersion,
       brief_config: c,
@@ -638,7 +643,7 @@ export async function connectRoleToBrief(ctx: AgencyContext, roleId: string, bri
     entityRef: role.ref as string,
     action: role.brief_id ? "brief_reconnected" : "brief_connected",
     // What the connect overwrote rides along, so a reverse can put it back.
-    fromValue: { brief_id: role.brief_id ?? null, version: role.brief_version ?? null, planned_rounds: role.planned_rounds ?? null, contact_id: role.contact_id ?? null, company: role.company ?? "" },
+    fromValue: { brief_id: role.brief_id ?? null, version: role.brief_version ?? null, title: role.title ?? "", planned_rounds: role.planned_rounds ?? null, contact_id: role.contact_id ?? null, company: role.company ?? "" },
     toValue: { brief_id: briefId, version: view.currentVersion },
   })
   return { version: view.currentVersion }
@@ -666,7 +671,7 @@ export async function disconnectRoleFromBrief(ctx: AgencyContext, roleId: string
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
-  const before = (last?.from_value ?? {}) as { planned_rounds?: number | null; contact_id?: string | null; company?: string }
+  const before = (last?.from_value ?? {}) as { title?: string; planned_rounds?: number | null; contact_id?: string | null; company?: string }
   const now = new Date().toISOString()
   const { error } = await admin
     .from("job_roles")
@@ -675,6 +680,7 @@ export async function disconnectRoleFromBrief(ctx: AgencyContext, roleId: string
       brief_version: null,
       brief_config: null,
       brief_connected_at: null,
+      ...("title" in before ? { title: before.title || "Untitled role" } : {}),
       ...("planned_rounds" in before ? { planned_rounds: before.planned_rounds ?? null } : {}),
       ...("contact_id" in before ? { contact_id: before.contact_id ?? null } : {}),
       ...(before.company ? { company: before.company } : {}),
