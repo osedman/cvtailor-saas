@@ -7357,3 +7357,38 @@ recommendation; both pages render in the preview. (3) Follow-ups: send
 `roleMatch` across on apply when the tailored CV crosses (needs a consent
 bump); the Gaps tab still lists the free engine's requirements in role
 mode; the strip's CTA wraps at 375px.
+
+## 🎨 Step 05 redesign — the shortlist as a place (Figma board 26, awaiting Ose) (24 September 2026)
+
+Ose: "I need a better UI (ui-ux-pro-max plus another skill) to enhance this
+screen and process for the agent to select who is shortlisted — it feels a
+little manual and not intuitive. In addition the recommendation should not
+only be a recommendation but the ability to add to the agent's shortlist
+before they confirm it." Per the working rules, designed in Figma FIRST:
+**board 26 on the concept map page, node 528:2** —
+https://www.figma.com/design/AWRRbEOX6rLsltutFDL3zs/?node-id=528-2 —
+built with ui-ux-pro-max (bulk actions, one primary action per surface,
+44px targets, feedback) and frontend-design (the signature element).
+Nothing coded until Ose signs the board off.
+
+**The diagnosis (section A).** Three verbs of equal weight on every card;
+the shortlist was a number in the header; the recommendation was an essay on
+another tab; no way to move in one go.
+
+**The design.** (B) The shortlist becomes a right-hand rail — who is in, in
+score order, an empty "next add lands here" slot, the hold/passed record,
+and the only Confirm button. Every card gets ONE verb, "Add to shortlist",
+which flips to "✓ Shortlisted · Remove"; Hold and Pass survive as quiet
+text beneath; two "add in one go" chips (every must-have · 5, the four it
+recommends). (C) The recommendation keeps its three groups and gains a
+button per person and "Add the other N" per group; the rail sits beside it,
+the same object. (D) On a phone the rail is a sticky bar — "SHORTLIST · 3 ·
+Amara, Tomasz, Nadia · Confirm →" — that opens as a sheet. (E) The line it
+keeps: every add is the human's click (same PATCH as today); the
+recommendation never writes a decision by itself; Confirm opens step 06, it
+sends nothing; S/H/R still work, S now toggles add.
+
+Built by a 4-builder workflow, screenshot-reviewed (fix-first: a state
+contradiction on the phone, C missing the rail, a wrong count) and fixed;
+one leftover phone line fixed by hand. Only one test touches this tab's
+wording (no "rejected"); the redesign says "Pass".
