@@ -256,17 +256,15 @@ export async function listBriefs(ctx: AgencyContext): Promise<Array<Pick<BriefVi
 export async function listBriefsForCompany(
   ctx: AgencyContext,
   company: string
-): Promise<Array<{ id: string; title: string; version: number; state: BriefState; contactName: string; summary: string; approvedAt: string | null }>> {
-  if (!company.trim()) return []
-  const admin = agencyAdmin()
-  const { data: contacts } = await admin.from("client_contacts").select("id, full_name, email").eq("agency_id", ctx.agencyId).ilike("company", company.trim().replace(/[\\%_]/g, "\\$&"))
-  const contactIds = (contacts ?? []).map((c) => c.id as string)
-  if (contactIds.length === 0) return []
+): Promise<Array<{ id: string; title: string; company: string; matchesRole: boolean; version: number; state: BriefState; contactName: string; summary: string; approvedAt: string | null }>> {
+  // Every live brief on the agency, not only the role's company: a role
+  // made a minute ago has no company yet, and an empty picker next to an
+  // approved brief reads as "it vanished". The one that matches the role's
+  // company (trimmed, case-blind) is flagged so the screen can pick it.
+  const wanted = company.trim().toLowerCase()
   const all = await listBriefs(ctx)
-  const { data: briefs } = await admin.from("search_briefs").select("id, contact_id").in("contact_id", contactIds).is("discarded_at", null)
-  const mine = new Set((briefs ?? []).map((b) => b.id as string))
   const out = []
-  for (const b of all.filter((x) => mine.has(x.id))) {
+  for (const b of all) {
     const full = await loadBrief(ctx.agencyId, b.id)
     if (!full) continue
     const c = full.latest.config
@@ -279,6 +277,8 @@ export async function listBriefsForCompany(
     out.push({
       id: full.id,
       title: full.title,
+      company: full.company,
+      matchesRole: !wanted || full.company.trim().toLowerCase() === wanted,
       version: full.currentVersion,
       state: full.state,
       contactName: full.contactName,
@@ -286,8 +286,8 @@ export async function listBriefsForCompany(
       approvedAt: full.state === "approved" ? full.latest.clientApprovedAt && full.latest.recruiterApprovedAt ? (full.latest.clientApprovedAt > full.latest.recruiterApprovedAt ? full.latest.clientApprovedAt : full.latest.recruiterApprovedAt) : null : null,
     })
   }
-  // Approved first, then whatever is waiting, newest first within each.
-  return out.sort((a, b) => Number(b.state === "approved") - Number(a.state === "approved"))
+  // The role's own client first, approved first within that, then the rest.
+  return out.sort((a, b) => Number(b.matchesRole) - Number(a.matchesRole) || Number(b.state === "approved") - Number(a.state === "approved"))
 }
 
 // ── the client's reads ────────────────────────────────────────────────────
@@ -597,9 +597,9 @@ export async function connectRoleToBrief(ctx: AgencyContext, roleId: string, bri
   if (!view) throw new AgencyAccessError("that brief is not on this agency")
   if (view.state !== "approved") throw new AgencyAccessError(`this brief is ${view.state === "draft" ? "still a draft" : `waiting on ${view.waitingOn === "client" ? "the client" : "you"}`} — a role connects only to an approved brief`)
 
-  const { data: role } = await admin.from("job_roles").select("id, ref, company, brief_id, brief_version").eq("id", roleId).eq("agency_id", ctx.agencyId).is("discarded_at", null).maybeSingle()
+  const { data: role } = await admin.from("job_roles").select("id, ref, company, brief_id, brief_version, planned_rounds, contact_id").eq("id", roleId).eq("agency_id", ctx.agencyId).is("discarded_at", null).maybeSingle()
   if (!role) throw new AgencyAccessError("that role is not on this agency")
-  if (role.company && view.company && role.company !== view.company) {
+  if (role.company && view.company && role.company.trim().toLowerCase() !== view.company.trim().toLowerCase()) {
     throw new AgencyAccessError(`this brief is with ${view.company}; the role is for ${role.company}`)
   }
 
@@ -637,10 +637,62 @@ export async function connectRoleToBrief(ctx: AgencyContext, roleId: string, bri
     entityType: "role",
     entityRef: role.ref as string,
     action: role.brief_id ? "brief_reconnected" : "brief_connected",
-    fromValue: role.brief_id ? { brief_id: role.brief_id, version: role.brief_version } : null,
+    // What the connect overwrote rides along, so a reverse can put it back.
+    fromValue: { brief_id: role.brief_id ?? null, version: role.brief_version ?? null, planned_rounds: role.planned_rounds ?? null, contact_id: role.contact_id ?? null, company: role.company ?? "" },
     toValue: { brief_id: briefId, version: view.currentVersion },
   })
   return { version: view.currentVersion }
+}
+
+/**
+ * The reverse of connect. Unlinks the brief and puts back the planned
+ * rounds, contact and company the connect overwrote (from its audit row),
+ * so "connect, then change your mind" leaves the role as it was. Interview
+ * settings stay: they are editable on their own screen and a candidate may
+ * already hold a slot under them.
+ */
+export async function disconnectRoleFromBrief(ctx: AgencyContext, roleId: string): Promise<void> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  const { data: role } = await admin.from("job_roles").select("id, ref, brief_id, brief_version").eq("id", roleId).eq("agency_id", ctx.agencyId).is("discarded_at", null).maybeSingle()
+  if (!role) throw new AgencyAccessError("that role is not on this agency")
+  if (!role.brief_id) throw new AgencyAccessError("this role is not on a brief")
+  const { data: last } = await admin
+    .from("audit_log")
+    .select("from_value")
+    .eq("agency_id", ctx.agencyId)
+    .eq("role_id", roleId)
+    .in("action", ["brief_connected", "brief_reconnected"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const before = (last?.from_value ?? {}) as { planned_rounds?: number | null; contact_id?: string | null; company?: string }
+  const now = new Date().toISOString()
+  const { error } = await admin
+    .from("job_roles")
+    .update({
+      brief_id: null,
+      brief_version: null,
+      brief_config: null,
+      brief_connected_at: null,
+      ...("planned_rounds" in before ? { planned_rounds: before.planned_rounds ?? null } : {}),
+      ...("contact_id" in before ? { contact_id: before.contact_id ?? null } : {}),
+      ...(before.company ? { company: before.company } : {}),
+      updated_at: now,
+    })
+    .eq("id", roleId)
+    .eq("agency_id", ctx.agencyId)
+  if (error) throw error
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    roleId,
+    actorId: ctx.userId,
+    entityType: "role",
+    entityRef: role.ref as string,
+    action: "brief_disconnected",
+    fromValue: { brief_id: role.brief_id, version: role.brief_version },
+    toValue: null,
+  })
 }
 
 export interface RoleBriefStatus {

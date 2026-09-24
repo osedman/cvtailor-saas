@@ -7234,3 +7234,31 @@ every intake save re-asks; the empty option now says WHY it is empty
 ("Name the company above first" vs "No briefs with X yet"); and the
 company match is trimmed and case-insensitive (wildcards escaped) so
 "meridian health" finds "Meridian Health". 1,679 tests green.
+
+## 🔗 Run this role on a brief — recognised, one press, reversible (24 September 2026)
+
+Ose: "the run this role on a brief should automatically recognise the
+brief, the brief should not be empty if the agent has approved briefs.
+Also when the agent clicks connect and apply (remove the 'its
+configuration') it should apply it and allow the agent to continue unless
+they want to reverse."
+
+- **Never empty.** The picker lists every live brief on the agency, each
+  with its company, not only the role's company. The role's own client
+  sorts first; approved first within that. A brief at another client is
+  listed but greyed ("approved — but this role is for X") so nobody hunts.
+- **Recognised.** The one approved brief at the role's company — or the
+  only approved brief, for a role with no company yet — is picked for the
+  recruiter when the list arrives. They still press Connect; nothing is
+  copied by itself.
+- **One press.** The button is "Connect and apply". No confirm dialog. On
+  success the card says "On <brief> vN … carry on below."
+- **Reversible.** "Reverse — take the role off this brief" (confirm, then
+  DELETE /api/agency/roles/:id/brief → `disconnectRoleFromBrief`). It
+  unlinks and puts back the planned rounds, contact and company the
+  connect overwrote — connect now records those in its audit row's
+  `from_value`. Interview settings stay (a candidate may hold a slot).
+  Audit action `brief_disconnected`.
+- The company guard on connect is trimmed and case-blind. "Follow vN" on a
+  moved-on brief is a button now, not a hunt through the list.
+1,679 tests green. Still not clicked by a person — no staging sign-in.

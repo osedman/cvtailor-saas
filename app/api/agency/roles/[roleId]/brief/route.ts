@@ -4,11 +4,12 @@
  * GET  → how the role stands against its brief (version, moved on, every
  *        difference) plus the briefs it COULD connect to for its company
  * POST { briefId } → connect: copies the approved config onto the role
+ * DELETE → the reverse: unlink and put back what connect overwrote
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, agencyAdmin, getJobRole, requireAgencyContext } from "@/lib/agency/db"
-import { connectRoleToBrief, listBriefsForCompany, roleBriefStatus } from "@/lib/agency/search-briefs"
+import { connectRoleToBrief, disconnectRoleFromBrief, listBriefsForCompany, roleBriefStatus } from "@/lib/agency/search-briefs"
 import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
@@ -46,6 +47,19 @@ export async function POST(req: NextRequest, { params }: P) {
     const result = await connectRoleToBrief(auth.ctx, roleId, briefId)
     const status = await roleBriefStatus(auth.ctx.agencyId, roleId)
     return NextResponse.json({ ...result, status })
+  } catch (error) {
+    if (error instanceof AgencyAccessError) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: P) {
+  try {
+    const { roleId } = await params
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+    await disconnectRoleFromBrief(auth.ctx, roleId)
+    return NextResponse.json({ ok: true, status: null })
   } catch (error) {
     if (error instanceof AgencyAccessError) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })

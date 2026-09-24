@@ -285,7 +285,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
    */
   const briefStatusInitial = useBriefStatus(roleId, "recruiter")
   const [briefStatus, setBriefStatus] = useState<BriefStatusPayload | null | "error">(null)
-  const [available, setAvailable] = useState<Array<{ id: string; title: string; version: number; state: string; contactName: string; summary: string; approvedAt: string | null }>>([])
+  const [available, setAvailable] = useState<Array<{ id: string; title: string; company: string; matchesRole: boolean; version: number; state: string; contactName: string; summary: string; approvedAt: string | null }>>([])
   const [pickBrief, setPickBrief] = useState("")
   const [connecting, setConnecting] = useState(false)
   useEffect(() => {
@@ -294,14 +294,26 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       setAvailable(((briefStatusInitial as unknown as { available?: typeof available }).available ?? []))
     } else if (briefStatusInitial === "error") setBriefStatus("error")
   }, [briefStatusInitial])
-  async function connectBrief() {
-    if (!pickBrief) return
-    const chosen = available.find((b) => b.id === pickBrief)
-    if (!window.confirm(`Connect this role to “${chosen?.title ?? "the brief"}” v${chosen?.version ?? ""}? Its planned rounds, client contact and interview rules are copied onto the role now.`)) return
+  const onBrief = Boolean(briefStatus && briefStatus !== "error" && briefStatus.status)
+  useEffect(() => {
+    // Recognise the brief: an approved one at this client (or the only
+    // approved one, for a role with no company yet) is picked for the
+    // recruiter. They still press Connect; nothing is copied by itself.
+    if (onBrief || pickBrief) return
+    const approved = available.filter((b) => b.state === "approved")
+    const here = approved.filter((b) => b.matchesRole)
+    const pick = here.length === 1 ? here[0] : here.length === 0 && approved.length === 1 ? approved[0] : null
+    if (pick) setPickBrief(pick.id)
+  }, [available, onBrief, pickBrief])
+  async function connectBrief(briefIdOverride?: string) {
+    // `briefIdOverride` is for "Follow vN": setPickBrief in the same tick
+    // would not be visible here yet.
+    const target = briefIdOverride ?? pickBrief
+    if (!target) return
     setConnecting(true)
     setError(null)
     try {
-      const res = await fetch(`/api/agency/roles/${roleId}/brief`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ briefId: pickBrief }) })
+      const res = await fetch(`/api/agency/roles/${roleId}/brief`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ briefId: target }) })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) return setError(typeof body?.error === "string" ? body.error : "Could not connect the brief.")
       const again = await fetch(`/api/agency/roles/${roleId}/brief`)
@@ -588,6 +600,30 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     // the page opened — blank, for a role made moments ago. Re-ask now
     // that the company may have a name.
     void refreshBriefOptions()
+  }
+
+  async function disconnectBrief() {
+    if (!window.confirm("Take this role off its brief? Planned rounds, the client contact and the company go back to what they were before you connected.")) return
+    setConnecting(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/brief`, { method: "DELETE" })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) return setError(typeof body?.error === "string" ? body.error : "Could not take the role off the brief.")
+      setBriefStatus({ status: null } as BriefStatusPayload)
+      setPickBrief("")
+      const fresh = await fetch(`/api/agency/roles/${roleId}`)
+      if (fresh.ok) {
+        const b = await fresh.json()
+        if (b.role) setRole(b.role)
+      }
+      announceRoleChanged()
+      void refreshBriefOptions()
+    } catch {
+      setError("Could not take the role off the brief.")
+    } finally {
+      setConnecting(false)
+    }
   }
 
   async function refreshBriefOptions() {
@@ -1321,33 +1357,53 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </div>
                     <div className="ag-card-body">
                       {briefStatus && briefStatus !== "error" && briefStatus.status ? (
-                        <p className="ag-note" style={{ marginBottom: 10 }}>
-                          On <b>{briefStatus.status.title}</b> v{briefStatus.status.version}. Planned rounds, the client contact and the interview rules came from it.
-                          {briefStatus.status.movedOnTo ? ` The brief has since been approved as v${briefStatus.status.movedOnTo} — reconnect below to follow it, or keep v${briefStatus.status.version}.` : ""}
-                        </p>
+                        <>
+                          <p className="ag-note" style={{ marginBottom: 10 }}>
+                            On <b>{briefStatus.status.title}</b> v{briefStatus.status.version}. Planned rounds, the client contact and the interview rules came from it — carry on below.
+                            {briefStatus.status.movedOnTo ? ` The brief has since been approved as v${briefStatus.status.movedOnTo} — reconnect to follow it, or keep v${briefStatus.status.version}.` : ""}
+                          </p>
+                          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                            {briefStatus.status.movedOnTo && (
+                              <button className="ag-btn ag-btn-primary" onClick={() => void connectBrief(briefStatus.status!.briefId)} disabled={connecting}>
+                                {connecting ? "Connecting…" : `Follow v${briefStatus.status.movedOnTo}`}
+                              </button>
+                            )}
+                            <button className="ag-btn ag-btn-secondary" onClick={() => void disconnectBrief()} disabled={connecting}>
+                              Reverse — take the role off this brief
+                            </button>
+                          </div>
+                        </>
                       ) : (
-                        <p className="ag-note" style={{ marginBottom: 10 }}>
-                          {role.company ? `Briefs with ${role.company} only. ` : "Name the company above to see its briefs. "}
-                          Connecting sets planned rounds, the client contact and the interview rules from the agreed terms.
-                        </p>
+                        <>
+                          <p className="ag-note" style={{ marginBottom: 10 }}>
+                            {available.some((b) => b.state === "approved" && b.matchesRole) && role.company.trim()
+                              ? `The approved brief with ${role.company.trim()} is picked for you. `
+                              : available.some((b) => b.state === "approved")
+                                ? "Every approved brief on the agency is listed; connecting one names the company on the role. "
+                                : available.length > 0
+                                  ? "No brief is approved yet — an unsigned one is listed with the reason. "
+                                  : "No briefs yet. "}
+                            Connecting sets planned rounds, the client contact and the interview rules from the agreed terms.
+                          </p>
+                          <label className="ag-label" htmlFor="role-brief">Brief</label>
+                          <select id="role-brief" className="ag-input" value={pickBrief} onChange={(e) => setPickBrief(e.target.value)}>
+                            <option value="">{available.length > 0 ? "Choose a brief…" : "No briefs on this agency yet"}</option>
+                            {available.map((b) => (
+                              <option key={b.id} value={b.id} disabled={b.state !== "approved" || (!b.matchesRole && Boolean(role.company.trim()))}>
+                                {b.title || "Untitled"} · {b.company} · v{b.version} · {b.state !== "approved" ? (b.state === "draft" ? "draft — not sent yet" : b.state === "sent" ? `waiting on ${b.contactName} — cannot connect yet` : "waiting on you — cannot connect yet") : !b.matchesRole && role.company.trim() ? `approved — but this role is for ${role.company.trim()}` : `approved · ${b.summary}`}
+                              </option>
+                            ))}
+                          </select>
+                          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
+                            <button className="ag-btn ag-btn-primary" onClick={() => void connectBrief()} disabled={!pickBrief || connecting}>
+                              {connecting ? "Connecting…" : "Connect and apply"}
+                            </button>
+                            <button className="ag-btn ag-btn-secondary" onClick={() => router.push("/agencies/briefs")}>
+                              Start a new brief
+                            </button>
+                          </div>
+                        </>
                       )}
-                      <label className="ag-label" htmlFor="role-brief">Brief</label>
-                      <select id="role-brief" className="ag-input" value={pickBrief} onChange={(e) => setPickBrief(e.target.value)}>
-                        <option value="">{available.length > 0 ? "Choose an approved brief…" : role.company.trim() ? `No briefs with ${role.company.trim()} yet` : "Name the company above first"}</option>
-                        {available.map((b) => (
-                          <option key={b.id} value={b.id} disabled={b.state !== "approved"}>
-                            {b.title || "Untitled"} · v{b.version} · {b.state === "approved" ? `approved · ${b.summary}` : b.state === "draft" ? "draft — not sent yet" : b.state === "sent" ? `waiting on ${b.contactName} — cannot connect yet` : "waiting on you — cannot connect yet"}
-                          </option>
-                        ))}
-                      </select>
-                      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
-                        <button className="ag-btn ag-btn-primary" onClick={() => void connectBrief()} disabled={!pickBrief || connecting}>
-                          {connecting ? "Connecting…" : "Connect and apply its configuration"}
-                        </button>
-                        <button className="ag-btn ag-btn-secondary" onClick={() => router.push("/agencies/briefs")}>
-                          Start a new brief
-                        </button>
-                      </div>
                     </div>
                   </div>
 

@@ -93,7 +93,7 @@ describe("the tables are audit-coupled", () => {
     }
   })
   it("every write in the module writes an audit row", () => {
-    for (const m of ["createBrief", "sendBrief", "recruiterAmend", "recruiterApprove", "discardDraft", "clientAmend", "clientApprove", "connectRoleToBrief"]) {
+    for (const m of ["createBrief", "sendBrief", "recruiterAmend", "recruiterApprove", "discardDraft", "clientAmend", "clientApprove", "connectRoleToBrief", "disconnectRoleFromBrief"]) {
       expect(fnBody(lib, `export async function ${m}`), m).toMatch(/writeAudit\(/)
     }
   })
