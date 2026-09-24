@@ -1,0 +1,23 @@
+Kwame Boateng
+London (hybrid) · o.oifoh+ba12@gmail.com · 07700 900912
+
+SUMMARY
+Business Analyst with seven years in banking compliance technology. Strong on data privacy and regulatory change; growing AI exposure through transaction monitoring.
+
+EXPERIENCE
+
+Business Analyst, Compliance Technology — Meridian Capital Bank (2020–present)
+- Proven experience as a Business Analyst delivering change projects: transaction monitoring, KYC refresh and regulatory reporting.
+- Proficient in process mapping, requirements documentation and data analysis (SQL, Excel).
+- Agile environment (Scrum): backlog management, sprint planning and user story creation.
+- Stakeholder management with compliance officers, IT, legal and vendors.
+- Facilitated workshops and interviews with compliance teams.
+- Strong awareness of data privacy and ethical considerations, including model bias in a machine-learning transaction monitoring pilot.
+- Some understanding of AI concepts from that pilot.
+- Track regulatory changes and brief the team monthly.
+
+Business Analyst — Meridian Capital Bank, Operations (2017–2020)
+- Payments operations change projects.
+
+SKILLS
+Business analysis · Requirements · Process mapping · SQL · Scrum · Jira · GDPR · Regulatory change · Workshop facilitation

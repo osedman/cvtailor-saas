@@ -7272,3 +7272,17 @@ title is blank or "Untitled role" — a title the recruiter typed stays. The
 old title rides in the connect audit row and the reverse puts it back.
 Ose also asked for a JD attachment on the brief — needs a column, a
 storage path and a Figma frame; parked pending his call (see chat).
+
+## 🌱 Twenty candidates seeded into ROL-2419 for Ose's test (24 September 2026)
+
+Ose: "seed 20 candidates into the role for me to test (do this quickly)."
+New `scripts/seed-candidates.ts` runs the REAL ingest path (`ingestCandidate`,
+source `paste`) against staging — same extraction, evidence rules and scoring
+as the Add-candidates screen, so the `inputs_hash` is live and submission
+generation will accept it. Staging-only by allow-list, `--dry` first, never
+deletes, SEEDED FIXTURE audit row with a NULL actor. Content in
+`scripts/seed-content/ba-role/`: twenty fictional Business Analysts written
+to the role's ten requirements — six strong, seven middling, five weak, plus
+can-19 (same person as can-01, older CV → duplicate banner) and can-20 (no
+contact details → no-contact-details notice path). Result: 20/20 ingested,
+overall scores 28–97, evidence quotes verbatim, hashes live.
