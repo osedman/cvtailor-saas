@@ -26,8 +26,9 @@
  * requirements render explicitly; they are the honest gaps, not noise.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Header } from "@/components/cv-tailor/header"
@@ -47,6 +48,20 @@ const WEIGHT_LABEL: Record<string, string> = {
   must: "MUST ×3.0",
   important: "IMPORTANT ×2.0",
   nice: "NICE ×1.0",
+}
+
+/**
+ * /found?rec=<recommendation id>: the way back from /tailor's role mode. Read
+ * in a Suspense child (useSearchParams needs one) and handed up; the page
+ * selects and scrolls to that card once the list has loaded.
+ */
+function RecParam({ onRec }: { onRec: (id: string) => void }) {
+  const searchParams = useSearchParams()
+  const rec = searchParams.get("rec")
+  useEffect(() => {
+    if (rec) onRec(rec)
+  }, [rec, onRec])
+  return null
 }
 
 function StrengthNote({ strength, quote }: { strength: string; quote: string | null }) {
@@ -79,6 +94,9 @@ export default function FoundPage() {
   const [found, setFound] = useState<FoundRole[] | null>(null)
   const [matchingOn, setMatchingOn] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
+  /** From ?rec= — honoured once, when the list arrives and contains it. */
+  const [requestedRec, setRequestedRec] = useState<string | null>(null)
+  const requestedApplied = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const seenSent = useRef<Set<string>>(new Set())
@@ -130,6 +148,20 @@ export default function FoundPage() {
     if (!authLoading && user) void load()
     else if (!authLoading) setLoading(false)
   }, [authLoading, user, load])
+
+  // Arriving from /tailor with ?rec=: open THAT card, not the newest one,
+  // and bring it into view — the person came back for a specific role.
+  useEffect(() => {
+    if (!requestedRec || !found || requestedApplied.current === requestedRec) return
+    // A dismissed card is never opened by link — its band would offer a
+    // Tailor and an Apply the server refuses.
+    if (!found.some((f) => f.id === requestedRec && f.state !== "dismissed")) return
+    requestedApplied.current = requestedRec
+    setSelected(requestedRec)
+    requestAnimationFrame(() => {
+      document.getElementById(`rec-${requestedRec}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
+    })
+  }, [requestedRec, found])
 
   // Looking at a recommendation lifts new → seen, once, fire-and-forget.
   // The trigger stamps seen_at; failure costs nothing but staleness.
@@ -293,7 +325,15 @@ export default function FoundPage() {
                   {manifest.evidenceMap.filter((e) => e.strength === "missing").length} shown as
                   missing)
                 </li>
-                <li className="t-small">· Your match score ({Math.round(manifest.score)}%)</li>
+                {/* This is the ON-ARRIVAL score — rec.score, what the scan
+                    gave them — not the after-tailoring number the band above
+                    may show. The agency genuinely receives this one, and it
+                    is named as such so the person is not told two numbers
+                    are the agency's number. */}
+                <li className="t-small">
+                  · Your match score on arrival ({Math.round(manifest.score)}%) — the number{" "}
+                  {manifest.sharedWith} sees; they read your CV themselves, not the score
+                </li>
               </ul>
               <p className="t-small mt-3" style={{ color: "var(--ns-ink-55)" }}>
                 They keep it for {manifest.retentionDays} days after the role closes, and you can
@@ -371,6 +411,9 @@ export default function FoundPage() {
 
   return (
     <div className="ns min-h-screen">
+      <Suspense fallback={null}>
+        <RecParam onRec={setRequestedRec} />
+      </Suspense>
       <Header />
       <main className="mx-auto max-w-6xl px-5 py-10 sm:py-14">
         <p className="t-eyebrow">While you were working your path</p>
@@ -428,6 +471,7 @@ export default function FoundPage() {
               {open.map((rec) => (
                 <button
                   key={rec.id}
+                  id={`rec-${rec.id}`}
                   className="ns-card w-full rounded-2xl border p-5 text-left"
                   style={{
                     background: rec.id === selected ? "var(--ns-tint-1)" : "#fff",
@@ -438,6 +482,7 @@ export default function FoundPage() {
                 >
                   <p className="t-eyebrow">
                     Recommended · {Math.round(rec.score)}% match before tailoring
+                    {rec.tailored?.afterScore != null ? ` · ${Math.round(rec.tailored.afterScore)}% after` : ""}
                   </p>
                   {/* Not a heading: this sits inside the card's button, where
                       an <h2> would fold into the button's accessible name and
@@ -550,11 +595,48 @@ export default function FoundPage() {
                     </span>
                   )}
                   <div className="flex flex-wrap items-center justify-between gap-4">
+                    {/* The before number is pinned copy and never moves. When a
+                        tailored CV exists AND its after number still describes
+                        it (same snapshot, same engine, same before number and
+                        calibration, not hand-edited since), the after sits
+                        beside it — the same strength mapping into the same
+                        scoring function, so the two are one scale
+                        (lib/matching/role-match.ts). An older tailored run
+                        with no after number shows the before figure alone,
+                        exactly as before; a CV edited since it was scored says
+                        so and names the repair. */}
                     <div>
-                      <p className="t-display text-3xl" style={{ color: "var(--ns-coral-deep)" }}>
-                        {Math.round(active.score)}%
-                      </p>
-                      <p className="t-small mt-0.5">match before tailoring</p>
+                      <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
+                        <div>
+                          <p
+                            className="t-display text-3xl"
+                            style={{ color: active.tailored?.afterScore != null ? "var(--ns-ink-55)" : "var(--ns-coral-deep)" }}
+                          >
+                            {Math.round(active.score)}%
+                          </p>
+                          <p className="t-small mt-0.5">match before tailoring</p>
+                        </div>
+                        {active.tailored?.afterScore != null && (
+                          <div>
+                            <p className="t-display text-3xl" style={{ color: "var(--ns-coral-deep)" }}>
+                              {Math.round(active.tailored.afterScore)}%
+                            </p>
+                            <p className="t-small mt-0.5">after tailoring · scored the same way, on this CV</p>
+                          </div>
+                        )}
+                      </div>
+                      {active.tailored?.afterScore != null && (
+                        <p className="t-small mt-2 max-w-[60ch]" style={{ color: "var(--ns-ink-55)" }}>
+                          {active.role.agencyName} receives this CV and your {Math.round(active.score)}%
+                          on-arrival score; they read the CV themselves.
+                        </p>
+                      )}
+                      {active.tailored?.afterStale && (
+                        <p className="t-small mt-2 max-w-[60ch]" style={{ color: "var(--ns-ink-55)" }}>
+                          Edited since it was scored — re-open in Tailor and run again (a free re-run)
+                          to refresh the after number.
+                        </p>
+                      )}
                     </div>
                     {isLive && active.state !== "applied" && (
                       <div className="flex flex-wrap gap-2.5">

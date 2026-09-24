@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { errorMessage } from '@/lib/error-message'
+import { applyTailoredCvEdit } from '@/lib/tailor-history-edit'
 
 export const maxDuration = 10
 
@@ -76,14 +77,12 @@ export async function PATCH(
       if (readErr) throw readErr
       if (!row?.result) return NextResponse.json({ error: 'Run not found' }, { status: 404 })
 
-      const result = row.result as Record<string, unknown>
-      update.result = {
-        ...result,
-        // Preserve the AI version once, on the first edit only
-        tailoredCVOriginal: result.tailoredCVOriginal ?? result.tailoredCV,
-        tailoredCV,
-      }
-      update.edited_at = new Date().toISOString()
+      // Preserves the AI version once, drops the after-tailoring score (it
+      // described the bytes just replaced) and stamps the CV-specific edit
+      // time — see lib/tailor-history-edit.ts for why that is not edited_at.
+      const now = new Date()
+      update.result = applyTailoredCvEdit(row.result as Record<string, unknown>, tailoredCV, now)
+      update.edited_at = now.toISOString()
     }
 
     if (hasLetter) {

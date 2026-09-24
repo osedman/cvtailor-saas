@@ -23,6 +23,7 @@ import type { ConsentSubject } from "./limits"
 import type { Weight } from "@/lib/agency/types"
 import type { EvidenceRow } from "@/lib/career-arc-ledger"
 import { profileHash, tailoredSourceStillMatches } from "./scan-core"
+import { roleMatchHolds, type RoleMatch } from "./role-match"
 
 export interface FoundRequirement {
   ref: string
@@ -58,8 +59,20 @@ export interface FoundRole {
    * Set when a tailored CV exists for THIS version of the role — the link is
    * shown only while the hash it was tailored against matches the snapshot,
    * so a republished role honestly reverts to "Tailor my CV to this role".
+   *
+   * `afterScore` is the tailored CV scored on the same scale as `score`
+   * (lib/matching/role-match.ts). Null when no after number is stored (a
+   * run made before it existed, or an assessment that failed), when it was
+   * made against a different snapshot version or a since-moved before
+   * number, or when the CV was hand-edited after it was scored — the card
+   * then shows the before number alone.
+   *
+   * `afterStale` is the one of those cases the person can act on: the CV
+   * was hand-edited after it was scored. The card says so and names the
+   * repair (re-open in Tailor and run again — a free cache hit that
+   * re-scores the edited text) instead of silently losing the number.
    */
-  tailored: { savedAt: string } | null
+  tailored: { savedAt: string; afterScore: number | null; afterStale: boolean } | null
 }
 
 interface RecRow {
@@ -67,6 +80,7 @@ interface RecRow {
   published_role_id: string
   state: string
   score: number | string
+  score_breakdown?: Record<string, unknown> | null
   created_at: string
   evidence: Array<{ requirement_ref: string; strength: string; quote: string | null }>
   tailor_history_id?: string | null
@@ -89,8 +103,20 @@ interface RoleRow {
   requirements_hash?: string
 }
 
-/** tailor_history rows the recommendations link to: id → last-saved time. */
-export type TailoredSavedAt = Map<string, string>
+/** tailor_history rows the recommendations link to, by id. */
+export interface TailoredHistoryMeta {
+  /** edited_at ?? created_at — what the card and the manifest call "saved". */
+  savedAt: string
+  /**
+   * result.tailoredCVEditedAt: when the CV ITSELF was last hand-edited — the
+   * staleness signal for the after score. Not edited_at, which a cover-letter
+   * edit also sets and which must not hide a number about the CV.
+   */
+  cvEditedAt: string | null
+  /** result->roleMatch, if the run stored one. */
+  roleMatch: Partial<RoleMatch> | null
+}
+export type TailoredSavedAt = Map<string, TailoredHistoryMeta>
 
 
 /**
@@ -142,21 +168,42 @@ export function joinFound(
     // Tailored only counts while the hash it was made against is the hash
     // the snapshot still has — and only if the history row was actually
     // readable (deleted history reads as never-tailored, not as an error).
-    const savedAt = rec.tailor_history_id ? tailoredSavedAt.get(rec.tailor_history_id) : undefined
-    const tailored =
-      savedAt &&
-      role.requirements_hash &&
+    const history = rec.tailor_history_id ? tailoredSavedAt.get(rec.tailor_history_id) : undefined
+    const tailoredCounts =
+      !!history &&
+      !!role.requirements_hash &&
       rec.tailored_against_hash === role.requirements_hash &&
       // Both sides, same rule apply uses — otherwise this card promises a
       // document the send will not use.
       tailoredSourceStillMatches(rec.tailored_source_hash, currentSourceHash)
-        ? { savedAt }
+    // The after number lives INSIDE the tailored predicate: it cannot exist
+    // without `tailored`, and it disappears with it. On top of that it must
+    // describe this recommendation, this snapshot version, this engine, the
+    // before number and calibration the recommendation carries NOW (a rescan
+    // moves them without touching tailored_*), and a CV not hand-edited
+    // since it was scored.
+    const score = typeof rec.score === "string" ? parseFloat(rec.score) : rec.score
+    const afterScore =
+      tailoredCounts &&
+      roleMatchHolds(history.roleMatch, {
+        recommendationId: rec.id,
+        requirementsHash: role.requirements_hash,
+        editedAt: history.cvEditedAt,
+        before: score,
+        scoreBreakdown: rec.score_breakdown ?? null,
+      })
+        ? history.roleMatch.after
         : null
+    const afterStale =
+      tailoredCounts &&
+      !!history.cvEditedAt &&
+      (!history.roleMatch?.assessedAt || history.cvEditedAt > history.roleMatch.assessedAt)
+    const tailored = tailoredCounts ? { savedAt: history.savedAt, afterScore, afterStale } : null
 
     out.push({
       id: rec.id,
       state: rec.state as FoundRole["state"],
-      score: typeof rec.score === "string" ? parseFloat(rec.score) : rec.score,
+      score,
       foundAt: rec.created_at,
       invitedAt: rec.invited_at ?? null,
       tailored,
@@ -191,7 +238,7 @@ export async function listFound(
     db
       .from("role_recommendations")
       .select(
-        "id, published_role_id, state, score, created_at, evidence, tailor_history_id, tailored_against_hash, tailored_source_hash, invited_at"
+        "id, published_role_id, state, score, score_breakdown, created_at, evidence, tailor_history_id, tailored_against_hash, tailored_source_hash, invited_at"
       ),
     db.from("match_preferences").select("matching_opt_in").maybeSingle(),
   ])
@@ -232,13 +279,25 @@ export async function listFound(
         )
         .in("id", [...new Set(recRows.map((r) => r.published_role_id))]),
       historyIds.length > 0
-        ? db.from("tailor_history").select("id, edited_at, created_at").in("id", historyIds)
+        ? // result->roleMatch and result->>tailoredCVEditedAt, never the whole
+          // result: that would drag every tailored CV's full text into the
+          // list for one number and one timestamp.
+          db
+            .from("tailor_history")
+            .select("id, edited_at, created_at, roleMatch:result->roleMatch, cvEditedAt:result->>tailoredCVEditedAt")
+            .in("id", historyIds)
         : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
     ])
     if (roleErr) throw roleErr
     roleRows = (roles ?? []) as RoleRow[]
     for (const h of histories ?? []) {
-      savedAt.set(h.id as string, ((h.edited_at as string | null) ?? h.created_at) as string)
+      const editedAt = (h.edited_at as string | null) ?? null
+      savedAt.set(h.id as string, {
+        savedAt: (editedAt ?? h.created_at) as string,
+        cvEditedAt: typeof h.cvEditedAt === "string" && h.cvEditedAt ? h.cvEditedAt : null,
+        roleMatch:
+          h.roleMatch && typeof h.roleMatch === "object" ? (h.roleMatch as Partial<RoleMatch>) : null,
+      })
     }
   }
 

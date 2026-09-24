@@ -123,6 +123,26 @@ export function requirementsHash(
 }
 
 /**
+ * THE strength mapping the scan scores with: the assessor's raw strength per
+ * ref, absent → missing, no quote check. The quote rules (empty ⇔ missing,
+ * verbatim in the source) shape the evidence MAP the person sees
+ * (toRecommendationEvidence); they never touch the score. Anything that
+ * claims to be "on the same scale" as role_recommendations.score must build
+ * its strengths through this function — lib/matching/role-match.ts does.
+ */
+export function strengthsForScoring(
+  assessment: { evidence: Array<{ requirement_ref: string; strength: Strength }> },
+  requirements: Array<Pick<MatchRequirement, "id" | "ref">>
+): Record<string, Strength> {
+  const byRef = new Map(assessment.evidence.map((e) => [e.requirement_ref, e]))
+  const evidence: Record<string, Strength> = {}
+  for (const req of requirements) {
+    evidence[req.id] = byRef.get(req.ref)?.strength ?? "missing"
+  }
+  return evidence
+}
+
+/**
  * Score an assessment the way the recruiter's own pipeline would.
  *
  * `overrides` and `softSignals` are not parameters. They are forced empty,
@@ -134,12 +154,7 @@ export function scoreForMatching(
   assessment: Assessment,
   requirements: MatchRequirement[]
 ): ScoreResult {
-  const byRef = new Map(assessment.evidence.map((e) => [e.requirement_ref, e]))
-
-  const evidence: Record<string, Strength> = {}
-  for (const req of requirements) {
-    evidence[req.id] = byRef.get(req.ref)?.strength ?? "missing"
-  }
+  const evidence = strengthsForScoring(assessment, requirements)
 
   const scoringRequirements: ScoringRequirement[] = requirements.map((r) => ({
     id: r.id,

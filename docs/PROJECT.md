@@ -7297,3 +7297,63 @@ can add up to 50 candidates." The cap went to fifty on 14 Sep 2026
 (`MAX_CANDIDATES_PER_ROLE`) and the screen kept saying ten. Copy fixed, and
 a guardrail test (`candidate-cap-copy.test.ts`) now reads the number from
 the route and fails if the screen quotes a different one.
+
+## 🎯 The consumer bug: tailoring "reduced the score" and stranded the person (24 September 2026)
+
+Ose: "when a role has found a candidate in the consumer app and they select
+'Tailor my CV to this role' before applying, it looks like it reduces the
+score, and there's no route back to the application with the new score."
+Nine-agent workflow: four readers, one implementer, three adversarial
+reviewers (all said fix-first), one fix round. 1,707 tests green, typecheck
+clean.
+
+**What was actually wrong.** Two engines on two scales, and no after-score
+existed anywhere. /found shows the scan's number: the recruiter's own
+assessor over the snapshot's fixed requirement list, scored by
+`computeScore` (must ×3 / important ×2 / nice ×1, calibration held). /tailor
+showed the free pipeline's `matchScore`: a different model re-extracting
+6–12 requirements from the brief prose under a STRICT prompt, must=2/else=1,
+strengths 1/0.6/0.25/0, no calibration — computed from the INPUT CV before
+the rewrite even ran. Identical judgements: 62 on /found, 49 on /tailor.
+Then: the role-mode banner (the only link back) unmounted on success, the
+toast named "your recommendations" without a link, /found ignored any
+deep link and never read a second number.
+
+**What changed.**
+- `lib/matching/role-match.ts` — role-mode-only Pass 3: the scan's own
+  `extractAssessment` on the TAILORED CV against the snapshot's list, scored
+  with the scan's own `strengthsForScoring` + `computeScore` holding the
+  scan's stored baselines. Before and after now differ only in evidence
+  strengths. Quote checks shape the displayed evidence, never the score
+  (the first cut gated the score on a byte-exact quote and a wrapped bullet
+  made "it went down" come back).
+- Stored in `tailor_history.result.roleMatch` (jsonb, no migration),
+  keyed by requirements hash + CV sha + engine version. Honoured on /found
+  only while the tailored link holds, the rec's score and calibration have
+  not moved (a rescan is detected), and the CV was not hand-edited since
+  (`result.tailoredCVEditedAt`, stamped by the history PATCH via
+  `lib/tailor-history-edit.ts`). Cache-hit recompute is rate-limited and
+  stores conditionally (no wholesale overwrite of a concurrent hand-edit).
+- /tailor role mode: a RoleResultStrip — "N% before → M% after" on one
+  scale, primary "Back to this role — apply when you're ready →" to
+  `/found?rec=<id>`, secondary "Open tailored CV"; a stale state after a
+  hand-edit tells the person to run Tailor again (free cache hit); the
+  toast gains a "Back to the role" action; the results tab opens on the
+  role-scale number. Banner and strip wrapped in `.ns` so tokens resolve.
+- /found: `?rec=` selects and scrolls to that card (never a dismissed one);
+  the band shows "N% match before tailoring" beside "M% after tailoring ·
+  scored the same way, on this CV", with a line saying the agency receives
+  the on-arrival number and reads the CV itself. The consent sheet line is
+  relabelled "Your match score on arrival (N%)…"; what crosses the wall is
+  unchanged, so `CONSENT_COPY_VERSION` was NOT bumped — Ose to confirm.
+- Cost: one extra Sonnet call per role-mode run, once per (row, snapshot,
+  CV bytes).
+
+**Owed.** (1) Figma: neither the after-number band nor the back-to-role
+strip exists in frame 144:2 ("Tailor-first apply — changed surfaces");
+built in the existing idiom, needs a frame and Ose's sign-off — the
+CLAUDE.md gate. (2) Not clicked by a signed-in person with a live
+recommendation; both pages render in the preview. (3) Follow-ups: send
+`roleMatch` across on apply when the tailored CV crosses (needs a consent
+bump); the Gaps tab still lists the free engine's requirements in role
+mode; the strip's CTA wraps at 375px.

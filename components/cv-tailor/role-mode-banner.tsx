@@ -18,6 +18,8 @@ export interface RoleModeInfo {
   company: string
   agencyName: string
   roleRef: string
+  /** role_recommendations.score — the "N% match before tailoring" on /found. */
+  beforeScore: number | null
 }
 
 export function RoleModeBanner({
@@ -51,7 +53,7 @@ export function RoleModeBanner({
           The role&apos;s requirements are locked to the version you were matched on — the
           job panel is read-only in this mode. Tailoring shares nothing; when you&apos;re
           ready, apply from{" "}
-          <Link href="/found" className="underline">
+          <Link href={`/found?rec=${role.recommendationId}`} className="underline">
             your recommendations
           </Link>
           .

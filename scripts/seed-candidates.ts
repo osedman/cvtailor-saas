@@ -26,8 +26,8 @@ function arg(name: string, fallback?: string) {
   return i >= 0 ? process.argv[i + 1] : fallback
 }
 const dry = process.argv.includes("--dry")
-const roleRef = arg("role")
-const dir = arg("dir")
+const roleRef = arg("role") ?? ""
+const dir = arg("dir") ?? ""
 const concurrency = Number(arg("concurrency", "4"))
 if (!roleRef || !dir) {
   console.error("Need --role ROL-NNNN and --dir <folder of .txt CVs>")
@@ -56,6 +56,7 @@ async function main() {
   const { data: owner } = await admin.from("members").select("user_id").eq("agency_id", role.agency_id).eq("role", "owner").limit(1).maybeSingle()
   if (!owner) throw new Error("No owner on that agency")
   const ctx: AgencyContext = { agencyId: role.agency_id as string, userId: owner.user_id as string, role: "owner" }
+  const roleId = role.id as string
 
   const files = fs.readdirSync(dir).filter((f) => f.endsWith(".txt")).sort()
   const { count: before } = await admin.from("candidates").select("id", { count: "exact", head: true }).eq("role_id", role.id)
@@ -67,20 +68,16 @@ async function main() {
 
   const queue = [...files]
   const done: Array<{ file: string; ref?: string; overall?: number; error?: string }> = []
-  let shownKeys = false
   async function worker() {
     for (;;) {
       const f = queue.shift()
       if (!f) return
       const cvText = fs.readFileSync(path.join(dir, f), "utf8")
       try {
-        const r = (await ingestCandidate(ctx, admin as never, role!.id as string, { cvText, source: "paste", sourceDetail: `${path.basename(dir)}/${f}` })) as Record<string, unknown>
-        if (!shownKeys) { shownKeys = true; console.log(`  (result keys: ${Object.keys(r).join(", ")})`) }
-        const cand = (r.candidate ?? {}) as Record<string, unknown>
-        const score = (r.score ?? r.breakdown ?? {}) as Record<string, unknown>
-        const row = { file: f, ref: (cand.ref ?? r.ref) as string | undefined, overall: (score.overall ?? r.overall) as number | undefined }
+        const r = await ingestCandidate(ctx, admin as never, roleId, { cvText, source: "paste", sourceDetail: `${path.basename(dir)}/${f}` })
+        const row = { file: f, ref: r.candidate.ref, overall: r.score.overall }
         done.push(row)
-        console.log(`  ✓ ${f} → ${row.ref ?? "?"} · overall ${row.overall ?? "?"}`)
+        console.log(`  ✓ ${f} → ${row.ref} · overall ${row.overall}${r.duplicateOf ? " · also in your pipeline" : ""}`)
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         done.push({ file: f, error: msg })

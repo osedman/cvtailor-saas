@@ -66,8 +66,19 @@ export interface TailorBrief {
   company: string
   agencyName: string
   roleRef: string
+  seniority: string
+  summary: string
   /** The hash the tailored CV will be linked against. */
   requirementsHash: string
+  /**
+   * The snapshot's fixed requirement list — what the after-tailoring pass
+   * scores against, so before and after share one list (role-match.ts).
+   */
+  requirements: Array<{ ref: string; text: string; weight: Weight }>
+  /** role_recommendations.score: the "N% match before tailoring" on /found. */
+  score: number
+  /** The scan's stored breakdown; carries the calibration the after pass holds. */
+  scoreBreakdown: Record<string, unknown> | null
 }
 
 export type TailorBriefResult =
@@ -87,7 +98,7 @@ export async function loadTailorBrief(
 ): Promise<TailorBriefResult> {
   const { data: rec, error: recErr } = await db
     .from("role_recommendations")
-    .select("id, state, published_role_id")
+    .select("id, state, published_role_id, score, score_breakdown")
     .eq("id", recommendationId)
     .maybeSingle()
   if (recErr) throw recErr
@@ -115,7 +126,19 @@ export async function loadTailorBrief(
       company: snapshot.company as string,
       agencyName: snapshot.agency_name as string,
       roleRef: snapshot.role_ref as string,
+      seniority: (snapshot.seniority as string) ?? "",
+      summary: (snapshot.summary as string) ?? "",
       requirementsHash: snapshot.requirements_hash as string,
+      requirements: ((snapshot.requirements ?? []) as SnapshotForBrief["requirements"]).map((r) => ({
+        ref: r.ref,
+        text: r.text,
+        weight: r.weight,
+      })),
+      score: typeof rec.score === "string" ? parseFloat(rec.score) : Number(rec.score ?? 0),
+      scoreBreakdown:
+        rec.score_breakdown && typeof rec.score_breakdown === "object"
+          ? (rec.score_breakdown as Record<string, unknown>)
+          : null,
     },
   }
 }

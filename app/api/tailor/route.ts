@@ -10,6 +10,7 @@ import { sanitizeDeep } from '@/lib/sanitize'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { loadTailorBrief, type TailorBrief } from '@/lib/matching/tailor-brief'
 import { profileHash } from '@/lib/matching/scan-core'
+import { computeRoleMatch, decideRoleMatch, sha256, type RoleMatch } from '@/lib/matching/role-match'
 import type { EvidenceRow } from '@/lib/career-arc-ledger'
 import { errorMessage } from '@/lib/error-message'
 
@@ -56,6 +57,37 @@ async function linkRecommendation(
   } catch (e) {
     console.error('[tailor] recommendation link failed:', e)
     return false
+  }
+}
+
+/**
+ * Role mode's third pass: the after-tailoring number on /found's scale.
+ *
+ * Runs the scan's own assessor over the TAILORED CV against the snapshot's
+ * fixed requirement list and scores it with the scan's own function, holding
+ * the scan's stored calibration — see lib/matching/role-match.ts for why the
+ * free pipeline's matchScore cannot be shown next to the /found number.
+ * Best-effort like the link: a failure leaves /found showing the before
+ * number alone, and the next run is a free cache hit that retries.
+ */
+async function assessRoleMatch(brief: TailorBrief, tailoredCv: string): Promise<RoleMatch | null> {
+  try {
+    return await computeRoleMatch(
+      {
+        recommendationId: brief.recommendationId,
+        requirementsHash: brief.requirementsHash,
+        requirements: brief.requirements,
+        roleTitle: brief.roleTitle,
+        seniority: brief.seniority,
+        summary: brief.summary,
+        before: brief.score,
+        scoreBreakdown: brief.scoreBreakdown,
+      },
+      tailoredCv
+    )
+  } catch (e) {
+    console.error('[tailor] role match assessment failed:', e)
+    return null
   }
 }
 
@@ -299,15 +331,79 @@ export async function POST(req: NextRequest) {
     const inputHash = createHash('sha256').update(hashSource).digest('hex')
     const { data: cachedRow } = await supabase
       .from('tailor_history')
-      .select('id, result')
+      .select('id, result, edited_at')
       .eq('user_id', user.id)
       .eq('input_hash', inputHash)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
     if (cachedRow?.result) {
+      let cachedResult = cachedRow.result as Record<string, unknown>
+      let roleMatch: RoleMatch | null = null
+      if (brief) {
+        // The cache key is untouched (a plain re-entry must stay free). The
+        // after number is made idempotent per ROW instead: recomputed only
+        // when the stored one no longer describes this snapshot, this engine,
+        // the recommendation's current before number and calibration, or
+        // these exact CV bytes — a hand-edit changes the bytes, so a re-run
+        // after editing refreshes the number for the edited document. The
+        // same predicate /found applies (decideRoleMatch), so the two pages
+        // cannot disagree about whether the number holds.
+        const stored = cachedResult.roleMatch as Partial<RoleMatch> | undefined
+        const cvText = typeof cachedResult.tailoredCV === 'string' ? cachedResult.tailoredCV : ''
+        const cvEditedAt = typeof cachedResult.tailoredCVEditedAt === 'string' ? cachedResult.tailoredCVEditedAt : null
+        const decision = decideRoleMatch(
+          stored,
+          {
+            recommendationId: brief.recommendationId,
+            requirementsHash: brief.requirementsHash,
+            cvSha256: sha256(cvText),
+            editedAt: cvEditedAt,
+            before: brief.score,
+            scoreBreakdown: brief.scoreBreakdown,
+          },
+          cvText
+        )
+        if (decision === 'reuse') {
+          roleMatch = stored as RoleMatch
+        } else if (decision === 'recompute') {
+          // A recompute is a Sonnet call, so it is NOT free like the cache
+          // hit around it: the person controls the CV bytes (PATCH
+          // /api/history) and the stored roleMatch (tailor_history is
+          // user-writable), so without this gate an identical POST in a loop
+          // would be unmetered model spend. Only a genuine reuse stays free.
+          const limited = await checkRateLimit(user.id, 'ai')
+          if (limited) {
+            console.warn('[tailor] role match recompute rate-limited; serving cached result without it')
+          } else {
+            roleMatch = await assessRoleMatch(brief, cvText)
+          }
+          if (roleMatch) {
+            cachedResult = { ...cachedResult, roleMatch }
+            // The assessment took seconds; if the person saved a hand-edit
+            // in that window the row's edited_at moved, and writing the
+            // result read at t0 back wholesale would erase their edit. The
+            // update is conditional on the row being as it was read; zero
+            // rows means the response still carries the number for the
+            // text it returns, but nothing is stored (the next run, a free
+            // cache hit, re-scores the edited text).
+            const readEditedAt = (cachedRow.edited_at as string | null) ?? null
+            let write = supabase
+              .from('tailor_history')
+              .update({ result: cachedResult })
+              .eq('id', cachedRow.id)
+              .eq('user_id', user.id)
+            write = readEditedAt === null ? write.is('edited_at', null) : write.eq('edited_at', readEditedAt)
+            const { data: written, error: upErr } = await write.select('id')
+            if (upErr) console.error('[tailor] role match save failed:', upErr)
+            else if (!written || written.length === 0) {
+              console.warn('[tailor] role match not stored: row edited during assessment')
+            }
+          }
+        }
+      }
       const linked = await linkRecommendation(user.id, brief, cachedRow.id as string)
-      return NextResponse.json({ result: cachedRow.result, historyId: cachedRow.id, cached: true, linked })
+      return NextResponse.json({ result: cachedResult, historyId: cachedRow.id, cached: true, linked, roleMatch })
     }
 
     // 2c. Rate limit (protects against runaway Claude API cost / abuse) —
@@ -359,7 +455,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const result = sanitizeDeep({
+    const assembled = sanitizeDeep({
       jobTitle: extract.jobTitle,
       companyName: extract.companyName,
       matchScore,
@@ -376,6 +472,15 @@ export async function POST(req: NextRequest) {
       roleFamily: extract.roleFamily,
       seniority: extract.seniority,
     })
+
+    // Pass 3 (role mode only): score the tailored CV the way /found scored
+    // the person, so the number they take back to the role is commensurable
+    // with the one they left. The free path never reaches this line.
+    let roleMatch: RoleMatch | null = null
+    if (brief) {
+      roleMatch = await assessRoleMatch(brief, assembled.tailoredCV)
+    }
+    const result = roleMatch ? { ...assembled, roleMatch } : assembled
 
     // §4.3: the proof the loop works. If this exact job was tailored before
     // and the score rose while proven skills were in play, name the change —
@@ -430,7 +535,7 @@ export async function POST(req: NextRequest) {
 
     const linked = await linkRecommendation(user.id, brief, historyId)
 
-    return NextResponse.json({ result, historyId, compressed, scoreDelta, linked })
+    return NextResponse.json({ result, historyId, compressed, scoreDelta, linked, roleMatch })
   } catch (err) {
     const msg = errorMessage(err)
     const status = (err as { status?: number })?.status

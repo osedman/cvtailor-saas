@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { courseProviderPrompt } from '@/lib/course-sources/registry'
+import type { RoleMatch } from '@/lib/matching/role-match'
 
 export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -70,6 +71,12 @@ export interface TailorResult {
   seniority?: string
   /** The untouched AI output, kept from the first hand-edit so it can be restored */
   tailoredCVOriginal?: string
+  /**
+   * Role mode only: the tailored CV scored on /found's scale — same assessor,
+   * same requirement list, same weights as the "before" number. Absent on
+   * free tailoring and on role-mode runs made before this existed.
+   */
+  roleMatch?: RoleMatch
 }
 
 // Extended results generated on-demand

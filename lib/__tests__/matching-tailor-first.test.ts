@@ -79,11 +79,15 @@ describe("joinFound · the tailored flag", () => {
     requirements: [],
     requirements_hash: "hash-a",
   }
-  const savedAt = new Map([["hist-1", "2026-08-16T11:00:00Z"]])
+  const savedAt = new Map([
+    ["hist-1", { savedAt: "2026-08-16T11:00:00Z", cvEditedAt: null, roleMatch: null }],
+  ])
 
   it("shows tailored while BOTH hashes still match", () => {
     const [f] = joinFound([rec], [role], savedAt, "src-a")
-    expect(f.tailored).toEqual({ savedAt: "2026-08-16T11:00:00Z" })
+    // No after number stored (a run made before role-match existed) degrades
+    // to the before-only display — tailored still counts.
+    expect(f.tailored).toEqual({ savedAt: "2026-08-16T11:00:00Z", afterScore: null, afterStale: false })
   })
 
   it("a republished role (hash changed) honestly reverts to not-tailored", () => {
