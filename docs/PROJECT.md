@@ -7285,4 +7285,7 @@ deletes, SEEDED FIXTURE audit row with a NULL actor. Content in
 to the role's ten requirements — six strong, seven middling, five weak, plus
 can-19 (same person as can-01, older CV → duplicate banner) and can-20 (no
 contact details → no-contact-details notice path). Result: 20/20 ingested,
-overall scores 28–97, evidence quotes verbatim, hashes live.
+overall scores 28–97, evidence quotes verbatim, hashes live. Four candidates
+wear the duplicate banner, not one: ROL-2418 already had synthetic people on
+the same first three plus-addresses, so agency-wide detection flagged them
+too — checked against stored emails and identity hashes; working as designed.
