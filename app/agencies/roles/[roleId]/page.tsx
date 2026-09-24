@@ -1527,7 +1527,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               <div className="ag-screen-head">
                 <div>
                   <h1 className="ag-title">Add candidates.</h1>
-                  <p className="ag-sub">PDF, DOCX or pasted text, up to 10 per role. Scoring runs on the server the moment a CV lands.</p>
+                  <p className="ag-sub">PDF, DOCX or pasted text, up to 50 per role. Scoring runs on the server the moment a CV lands.</p>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                   <button className="ag-btn" onClick={() => setStep("parse")}>Back</button>

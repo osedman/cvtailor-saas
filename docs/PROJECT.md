@@ -7289,3 +7289,11 @@ overall scores 28–97, evidence quotes verbatim, hashes live. Four candidates
 wear the duplicate banner, not one: ROL-2418 already had synthetic people on
 the same first three plus-addresses, so agency-wide detection flagged them
 too — checked against stored emails and identity hashes; working as designed.
+
+## ✏️ "Up to 10 per role" said 10; the server allows 50 (24 September 2026)
+
+Ose, reading the Add candidates step: "this is incorrect. change this as we
+can add up to 50 candidates." The cap went to fifty on 14 Sep 2026
+(`MAX_CANDIDATES_PER_ROLE`) and the screen kept saying ten. Copy fixed, and
+a guardrail test (`candidate-cap-copy.test.ts`) now reads the number from
+the route and fails if the screen quotes a different one.
