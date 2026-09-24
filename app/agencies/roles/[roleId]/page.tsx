@@ -584,6 +584,21 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       }),
     })
     announceRoleChanged()
+    // The brief picker was loaded with whatever company the role had when
+    // the page opened — blank, for a role made moments ago. Re-ask now
+    // that the company may have a name.
+    void refreshBriefOptions()
+  }
+
+  async function refreshBriefOptions() {
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/brief`)
+      if (!res.ok) return
+      const b = (await res.json()) as BriefStatusPayload & { available?: typeof available }
+      setAvailable(b.available ?? [])
+    } catch {
+      /* the next save re-asks */
+    }
   }
 
   async function removeCandidate(candidateId: string) {
@@ -1318,7 +1333,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       )}
                       <label className="ag-label" htmlFor="role-brief">Brief</label>
                       <select id="role-brief" className="ag-input" value={pickBrief} onChange={(e) => setPickBrief(e.target.value)}>
-                        <option value="">{available.length === 0 ? "No briefs with this client yet" : "Choose an approved brief…"}</option>
+                        <option value="">{available.length > 0 ? "Choose an approved brief…" : role.company.trim() ? `No briefs with ${role.company.trim()} yet` : "Name the company above first"}</option>
                         {available.map((b) => (
                           <option key={b.id} value={b.id} disabled={b.state !== "approved"}>
                             {b.title || "Untitled"} · v{b.version} · {b.state === "approved" ? `approved · ${b.summary}` : b.state === "draft" ? "draft — not sent yet" : b.state === "sent" ? `waiting on ${b.contactName} — cannot connect yet` : "waiting on you — cannot connect yet"}

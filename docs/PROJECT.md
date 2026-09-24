@@ -7221,3 +7221,16 @@ squeezed to its own width with the active pill clipped at the left edge.
 Every other agency page wraps the nav in that aside. Now they both do, with
 a footer that says what a brief is. Verified rendered on both pages in the
 dev preview. Tests green.
+
+## 🧷 Intake could not see the approved brief (24 September 2026)
+
+Ose: "When I'm in role intake and I want to select the approved brief it
+doesn't appear." The brief WAS approved (v2, both signatures, contact at
+"Meridian Health"). The role was made at 07:15 that morning with a blank
+company. The picker asks the server once, when the page opens, for briefs
+at the role's company — blank → none — and never asked again after the
+company was typed, so it sat on "No briefs with this client yet". Fixed:
+every intake save re-asks; the empty option now says WHY it is empty
+("Name the company above first" vs "No briefs with X yet"); and the
+company match is trimmed and case-insensitive (wildcards escaped) so
+"meridian health" finds "Meridian Health". 1,679 tests green.

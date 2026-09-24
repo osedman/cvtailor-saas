@@ -259,7 +259,7 @@ export async function listBriefsForCompany(
 ): Promise<Array<{ id: string; title: string; version: number; state: BriefState; contactName: string; summary: string; approvedAt: string | null }>> {
   if (!company.trim()) return []
   const admin = agencyAdmin()
-  const { data: contacts } = await admin.from("client_contacts").select("id, full_name, email").eq("agency_id", ctx.agencyId).eq("company", company)
+  const { data: contacts } = await admin.from("client_contacts").select("id, full_name, email").eq("agency_id", ctx.agencyId).ilike("company", company.trim().replace(/[\\%_]/g, "\\$&"))
   const contactIds = (contacts ?? []).map((c) => c.id as string)
   if (contactIds.length === 0) return []
   const all = await listBriefs(ctx)
