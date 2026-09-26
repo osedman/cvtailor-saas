@@ -7404,3 +7404,47 @@ surfaces keep (one engine twice; display-only by construction; it stops
 counting when it should; one extra call, once). For Ose to sign off or send
 back. Also: Ose approved board 26 (step 05 redesign) on 24 Sep; the
 implementation is running against staging.
+
+## ✅ Step 05 rebuilt to board 26 — the shortlist is a place (26 September 2026)
+
+Ose approved board 26 on 24 Sep ("approved"). Implemented on staging by a
+six-agent workflow (server + UI implementers in parallel, three adversarial
+reviewers, one fix round) plus a hand pass on the low findings. 1,780+
+tests green, typecheck clean, production build run.
+
+**Server.** `lib/agency/decisions.ts` is now the ONE writer of
+`recruiter_reviews.decision` (a repo-wide test enforces it): `applyDecision`
+returns the previous value and writes one audit row per person (entity
+`decision`, action `decided`/`cleared`, reason `bulk` for the batch). The
+single route is refactored onto it with identical responses (and four fewer
+queries). New `PATCH /api/agency/roles/:id/decisions` takes up to 50
+`{candidateId, decision}` changes, pre-checks role AND agency in one select,
+reads the batch's previous values once, applies sequentially, returns
+`{updated[{candidateId, decision, previous}], skipped[]}`. Human-only:
+requireAgencyContext → assertWriter; viewers 403. **Exercised against
+staging for real:** three passed candidates → shortlisted (audit rows
+`decided/bulk`, from `reject` to `shortlist`) → undone with the returned
+previous → back to `reject`. 26 + 16 new tests.
+
+**UI.** `components/agency/shortlist-rail.tsx` (the rail, and the phone bar
+that opens it as a focus-trapped, inert-backed sheet), `decision-slot.tsx`
+(the one verb in its four states; "Pass" is the word for stored `reject`),
+`use-recommendation.ts` (the recommendation state lifted so the Matrix chip
+and the panel share it), `count-word.ts`. The page: header down to
+title/sub/Back; `.ag-cmp-layout` grid with the rail outside the tab switch;
+"ADD IN ONE GO" chips (must-have count, "The four it recommends" / "The ones
+it recommends" which runs the recommendation on the click first, and says
+so); bulk adds go through the new route with an 8-second "Added n · Undo"
+built from the server's `previous` values (a decision placed inside the
+window is dropped from the undo, never clobbered); 403 rolls back as
+view-only; 404/405 fall back to per-person writes; any other failure rolls
+back and reloads the board. Decisions bar keeps the tally and S/H/R hints.
+Recommendation tab: per-row slot, "Add all N / Add the other N" per group,
+third group collapsed behind "Show the thirteen ↓", board copy verbatim.
+Step 07's internal record now says "passed", not "reject".
+
+**Still owed.** Nobody signed in has clicked it (no recruiter session here):
+the sticky rail beside a wide matrix, the phone sheet and the undo notice
+above the bar should be eyeballed on staging at 1440 and 375. Copy
+deviation: the reading-card eyebrow says "{n} calls", not "call answers"
+(the route returns no answers total).

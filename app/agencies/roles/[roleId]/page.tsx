@@ -21,6 +21,10 @@ import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header
 import { BriefChip, useBriefStatus, type BriefStatusPayload } from "@/components/agency/brief-chip"
 import { MatchingWindow, type PoolPerson } from "@/components/agency/matching-window"
 import { RecommendationPanel } from "@/components/agency/recommendation-panel"
+import { useRecommendation } from "@/components/agency/use-recommendation"
+import { DecisionSlot } from "@/components/agency/decision-slot"
+import { ShortlistRail, ShortlistBar, type ShortlistEntry } from "@/components/agency/shortlist-rail"
+import { countWord } from "@/components/agency/count-word"
 import { roleLandingPath, type PhaseKey } from "@/lib/agency/phases"
 import {
   ArrowUpRight, Banknote, Briefcase, ChevronUp, FileText,
@@ -132,6 +136,13 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [scores, setScores] = useState<Record<string, Score>>({})
   const [reviews, setReviews] = useState<Record<string, Review>>({})
   const [decisions, setDecisions] = useState<Record<string, string | null>>({})
+  // The latest decisions, readable after an await. applyDecisions and
+  // addMany run after "+ The ones it recommends" has waited several seconds
+  // on the recommendation; the render-time closure they were created in is
+  // stale by then, and a snapshot taken from it would undo a hold the
+  // recruiter placed while it read. The ref is written on every render.
+  const decisionsRef = useRef<Record<string, string | null>>({})
+  decisionsRef.current = decisions
   const [evidence, setEvidence] = useState<Evidence[]>([])
   const [overrides, setOverrides] = useState<Record<string, Record<string, Strength>>>({})
   const [step, setStep] = useState<Step>("intake")
@@ -429,6 +440,15 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // Hiding is a view control on the compare board only. It never touches the
   // candidate, the score or any decision — the product does not remove people.
   const [hiddenCandidates, setHiddenCandidates] = useState<string[]>([])
+  // The recommendation's result lives here, not in its tab, because the
+  // Matrix tab's "+ The N it recommends" chip counts from the same result.
+  const reco = useRecommendation(roleId)
+  // "Add in one go" leaves an undo behind it for a few seconds: exactly the
+  // previous decision of each person it touched, so Undo is a true reversal
+  // and not a blanket clear.
+  const [undo, setUndo] = useState<{ n: number; previous: Array<{ candidateId: string; decision: string | null }> } | null>(null)
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current) }, [])
 
   const loadCandidates = useCallback(async () => {
     const res = await fetch(`/api/agency/roles/${roleId}/candidates`)
@@ -533,6 +553,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       const el = document.activeElement
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return
       if (e.metaKey || e.ctrlKey || e.altKey) return
+      // The phone shortlist sheet is modal: while it is up, a key must not
+      // decide on whichever card was last hovered behind the scrim.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return
+      // On the recommendation tab no card is rendered; without a focused card
+      // a key would decide on "the first undecided" out of sight.
+      if (!focusedCandidate && !document.querySelector('.ag-cmp-card')) return
       const map: Record<string, string> = { s: "shortlist", h: "hold", r: "reject" }
       const next = map[e.key.toLowerCase()]
       if (!next) return
@@ -885,9 +911,17 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   }
 
   async function decide(candidateId: string, decision: string | null) {
-    const rollback = decisions[candidateId] ?? null
-    const next = decisions[candidateId] === decision ? null : decision
+    const current = decisionsRef.current[candidateId] ?? null
+    const rollback = current
+    const next = current === decision ? null : decision
     setDecisions((prev) => ({ ...prev, [candidateId]: next }))
+    // A deliberate decision inside the undo window is the recruiter's last
+    // word on that person: the pending Undo must not put them back.
+    setUndo((u) => {
+      if (!u || !u.previous.some((p) => p.candidateId === candidateId)) return u
+      const previous = u.previous.filter((p) => p.candidateId !== candidateId)
+      return previous.length === 0 ? null : { n: previous.length, previous }
+    })
     announceRoleChanged()
     try {
       const res = await fetch(`/api/agency/candidates/${candidateId}/decision`, {
@@ -902,6 +936,142 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       setDecisions((prev) => ({ ...prev, [candidateId]: rollback }))
       setError(e instanceof Error ? e.message : "That decision did not save.")
     }
+  }
+
+  /**
+   * Several decisions in one click — "Add in one go", a group's add on the
+   * recommendation tab, and Undo. Same semantics per person as decide():
+   * the bulk route writes the same table, the same column and one audit row
+   * per candidate, and it is human-only like the single route. Never
+   * toggles: it sets exactly what it is given.
+   *
+   * The undo it leaves behind is built from what the SERVER says each
+   * person's previous value was (`updated[].previous`), not from the
+   * client's map at click time — the two differ after an await, and the
+   * server's is the one the audit row carries.
+   *
+   * On a non-2xx: the bulk route writes sequentially, so a 500 means some of
+   * the batch may already be saved. Replaying everyone through the single
+   * route would double-write and double-audit those people, so instead the
+   * board is put back and RELOADED from the server. The per-person fallback
+   * exists only for a 404/405, i.e. the bulk route is not deployed here yet.
+   */
+  async function applyDecisions(
+    changes: Array<{ candidateId: string; decision: string | null }>,
+    opts: { undoable: boolean } = { undoable: true }
+  ) {
+    if (changes.length === 0) return
+    const current = decisionsRef.current
+    const previous = changes.map((ch) => ({ candidateId: ch.candidateId, decision: current[ch.candidateId] ?? null }))
+    setDecisions((prev) => {
+      const next = { ...prev }
+      for (const ch of changes) next[ch.candidateId] = ch.decision
+      return next
+    })
+    announceRoleChanged()
+    const rollback = (ids: string[]) => {
+      if (ids.length === 0) return
+      setDecisions((prev) => {
+        const next = { ...prev }
+        for (const p of previous) if (ids.includes(p.candidateId)) next[p.candidateId] = p.decision
+        return next
+      })
+    }
+    const finish = (written: Array<{ candidateId: string; decision: string | null }>) => {
+      if (opts.undoable && written.length > 0) {
+        setUndo({ n: written.length, previous: written })
+        if (undoTimer.current) clearTimeout(undoTimer.current)
+        undoTimer.current = setTimeout(() => setUndo(null), 8000)
+      } else if (!opts.undoable) {
+        setUndo(null)
+      }
+    }
+    const everyone = changes.map((ch) => ch.candidateId)
+    let res: Response
+    try {
+      res = await fetch(`/api/agency/roles/${roleId}/decisions`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes }),
+      })
+    } catch {
+      // The request never got an answer: it may or may not have landed.
+      rollback(everyone)
+      await loadCandidates()
+      setError("Those decisions may not have saved; the board has been reloaded.")
+      return
+    }
+    if (res.ok) {
+      const body = await res.json().catch(() => ({}))
+      const skipped: Array<{ candidateId: string }> = Array.isArray(body?.skipped) ? body.skipped : []
+      const updated: Array<{ candidateId: string; previous: string | null }> = Array.isArray(body?.updated) ? body.updated : []
+      const failed = skipped.map((s) => s.candidateId)
+      rollback(failed)
+      if (failed.length > 0) setError(failed.length === changes.length ? "Those decisions did not save." : `${failed.length} of ${changes.length} did not save and were put back.`)
+      // Exact undo: the server's previous value per person.
+      const serverPrevious = new Map(updated.map((u) => [u.candidateId, u.previous ?? null]))
+      finish(
+        previous
+          .filter((p) => !failed.includes(p.candidateId))
+          .map((p) => ({ candidateId: p.candidateId, decision: serverPrevious.has(p.candidateId) ? serverPrevious.get(p.candidateId) ?? null : p.decision }))
+      )
+      return
+    }
+    if (res.status === 403) {
+      rollback(everyone)
+      setError("You have view-only access to this agency.")
+      return
+    }
+    if (res.status === 404 || res.status === 405) {
+      // The bulk route is not deployed here: one person at a time, same writer.
+      let viewOnly = false
+      const results = await Promise.allSettled(
+        changes.map((ch) =>
+          fetch(`/api/agency/candidates/${ch.candidateId}/decision`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ decision: ch.decision }),
+          }).then((r) => {
+            if (r.status === 403) viewOnly = true
+            if (!r.ok) throw new Error(String(r.status))
+          })
+        )
+      )
+      if (viewOnly) {
+        rollback(everyone)
+        setError("You have view-only access to this agency.")
+        return
+      }
+      const failed = changes.filter((_, i) => results[i].status === "rejected").map((ch) => ch.candidateId)
+      rollback(failed)
+      if (failed.length > 0) setError(failed.length === changes.length ? "Those decisions did not save." : `${failed.length} of ${changes.length} did not save and were put back.`)
+      finish(previous.filter((p) => !failed.includes(p.candidateId)))
+      return
+    }
+    // 400, 401, 5xx: nothing to retry. Some of the batch may be saved (the
+    // route writes in order), so the server's view replaces the optimistic one.
+    rollback(everyone)
+    await loadCandidates()
+    setError(
+      res.status === 401
+        ? "Your session has expired. Sign in again."
+        : "Some of those may have saved; the board has been reloaded."
+    )
+  }
+
+  /** The recruiter's one click that adds several people; each is their own decision. */
+  function addMany(candidateIds: string[]) {
+    const current = decisionsRef.current
+    const changes = candidateIds
+      .filter((id) => current[id] !== "shortlist")
+      .map((id) => ({ candidateId: id, decision: "shortlist" as string | null }))
+    void applyDecisions(changes, { undoable: true })
+  }
+
+  function undoLast() {
+    if (!undo) return
+    if (undoTimer.current) clearTimeout(undoTimer.current)
+    void applyDecisions(undo.previous, { undoable: false })
   }
 
   async function generateSubmission(format: string, representOverride = false) {
@@ -999,7 +1169,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     [reviews]
   )
   const shortlisted = decisionCounts.shortlist
-  const decisionTotals = `${decisionCounts.shortlist} shortlist · ${decisionCounts.hold} hold · ${decisionCounts.reject} reject`
+  // The words on screen: "passed" is the stored value "reject".
+  const decisionTotals = `${decisionCounts.shortlist} shortlisted · ${decisionCounts.hold} on hold · ${decisionCounts.reject} passed`
 
   // Six of the seven render here; Candidate detail is per-candidate and has
   // its own route, so the rail links out to it rather than switching a pane.
@@ -2194,6 +2365,42 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               .slice()
               .sort((a, b) => WEIGHT_RANK.indexOf(a.weight) - WEIGHT_RANK.indexOf(b.weight))
             const cols = `minmax(240px, 1.4fr) repeat(${Math.max(shownCandidates.length, 1)}, minmax(160px, 1fr))`
+            // The rail: who is in, in score order. Same list step 07 reads.
+            const railEntries: ShortlistEntry[] = submissionShortlisted.map((c) => ({
+              id: c.id,
+              name: c.full_name,
+              initials: initials(c.full_name),
+              overall: scores[c.id]?.overall ?? 0,
+              mustHit: scores[c.id]?.must_have_hit ?? 0,
+              mustTotal: scores[c.id]?.must_have_total ?? 0,
+            }))
+            // "Add in one go": everyone with every must-have who is not in yet,
+            // and the recommendation's first group who are not in yet. Each is
+            // still one decision per person, written on the recruiter's click.
+            const mustHaveReady = rankedCandidates.filter((c) => {
+              const s = scores[c.id]
+              return s && s.must_have_total > 0 && s.must_have_hit === s.must_have_total && decisions[c.id] !== "shortlist"
+            })
+            const recommendedNotIn = (reco.result?.items ?? [])
+              .filter((i) => i.group === "recommended" && decisions[i.candidate_id] !== "shortlist")
+              .map((i) => i.candidate_id)
+            const addRecommended = async () => {
+              if (reco.result) return addMany(recommendedNotIn)
+              const r = await reco.generate()
+              if (!r) {
+                setCompareTab("reco")
+                return setError("The recommendation did not run, so nobody was added.")
+              }
+              addMany(r.items.filter((i) => i.group === "recommended").map((i) => i.candidate_id))
+            }
+            const railProps = {
+              company: role.company || "",
+              entries: railEntries,
+              holdCount: decisionCounts.hold,
+              passedCount: decisionCounts.reject,
+              onRemove: (id: string) => decide(id, "shortlist"),
+              onConfirm: () => setStep("submission"),
+            }
             return (
               <>
                 <div className="ag-screen-head">
@@ -2204,35 +2411,86 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </p>
                   </div>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <span className="ag-meta">{shortlisted} shortlisted</span>
-                    <button className="ag-btn" onClick={() => setStep("screening")}>Back</button>
-                    <button className="ag-btn ag-btn-primary" onClick={() => setStep("submission")} disabled={shortlisted === 0}>
-                      Build submission
-                    </button>
+                    <button className="ag-btn ag-btn-secondary" onClick={() => setStep("screening")}>Back</button>
                   </div>
                 </div>
 
-                {/* The matrix stays the default. The second tab is a
-                    recommendation, generated on demand — it names people, and
-                    it is the closest thing to an automated decision in the
-                    product, so it carries no decision controls of its own. */}
-                <div className="ag-cmp-tabs" role="tablist" aria-label="Compare views">
-                  <button
-                    role="tab"
-                    aria-selected={compareTab === "matrix"}
-                    className={compareTab === "matrix" ? "on" : ""}
-                    onClick={() => setCompareTab("matrix")}
-                  >
-                    Matrix
-                  </button>
-                  <button
-                    role="tab"
-                    aria-selected={compareTab === "reco"}
-                    className={compareTab === "reco" ? "on" : ""}
-                    onClick={() => setCompareTab("reco")}
-                  >
-                    Recommendations
-                  </button>
+                {/* Board 26: the cards and the recommendation on the left, the
+                    shortlist being built on the right. The rail is the same
+                    component under both tabs, so an add from either lands in
+                    the same visible place. The matrix stays the default tab. */}
+                <div className="ag-cmp-layout">
+                <div className="ag-cmp-main">
+                <div className="ag-cmp-controls">
+                  <div className="ag-cmp-tabs" role="tablist" aria-label="Compare views">
+                    <button
+                      role="tab"
+                      aria-selected={compareTab === "matrix"}
+                      className={compareTab === "matrix" ? "on" : ""}
+                      onClick={() => setCompareTab("matrix")}
+                    >
+                      Matrix
+                    </button>
+                    <button
+                      role="tab"
+                      aria-selected={compareTab === "reco"}
+                      className={compareTab === "reco" ? "on" : ""}
+                      onClick={() => setCompareTab("reco")}
+                    >
+                      Recommendation
+                    </button>
+                  </div>
+                  {compareTab === "matrix" ? (
+                    <div className="ag-cmp-bulk" role="group" aria-label="Add in one go">
+                      <span className="ag-field-label ag-cmp-bulk-label">Add in one go</span>
+                      {mustHaveReady.length > 0 && (
+                        <button
+                          type="button"
+                          className="ag-bulk-chip"
+                          onClick={() => addMany(mustHaveReady.map((c) => c.id))}
+                          title="Adds everyone whose every must-have is evidenced and who is not in yet. One decision per person, yours, with undo."
+                        >
+                          <span className="ag-bulk-long">+ Everyone with every must-have</span>
+                          <span className="ag-bulk-short">+ Every must-have</span>
+                          {" · "}{mustHaveReady.length}
+                        </button>
+                      )}
+                      {reco.result ? (
+                        recommendedNotIn.length > 0 && (
+                          <button
+                            type="button"
+                            className="ag-bulk-chip"
+                            onClick={() => void addRecommended()}
+                            title="Adds the people in the recommendation's first group who are not in yet. One decision per person, yours, with undo."
+                          >
+                            <span className="ag-bulk-long">+ The {countWord(recommendedNotIn.length)} it recommends</span>
+                            <span className="ag-bulk-short">+ Recommended · {recommendedNotIn.length}</span>
+                          </button>
+                        )
+                      ) : (
+                        <button
+                          type="button"
+                          className="ag-bulk-chip"
+                          onClick={() => void addRecommended()}
+                          disabled={reco.busy}
+                          title="No recommendation has been generated yet. This runs it first, then adds its first group — one decision per person, yours, with undo."
+                        >
+                          {reco.busy ? "Reading…" : (
+                            <>
+                              <span className="ag-bulk-long">+ The ones it recommends</span>
+                              <span className="ag-bulk-short">+ Recommended</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    reco.result && (
+                      <button className="ag-btn ag-btn-secondary ag-reco-again" onClick={() => void reco.generate()} disabled={reco.busy}>
+                        {reco.busy ? <><span className="ag-spin" /> Reading {candidates.length} candidates…</> : "Run it again"}
+                      </button>
+                    )
+                  )}
                 </div>
                 {compareTab === "matrix" ? (
                   <>
@@ -2335,11 +2593,11 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                               {topRisk ? `${topRisk.ref} unevidenced: ${topRisk.text}` : "No unmet must or important requirement."}
                             </span>
                           </div>
-                          <div className="ag-seg" style={{ width: "100%" }}>
-                            {["shortlist", "hold", "reject"].map((d) => (
-                              <button key={d} style={{ flex: 1 }} className={decisions[c.id] === d ? "on" : ""} onClick={() => decide(c.id, d)}>{d}</button>
-                            ))}
-                          </div>
+                          <DecisionSlot
+                            decision={decisions[c.id] ?? null}
+                            name={c.full_name}
+                            onDecide={(d) => decide(c.id, d)}
+                          />
                           <button className="ag-btn ag-btn-secondary" style={{ width: "100%", justifyContent: "center" }} onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
                             Open full profile
                           </button>
@@ -2410,31 +2668,59 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   </div>
                 </div>
 
-                <div className="ag-decisions-bar">
-                  <span className="ag-field-label">Decisions</span>
-                  <span className="ag-decisions-tally">
-                    {decisionTotals || "none yet"} · <b>{decisionCounts.undecided} undecided</b>
-                  </span>
-                  <span className="ag-grow" />
-                  <span className="ag-kbd-hints">
-                    <span className="ag-meta">Keyboard</span>
-                    <span><kbd className="ag-kbd">S</kbd> shortlist</span>
-                    <span><kbd className="ag-kbd">H</kbd> hold</span>
-                    <span><kbd className="ag-kbd">R</kbd> reject</span>
-                  </span>
-                  <button className="ag-btn ag-btn-primary" onClick={() => setStep("submission")} disabled={shortlisted === 0}>
-                    Continue to submission
-                  </button>
-                </div>
                   </>
                 ) : (
                   <RecommendationPanel
-                    roleId={roleId}
                     candidateCount={candidates.length}
                     callsLogged={reviewedCount}
+                    result={reco.result}
+                    busy={reco.busy}
+                    error={reco.error}
+                    onGenerate={() => void reco.generate()}
+                    decisions={decisions}
+                    onDecide={(id, d) => decide(id, d)}
+                    onAddMany={addMany}
                     onOpenCandidate={(id) => router.push(`/agencies/roles/${roleId}/candidates/${id}`)}
                   />
                 )}
+                </div>
+
+                <aside className="ag-cmp-rail">
+                  <ShortlistRail {...railProps} />
+                </aside>
+                </div>
+
+                {/* The tally under both tabs. Confirm lives on the rail now,
+                    so this bar carries no button: count, and the keys. The
+                    undo a bulk add leaves behind rides here too, because the
+                    bar is where the eye already is (sticky at the bottom on
+                    desktop, fixed above the shortlist bar on a phone) — a
+                    group add three screens down must still be able to reach
+                    its Undo before the eight seconds are up. */}
+                <div className="ag-decisions-bar">
+                  <div className="ag-undo" role="status" data-empty={!undo}>
+                    {undo && (
+                      <>
+                        <span>Added {undo.n} to the shortlist</span>
+                        <span className="ag-undo-dot" aria-hidden>·</span>
+                        <button type="button" className="ag-undo-btn" onClick={undoLast}>Undo</button>
+                      </>
+                    )}
+                  </div>
+                  <span className="ag-field-label">Decisions</span>
+                  <span className="ag-decisions-tally">
+                    {decisionTotals} · <b>{decisionCounts.undecided} undecided</b>
+                  </span>
+                  <span className="ag-grow" />
+                  <span className="ag-kbd-hints">
+                    <span><kbd className="ag-kbd">S</kbd> add / remove</span>
+                    <span><kbd className="ag-kbd">H</kbd> hold</span>
+                    <span><kbd className="ag-kbd">R</kbd> pass</span>
+                  </span>
+                </div>
+
+                {/* ≤ 900px: the rail as a sticky bottom bar, opening as a sheet. */}
+                <ShortlistBar {...railProps} />
               </>
             )
           })()}
@@ -2892,7 +3178,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                   <div className="ag-meta">{c.current_title || c.ref}</div>
                                 </div>
                                 {scores[c.id] && <span className={`ag-score ${tier(scores[c.id].overall)}`} style={{ fontSize: 14 }}>{Math.round(scores[c.id].overall)}</span>}
-                                <span className="ag-pill">{decisions[c.id] ?? "undecided"}</span>
+                                <span className="ag-pill">{({ shortlist: "shortlisted", hold: "on hold", reject: "passed" } as Record<string, string>)[decisions[c.id] ?? ""] ?? "undecided"}</span>
                               </div>
                             ))}
                             <p className="ag-meta" style={{ margin: 0 }}>

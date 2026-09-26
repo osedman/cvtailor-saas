@@ -2224,13 +2224,15 @@ a.ag-rh-next:hover { opacity: 0.86; }
 }
 
 /* ============================================================
-   STEP 05 · THE RECOMMENDATIONS TAB
+   STEP 05 · THE RECOMMENDATION TAB
    ------------------------------------------------------------
    The matrix is the default tab; this is the second reading of the
-   same material. Two deliberate absences: there is no filter control
-   anywhere in here, and there is no decision control — pressing
-   shortlist stays on the matrix. Interaction feedback is transform
-   and opacity only, per the performance invariants.
+   same material. One deliberate absence: there is no filter control
+   anywhere in here. Since board 26 (24 Sep 2026) it carries the SAME
+   decision control as the cards (.ag-decision, further down) — the
+   recommendation still writes nothing; every add is the recruiter's
+   click. Interaction feedback is transform and opacity only, per the
+   performance invariants.
    ============================================================ */
 
 .ag-cmp-tabs { display: inline-flex; gap: 8px; padding: 2px 0 14px; }
@@ -2552,3 +2554,187 @@ a.ag-rh-next:hover { opacity: 0.86; }
 .ag-brief-diff .ag-meta { margin: 0 0 6px; }
 
 @media (prefers-reduced-motion: reduce) { .ag-brief-chip { transition: none; } }
+
+/* ============================================================
+   STEP 05 · THE SHORTLIST RAIL AND THE ONE VERB — Figma board 26,
+   node 528:2, signed off 24 Sep 2026.
+   ------------------------------------------------------------
+   Cards and the recommendation on the left; the shortlist being built
+   on the right, sticky, the same component under both tabs. The
+   three-way segmented control is gone: one primary verb per person
+   ("Add to shortlist"), a quiet Hold · Pass row beneath it. Every mono
+   string in here is an existing label class (.ag-field-label / .ag-meta);
+   nothing new pins a face. Confirm on the rail opens step 07 and sends
+   nothing. Below 900px the rail becomes a fixed bottom bar and a sheet.
+   ============================================================ */
+
+/* Layout */
+.ag-cmp-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.ag-cmp-main { min-width: 0; }
+.ag-cmp-rail { position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); overflow-y: auto; }
+
+/* Controls row: the tabs on the left, "Add in one go" (or Run it again) on the right. */
+.ag-cmp-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; padding: 2px 0 14px; }
+.ag-cmp-controls .ag-cmp-tabs { padding: 0; }
+.ag-cmp-bulk { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ag-cmp-bulk-label { margin-bottom: 0; color: var(--ag-ink-3); }
+.ag-bulk-chip {
+  border: 1px solid var(--ag-line-2); background: var(--ag-paper); color: var(--ag-ink-2);
+  border-radius: var(--r-pill); padding: 5px 12px; font-family: var(--ag-sans); font-size: var(--t-small);
+  font-weight: 500; cursor: pointer; white-space: nowrap;
+  transition: border-color 0.12s ease, color 0.12s ease, transform 0.08s ease;
+}
+.ag-bulk-chip:hover { border-color: var(--ag-coral); color: var(--ag-ink); }
+.ag-bulk-chip:active { transform: translateY(0.5px); }
+.ag-bulk-chip:disabled { opacity: 0.5; cursor: default; }
+/* Board D writes the chips short at 375 ("+ Every must-have · 5",
+   "+ Recommended · 4") so they sit on one line under the tabs. Both labels
+   are in the markup; the width picks one. */
+.ag-bulk-short { display: none; }
+.ag-reco-again { flex: none; }
+
+/* The undo notice a bulk add leaves behind for eight seconds. It rides in
+   the decisions bar (sticky at the bottom on desktop), so a group add three
+   screens down can still reach it. */
+.ag-undo {
+  display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 12px;
+  background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); border-radius: var(--r-sm);
+  font-size: var(--t-small); color: var(--ag-ink);
+}
+.ag-decisions-bar .ag-undo { margin-right: 6px; }
+.ag-undo-dot { color: var(--ag-ink-4); }
+.ag-undo-btn {
+  border: none; background: none; padding: 0; font-family: var(--ag-sans); font-size: var(--t-small);
+  font-weight: 600; color: var(--ag-coral-text); cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* The decision slot: one primary verb, three shapes. */
+.ag-decision { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.ag-decision-add { width: 100%; justify-content: center; min-height: 40px; touch-action: manipulation; }
+.ag-decision-in {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 40px;
+  padding: 7px 12px; border: 1px solid var(--ag-coral); background: var(--ag-tint-1); border-radius: var(--r-sm);
+}
+.ag-decision-in-label { font-size: var(--t-body); font-weight: 600; color: var(--ag-coral-text); }
+.ag-decision-quiet { display: flex; justify-content: center; align-items: center; gap: 18px; }
+.ag-decision-quiet-btn {
+  border: none; background: none; padding: 4px 6px; min-height: 28px; border-radius: var(--r-xs);
+  font-family: var(--ag-sans); font-size: var(--t-small); color: var(--ag-ink-3); cursor: pointer;
+  touch-action: manipulation; transition: color 0.12s ease;
+}
+.ag-decision-quiet-btn:hover { color: var(--ag-ink); }
+.ag-decision-quiet-btn:disabled { opacity: 0.5; cursor: default; }
+.ag-decision-quiet-btn[data-on="true"] { color: var(--ag-coral-text); font-weight: 500; }
+.ag-decision-in .ag-decision-quiet-btn { padding: 2px 4px; min-height: 0; color: var(--ag-coral-text); }
+
+/* The recommendation tab carrying decisions. */
+.ag-reco-reading { padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; }
+.ag-reco-reading .ag-reco-h { font-size: var(--t-title); }
+.ag-reco-reading .ag-reco-stamp { margin-bottom: 2px; }
+.ag-reco-reading-sub { margin-top: 2px; max-width: none; font-size: var(--t-body); line-height: 1.55; }
+.ag-reco-group-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; }
+.ag-reco-group-text { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ag-reco-group-add { flex: none; }
+.ag-reco-group-actions { display: inline-flex; align-items: center; gap: 14px; flex: none; }
+.ag-reco-text-btn {
+  border: none; background: none; padding: 4px 0; font-family: var(--ag-sans); font-size: var(--t-small);
+  font-weight: 500; color: var(--ag-ink-3); cursor: pointer; transition: color 0.12s ease;
+}
+.ag-reco-text-btn:hover { color: var(--ag-ink); }
+.ag-reco-show { color: var(--ag-coral-text); }
+.ag-reco-group[data-collapsed="true"] { gap: 0; }
+.ag-reco-person { flex-direction: row; align-items: flex-start; gap: 16px; }
+.ag-reco-person-main { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.ag-reco-decide { flex: 0 0 176px; }
+.ag-reco-decide .ag-decision-add { min-height: 36px; }
+.ag-reco-decide .ag-decision-in { min-height: 36px; padding: 5px 10px; }
+.ag-reco-foot { display: block; color: var(--ag-ink-3); line-height: 1.7; margin: 4px 0 0; }
+
+/* The rail. */
+.ag-sl-card { border-top: 3px solid var(--ag-coral); }
+.ag-sl-head { padding: 16px 18px 14px; border-bottom: 1px solid var(--ag-border); }
+.ag-sl-eyebrow { margin-bottom: 6px; }
+.ag-sl-title { font-family: var(--ag-display); font-size: var(--t-title); font-weight: 600; letter-spacing: var(--track-tight); line-height: 1.2; color: var(--ag-ink); margin: 0; text-wrap: balance; }
+.ag-sl-sub { margin: 6px 0 0; font-size: var(--t-small); line-height: 1.5; color: var(--ag-ink-3); }
+.ag-sl-list { list-style: none; margin: 0; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid var(--ag-border); }
+.ag-sl-row { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-radius: var(--r-sm); }
+.ag-sl-row:hover { background: var(--ag-cream); }
+.ag-sl-avatar { width: 26px; height: 26px; font-size: var(--t-micro); }
+.ag-sl-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ag-sl-name { font-size: var(--t-body); font-weight: 600; color: var(--ag-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-sl-fit { font-size: var(--t-micro); }
+.ag-sl-x { font-size: var(--t-body); min-width: 28px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; }
+.ag-sl-sheet-body .ag-sl-x { min-width: 44px; min-height: 44px; }
+.ag-sl-slot { margin: 6px 6px 4px; padding: 10px; border: 1px dashed var(--ag-line-2); border-radius: var(--r-sm); text-align: center; font-size: var(--t-small); color: var(--ag-ink-3); }
+.ag-sl-quiet { padding: 12px 18px; border-bottom: 1px solid var(--ag-border); display: flex; flex-direction: column; gap: 10px; }
+.ag-sl-quiet-label { color: var(--ag-ink-3); margin-bottom: 2px; }
+.ag-sl-quiet-note { display: block; font-size: var(--t-small); color: var(--ag-ink-3); }
+.ag-sl-foot { padding: 14px 18px 16px; }
+.ag-sl-confirm { width: 100%; justify-content: center; min-height: 42px; }
+.ag-sl-caption { margin: 8px 0 0; font-size: var(--t-caption); line-height: 1.5; color: var(--ag-ink-3); }
+
+/* The bar and the sheet exist only on a phone. */
+.ag-sl-bar, .ag-sl-scrim, .ag-sl-sheet { display: none; }
+
+@media (max-width: 900px) {
+  .ag-cmp-layout { grid-template-columns: 1fr; }
+  .ag-cmp-rail { display: none; }
+  /* The fixed bar owns the bottom edge; the tally sits in flow above it. */
+  .ag-decisions-bar { position: static; box-shadow: none; flex-wrap: wrap; }
+  /* The undo must stay reachable while the tally is scrolled away: it sits
+     just above the fixed shortlist bar, under the sheet's scrim. */
+  .ag-decisions-bar .ag-undo {
+    position: fixed; left: 16px; right: 16px; z-index: 30; margin: 0;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    box-shadow: 0 8px 24px -14px rgba(0, 0, 0, 0.35);
+  }
+  .ag-decision-add { min-height: 44px; }
+  .ag-decision-in { min-height: 44px; }
+  .ag-reco-person { flex-direction: column; }
+  .ag-reco-decide { flex: none; width: 100%; }
+
+  .ag-sl-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: var(--ag-paper); border-top: 1px solid var(--ag-border);
+    box-shadow: 0 -8px 24px -14px rgba(0, 0, 0, 0.35);
+  }
+  .ag-sl-bar-open { flex: 1; min-width: 0; border: none; background: none; text-align: left; padding: 0; font-family: var(--ag-sans); cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-height: 44px; justify-content: center; touch-action: manipulation; }
+  .ag-sl-bar-open:disabled { cursor: default; }
+  .ag-sl-bar-label { margin-bottom: 0; }
+  .ag-sl-bar-names { font-size: var(--t-small); color: var(--ag-ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ag-sl-bar-chev { color: var(--ag-ink-4); flex: none; transition: transform 0.15s ease; }
+  .ag-sl-bar[data-open="true"] .ag-sl-bar-chev { transform: rotate(180deg); }
+  .ag-sl-bar-confirm { flex: none; min-height: 40px; padding: 8px 14px; touch-action: manipulation; }
+
+  .ag-sl-scrim { display: block; position: fixed; inset: 0; z-index: 31; background: rgba(0, 0, 0, 0.35); }
+  .ag-sl-sheet {
+    display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 32;
+    background: var(--ag-paper); border-radius: 16px 16px 0 0;
+    box-shadow: 0 -16px 40px -20px rgba(0, 0, 0, 0.4);
+    max-height: 86vh; overflow-y: auto; overscroll-behavior: contain; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .ag-sl-sheet:focus { outline: none; }
+  .ag-sl-grab { display: flex; justify-content: center; width: 100%; padding: 10px 0 4px; border: none; background: none; cursor: pointer; touch-action: manipulation; }
+  .ag-sl-grab span { display: block; width: 40px; height: 4px; border-radius: var(--r-pill); background: var(--ag-line-2); }
+}
+
+@media (max-width: 600px) {
+  .ag-cmp-grid { grid-template-columns: 1fr; }
+  .ag-bulk-long { display: none; }
+  .ag-bulk-short { display: inline; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-sl-bar-chev, .ag-bulk-chip, .ag-decision-quiet-btn, .ag-reco-text-btn { transition: none; }
+}
+
+/* Step 05 follow-ups after review: the "add in one go" group has nothing to
+   say when both chips are hidden; the undo live region is mounted before it
+   speaks (screen readers announce a change, not an arrival), so empty it is
+   clipped rather than removed; the bar's chevron now sits inside the opener. */
+.ag-cmp-bulk:not(:has(.ag-bulk-chip)) { display: none; }
+.ag-undo[data-empty="true"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); padding: 0; margin: 0; border: 0; }
+.ag-sl-bar-open { display: flex; align-items: center; gap: 10px; }
+.ag-sl-bar-open .ag-sl-bar-chev { margin-left: auto; }
