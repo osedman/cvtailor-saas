@@ -7392,3 +7392,15 @@ Built by a 4-builder workflow, screenshot-reviewed (fix-first: a state
 contradiction on the phone, C missing the rail, a wrong count) and fixed;
 one leftover phone line fixed by hand. Only one test touches this tab's
 wording (no "rejected"); the redesign says "Pass".
+
+## 🖼 Board 27 — the consumer after-number and the way back, drawn after the fact (26 September 2026)
+
+The 24 Sep consumer fix shipped two surfaces with no Figma frame: the
+role-result strip on /tailor and the before · after band on /found. The
+working rules want a frame for every UI change, so board 27 records both as
+built — node 538:2, https://www.figma.com/design/AWRRbEOX6rLsltutFDL3zs/?node-id=538-2
+— with the stale state, the apply-sheet line, and the four rules the
+surfaces keep (one engine twice; display-only by construction; it stops
+counting when it should; one extra call, once). For Ose to sign off or send
+back. Also: Ose approved board 26 (step 05 redesign) on 24 Sep; the
+implementation is running against staging.
