@@ -5,11 +5,9 @@
  */
 
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
-import "../agencies/agencies.css"
 
-const agSans = Geist({ subsets: ["latin"], variable: "--font-ag-sans" })
-const agMono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-ag-mono" })
+import { agMono, agSans } from "@/app/fonts"
+import "../agencies/agencies.css"
 
 export const metadata: Metadata = {
   title: "Shortlist",

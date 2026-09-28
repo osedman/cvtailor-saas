@@ -61,9 +61,12 @@
 
   --ag-sans: var(--font-ag-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --ag-mono: var(--font-ag-mono), ui-monospace, "SF Mono", Menlo, monospace;
-  /* Display face for headlines only (Ose, 7 Aug: specimen E). Prose, controls
-   * and chrome stay on the sans; ids and machine data stay on the mono. */
-  --ag-display: var(--font-ag-display), Georgia, "Times New Roman", serif;
+  /* Display. Headlines were Fraunces from 7 Aug (specimen E) until 28 Sep,
+   * when Ose moved the whole B2B surface onto Noto Sans; the token stays so
+   * a separate headline face is one line away again, and so the ~15 rules
+   * that set it need not change. Fallback is the sans stack, not a serif:
+   * a failed load should look like the product, not like Georgia. */
+  --ag-display: var(--font-ag-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 
   display: flex;
   min-height: 100vh;

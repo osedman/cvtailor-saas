@@ -8,10 +8,9 @@
  */
 
 import type { Metadata } from "next"
-import { Geist } from "next/font/google"
-import "./consent.css"
 
-const sans = Geist({ subsets: ["latin"], variable: "--cs-sans" })
+import { csSans } from "@/app/fonts"
+import "./consent.css"
 
 export const metadata: Metadata = {
   title: "Your interview — Tailr",
@@ -21,5 +20,5 @@ export const metadata: Metadata = {
 }
 
 export default function ConsentLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`cs-app ${sans.variable}`}>{children}</div>
+  return <div className={`cs-app ${csSans.variable}`}>{children}</div>
 }

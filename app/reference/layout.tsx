@@ -5,10 +5,9 @@
  */
 
 import type { Metadata } from "next"
-import { Geist } from "next/font/google"
-import "../consent/consent.css"
 
-const sans = Geist({ subsets: ["latin"], variable: "--cs-sans" })
+import { csSans } from "@/app/fonts"
+import "../consent/consent.css"
 
 export const metadata: Metadata = {
   title: "A reference request — Tailr",
@@ -17,5 +16,5 @@ export const metadata: Metadata = {
 }
 
 export default function ReferenceLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`cs-app ${sans.variable}`}>{children}</div>
+  return <div className={`cs-app ${csSans.variable}`}>{children}</div>
 }

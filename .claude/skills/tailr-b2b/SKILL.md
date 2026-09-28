@@ -145,7 +145,9 @@ offers times, meets people, and decides — and the record deepens each round.
   brief, recruiter briefs inbox, applicant pool, booking, close-out, consumer
   match, living dossier v2, round delta, audit log, settings.
 - Tokens = Tailr brand v1.0 (ink #1E1813, paper #FFFDFA, cream #F9F6F0, coral
-  #DC4F33), Fraunces headlines on the agency side only.
+  #DC4F33). Type is **Noto Sans** across every B2B surface (Ose, 28 Sep),
+  body and headlines alike; Geist Mono stays on ids and machine data. The
+  Fraunces headline fork of 7 Aug is retired — do not restore it as a fix.
 
 ## Architecture decisions (5 Aug — do not relitigate)
 
@@ -284,7 +286,8 @@ eighth step.
 **Theme:** recruiter dashboard + all `/hiring` = **dark**, scoped by
 `.ag-app:has(.agd-main)`. The seven workflow screens and the adjunct recruiter
 screens stay light. Doorways (`/consent`, `/reference`) are light, own
-stylesheet. Headlines Fraunces, body Geist, machine data Geist Mono.
+stylesheet. Body and headlines Noto Sans, machine data Geist Mono — the
+faces are declared once in `app/fonts.ts`, never per layout.
 
 ## Product decisions embedded in the UI (do not undo)
 

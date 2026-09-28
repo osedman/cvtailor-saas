@@ -3,8 +3,8 @@
  *
  * Same design system as Tailr for Agencies — the HM surface is the agencies
  * product seen from the client's side of the wall, not a second product, so it
- * loads agencies.css and the same three faces (Geist body, Geist Mono chrome,
- * Fraunces display) rather than forking a token set.
+ * loads agencies.css and the same faces (Noto Sans body and display, Geist
+ * Mono chrome) rather than forking a token set.
  *
  * Theme: agencies.css turns dark for `.ag-app:has(.agd-main)`. The dashboard
  * renders `.agd-main` and is therefore the dark surface, per the signed-off
@@ -18,14 +18,10 @@
  */
 
 import type { Metadata } from "next"
-import { Fraunces, Geist, Geist_Mono } from "next/font/google"
+import { agMono, agSans } from "@/app/fonts"
 import { AgencyShell } from "@/components/agency/agency-shell"
 import "../agencies/agencies.css"
 import "./hiring.css"
-
-const agSans = Geist({ subsets: ["latin"], variable: "--font-ag-sans" })
-const agMono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-ag-mono" })
-const agDisplay = Fraunces({ subsets: ["latin"], weight: "variable", variable: "--font-ag-display", axes: ["opsz"] })
 
 export const metadata: Metadata = {
   title: "Hiring — Tailr",
@@ -36,7 +32,7 @@ export const metadata: Metadata = {
 
 export default function HiringLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AgencyShell className={`${agSans.variable} ${agMono.variable} ${agDisplay.variable}`}>
+    <AgencyShell className={`${agSans.variable} ${agMono.variable}`}>
       {children}
     </AgencyShell>
   )

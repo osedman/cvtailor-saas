@@ -75,27 +75,25 @@ const ALLOWLIST: Record<string, string> = {
     'Tailor sidebar chrome (screen 05): panel labels and EV·NN chips — ' +
     'machine references into the evidence bank. Requirements and gap prose ' +
     'stay in the sans.',
-  'app/portal/layout.tsx:Geist_Mono':
-    'Client portal shell (same agencies design system): mono carries refs, ' +
-    'scores, must have counts and the viewer attribution line. Narratives, ' +
-    'quotes and all prose stay in the sans.',
-  'app/rights/layout.tsx:Geist_Mono':
-    'Candidate rights page (same agency design system): mono carries the ' +
-    'held since date, request kinds and status chips. All prose stays sans.',
-  'app/agencies/layout.tsx:Geist_Mono':
-    'Tailr for Agencies (approved handoff design, mono-heavy by intent): ' +
-    'loads the face for .ag-meta chrome — refs (ROL/CAN/R0N), counts, ' +
-    'states, scores. All prose and every recruiter-typed field, including ' +
-    'the JD paste box, stays in the sans; the handoff wanted the JD box in ' +
-    'mono and that deviation is deliberate, per the 27 Jul lesson.',
-  'app/hiring/layout.tsx:Geist_Mono':
-    'Hiring-manager shell — the agencies design system seen from the client ' +
-    'side of the wall, so it loads the same three faces as app/agencies, ' +
-    'app/portal and app/rights. Mono carries chrome and machine data only: ' +
-    'the crumb, band eyebrows, avatar initials, step-rail labels, slot ' +
-    'times and the masked invite address (a value the reader matches ' +
-    'character by character against their own mailbox). Every sentence on ' +
-    'the surface — hero prose, empty states, invite copy — is the sans.',
+  'app/fonts.ts:Geist_Mono':
+    'The one declaration of the B2B mono, for every .ag-app surface. It was ' +
+    'four identical entries — app/agencies, app/hiring, app/portal and ' +
+    'app/rights each declared the face themselves — until 28 Sep, when the ' +
+    'Noto Sans change moved all three B2B faces into app/fonts.ts. Same ' +
+    'deliberate choice, now justified once instead of four times.\n' +
+    'What the mono carries, unchanged: .ag-meta chrome on the agencies ' +
+    'surface (refs ROL/CAN/R0N, counts, states, scores); refs, scores, ' +
+    'must-have counts and the viewer attribution on the client portal; the ' +
+    'held-since date, request kinds and status chips on candidate rights; ' +
+    'and on the hiring-manager side the crumb, band eyebrows, avatar ' +
+    'initials, step-rail labels, slot times and the masked invite address — ' +
+    'a value the reader matches character by character against their own ' +
+    'mailbox.\n' +
+    'What it never carries: prose. Every sentence on every one of those ' +
+    'surfaces — hero copy, empty states, invite copy, narratives, quotes — ' +
+    'and every recruiter-typed field including the JD paste box is the ' +
+    'sans. The handoff wanted the JD box in mono; that deviation is ' +
+    'deliberate, per the 27 Jul lesson.',
 }
 
 /** Source files we typeset; ignore build output and vendored code. */

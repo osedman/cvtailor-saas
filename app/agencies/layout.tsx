@@ -1,22 +1,17 @@
 /**
- * Tailr for Agencies shell. Body and chrome stay on the brand faces (Geist +
- * Geist Mono per brand v1.0); headlines speak in Fraunces — a deliberate
- * agencies-side fork Ose chose on 7 Aug from five specimens, because the
- * default grotesque headline read as AI-template. Serif is display only:
- * screen titles, card titles, role names. Mono remains chrome and machine
- * data only — see the typography guardrail allowlist.
+ * Tailr for Agencies shell. Body, chrome and headlines all speak Noto Sans
+ * (Ose, 28 Sep) — retiring the 7 Aug Fraunces fork, which gave the agency
+ * side a serif display face. `--ag-display` survives as a token so a distinct
+ * headline face is one line away again, but it now resolves to the sans.
+ * Mono remains chrome and machine data only — see the guardrail allowlist.
+ *
+ * Faces are declared in app/fonts.ts, not here.
  */
 
 import type { Metadata } from "next"
-import { Fraunces, Geist, Geist_Mono } from "next/font/google"
+import { agMono, agSans } from "@/app/fonts"
 import { AgencyShell } from "@/components/agency/agency-shell"
 import "./agencies.css"
-
-const agSans = Geist({ subsets: ["latin"], variable: "--font-ag-sans" })
-const agMono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-ag-mono" })
-// Variable font: weight span + optical size axis, so 15px card titles and
-// 38px heroes each get the right optical cut.
-const agDisplay = Fraunces({ subsets: ["latin"], weight: "variable", variable: "--font-ag-display", axes: ["opsz"] })
 
 export const metadata: Metadata = {
   title: "Tailr for Agencies",
@@ -25,7 +20,7 @@ export const metadata: Metadata = {
 
 export default function AgenciesLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AgencyShell className={`${agSans.variable} ${agMono.variable} ${agDisplay.variable}`}>
+    <AgencyShell className={`${agSans.variable} ${agMono.variable}`}>
       {children}
     </AgencyShell>
   )

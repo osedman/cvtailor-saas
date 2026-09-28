@@ -9,11 +9,10 @@
  */
 
 import type { Metadata } from "next"
-import { Geist } from "next/font/google"
+
+import { csSans } from "@/app/fonts"
 import "../consent/consent.css"
 import "./booking.css"
-
-const sans = Geist({ subsets: ["latin"], variable: "--cs-sans" })
 
 export const metadata: Metadata = {
   title: "Your interview — Tailr",
@@ -23,5 +22,5 @@ export const metadata: Metadata = {
 }
 
 export default function BookingLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`cs-app ${sans.variable}`}>{children}</div>
+  return <div className={`cs-app ${csSans.variable}`}>{children}</div>
 }
