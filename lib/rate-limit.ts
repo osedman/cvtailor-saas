@@ -44,6 +44,13 @@ const PRESETS: Record<string, Rule[]> = {
     { key: 'share:min', limit: 10, windowSeconds: 60 },
     { key: 'share:day', limit: 60, windowSeconds: DAY },
   ],
+  // File uploads to private buckets (the job description on a brief). Each
+  // call can store 10 MB and uploading never changes a version, so nothing
+  // else would notice a loop; this does.
+  upload: [
+    { key: 'upload:min', limit: 10,  windowSeconds: 60 },
+    { key: 'upload:day', limit: 100, windowSeconds: DAY },
+  ],
 }
 
 export type RateLimitPreset = keyof typeof PRESETS

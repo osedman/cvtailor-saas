@@ -116,6 +116,10 @@ export interface BriefConfig {
   disclosure: BriefDisclosure
   feedbackMode: FeedbackMode
   feedbackDays: number
+  /** search_brief_files id — the job description attached to this version.
+   *  Either side may attach or replace it (26 Sep 2026); a different id is a
+   *  different config, so a replacement is an amendment both sides sign. */
+  jdFileId: string | null
   // Tier 2 — the agency states
   feeBasis: FeeBasis
   feePercent: number
@@ -147,6 +151,7 @@ export const TIER: Record<keyof BriefConfig, 1 | 2 | 0> = {
   disclosure: 1,
   feedbackMode: 1,
   feedbackDays: 1,
+  jdFileId: 1,
   feeBasis: 2,
   feePercent: 2,
   rebateWeeks: 2,
@@ -182,6 +187,7 @@ export const DEFAULT_BRIEF: BriefConfig = {
   disclosure: { scores: true, evidence: true, notes: false, cv: true, logistics: true },
   feedbackMode: "via_recruiter",
   feedbackDays: 5,
+  jdFileId: null,
   feeBasis: "contingent",
   feePercent: 20,
   rebateWeeks: 12,
@@ -266,6 +272,10 @@ export function normaliseBrief(input: unknown, base: BriefConfig = DEFAULT_BRIEF
     },
     feedbackMode: pick(FEEDBACK_MODES, o.feedbackMode, base.feedbackMode),
     feedbackDays: pick<number>(FEEDBACK_DAYS, o.feedbackDays, base.feedbackDays),
+    // A file id or nothing. Anything that is not a uuid — a name, a path, a
+    // number — is dropped to null rather than carried, because the route
+    // reads this as "which row", and a value that is not a row is not one.
+    jdFileId: o.jdFileId === undefined ? base.jdFileId : uuidish(o.jdFileId) ? o.jdFileId : null,
     feeBasis: pick(FEE_BASES, o.feeBasis, base.feeBasis),
     feePercent,
     rebateWeeks: clampInt(o.rebateWeeks, REBATE_WEEKS.min, REBATE_WEEKS.max, base.rebateWeeks),
@@ -369,6 +379,7 @@ export const KEY_LABEL: Record<keyof BriefConfig, string> = {
   disclosure: "You will be shown",
   feedbackMode: "Unsuccessful candidates",
   feedbackDays: "Feedback within",
+  jdFileId: "Job description",
   feeBasis: "Basis",
   feePercent: "Fee",
   rebateWeeks: "Rebate",
@@ -386,10 +397,14 @@ export const KEY_LABEL: Record<keyof BriefConfig, string> = {
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`
 
 /** One line of prose per key, the same on both sides. `names` resolves
- *  contact ids so nobody reads a uuid. */
+ *  contact ids so nobody reads a uuid — and file ids, when the caller has
+ *  them (BriefView.names carries both), so the job description line reads
+ *  as its file name rather than "attached". */
 export function describe(key: keyof BriefConfig, c: BriefConfig, names: Record<string, string> = {}): string {
   const name = (id: string) => names[id] ?? "a contact"
   switch (key) {
+    case "jdFileId":
+      return c.jdFileId ? (names[c.jdFileId] ?? "attached") : "none"
     case "rounds":
       return `${c.rounds.length} · ` + c.rounds.map((r) => `${ROUND_PURPOSE_LABEL[r.purpose]} (${r.durationMinutes} min, ${r.interviewerIds.length ? r.interviewerIds.map(name).join(" + ") : "interviewer to confirm"})`).join(" → ")
     case "decisionTurnaroundDays":

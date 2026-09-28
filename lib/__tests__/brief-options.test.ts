@@ -20,6 +20,7 @@ import {
   CLIENT_EDITABLE,
   TIER,
   describe as describeKey,
+  KEY_LABEL,
   TIME_STEPS,
   MAX_ROUNDS,
 } from "@/lib/agency/brief-options"
@@ -115,6 +116,18 @@ describe("normaliseBrief never lets an out-of-set value through", () => {
   it("caps the one free-text field", () => {
     expect(normaliseBrief({ note: "x".repeat(2000) }).note).toHaveLength(600)
   })
+  it("carries a job description file id, or nothing — junk becomes null, not a name", () => {
+    const id = "3e386262-12b7-8155-bdeb-fa19cc33e7b8"
+    expect(DEFAULT_BRIEF.jdFileId).toBeNull()
+    expect(normaliseBrief({ jdFileId: id }).jdFileId).toBe(id)
+    expect(normaliseBrief({ jdFileId: null }).jdFileId).toBeNull()
+    for (const junk of ["job-description.pdf", "agency/brief/file.pdf", 42, {}, true, "not-a-uuid"]) {
+      expect(normaliseBrief({ jdFileId: junk }).jdFileId, String(junk)).toBeNull()
+    }
+    // An absent key keeps the base — a client amendment that says nothing
+    // about the file does not detach it.
+    expect(normaliseBrief({ maxPerDay: 2 }, { ...DEFAULT_BRIEF, jdFileId: id }).jdFileId).toBe(id)
+  })
   it("accepts only YYYY-MM for the start target", () => {
     expect(normaliseBrief({ startTargetMonth: "2026-11" }).startTargetMonth).toBe("2026-11")
     expect(normaliseBrief({ startTargetMonth: "November" }).startTargetMonth).toBeNull()
@@ -123,14 +136,22 @@ describe("normaliseBrief never lets an out-of-set value through", () => {
 })
 
 describe("the two tiers", () => {
-  it("puts exactly the four agreed sections in tier one", () => {
+  it("puts exactly the four agreed sections, plus the job description, in tier one", () => {
     const tier1 = (Object.keys(TIER) as Array<keyof typeof TIER>).filter((k) => TIER[k] === 1)
-    // rounds · deciding (6 keys) · what is shown · feedback (2 keys)
+    // rounds · deciding (6 keys) · what is shown · feedback (2 keys) · the
+    // job description (26 Sep 2026: the client agrees to it and may replace it)
     expect(tier1.sort()).toEqual(
-      ["rounds", "decisionTurnaroundDays", "interviewDays", "windowFrom", "windowTo", "noticeHours", "bufferMinutes", "maxPerDay", "disclosure", "feedbackMode", "feedbackDays"].sort()
+      ["rounds", "decisionTurnaroundDays", "interviewDays", "windowFrom", "windowTo", "noticeHours", "bufferMinutes", "maxPerDay", "disclosure", "feedbackMode", "feedbackDays", "jdFileId"].sort()
     )
     expect(CLIENT_EDITABLE).toEqual(expect.arrayContaining(tier1))
     expect(CLIENT_EDITABLE).not.toContain("feePercent")
+  })
+
+  it("lets a client replace the job description — a tier-one change both sides sign", () => {
+    const id = "3e386262-12b7-8155-bdeb-fa19cc33e7b8"
+    const { config, changes } = applyClientAmendment(DEFAULT_BRIEF, { jdFileId: id })
+    expect(config.jdFileId).toBe(id)
+    expect(changes).toEqual([{ key: "jdFileId", tier: 1, from: null, to: id }])
   })
 
   it("lets a client amendment move tier-one keys only", () => {
@@ -154,6 +175,12 @@ describe("the diff", () => {
   it("is empty for an identical config", () => {
     expect(diffBrief(DEFAULT_BRIEF, normaliseBrief(DEFAULT_BRIEF))).toEqual([])
   })
+  it("sees a replaced job description as a change, so it is signed again", () => {
+    const a = "3e386262-12b7-8155-bdeb-fa19cc33e7b8"
+    const b = "7a2f4c10-5d3e-4b8a-9c1d-2e3f4a5b6c7d"
+    expect(diffBrief({ ...DEFAULT_BRIEF, jdFileId: a }, { ...DEFAULT_BRIEF, jdFileId: b })).toEqual([{ key: "jdFileId", tier: 1, from: a, to: b }])
+    expect(diffBrief({ ...DEFAULT_BRIEF, jdFileId: a }, { ...DEFAULT_BRIEF, jdFileId: a })).toEqual([])
+  })
 })
 
 describe("the words", () => {
@@ -168,6 +195,15 @@ describe("the words", () => {
   it("says when nobody is named rather than inventing someone", () => {
     expect(describeKey("rounds", DEFAULT_BRIEF)).toContain("interviewer to confirm")
     expect(describeKey("offerAuthorityContactId", DEFAULT_BRIEF)).toBe("Not named")
+  })
+  it("names the job description by its file, never by its id", () => {
+    const id = "3e386262-12b7-8155-bdeb-fa19cc33e7b8"
+    const c = { ...DEFAULT_BRIEF, jdFileId: id }
+    expect(KEY_LABEL.jdFileId).toBe("Job description")
+    expect(describeKey("jdFileId", DEFAULT_BRIEF)).toBe("none")
+    expect(describeKey("jdFileId", c)).toBe("attached")
+    expect(describeKey("jdFileId", c, { [id]: "Head of Growth JD.pdf" })).toBe("Head of Growth JD.pdf")
+    expect(describeKey("jdFileId", c, { [id]: "Head of Growth JD.pdf" })).not.toContain(id)
   })
 })
 

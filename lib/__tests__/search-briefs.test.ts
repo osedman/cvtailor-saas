@@ -13,6 +13,7 @@ const sql = (src: string) => src.replace(/^\s*--.*$/gm, "")
 const lib = code(read("lib/agency/search-briefs.ts"))
 const migration = sql(read("supabase/migrations/20260923120000_search_briefs.sql"))
 const hmRoute = code(read("app/api/hiring/briefs/[briefId]/route.ts"))
+const files = code(read("lib/agency/brief-files.ts"))
 const fnBody = (src: string, marker: string): string => {
   const start = src.indexOf(marker)
   if (start === -1) throw new Error(`not found: ${marker}`)
@@ -78,6 +79,17 @@ describe("connecting copies; nothing reads the brief live", () => {
     expect(fn).toMatch(/normaliseBrief\(role\.brief_config\)/)
     expect(fn).not.toMatch(/differences_stored|divergence_flag/)
   })
+  it("copies the job description's text into the role's intake ONLY when that is empty", () => {
+    const fn = fnBody(lib, "export async function connectRoleToBrief")
+    expect(fn).toMatch(/const intakeEmpty = !String\(role\.jd_raw \?\? ""\)\.trim\(\)/)
+    expect(fn).toMatch(/if \(intakeEmpty && c\.jdFileId\)/)
+    expect(fn).toMatch(/getBriefJdText\(briefId, c\.jdFileId\)/)
+    expect(fn).toMatch(/\.\.\.\(jdFromBrief \? \{ jd_raw: jdFromBrief\.text \} : \{\}\)/)
+    // The audit row says which file it came from.
+    expect(fn).toMatch(/jd_file: jdFromBrief \? jdFromBrief\.name : null/)
+    // Disconnect leaves the intake alone: what was copied is the recruiter's now.
+    expect(fnBody(lib, "export async function disconnectRoleFromBrief")).not.toMatch(/jd_raw/)
+  })
   it("does not map the brief's time-of-day windows onto the settings' date windows", () => {
     const fn = fnBody(lib, "export async function connectRoleToBrief")
     expect(fn).not.toMatch(/windowFrom: c\.windowFrom|windowTo: c\.windowTo/)
@@ -95,6 +107,19 @@ describe("the tables are audit-coupled", () => {
   it("every write in the module writes an audit row", () => {
     for (const m of ["createBrief", "sendBrief", "recruiterAmend", "recruiterApprove", "discardDraft", "clientAmend", "clientApprove", "connectRoleToBrief", "disconnectRoleFromBrief"]) {
       expect(fnBody(lib, `export async function ${m}`), m).toMatch(/writeAudit\(/)
+    }
+    // The one write that lives next door: attaching a job description.
+    expect(fnBody(files, "export async function storeBriefJd")).toMatch(/writeAudit\(/)
+    expect(fnBody(files, "export async function storeBriefJd")).toMatch(/action: "brief_jd_attached"/)
+  })
+  it("no version is written naming a job description that is not a live file on that brief", () => {
+    // normaliseBrief knows only that jdFileId is uuid-shaped. The three
+    // writes that record a config check the file before the row goes in, so
+    // a version both sides sign cannot describe a file that is not there.
+    for (const m of ["saveDraft", "recruiterAmend", "clientAmend"]) {
+      const body = fnBody(lib, `export async function ${m}`)
+      expect(body, m).toMatch(/await assertJdOnBrief\(briefId, config\.jdFileId\)/)
+      expect(body.indexOf("assertJdOnBrief("), m).toBeLessThan(body.search(/\.from\("search_brief_versions"\)\.(insert|update)\(/))
     }
   })
   it("the client-facing notification kinds are NOT storable as preferences", () => {

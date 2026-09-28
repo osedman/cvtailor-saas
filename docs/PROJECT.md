@@ -7468,3 +7468,16 @@ before the UI is coded. The non-UI half — migration
 `lib/agency/brief-files.ts`, `config.jdFileId` in the client-editable tier,
 four routes, connect copying text into `jd_raw` — is being built and
 reviewed by a workflow; migration to be run by hand, staging then prod.
+
+**Backend half landed (28 Sep).** Migration file, `lib/agency/brief-files.ts`
+(upload + pointer in one function, blob removed on a failed insert, 20 files
+per brief, content type by real extension with a hasOwnProperty guard,
+attachment headers), `config.jdFileId` (tier 1, client-editable, checked to
+be a live file ON THIS BRIEF before any version is written), four routes
+(recruiter/client upload with an `upload` rate-limit preset 10/min · 100/day;
+recruiter/client download scoped to the brief), connect copies the text into
+an empty `jd_raw` and names the file in the audit, discardDraft removes
+files. Two reviewers, twelve findings, all fixed. 1,810 tests green, tsc
+clean. Safe before the migration: reads touch the new table only when a
+version carries a file id, which no UI can set yet. Real-data exercise
+waits on the staging migration.

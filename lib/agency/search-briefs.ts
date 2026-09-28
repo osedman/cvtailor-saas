@@ -22,8 +22,10 @@
  * permission (same shape as client-shortlist.ts).
  *
  * CONNECTING COPIES. connectRoleToBrief() writes the config onto the role
- * and stamps the version. Nothing on a role reads a brief live, so a brief
- * re-opened to v3 cannot change a running role by itself; the role instead
+ * and stamps the version — and the brief's job description text into
+ * job_roles.jd_raw when that intake is empty (lib/agency/brief-files.ts).
+ * Nothing on a role reads a brief live, so a brief re-opened to v3 cannot
+ * change a running role by itself; the role instead
  * reports "brief has moved on" through roleBriefStatus(). Divergence between
  * the copy and the role's own settings is computed on read — no stored flag
  * to go stale.
@@ -32,6 +34,7 @@
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
 import { getInterviewSettings, setInterviewSettings } from "./interview-settings"
 import { notify } from "./notify"
+import { listBriefJdFiles, getBriefJdText, deleteBriefJdFiles, assertJdOnBrief, type BriefJdFile } from "./brief-files"
 import type { AgencyContext, HiringContext } from "./types"
 import {
   normaliseBrief,
@@ -46,7 +49,7 @@ import {
   type BriefChange,
 } from "./brief-options"
 
-export type { BriefConfig, BriefState, BriefSide, BriefChange }
+export type { BriefConfig, BriefState, BriefSide, BriefChange, BriefJdFile }
 
 // ── shapes ────────────────────────────────────────────────────────────────
 
@@ -60,6 +63,10 @@ export interface BriefVersionView {
   recruiterApprovedAt: string | null
   clientApprovedAt: string | null
   createdAt: string
+  /** The job description this version carries (config.jdFileId resolved to
+   *  its pointer row), or null. On `previous` too, so the review can say
+   *  what it was. Never the text — that is for connect alone. */
+  jd: BriefJdFile | null
 }
 
 export interface BriefView {
@@ -78,7 +85,8 @@ export interface BriefView {
   previous: BriefVersionView | null
   /** Roles connected to this brief, any version. */
   connectedRoles: Array<{ id: string; ref: string; title: string; version: number }>
-  /** contact id → display name, for describe(). Client-side people only. */
+  /** id → display name, for describe(): contact ids (client-side people
+   *  only) and the jd file ids on these versions, so nobody reads a uuid. */
   names: Record<string, string>
   createdAt: string
 }
@@ -105,17 +113,21 @@ interface VersionRow {
   created_at: string
 }
 
-const toVersion = (v: VersionRow): BriefVersionView => ({
-  id: v.id,
-  version: v.version,
-  config: normaliseBrief(v.config),
-  authoredBy: v.authored_by_side,
-  changedKeys: v.changed_keys ?? [],
-  sentAt: v.sent_at,
-  recruiterApprovedAt: v.recruiter_approved_at,
-  clientApprovedAt: v.client_approved_at,
-  createdAt: v.created_at,
-})
+const toVersion = (v: VersionRow, files: Map<string, BriefJdFile> = new Map()): BriefVersionView => {
+  const config = normaliseBrief(v.config)
+  return {
+    id: v.id,
+    version: v.version,
+    config,
+    authoredBy: v.authored_by_side,
+    changedKeys: v.changed_keys ?? [],
+    sentAt: v.sent_at,
+    recruiterApprovedAt: v.recruiter_approved_at,
+    clientApprovedAt: v.client_approved_at,
+    createdAt: v.created_at,
+    jd: config.jdFileId ? (files.get(config.jdFileId) ?? null) : null,
+  }
+}
 
 // ── reads ─────────────────────────────────────────────────────────────────
 
@@ -143,7 +155,14 @@ async function loadBrief(agencyId: string, briefId: string): Promise<BriefView |
     admin.from("agencies").select("name").eq("id", agencyId).maybeSingle(),
     admin.from("job_roles").select("id, ref, title, brief_version").eq("brief_id", briefId).is("discarded_at", null),
   ])
-  const vs = ((versions ?? []) as VersionRow[]).map(toVersion)
+  // The job description each version carries, resolved in ONE select on the
+  // pointer columns — never the text, which is for connect alone.
+  const rawVersions = (versions ?? []) as VersionRow[]
+  const files = await listBriefJdFiles(
+    briefId,
+    rawVersions.map((v) => normaliseBrief(v.config).jdFileId).filter((id): id is string => !!id)
+  )
+  const vs = rawVersions.map((v) => toVersion(v, files))
   const latest = vs[0]
   if (!latest) return null
 
@@ -158,6 +177,8 @@ async function loadBrief(agencyId: string, briefId: string): Promise<BriefView |
     .eq("company", company)
   const names: Record<string, string> = {}
   for (const p of people ?? []) names[p.id as string] = ((p.full_name as string) || (p.email as string) || "").trim() || "a contact"
+  // File ids too, so describe("jdFileId") reads as the file's name.
+  for (const f of files.values()) names[f.fileId] = f.name
 
   const state = briefState(
     { version: latest.version, recruiterApprovedAt: latest.recruiterApprovedAt, clientApprovedAt: latest.clientApprovedAt, authoredBy: latest.authoredBy, sentAt: latest.sentAt },
@@ -407,6 +428,9 @@ export async function saveDraft(ctx: AgencyContext, briefId: string, input: { ti
   if (view.state !== "draft") throw new AgencyAccessError("this brief has been sent — changes are amendments now, and make a new version")
 
   const config = normaliseBrief(input.config ?? view.latest.config, view.latest.config)
+  // The file the config names must be a live file on THIS brief before the
+  // version is written — a uuid is not a file.
+  await assertJdOnBrief(briefId, config.jdFileId)
   const { error } = await admin.from("search_brief_versions").update({ config }).eq("id", view.latest.id).is("sent_at", null)
   if (error) throw error
   if (typeof input.title === "string") {
@@ -453,6 +477,7 @@ export async function recruiterAmend(ctx: AgencyContext, briefId: string, input:
   if (view.state === "draft") return saveDraft(ctx, briefId, input)
 
   const config = normaliseBrief(input.config ?? view.latest.config, view.latest.config)
+  await assertJdOnBrief(briefId, config.jdFileId)
   const changes = diffBrief(view.latest.config, config)
   if (changes.length === 0 && (input.title === undefined || input.title.trim() === view.title)) {
     throw new AgencyAccessError("nothing changed — there is no new version to send")
@@ -515,6 +540,14 @@ export async function discardDraft(ctx: AgencyContext, briefId: string): Promise
   if (view.state !== "draft") throw new AgencyAccessError("this brief has been sent to the client and stays on the record")
   const { error } = await admin.from("search_briefs").update({ discarded_at: new Date().toISOString(), discarded_by: ctx.userId }).eq("id", briefId).is("discarded_at", null)
   if (error) throw error
+  // A draft's job description goes with it — blobs first, then rows; a blob
+  // that will not go keeps its row, so it stays reachable. Drafts only: a
+  // sent brief is a record, and its file is part of what was proposed.
+  try {
+    await deleteBriefJdFiles(briefId)
+  } catch (e) {
+    console.error("[search-briefs] discarded the draft but could not remove its files (rows kept):", e instanceof Error ? e.message : e)
+  }
   await writeAudit(admin, { agencyId: ctx.agencyId, actorId: ctx.userId, entityType: "brief", entityRef: briefId, action: "brief_draft_discarded" })
 }
 
@@ -531,6 +564,9 @@ export async function clientAmend(ctx: HiringContext, briefId: string, proposed:
   if (view.state === "approved") throw new AgencyAccessError("this brief is approved by both sides — ask your recruiter to re-open it")
   const { config, changes } = applyClientAmendment(view.latest.config, proposed)
   if (changes.length === 0) throw new AgencyAccessError("nothing changed")
+  // A client may replace the file, but only with one that is on this brief:
+  // a signed version must never describe a file that is not there.
+  await assertJdOnBrief(briefId, config.jdFileId)
 
   const admin = agencyAdmin()
   const version = view.currentVersion + 1
@@ -597,7 +633,7 @@ export async function connectRoleToBrief(ctx: AgencyContext, roleId: string, bri
   if (!view) throw new AgencyAccessError("that brief is not on this agency")
   if (view.state !== "approved") throw new AgencyAccessError(`this brief is ${view.state === "draft" ? "still a draft" : `waiting on ${view.waitingOn === "client" ? "the client" : "you"}`} — a role connects only to an approved brief`)
 
-  const { data: role } = await admin.from("job_roles").select("id, ref, title, company, brief_id, brief_version, planned_rounds, contact_id").eq("id", roleId).eq("agency_id", ctx.agencyId).is("discarded_at", null).maybeSingle()
+  const { data: role } = await admin.from("job_roles").select("id, ref, title, company, brief_id, brief_version, planned_rounds, contact_id, jd_raw").eq("id", roleId).eq("agency_id", ctx.agencyId).is("discarded_at", null).maybeSingle()
   if (!role) throw new AgencyAccessError("that role is not on this agency")
   if (role.company && view.company && role.company.trim().toLowerCase() !== view.company.trim().toLowerCase()) {
     throw new AgencyAccessError(`this brief is with ${view.company}; the role is for ${role.company}`)
@@ -609,10 +645,20 @@ export async function connectRoleToBrief(ctx: AgencyContext, roleId: string, bri
   // A title the recruiter typed is theirs and stays.
   const roleTitle = String(role.title ?? "").trim()
   const unnamed = !roleTitle || roleTitle.toLowerCase() === "untitled role"
+  // The brief's job description lands in the role's intake ONLY when the
+  // intake is empty. Text a recruiter pasted or parsed is theirs and stays;
+  // the brief's file is still one download away.
+  let jdFromBrief: { name: string; text: string } | null = null
+  const intakeEmpty = !String(role.jd_raw ?? "").trim()
+  if (intakeEmpty && c.jdFileId) {
+    const jd = await getBriefJdText(briefId, c.jdFileId)
+    if (jd && jd.text.trim()) jdFromBrief = jd
+  }
   const { error } = await admin
     .from("job_roles")
     .update({
       ...(unnamed && view.title.trim() ? { title: view.title.trim() } : {}),
+      ...(jdFromBrief ? { jd_raw: jdFromBrief.text } : {}),
       brief_id: briefId,
       brief_version: view.currentVersion,
       brief_config: c,
@@ -644,7 +690,7 @@ export async function connectRoleToBrief(ctx: AgencyContext, roleId: string, bri
     action: role.brief_id ? "brief_reconnected" : "brief_connected",
     // What the connect overwrote rides along, so a reverse can put it back.
     fromValue: { brief_id: role.brief_id ?? null, version: role.brief_version ?? null, title: role.title ?? "", planned_rounds: role.planned_rounds ?? null, contact_id: role.contact_id ?? null, company: role.company ?? "" },
-    toValue: { brief_id: briefId, version: view.currentVersion },
+    toValue: { brief_id: briefId, version: view.currentVersion, jd_file: jdFromBrief ? jdFromBrief.name : null },
   })
   return { version: view.currentVersion }
 }
