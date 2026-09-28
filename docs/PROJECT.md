@@ -7481,3 +7481,22 @@ files. Two reviewers, twelve findings, all fixed. 1,810 tests green, tsc
 clean. Safe before the migration: reads touch the new table only when a
 version carries a file id, which no UI can set yet. Real-data exercise
 waits on the staging migration.
+
+**Migration applied to staging and verified (28 Sep).** Ose ran
+`20260926120000_brief_jd_files.sql` on staging. Checked: table present, row
+security on, only `postgres`/`service_role` hold grants (the browser has
+none), bucket `agency-briefs` private with no object policies, 10 MB and
+PDF/DOCX/TXT only. Real-data exercise on staging, 13 checks: draft created;
+upload wrote the pointer and an audit row (`brief_jd_attached`); a
+`jd.constructor` name refused; uploading alone left the version untouched;
+saving the draft with the id resolved `latest.jd` and the file name; a
+random id refused ("not on this brief"); download bytes matched by sha256;
+extracted text stored for the intake hand-off; the file unreadable through
+another brief; discard removed the rows and the blob. The blob check failed
+once in the same second as the delete (storage briefly served the old
+bytes) and passed on re-check: "Object not found", folder empty, no objects
+in the bucket. Leftover: one soft-discarded draft titled "EXERCISE · JD
+attachment · safe to ignore" and its audit rows, attributed to the owner.
+**Production** has none of the agency brief tables yet, so this file cannot
+run there until the 23 Sep brief migrations do — that belongs to the
+agencies production port, not now.
