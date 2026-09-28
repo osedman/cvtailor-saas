@@ -7540,3 +7540,13 @@ carries the file's name and id (the role's contact may not be the brief's
 addressee), and intake no longer claims the text "came from" the brief —
 it says the brief's job description is linked below. 1,871 tests green,
 tsc clean, build green. Not clicked by a person yet.
+
+**28 Sep, later.** Ose approved board 29 and decided "show names for
+unanswered too": `SHOW_NAMES_BEFORE_PERMISSION = true`, with the DPIA entry
+rewritten to say who decided, why (every shortlisted candidate on staging was
+unanswered, so references-only was not the feature asked for), and the
+asymmetry a reviewer must weigh — the submission still needs an audited
+override for the same person. A test now refuses the switch unless the DPIA
+log records it. Re-verified live on staging: the unanswered CAN-15 appeared
+by name and vanished on restore. Board 29 updated to match. The screen and
+the rail copy are being built.

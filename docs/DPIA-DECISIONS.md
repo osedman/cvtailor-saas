@@ -18,8 +18,8 @@ cannot go quiet just because nobody opened this file.
 
 ## 2026-09-28 · Names reach the hiring manager at shortlist, before any submission
 
-**Status: OPEN** — being built on staging (server first; the screen waits
-for Figma board 29's sign-off). No DPIA, no legal review.
+**Status: OPEN** — on staging (server 28 Sep; the screen built to Figma
+board 29, approved by Ose 28 Sep). No DPIA, no legal review.
 
 **Decided by Ose**, 28 Sep 2026: "the hiring manager should be able to see
 the names of the candidates, as soon as they're shortlisted."
@@ -36,7 +36,7 @@ disclose.
 | Name of a shortlisted candidate | At submission only | At shortlist, live |
 | Name of one who **declined or withdrew** permission | Never | **Still never** — not even their ref |
 | Name of one who **asked to be withheld** (`redacted`) | Ref only | **Still ref only** |
-| Name of one who **has not answered** the ask | At submission, only with the recruiter's audited override | **Ref only** until they agree (`SHOW_NAMES_BEFORE_PERMISSION = false`) |
+| Name of one who **has not answered** the ask | At submission, only with the recruiter's audited override | **Named at shortlist** (`SHOW_NAMES_BEFORE_PERMISSION = true`, Ose 28 Sep — see below) |
 | CV, evidence, scores, contact details | At submission | **Still at submission** |
 
 **How it is constrained.** Names and the time they were added; nothing
@@ -50,7 +50,9 @@ check the role room already uses. Right-to-represent is read in one place:
 `representClientVisibility` in `lib/agency/represent.ts`. Verified on
 staging 28 Sep: a shortlisted, unanswered candidate appeared to the tied
 contact as their ref, "awaiting permission", and disappeared when the
-decision was restored; a contact with no tie got nothing. The recruiter's step 05 rail says names reach the
+decision was restored; a contact with no tie got nothing. Re-verified after
+the switch was turned on: the same unanswered candidate appeared by name,
+with no withheld flag, and disappeared again on restore. The recruiter's step 05 rail says names reach the
 client as they are added; its old caption ("nothing reaches the client
 until you build it there") is withdrawn.
 
@@ -59,9 +61,19 @@ until you build it there") is withdrawn.
 1. The Art 14 notice at ingestion must say a name may be shown to the
    client as soon as the candidate is shortlisted. It has not been updated
    (and the 22 Sep CV gap is still open).
-2. Unanswered candidates: showing their name before they agree is one
-   switch (`SHOW_NAMES_BEFORE_PERMISSION`). If it is ever flipped, this
-   entry must say so and why.
+2. **Unanswered candidates are now named — the switch is ON.** Ose, 28
+   Sep 2026, in reply to "name or reference?": "show names for unanswered
+   too". Why: every shortlisted candidate on staging was unanswered, so the
+   default showed the hiring manager references only, which is not the
+   feature he asked for. What it means: a person who uploaded nothing and
+   agreed to nothing — their CV came from a recruiter — can be named to a
+   client the moment they are shortlisted, before the right-to-represent
+   ask has been answered, and **without the audited override the
+   submission still requires** for the same person. That asymmetry is the
+   thing to review: either the notice and terms cover it, or naming an
+   unanswered candidate should write an audit row as the override does.
+   Declined and withdrawn still never appear; asked-to-be-withheld still
+   shows as the ref. Turning the switch back to false restores the ref.
 3. Should each first disclosure of a name to a contact write an audit row,
    as CV views do? Today it does not.
 4. A name seen and then removed has still been seen. Does the terms of

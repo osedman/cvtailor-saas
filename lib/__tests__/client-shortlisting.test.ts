@@ -164,10 +164,13 @@ describe("representClientVisibility — the represent reading, in represent.ts",
 })
 
 describe("the switch", () => {
-  it("SHOW_NAMES_BEFORE_PERMISSION defaults to false", () => {
-    expect(SHOW_NAMES_BEFORE_PERMISSION).toBe(false)
+  it("SHOW_NAMES_BEFORE_PERMISSION is on, as Ose decided on 28 Sep, and the DPIA log says so", () => {
+    expect(SHOW_NAMES_BEFORE_PERMISSION).toBe(true)
     const src = readFileSync(join(process.cwd(), "lib/agency/client-shortlisting.ts"), "utf8")
-    expect(tsCode(src)).toMatch(/export const SHOW_NAMES_BEFORE_PERMISSION = false\b/)
+    expect(tsCode(src)).toMatch(/export const SHOW_NAMES_BEFORE_PERMISSION = true\b/)
+    // The switch may only move with a written record beside it.
+    const dpia = readFileSync(join(process.cwd(), "docs/DPIA-DECISIONS.md"), "utf8")
+    expect(dpia).toMatch(/SHOW_NAMES_BEFORE_PERMISSION = true/)
   })
 })
 

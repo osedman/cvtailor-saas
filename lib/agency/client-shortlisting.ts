@@ -12,7 +12,7 @@
  *   - redacted               shown as their ref: "asked to be withheld".
  *                            Outranks every other state below.
  *   - unanswered             shown as their ref: "awaiting permission",
- *                            unless SHOW_NAMES_BEFORE_PERMISSION is flipped.
+ *                            unless SHOW_NAMES_BEFORE_PERMISSION is on (it is, since 28 Sep).
  *   - agreed                 full name.
  *
  * NAMES ONLY. Before a submission the client gets a ref, a name (or the
@@ -46,13 +46,15 @@ import type { HiringContext } from "./types"
  * The one switch Ose may flip: show the names of candidates who have not yet
  * answered the right-to-represent request.
  *
- * Default false — an unanswered candidate is shown as their ref until they
- * agree to be put forward. Flipping this discloses a person's name to a
- * client before that person has agreed to be represented to them, so it
- * needs a line in docs/DPIA-DECISIONS.md recording who decided and why,
- * in the same change.
+ * TRUE since 28 Sep 2026 — Ose: "show names for unanswered too". An
+ * unanswered candidate is named to the client at shortlist, before they
+ * have agreed to be represented to them. Recorded in docs/DPIA-DECISIONS.md
+ * (28 Sep entry) in the same change. Declined and withdrawn still never
+ * appear, and asked-to-be-withheld still shows as the ref: this switch
+ * reaches the unanswered only. Turning it back to false restores the ref
+ * with "Name shown once they agree to be put forward".
  */
-export const SHOW_NAMES_BEFORE_PERMISSION = false
+export const SHOW_NAMES_BEFORE_PERMISSION = true
 
 export type ShortlistingWithheld = "asked_to_be_withheld" | "awaiting_permission"
 
