@@ -9,6 +9,10 @@
  * client); tier-2 lines are read. A line whose key is in `changedKeys` is
  * marked in words — CHANGED — with the previous version's value beside it,
  * not a colour and not an asterisk.
+ *
+ * The job description is the FIRST line (board 28): its name, size and a
+ * Download link to the reader's own route; CHANGED · WAS {old name} when a
+ * new file came in. It is tier 1, so the client's copy carries Change too.
  */
 
 import {
@@ -18,7 +22,7 @@ import {
   describe,
   type BriefConfig,
 } from "@/lib/agency/brief-options"
-import { TierPill } from "./brief-form"
+import { TierPill, fileSize, jdHref, type BriefFormSide, type BriefJdView } from "./brief-form"
 
 /** The lines each tier shows, in reading order. Windows collapse to one line. */
 const TIER1_LINES: Array<keyof BriefConfig> = ["rounds", "decisionTurnaroundDays", "disclosure", "feedbackMode"]
@@ -35,6 +39,10 @@ export function BriefReview({
   names,
   onChange,
   agencyName,
+  side,
+  briefId,
+  jd,
+  previousJd,
 }: {
   config: BriefConfig
   previous: BriefConfig | null
@@ -43,8 +51,42 @@ export function BriefReview({
   /** Supplied by the client's page only. */
   onChange?: (key: keyof BriefConfig) => void
   agencyName: string
+  /** Whose page: the Download link goes to that side's own route. */
+  side: BriefFormSide
+  briefId: string
+  /** The file `config.jdFileId` names, resolved — or null. */
+  jd: BriefJdView | null
+  /** The file the version this one changed carried, for "was". */
+  previousJd: BriefJdView | null
 }) {
   const changed = new Set(changedKeys)
+  const jdChanged = changed.has("jdFileId")
+  const jdLine = (
+    <div key="jdFileId" className="ag-brief-line ag-brief-line-jd" data-changed={jdChanged || undefined}>
+      <span className="ag-brief-line-k">{KEY_LABEL.jdFileId}</span>
+      <span className="ag-brief-line-v">
+        {config.jdFileId ? (
+          <>
+            {jd?.name ?? describe("jdFileId", config, names)}
+            {jd && <> · {fileSize(jd.sizeBytes)} · </>}
+            {jd && (
+              <a className="ag-brief-jd-link" href={jdHref(side, briefId, jd.fileId)} download aria-label={`Download ${jd.name}`}>
+                Download
+              </a>
+            )}
+          </>
+        ) : (
+          "None attached"
+        )}
+      </span>
+      {jdChanged && <span className="ag-brief-changed">Changed · was {previousJd?.name ?? "none attached"}</span>}
+      {onChange && (
+        <button type="button" className="ag-btn ag-btn-secondary ag-brief-change" onClick={() => onChange("jdFileId")} aria-label="Change the job description">
+          Change
+        </button>
+      )}
+    </div>
+  )
   const line = (key: keyof BriefConfig, valueOverride?: string, prevOverride?: string) => {
     const isChanged = changed.has(key)
     const value = valueOverride ?? describe(key, config, names)
@@ -73,7 +115,8 @@ export function BriefReview({
         <h3>What {onChange ? "you are" : "the client is"} agreeing to</h3>
         <TierPill tier={1} />
       </div>
-      <p className="ag-note">{onChange ? "Change any of these and the brief becomes a new version, signed by you, waiting on the agency." : "The four things the client signs for. A change to any of them comes back as a new version."}</p>
+      <p className="ag-note">{onChange ? "Change any of these and the brief becomes a new version, signed by you, waiting on the agency." : "The job description and the four terms the client signs for. A change to any of them comes back as a new version."}</p>
+      {jdLine}
       {TIER1_LINES.map((k) => line(k))}
       <div className="ag-brief-line" data-changed={windowsChanged || undefined}>
         <span className="ag-brief-line-k">Interview windows</span>

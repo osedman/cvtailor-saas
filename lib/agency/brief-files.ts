@@ -49,6 +49,10 @@ export interface BriefJdFile {
   contentType: string
   uploadedBySide: BriefSide
   createdAt: string
+  /** How many characters of text were read out of the file — a count, never
+   *  the text. 0 means nothing could be read (a scan, say): the form says so,
+   *  because connect will then copy nothing into the role's intake. */
+  textChars: number
 }
 
 interface FileRow {
@@ -58,6 +62,7 @@ interface FileRow {
   content_type: string
   uploaded_by_side: BriefSide
   created_at: string
+  text_chars: number | null
 }
 
 const toFile = (r: FileRow): BriefJdFile => ({
@@ -67,10 +72,13 @@ const toFile = (r: FileRow): BriefJdFile => ({
   contentType: r.content_type,
   uploadedBySide: r.uploaded_by_side,
   createdAt: r.created_at,
+  textChars: Number(r.text_chars ?? 0),
 })
 
-/** The pointer columns, never `text`. List paths read this and nothing more. */
-const POINTER_COLUMNS = "id, name, size_bytes, content_type, uploaded_by_side, created_at"
+/** The pointer columns, never `text`. List paths read this and nothing more.
+ *  text_chars is the COUNT of what was read (an int), so a screen can say
+ *  "no text found" without the text itself ever leaving connect. */
+const POINTER_COLUMNS = "id, name, size_bytes, content_type, uploaded_by_side, created_at, text_chars"
 
 /**
  * Is this something the brief accepts? Decided by the extension, because

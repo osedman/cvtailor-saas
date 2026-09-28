@@ -7523,3 +7523,20 @@ Every shortlisted candidate on staging today is unanswered, so under the
 default the hiring manager sees refs only. DPIA entry logged (OPEN).
 Board 29 (node 571:2) draws the screen, the "added since" list after a
 submission, and the step 05 rail copy that must change with it.
+
+## 📎 The JD on the brief — the screens, built to board 28 (28 September 2026)
+
+Ose approved board 28. Built by a four-agent workflow (implementer, two
+reviewers, fix) plus a hand pass: the brief form's first section "The job
+description" (attach / attached / replaced, drop zone that is a real button,
+upload announced and focus kept), the review's first line on both sides
+with the CHANGED · WAS pill, and role intake's "From the brief" chip with a
+named Download. One deliberate change from the board: the meta line reads
+"TEXT READ" or "NO TEXT FOUND" (with a hint to paste the description)
+instead of a word count nobody stores. Copy corrected where the new section
+made old copy wrong ("the job description and the four numbered sections").
+Two accuracy fixes by hand: the hiring side's role-brief route no longer
+carries the file's name and id (the role's contact may not be the brief's
+addressee), and intake no longer claims the text "came from" the brief —
+it says the brief's job description is linked below. 1,871 tests green,
+tsc clean, build green. Not clicked by a person yet.

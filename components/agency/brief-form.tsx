@@ -15,9 +15,16 @@
  *
  * A draft saves in place. Once sent, saving makes a NEW version (the module
  * decides; the form just says which will happen on the button).
+ *
+ * The job description (board 28, 28 Sep 2026) is the FIRST section, un-
+ * numbered, above the rounds: the document the terms are about. Both sides
+ * render this form, so `side` picks the upload and download routes and the
+ * "added by" words. Uploading only stores the file and returns its id; the
+ * id goes into config.jdFileId like any other field, so the page's own
+ * Save / Send / Send back carries it and a new file is an amendment.
  */
 
-import { useMemo } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
 import {
   BUFFER_MIN,
   DURATIONS_MIN,
@@ -60,12 +67,14 @@ export function TierPill({ tier }: { tier: 1 | 2 }) {
   )
 }
 
-function Section({ n, title, tier, sub, children }: { n: number; title: string; tier: 1 | 2; sub?: string; children: React.ReactNode }) {
+function Section({ n, id, title, tier, sub, children }: { n?: number; id?: string; title: string; tier: 1 | 2; sub?: string; children: React.ReactNode }) {
+  const headId = id ?? `brief-s${n}`
   return (
-    <section className="ag-brief-section" aria-labelledby={`brief-s${n}`}>
+    <section className="ag-brief-section" aria-labelledby={headId}>
       <div className="ag-brief-section-head">
-        <h3 id={`brief-s${n}`} className="ag-brief-section-title">
-          {n} · {title}
+        <h3 id={headId} className="ag-brief-section-title">
+          {n !== undefined ? `${n} · ` : ""}
+          {title}
         </h3>
         <TierPill tier={tier} />
       </div>
@@ -180,18 +189,339 @@ function MultiContact({ id, label, contacts, selected, onChange, hint }: { id: s
   )
 }
 
+/** A job description as both pages receive it (BriefView.latest.jd and the
+ *  upload route's answer). Declared here, not imported from the server
+ *  module: nothing in the browser imports lib/agency/brief-files. */
+export interface BriefJdView {
+  fileId: string
+  name: string
+  sizeBytes: number
+  contentType: string
+  uploadedBySide: "recruiter" | "client"
+  createdAt: string
+  /** Characters of text read out of the file; 0 = nothing could be read. */
+  textChars: number
+}
+
+export type BriefFormSide = "recruiter" | "client"
+
+const JD_LIMIT_BYTES = 10 * 1024 * 1024
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+/** "184 KB", "1.2 MB" — the size as the board writes it. */
+export function fileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+
+/** The side's own download route for a file on this brief. */
+export function jdHref(side: BriefFormSide, briefId: string, fileId: string): string {
+  return `${side === "recruiter" ? "/api/agency" : "/api/hiring"}/briefs/${briefId}/jd/${fileId}`
+}
+
+function jdExt(f: BriefJdView): string {
+  const ext = f.name.split(".").pop()?.toUpperCase() ?? ""
+  return ["PDF", "DOCX", "TXT"].includes(ext) ? ext : "FILE"
+}
+
+function jdMeta(f: BriefJdView, side: BriefFormSide, agencyName: string, contactName: string): string {
+  const who = f.uploadedBySide === side ? "you" : f.uploadedBySide === "recruiter" ? agencyName : contactName
+  const d = new Date(f.createdAt)
+  const when = Number.isNaN(d.getTime()) ? "" : ` · ${d.getDate()} ${MONTHS[d.getMonth()]}`
+  return `${fileSize(f.sizeBytes)} · Added by ${who}${when} · ${f.textChars > 0 ? "Text read" : "No text found"}`
+}
+
+/**
+ * The job description section — board 28, band A. Three states: nothing
+ * attached (the dashed zone), attached (the file row), and replaced on an
+ * amendment (the row plus CHANGED · WAS {old name}). The zone is a button
+ * that opens the picker and also takes a drop.
+ */
+function JdSection({
+  side,
+  briefId,
+  fileId,
+  known,
+  baseline,
+  previousJd,
+  amending,
+  agencyName,
+  contactName,
+  onPick,
+  onError,
+  onUploaded,
+  onUploadingChange,
+}: {
+  side: BriefFormSide
+  briefId: string
+  fileId: string | null
+  known: Array<BriefJdView | null | undefined>
+  /** The latest version's file — what an amendment is measured against. */
+  baseline: BriefJdView | null
+  previousJd: BriefJdView | null
+  amending: boolean
+  agencyName: string
+  contactName: string
+  onPick: (fileId: string | null) => void
+  onError: (message: string | null) => void
+  onUploaded: (file: BriefJdView) => void
+  onUploadingChange?: (uploading: boolean) => void
+}) {
+  const input = useRef<HTMLInputElement>(null)
+  const zoneRef = useRef<HTMLButtonElement>(null)
+  const nameRef = useRef<HTMLSpanElement>(null)
+  const [reading, setReading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  /** One status line, always mounted, so the start and the end of an upload
+   *  are both announced (a live region inserted with its text often is not). */
+  const [live, setLive] = useState("")
+  const current = fileId ? (known.find((f) => f?.fileId === fileId) ?? null) : null
+
+  // An upload that outlives the form must not write onto a config the page
+  // has since reset: unmounting aborts it, and an aborted upload says nothing.
+  const ctrl = useRef<AbortController | null>(null)
+  useEffect(() => {
+    const c = ctrl
+    return () => c.current?.abort()
+  }, [])
+
+  // Where focus goes once the row or the zone has re-rendered in place of
+  // the control that was pressed — never back to the top of the page.
+  const focusNext = useRef<"name" | "zone" | null>(null)
+  useEffect(() => {
+    const target = focusNext.current
+    focusNext.current = null
+    if (target === "name") nameRef.current?.focus()
+    else if (target === "zone") zoneRef.current?.focus()
+  }, [fileId])
+
+  // What an amendment replaced: this edit's change against the latest
+  // version first, else the latest version's own change against the one
+  // before it. A first draft has nothing to be measured against.
+  const baselineId = baseline?.fileId ?? null
+  /** THIS edit changes the file — only then is a signature cleared by it.
+   *  An inherited change (the latest version's own) keeps the pill, but the
+   *  side that made it has already signed, so no sentence blames anyone. */
+  const thisEdit = amending && fileId !== baselineId
+  const was = !amending
+    ? undefined
+    : thisEdit
+      ? (baseline?.name ?? "none attached")
+      : previousJd && previousJd.fileId !== fileId
+        ? previousJd.name
+        : undefined
+  const otherSig = side === "recruiter" ? "the client's" : `${agencyName}'s`
+
+  async function upload(file: File) {
+    if (reading) return
+    onError(null)
+    if (file.size > JD_LIMIT_BYTES) return onError("File too large (max 10 MB)")
+    const c = new AbortController()
+    ctrl.current = c
+    setReading(true)
+    onUploadingChange?.(true)
+    setLive("Reading the file…")
+    try {
+      const form = new FormData()
+      form.append("file", file)
+      const res = await fetch(`${side === "recruiter" ? "/api/agency" : "/api/hiring"}/briefs/${briefId}/jd`, { method: "POST", body: form, signal: c.signal })
+      const body = (await res.json().catch(() => ({}))) as { file?: BriefJdView; error?: unknown }
+      if (c.signal.aborted) return
+      if (!res.ok || !body.file) {
+        setLive("")
+        return onError(typeof body.error === "string" ? body.error : "Could not attach that file. Nothing has changed.")
+      }
+      onUploaded(body.file)
+      focusNext.current = "name"
+      setLive(`Attached ${body.file.name}`)
+      onPick(body.file.fileId)
+    } catch {
+      if (c.signal.aborted) return
+      setLive("")
+      onError("Could not attach that file. Nothing has changed.")
+    } finally {
+      if (ctrl.current === c) ctrl.current = null
+      setReading(false)
+      // Always, even when aborted: the page must not stay locked.
+      onUploadingChange?.(false)
+      if (input.current) input.current.value = ""
+    }
+  }
+
+  const open = () => {
+    if (!reading) input.current?.click()
+  }
+  const remove = () => {
+    if (reading) return
+    focusNext.current = "zone"
+    setLive("Job description removed")
+    onPick(null)
+  }
+
+  return (
+    <Section
+      id="brief-jd"
+      title="The job description"
+      tier={1}
+      sub="The document the terms are about. The client sees it and can replace it; a new file is an amendment both sides sign again. When a role runs on this brief, the description lands in its intake."
+    >
+      <input
+        ref={input}
+        type="file"
+        accept=".pdf,.docx,.txt"
+        className="ag-brief-jd-input"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) void upload(f)
+        }}
+      />
+      <p className="ag-sr-only" role="status" aria-live="polite">
+        {live}
+      </p>
+      {!fileId ? (
+        <button
+          ref={zoneRef}
+          type="button"
+          className="ag-brief-jd-drop"
+          data-over={dragOver || undefined}
+          aria-busy={reading || undefined}
+          aria-describedby="brief-jd-drop-sub"
+          aria-disabled={reading || undefined}
+          onClick={open}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragOver(false)
+            const f = e.dataTransfer.files?.[0]
+            if (f && !reading) void upload(f)
+          }}
+        >
+          {reading ? (
+            <span className="ag-brief-jd-drop-title">Reading the file…</span>
+          ) : (
+            <>
+              <span className="ag-brief-jd-drop-title">Attach the job description</span>
+              <span className="ag-brief-jd-drop-sub" id="brief-jd-drop-sub">
+                PDF, DOCX or TXT, up to 10 MB. Drop it here or choose a file.
+              </span>
+              <span className="ag-btn ag-btn-secondary" aria-hidden="true">
+                Choose a file
+              </span>
+            </>
+          )}
+        </button>
+      ) : (
+        <>
+          <div className="ag-brief-jd-file" aria-busy={reading || undefined}>
+            <span className="ag-brief-jd-ext ag-meta" aria-hidden="true">
+              {current ? jdExt(current) : "FILE"}
+            </span>
+            <div className="ag-brief-jd-main">
+              <span className="ag-brief-jd-name" ref={nameRef} tabIndex={-1}>
+                {current?.name ?? "The attached file"}
+              </span>
+              {current && <span className="ag-meta ag-brief-jd-meta">{jdMeta(current, side, agencyName, contactName)}</span>}
+            </div>
+            <div className="ag-brief-jd-actions">
+              {/* The controls stay mounted through a Replace (aria-disabled,
+                  not disabled, and not swapped out) so focus stays put. */}
+              <a className="ag-brief-jd-link" href={jdHref(side, briefId, fileId)} download aria-label={`Download ${current?.name ?? "the job description"}`}>
+                Download
+              </a>
+              <button type="button" className="ag-brief-jd-quiet" onClick={open} aria-disabled={reading || undefined} aria-label={reading ? "Reading the file…" : "Replace the job description"}>
+                {reading ? "Reading the file…" : "Replace"}
+              </button>
+              <button type="button" className="ag-brief-jd-link" onClick={remove} aria-disabled={reading || undefined} aria-label="Remove the job description">
+                Remove
+              </button>
+            </div>
+          </div>
+          {current && current.textChars === 0 ? (
+            <p className="ag-brief-hint" data-jd-no-text>
+              {side === "recruiter"
+                ? "Nothing could be read from this file — a scan, perhaps. The role's intake will stay empty; paste the description there instead."
+                : `Nothing could be read from this file — a scan, perhaps. The role's intake will stay empty; ${agencyName} will paste the description there instead.`}
+            </p>
+          ) : (
+            <p className="ag-brief-hint">
+              {side === "recruiter"
+                ? "Read once for the role's intake. Nothing is parsed until you press Extract requirements there."
+                : `Read once for the role's intake. Nothing is parsed until ${agencyName} presses Extract requirements there.`}
+            </p>
+          )}
+        </>
+      )}
+      {was !== undefined && (
+        <div className="ag-brief-jd-was">
+          <span className="ag-brief-changed">Changed · was {was}</span>
+          {thisEdit && (
+            <span className="ag-brief-hint">
+              {fileId ? "A new file" : "Removing the file"} is a new version: {otherSig} signature is cleared until they approve it.
+            </span>
+          )}
+        </div>
+      )}
+    </Section>
+  )
+}
+
 export function BriefForm({
   config,
   onChange,
   contacts,
   disabled,
+  side,
+  briefId,
+  jd,
+  previousJd,
+  amending,
+  agencyName,
+  contactName: briefContactName,
+  onError,
+  uploads,
+  onUploaded,
+  onUploadingChange,
 }: {
   config: BriefConfig
   onChange: (next: BriefConfig) => void
   /** Client-side people at this company, for rounds and offer authority. */
   contacts: ContactOption[]
   disabled?: boolean
+  /** Whose page this is: picks the upload/download routes and "added by". */
+  side: BriefFormSide
+  briefId: string
+  /** BriefView.latest.jd — the file the latest version carries. */
+  jd: BriefJdView | null
+  /** BriefView.previous?.jd — for "was" on an amendment. */
+  previousJd: BriefJdView | null
+  /** Editing a SENT brief: a different file is a new version. */
+  amending: boolean
+  agencyName: string
+  contactName: string
+  /** The page's error banner. The upload route's refusal is a sentence. */
+  onError: (message: string | null) => void
+  /** Files attached in this session, when the page keeps them across a
+   *  remount (the client's page swaps the form for the summary). */
+  uploads?: BriefJdView[]
+  onUploaded?: (file: BriefJdView) => void
+  /** True while a file is being read. The page holds its Send / Save /
+   *  Approve / Undo while it is, so a version never leaves without the file
+   *  the person is attaching, and a late upload never lands on a reset draft. */
+  onUploadingChange?: (uploading: boolean) => void
 }) {
+  // An upload resolves after the person may have changed another field;
+  // the id goes onto the config as it is THEN, not as it was on click.
+  const latest = useRef(config)
+  useEffect(() => {
+    latest.current = config
+  }, [config])
+  const [attached, setAttached] = useState<BriefJdView[]>([])
   const set = <K extends keyof BriefConfig>(k: K, v: BriefConfig[K]) => onChange({ ...config, [k]: v })
   const setRound = (i: number, patch: Partial<BriefRound>) => set("rounds", config.rounds.map((r, j) => (j === i ? { ...r, ...patch } : r)))
   const toggleDay = (d: Weekday) => set("interviewDays", config.interviewDays.includes(d) ? config.interviewDays.filter((x) => x !== d) : WEEKDAYS.filter((w) => w === d || config.interviewDays.includes(w)))
@@ -215,6 +545,25 @@ export function BriefForm({
 
   return (
     <fieldset className="ag-brief-form" disabled={disabled}>
+      <JdSection
+        side={side}
+        briefId={briefId}
+        fileId={config.jdFileId}
+        known={[...attached, ...(uploads ?? []), jd, previousJd]}
+        baseline={jd}
+        previousJd={previousJd}
+        amending={amending}
+        agencyName={agencyName}
+        contactName={briefContactName}
+        onPick={(id) => onChange({ ...latest.current, jdFileId: id })}
+        onError={onError}
+        onUploaded={(f) => {
+          setAttached((a) => [f, ...a])
+          onUploaded?.(f)
+        }}
+        onUploadingChange={onUploadingChange}
+      />
+
       <Section n={1} title="The rounds" tier={1} sub="What each round is for, who is in it, how long. The room's stage bar, the wave planner and the diary read this; a decider can differ by round.">
         {config.rounds.map((r, i) => (
           <div key={i} className="ag-brief-round">

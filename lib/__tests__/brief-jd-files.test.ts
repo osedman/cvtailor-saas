@@ -84,7 +84,11 @@ describe("the row is the pointer that makes the blob erasable", () => {
   })
 
   it("the list paths never select the text column", () => {
-    expect(files).toMatch(/const POINTER_COLUMNS = "id, name, size_bytes, content_type, uploaded_by_side, created_at"/)
+    expect(files).toMatch(/const POINTER_COLUMNS = "id, name, size_bytes, content_type, uploaded_by_side, created_at, text_chars"/)
+    // text_chars is the COUNT (an int) — never the text column itself.
+    const cols = files.match(/const POINTER_COLUMNS = "([^"]+)"/)![1].split(", ")
+    expect(cols).not.toContain("text")
+    expect(cols).toContain("text_chars")
     expect(fnBody(files, "export async function listBriefJdFiles")).toMatch(/\.select\(POINTER_COLUMNS\)/)
     expect(fnBody(files, "export async function listBriefJdFiles")).not.toMatch(/text/)
     // The text is read in exactly one place: for connect.
@@ -314,5 +318,13 @@ describe("nobody but the two sides imports the module", () => {
     expect(callers).toEqual(["lib/agency/search-briefs.ts"])
     expect(fnBody(briefs, "export async function connectRoleToBrief")).toMatch(/getBriefJdText\(/)
     expect(briefs.match(/getBriefJdText\(/g)?.length).toBe(1)
+  })
+})
+
+describe("the role-brief route for the hiring side carries no file", () => {
+  it("strips status.jd, because the role's contact may not be the brief's addressee", () => {
+    const route = readFileSync("app/api/hiring/roles/[roleId]/brief/route.ts", "utf8")
+    expect(route).toMatch(/const \{ jd: _jd, \.\.\.statusForClient \}/)
+    expect(route).toMatch(/status: status \? statusForClient : null/)
   })
 })

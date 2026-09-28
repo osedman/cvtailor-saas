@@ -3,8 +3,8 @@
 /**
  * The client's brief review — frame 25, band B and the 375px column.
  *
- * Four lines to agree, seven to read, two buttons. Change on a tier-1 line
- * opens that line's control inline; the moment anything differs the primary
+ * The job description and four lines to agree, seven to read, two buttons.
+ * Change on a tier-1 line opens that line's control inline; the moment anything differs the primary
  * button re-labels itself "Send v(n+1) back", because you cannot approve a
  * version you have not read. Approving is signing THIS version.
  *
@@ -16,7 +16,7 @@ import { use, useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { HmFrame, useHiringData } from "@/components/agency/hm-room"
 import { BriefReview } from "@/components/agency/brief-review"
-import { BriefForm, type ContactOption } from "@/components/agency/brief-form"
+import { BriefForm, type BriefJdView, type ContactOption } from "@/components/agency/brief-form"
 import { applyClientAmendment, diffBrief, type BriefConfig, type BriefState } from "@/lib/agency/brief-options"
 
 interface VersionView {
@@ -27,6 +27,7 @@ interface VersionView {
   sentAt: string | null
   recruiterApprovedAt: string | null
   clientApprovedAt: string | null
+  jd: BriefJdView | null
 }
 interface BriefView {
   id: string
@@ -54,6 +55,12 @@ export default function ClientBriefPage({ params }: { params: Promise<{ briefId:
   const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState<null | "approve" | "send">(null)
   const [error, setError] = useState<string | null>(null)
+  /** Files the client attached in this visit. The form unmounts when they go
+   *  back to the summary, and the summary still has to name the new file. */
+  const [uploads, setUploads] = useState<BriefJdView[]>([])
+  /** A file is being read. Nothing is sent, approved or undone meanwhile. */
+  const [uploading, setUploading] = useState(false)
+  const locked = !!busy || uploading
 
   const load = useCallback(async () => {
     try {
@@ -73,12 +80,17 @@ export default function ClientBriefPage({ params }: { params: Promise<{ briefId:
   }, [load])
 
   const brief = loaded.state === "ready" ? loaded.brief : null
-  const contacts: ContactOption[] = brief ? Object.entries(brief.names).map(([id, name]) => ({ id, name })) : []
+  // brief.names carries the job description's file ids too (so describe()
+  // reads a file name); a file is not a person to put in a round.
+  const fileIds = new Set([brief?.latest.jd?.fileId, brief?.previous?.jd?.fileId].filter(Boolean))
+  const contacts: ContactOption[] = brief ? Object.entries(brief.names).filter(([id]) => !fileIds.has(id)).map(([id, name]) => ({ id, name })) : []
   const changes = brief && draft ? applyClientAmendment(brief.latest.config, draft).changes : []
   const dirty = changes.length > 0
+  const knownFiles = brief ? [...uploads, brief.latest.jd, brief.previous?.jd ?? null] : []
+  const draftJd = draft?.jdFileId ? (knownFiles.find((f) => f?.fileId === draft.jdFileId) ?? null) : null
 
   async function approve() {
-    if (!brief) return
+    if (!brief || uploading) return
     if (!window.confirm(`Approve v${brief.currentVersion}? This signs it for ${brief.company}. ${brief.latest.recruiterApprovedAt ? "Both sides will then have agreed, and roles can run on it." : `${brief.agencyName} still has to sign.`}`)) return
     setBusy("approve")
     setError(null)
@@ -95,7 +107,7 @@ export default function ClientBriefPage({ params }: { params: Promise<{ briefId:
   }
 
   async function sendBack() {
-    if (!brief || !draft || !dirty) return
+    if (!brief || !draft || !dirty || uploading) return
     if (!window.confirm(`Send v${brief.currentVersion + 1} back to ${brief.agencyName} with ${changes.length} change${changes.length === 1 ? "" : "s"}? Your signature goes on it; theirs is cleared until they approve it.`)) return
     setBusy("send")
     setError(null)
@@ -169,17 +181,37 @@ export default function ClientBriefPage({ params }: { params: Promise<{ briefId:
             {!editing ? (
               <BriefReview
                 config={draft}
-                previous={brief.previous?.config ?? null}
+                previous={dirty ? brief.latest.config : (brief.previous?.config ?? null)}
                 changedKeys={dirty ? changes.map((c) => c.key) : brief.latest.changedKeys}
                 names={brief.names}
                 agencyName={brief.agencyName}
                 onChange={brief.state === "approved" ? undefined : () => setEditing(true)}
+                side="client"
+                briefId={briefId}
+                jd={draftJd}
+                previousJd={dirty ? brief.latest.jd : (brief.previous?.jd ?? null)}
               />
             ) : (
               <>
-                <p className="agd-aside">Only the first four sections are yours to change; the rest are {brief.agencyName}&apos;s terms, shown for the record.</p>
-                <BriefForm config={draft} onChange={setDraft} contacts={contacts} disabled={!!busy} />
-                <button className="agd-tbtn" onClick={() => setEditing(false)}>
+                <p className="agd-aside">Only the job description and the four numbered sections after it are yours to change; the rest are {brief.agencyName}&apos;s terms, shown for the record.</p>
+                <BriefForm
+                  config={draft}
+                  onChange={setDraft}
+                  contacts={contacts}
+                  disabled={!!busy}
+                  side="client"
+                  briefId={briefId}
+                  jd={brief.latest.jd}
+                  previousJd={brief.previous?.jd ?? null}
+                  amending
+                  agencyName={brief.agencyName}
+                  contactName={brief.contactName}
+                  onError={setError}
+                  uploads={uploads}
+                  onUploaded={(f) => setUploads((u) => [f, ...u])}
+                  onUploadingChange={setUploading}
+                />
+                <button className="agd-tbtn" onClick={() => setEditing(false)} disabled={uploading}>
                   Back to the summary
                 </button>
               </>
@@ -188,11 +220,11 @@ export default function ClientBriefPage({ params }: { params: Promise<{ briefId:
             {brief.state !== "approved" && (
               <div className="hm-brief-actions">
                 {dirty ? (
-                  <button className="agd-tbtn primary" onClick={() => void sendBack()} disabled={!!busy}>
+                  <button className="agd-tbtn primary" onClick={() => void sendBack()} disabled={locked}>
                     {busy === "send" ? "Sending…" : `Send v${brief.currentVersion + 1} back to ${brief.agencyName}`}
                   </button>
                 ) : brief.waitingOn === "client" ? (
-                  <button className="agd-tbtn primary" onClick={() => void approve()} disabled={!!busy}>
+                  <button className="agd-tbtn primary" onClick={() => void approve()} disabled={locked}>
                     {busy === "approve" ? "Approving…" : `Approve v${brief.currentVersion}`}
                   </button>
                 ) : null}
@@ -203,7 +235,7 @@ export default function ClientBriefPage({ params }: { params: Promise<{ briefId:
                       setDraft(brief.latest.config)
                       setEditing(false)
                     }}
-                    disabled={!!busy}
+                    disabled={locked}
                   >
                     Undo my changes
                   </button>

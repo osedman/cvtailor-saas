@@ -19,6 +19,8 @@ export interface BriefStatusPayload {
     title: string
     movedOnTo: number | null
     differences: Array<{ key: string; label: string; brief: string; role: string }>
+    /** The job description on the version the role runs on (board 28). */
+    jd?: { fileId: string; name: string } | null
   } | null
   roundNames?: string[]
 }

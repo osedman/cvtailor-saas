@@ -2,7 +2,8 @@
  * A role and its brief.
  *
  * GET  → how the role stands against its brief (version, moved on, every
- *        difference) plus the briefs it COULD connect to for its company
+ *        difference, and status.jd — the job description's name and id on
+ *        the version the role runs on) plus the briefs it COULD connect to
  * POST { briefId } → connect: copies the approved config onto the role
  * DELETE → the reverse: unlink and put back what connect overwrote
  */

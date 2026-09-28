@@ -754,6 +754,10 @@ export interface RoleBriefStatus {
   /** The brief has been approved again since — the role runs on an older version. */
   movedOnTo: number | null
   differences: Array<{ key: string; label: string; brief: string; role: string }>
+  /** The job description on the version the role RUNS ON (its copied
+   *  config), as a name and an id for the download link — pointer columns
+   *  only, never the text. Null when that version carries no file. */
+  jd: { fileId: string; name: string } | null
 }
 
 /**
@@ -766,7 +770,12 @@ export async function roleBriefStatus(agencyId: string, roleId: string): Promise
   const { data: role } = await admin.from("job_roles").select("brief_id, brief_version, brief_config, planned_rounds, contact_id").eq("id", roleId).eq("agency_id", agencyId).maybeSingle()
   if (!role?.brief_id || !role.brief_config) return null
   const copy = normaliseBrief(role.brief_config)
-  const [view, settingsRow] = await Promise.all([loadBrief(agencyId, role.brief_id as string), getInterviewSettings(agencyId, roleId)])
+  const [view, settingsRow, jdFiles] = await Promise.all([
+    loadBrief(agencyId, role.brief_id as string),
+    getInterviewSettings(agencyId, roleId),
+    listBriefJdFiles(role.brief_id as string, copy.jdFileId ? [copy.jdFileId] : []),
+  ])
+  const jdFile = copy.jdFileId ? jdFiles.get(copy.jdFileId) : undefined
   const settings = settingsRow.settings
 
   const differences: RoleBriefStatus["differences"] = []
@@ -797,5 +806,6 @@ export async function roleBriefStatus(agencyId: string, roleId: string): Promise
     title: view?.title ?? "",
     movedOnTo: view && view.state === "approved" && view.currentVersion > Number(role.brief_version) ? view.currentVersion : null,
     differences,
+    jd: jdFile ? { fileId: jdFile.fileId, name: jdFile.name } : null,
   }
 }

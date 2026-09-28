@@ -15,7 +15,7 @@ import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
 import { SignOut } from "@/components/agency/sign-out"
-import { BriefForm, type ContactOption } from "@/components/agency/brief-form"
+import { BriefForm, type BriefJdView, type ContactOption } from "@/components/agency/brief-form"
 import { BriefReview } from "@/components/agency/brief-review"
 import { diffBrief, type BriefConfig, type BriefState } from "@/lib/agency/brief-options"
 
@@ -27,6 +27,7 @@ interface VersionView {
   sentAt: string | null
   recruiterApprovedAt: string | null
   clientApprovedAt: string | null
+  jd: BriefJdView | null
 }
 interface BriefView {
   id: string
@@ -56,6 +57,9 @@ export default function BriefPage({ params }: { params: Promise<{ briefId: strin
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<null | "save" | "send" | "approve" | "discard">(null)
   const [contacts, setContacts] = useState<ContactOption[]>([])
+  /** A file is being read. Nothing is sent, saved or approved meanwhile, so a
+   *  version never leaves without the file being attached to it. */
+  const [uploading, setUploading] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -80,7 +84,7 @@ export default function BriefPage({ params }: { params: Promise<{ briefId: strin
   }, [load])
 
   async function act(kind: "save" | "send" | "approve" | "discard") {
-    if (!brief || !draft) return
+    if (!brief || !draft || uploading) return
     if (kind === "send" && !title.trim()) return setError("Give the brief a title first — the client sees it as the search's name.")
     if (kind === "discard" && !window.confirm("Discard this draft? It has not been sent, so nothing is on the record.")) return
     if (kind === "send" && !window.confirm(`Send v${brief.currentVersion} to ${brief.contactName}? Sending signs it for your side; they can approve or change it.`)) return
@@ -195,10 +199,20 @@ export default function BriefPage({ params }: { params: Promise<{ briefId: strin
                   {brief.latest.changedKeys.length > 0 && <span className="ag-pill warn">{brief.latest.changedKeys.length} changed by {brief.latest.authoredBy === "client" ? brief.contactName : "you"}</span>}
                 </div>
                 <div className="ag-card-body">
-                  <BriefReview config={brief.latest.config} previous={brief.previous?.config ?? null} changedKeys={brief.latest.changedKeys} names={brief.names} agencyName={brief.agencyName} />
+                  <BriefReview
+                    config={brief.latest.config}
+                    previous={brief.previous?.config ?? null}
+                    changedKeys={brief.latest.changedKeys}
+                    names={brief.names}
+                    agencyName={brief.agencyName}
+                    side="recruiter"
+                    briefId={briefId}
+                    jd={brief.latest.jd}
+                    previousJd={brief.previous?.jd ?? null}
+                  />
                   {brief.waitingOn === "recruiter" && (
                     <div className="ag-brief-actions">
-                      <button className="ag-btn ag-btn-primary" onClick={() => void act("approve")} disabled={!!busy}>
+                      <button className="ag-btn ag-btn-primary" onClick={() => void act("approve")} disabled={!!busy || uploading}>
                         {busy === "approve" ? "Approving…" : `Approve v${brief.currentVersion} as ${brief.contactName} changed it`}
                       </button>
                       <span className="ag-note">Or change it below, which sends v{brief.currentVersion + 1} back to them.</span>
@@ -214,22 +228,36 @@ export default function BriefPage({ params }: { params: Promise<{ briefId: strin
                 <span className="ag-pill">Audit logged</span>
               </div>
               <div className="ag-card-body">
-                <BriefForm config={draft} onChange={setDraft} contacts={contacts} disabled={!!busy} />
+                <BriefForm
+                  config={draft}
+                  onChange={setDraft}
+                  contacts={contacts}
+                  disabled={!!busy}
+                  side="recruiter"
+                  briefId={briefId}
+                  jd={brief.latest.jd}
+                  previousJd={brief.previous?.jd ?? null}
+                  amending={!isDraft}
+                  agencyName={brief.agencyName}
+                  contactName={brief.contactName}
+                  onError={setError}
+                  onUploadingChange={setUploading}
+                />
                 <div className="ag-brief-actions">
                   {isDraft ? (
                     <>
-                      <button className="ag-btn ag-btn-primary" onClick={() => void act("send")} disabled={!!busy}>
+                      <button className="ag-btn ag-btn-primary" onClick={() => void act("send")} disabled={!!busy || uploading}>
                         {busy === "send" ? "Sending…" : `Send to ${brief.contactName} for approval`}
                       </button>
-                      <button className="ag-btn ag-btn-secondary" onClick={() => void act("save")} disabled={!!busy || (pending === 0 && title === brief.title)}>
+                      <button className="ag-btn ag-btn-secondary" onClick={() => void act("save")} disabled={!!busy || uploading || (pending === 0 && title === brief.title)}>
                         {busy === "save" ? "Saving…" : "Save draft"}
                       </button>
-                      <button className="ag-btn ag-btn-secondary" style={{ color: "var(--ag-coral-deep)" }} onClick={() => void act("discard")} disabled={!!busy}>
+                      <button className="ag-btn ag-btn-secondary" style={{ color: "var(--ag-coral-deep)" }} onClick={() => void act("discard")} disabled={!!busy || uploading}>
                         Discard draft
                       </button>
                     </>
                   ) : (
-                    <button className="ag-btn ag-btn-primary" onClick={() => void act("save")} disabled={!!busy || pending === 0}>
+                    <button className="ag-btn ag-btn-primary" onClick={() => void act("save")} disabled={!!busy || uploading || pending === 0}>
                       {busy === "save" ? "Sending…" : pending === 0 ? "Nothing changed" : `Send v${brief.currentVersion + 1} to ${brief.contactName} (${pending} change${pending === 1 ? "" : "s"})`}
                     </button>
                   )}

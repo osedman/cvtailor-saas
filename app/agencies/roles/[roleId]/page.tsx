@@ -1435,6 +1435,17 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </label>
                   </div>
                   <div className="ag-card-body">
+                    {/* Board 28, band C: the file the brief carries, named,
+                        above the box its text landed in. Only when the
+                        version this role runs on has one. */}
+                    {briefStatus && briefStatus !== "error" && briefStatus.status?.jd && (
+                      <div className="ag-brief-jd-from-row">
+                        <span className="ag-field-label ag-brief-jd-from">From the brief · {briefStatus.status.jd.name}</span>
+                        <a className="ag-brief-jd-link" href={`/api/agency/briefs/${briefStatus.status.briefId}/jd/${briefStatus.status.jd.fileId}`} download aria-label={`Download ${briefStatus.status.jd.name}`}>
+                          Download
+                        </a>
+                      </div>
+                    )}
                     <textarea className="ag-textarea jd" placeholder="Paste the client's job description here" value={role.jd_raw} onChange={(e) => patchRole({ jd_raw: e.target.value })} onBlur={() => void saveIntake()} />
                     {/* The client's JD arrived with the brief. Accept copied
                         it in; this line is the provenance, and the button is
@@ -1530,7 +1541,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       {briefStatus && briefStatus !== "error" && briefStatus.status ? (
                         <>
                           <p className="ag-note" style={{ marginBottom: 10 }}>
-                            On <b>{briefStatus.status.title}</b> v{briefStatus.status.version}. Planned rounds, the client contact and the interview rules came from it — carry on below.
+                            On <b>{briefStatus.status.title}</b> v{briefStatus.status.version}. Planned rounds, the client contact and the interview rules came from it{briefStatus.status.jd ? "; its job description is linked below" : ""} — carry on below.
                             {briefStatus.status.movedOnTo ? ` The brief has since been approved as v${briefStatus.status.movedOnTo} — reconnect to follow it, or keep v${briefStatus.status.version}.` : ""}
                           </p>
                           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>

@@ -34,7 +34,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
     // Round names for the stage bar, from the copied plan — not from the
     // live brief, which may have moved on.
     const roundNames = role.brief_config ? normaliseBrief(role.brief_config).rounds.map((r) => r.purpose) : []
-    return NextResponse.json({ status, roundNames })
+    // The brief's job description is readable by the agency and the contact
+    // the brief is addressed to (lib/agency/brief-files.ts). The role's
+    // contact can be someone else at the client, so the file's name and id
+    // stay off this route; the brief's own page is where the client reads it.
+    const { jd: _jd, ...statusForClient } = status ?? ({} as NonNullable<typeof status>)
+    void _jd
+    return NextResponse.json({ status: status ? statusForClient : null, roundNames })
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
