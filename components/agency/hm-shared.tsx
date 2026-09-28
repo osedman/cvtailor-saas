@@ -5,7 +5,7 @@
  * 23 Aug 2026, when the client side stopped being one long dashboard and
  * became a workspace with places: Dashboard, Interviews, a screen per role.
  *
- * One definition each for the round card, the availability widgets and the
+ * One definition each for the round card, the window widgets and the
  * nav, imported by every /hiring screen, so the write-up rule ("no artifact,
  * no progression") and the disclosure rules cannot fork between pages.
  *
@@ -15,7 +15,7 @@
  * disclosure filter in lib/agency/client-auth.ts.
  */
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { HiringLink, HiringRound, HiringSlot, RoundDecision } from "@/lib/agency/types"
@@ -61,43 +61,65 @@ export const DECISION_SENTENCE: Record<RoundDecision, string> = {
  * Rendered by the workspace screens only, never the doorways (invite stays a
  * doorway, and doorways do not get workspace chrome).
  */
-export function HiringNav() {
-  const pathname = usePathname() ?? ""
-  // A role page is a door opened from the dashboard's role rows, so the
-  // dashboard stays lit there; before this the nav highlighted nothing on
-  // /hiring/roles/:id or the brief form (found 3 Sep 2026).
-  const items = [
-    { href: "/hiring", label: "Home", also: ["/hiring/roles"] },
-    { href: "/hiring/interviews", label: "Interviews", also: [] as string[] },
-  ]
-  const briefOn = pathname.startsWith("/hiring/briefs")
-  return (
-    <nav className="hm-nav" aria-label="Hiring workspace">
-      {items.map((it) => {
-        const on =
-          pathname === it.href ||
-          pathname.startsWith(`${it.href}/`) ||
-          it.also.some((p) => pathname === p || pathname.startsWith(`${p}/`))
-        return (
-          <Link key={it.href} href={it.href} className={`hm-nav-item${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>
-            {it.label}
-          </Link>
-        )
-      })}
-      <span className="ag-grow" />
-      {/* The brief is the recruiter's job description now (Wave 5a). Sending
-          one from here stays possible — it lands in the recruiter's inbox and
-          pre-fills their intake — but it is no longer the primary act. */}
-      <Link
-        href="/hiring/briefs/new"
-        className={`hm-nav-item${briefOn ? " on" : ""}`}
-        aria-current={briefOn ? "page" : undefined}
-      >
-        Send a brief
-      </Link>
-    </nav>
-  )
+/**
+ * The five places, and which one a path belongs to.
+ *
+ * PURE, AND EXPORTED, so the rules below are tested against paths rather
+ * than asserted as a regex over this file's source. The old guard matched the
+ * literal string `["/hiring/roles"]`; when /hiring/roles became its own place
+ * that string changed and the test failed while the behaviour was correct —
+ * a proxy breaking on a safe change, which is the same trap as counting
+ * deletes in the seed script.
+ */
+export interface HiringNavItem {
+  href: string
+  label: string
+  on: boolean
 }
+
+/**
+ * Does this path get the workspace rail?
+ *
+ * Doorways do not. /hiring/invite is where somebody accepts an invitation and
+ * is not yet inside anything — a rail of five places they cannot reach would
+ * be five dead links, which is the same broken promise as a button that does
+ * nothing. Pure and exported so the rule is tested against paths rather than
+ * scanned for in the component.
+ */
+export function showsHiringRail(pathname: string): boolean {
+  return !pathname.startsWith("/hiring/invite")
+}
+
+export function hiringNavFor(pathname: string): HiringNavItem[] {
+  /*
+   * THREE PLACES, ONE QUESTION EACH (22 Sep 2026, Ose — Figma frame 23).
+   *
+   * Replaces the five of frame 15 (My roles, Tasks, Shortlist, Interviews,
+   * Decisions), which sliced the same things three ways — by task, by role
+   * and by phase across every role — so Tasks and My roles were one list
+   * drawn twice and a candidate on the Shortlist screen did not say which
+   * role they were for. Shortlist, the rounds and the decision are now
+   * stages INSIDE a role's room, so everything under /hiring/roles/ lights
+   * Roles.
+   */
+  const under = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
+  return [
+    { href: "/hiring", label: "To do", on: pathname === "/hiring" },
+    { href: "/hiring/roles", label: "Roles", on: under("/hiring/roles") },
+    { href: "/hiring/diary", label: "Diary", on: under("/hiring/diary") },
+  ]
+}
+
+/*
+ * HiringNav is GONE (19 Sep 2026). It was a horizontal strip of uppercase
+ * mono pills rendered inside each page's <main>; the five places belong in a
+ * left rail in the shell, which is what Figma frame 15 drew and what
+ * components/agency/hiring-sidebar.tsx now renders once for every screen.
+ *
+ * `hiringNavFor` above survives and is the shared rule — the rail reads it,
+ * and it is tested against paths rather than asserted as a regex over this
+ * file.
+ */
 
 // ── Small shared blocks ─────────────────────────────────────────────────────
 
@@ -166,102 +188,6 @@ export function SlotChip({ slot, onWithdraw }: { slot: HiringSlot; onWithdraw: (
   )
 }
 
-export function OfferTimes({ links, onDone }: { links: HiringLink[]; onDone: (changed: boolean) => void }) {
-  const [contactId, setContactId] = useState(links[0]?.contactId ?? "")
-  const [startsAt, setStartsAt] = useState("")
-  const [endsAt, setEndsAt] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  const recipient = links.find((l) => l.contactId === contactId) ?? links[0]
-
-  async function offer() {
-    setBusy(true)
-    setErr(null)
-    try {
-      const res = await fetch("/api/hiring/availability", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contactId,
-          // datetime-local has no zone; the browser's own offset is the one
-          // the person meant when they typed it.
-          startsAt: new Date(startsAt).toISOString(),
-          endsAt: new Date(endsAt).toISOString(),
-        }),
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        setErr(body.error || "Could not offer that time.")
-        return
-      }
-      onDone(true)
-    } catch {
-      setErr("Could not offer that time.")
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const ready = Boolean(startsAt && endsAt) && !busy
-
-  return (
-    <div className="agd-card hm-static hm-offer">
-      <div className="hm-offer-row">
-        {links.length > 1 && (
-          <label className="hm-field">
-            <span className="ag-field-label">Offer to</span>
-            <select
-              className="ag-input"
-              value={contactId}
-              onChange={(e) => setContactId(e.target.value)}
-            >
-              {links.map((l) => (
-                <option key={l.contactId} value={l.contactId}>
-                  {l.company ? `${l.agencyName} · ${l.company}` : l.agencyName}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <label className="hm-field">
-          <span className="ag-field-label">From</span>
-          <input
-            className="ag-input"
-            type="datetime-local"
-            value={startsAt}
-            onChange={(e) => setStartsAt(e.target.value)}
-            autoFocus
-          />
-        </label>
-        <label className="hm-field">
-          <span className="ag-field-label">Until</span>
-          <input
-            className="ag-input"
-            type="datetime-local"
-            value={endsAt}
-            onChange={(e) => setEndsAt(e.target.value)}
-          />
-        </label>
-        <button className="agd-tbtn primary" onClick={offer} disabled={!ready}>
-          {busy ? "Offering…" : "Offer this time"}
-        </button>
-        <button className="agd-tbtn" onClick={() => onDone(false)}>
-          Cancel
-        </button>
-      </div>
-      {err && (
-        <p className="hm-offer-err" role="alert">
-          {err}
-        </p>
-      )}
-      <p className="agd-aside">
-        {recipient ? <b>{recipient.agencyName}</b> : "Your recruiter"} can book one candidate into
-        this window. Nothing reaches your calendar until you offer the time.
-      </p>
-    </div>
-  )
-}
 
 // ── The round card ──────────────────────────────────────────────────────────
 
@@ -289,7 +215,30 @@ export function RoundActions({ round, onDone }: { round: HiringRound; onDone: ()
   const [error, setError] = useState<string | null>(null)
 
   const decided = round.latest_decision
-  const canWrite = round.status === "completed"
+  /**
+   * When the write-up opens.
+   *
+   * Was `status === "completed"`, i.e. after the RECRUITER pressed "Mark
+   * done". So a round that finished an hour ago rendered as "Scheduled"
+   * with "nothing to do until this has happened" underneath it — over an
+   * interview the hiring manager had just walked out of.
+   *
+   * It opens when the round has ENDED. Saving the write-up is what completes
+   * the round (see recordDebrief), so this is the act that moves it on rather
+   * than something waiting on one.
+   *
+   * A missing duration means the end is unknowable, and unknowable counts as
+   * ended: better to offer the write-up early than to withhold it for ever.
+   */
+  const ends = round.scheduled_at
+    ? Date.parse(round.scheduled_at) + (Number(round.duration_minutes) > 0 ? Number(round.duration_minutes) * 60_000 : 0)
+    : NaN
+  const hasEnded = Number.isFinite(ends) && Date.now() >= ends
+  const hasStarted =
+    !!round.scheduled_at && Number.isFinite(Date.parse(round.scheduled_at)) && Date.parse(round.scheduled_at) <= Date.now()
+  /** Started, not yet ended — the same rule cohortStatus and loopState use. */
+  const inProgress = round.status === "scheduled" && hasStarted && !hasEnded
+  const canWrite = round.status === "completed" || (round.status === "scheduled" && hasEnded)
   // The gate reads from the SERVER's answer, falling back to what just
   // happened in this tab. It used to be component state alone, which meant a
   // client who wrote this up and reloaded got an empty box and no way to
@@ -357,7 +306,13 @@ export function RoundActions({ round, onDone }: { round: HiringRound; onDone: ()
           <span className="ag-pill">{DECISION_LABEL[decided]}</span>
         ) : (
           <span className="ag-pill warn">
-            {canWrite ? (written ? "Needs your decision" : "Needs your write-up") : "Scheduled"}
+            {canWrite
+              ? written
+                ? "Needs your decision"
+                : "Needs your write-up"
+              : inProgress
+                ? "Happening now"
+                : "Scheduled"}
           </span>
         )}
       </div>
@@ -409,7 +364,9 @@ export function RoundActions({ round, onDone }: { round: HiringRound; onDone: ()
 
       {!canWrite && !decided && (
         <p className="agd-aside">
-          Nothing to do until this has happened. Your write-up and decision open here afterwards.
+          {inProgress
+            ? "In the room now. Your write-up opens here the moment it ends."
+            : "Nothing to do until this has happened. Your write-up and decision open here afterwards."}
         </p>
       )}
 
@@ -482,5 +439,104 @@ export function RoundProgress({ rounds, planned }: { rounds: HiringRound[]; plan
         )
       })}
     </span>
+  )
+}
+
+/**
+ * "That's all my decisions" — the client's own statement that they have
+ * finished deciding on a role.
+ *
+ * The product used to infer this from the round count against planned_rounds
+ * (next-action.ts), which is a plan and not a gate: a client who decided
+ * early was told to keep going, and one who wanted an extra round was told
+ * to close out. This is the fact that outranks that inference.
+ *
+ * It closes nothing. The role stays open, the recruiter can still add a
+ * candidate, and the retention clock does not start — closing is the
+ * recruiter's act. Reopening is one click and writes a row of its own, so
+ * the record keeps the whole sequence of minds changed.
+ */
+export function DecisionsComplete({ roleId }: { roleId: string }) {
+  const [completeAt, setCompleteAt] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState("")
+
+  const url = `/api/hiring/roles/${roleId}/decisions-complete`
+
+  useEffect(() => {
+    let live = true
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => {
+        if (live && b) setCompleteAt(b.completeAt ?? null)
+      })
+      .catch(() => {})
+      .finally(() => live && setLoaded(true))
+    return () => {
+      live = false
+    }
+  }, [url])
+
+  async function send(action: "completed" | "withdrawn") {
+    setBusy(true)
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, note }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body?.error || "That did not save.")
+      setCompleteAt(action === "completed" ? body.completion.at : null)
+      setNote("")
+    } catch {
+      /* the band stays as it was rather than claiming something it did not do */
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!loaded) return null
+
+  return (
+    <section className="agd-band" aria-labelledby="hm-decisions-complete">
+      <div className="agd-eyebrow-row">
+        <h2 className="agd-eyebrow" id="hm-decisions-complete">Your decisions</h2>
+        <span className="agd-rule" />
+      </div>
+      {completeAt ? (
+        <>
+          <p className="agd-sub" style={{ marginBottom: 10 }} role="status">
+            You told your recruiter you had finished deciding on{" "}
+            {new Date(completeAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.
+            They are taking it to close-out. Nothing is closed, and you can still change your mind.
+          </p>
+          <button className="agd-tbtn" disabled={busy} onClick={() => void send("withdrawn")}>
+            {busy ? "Reopening…" : "Actually, I am not finished"}
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="agd-sub" style={{ marginBottom: 10 }}>
+            When you have decided on everyone you want to, say so and your recruiter can take it
+            to close-out. It does not close the role, and you can undo it.
+          </p>
+          <div className="ag-stack" style={{ gap: 8 }}>
+            <input
+              className="ag-input"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Anything you want your recruiter to know (optional)"
+            />
+            <span>
+              <button className="agd-tbtn primary" disabled={busy} onClick={() => void send("completed")}>
+                {busy ? "Saving…" : "That's all my decisions"}
+              </button>
+            </span>
+          </div>
+        </>
+      )}
+    </section>
   )
 }

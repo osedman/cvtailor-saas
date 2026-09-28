@@ -55,10 +55,46 @@ function normaliseOrigin(raw: string | undefined): string | null {
   }
 }
 
+/**
+ * The deployment's OWN origin, when it is not production.
+ *
+ * WHY THIS EXISTS (15 September 2026). Every candidate- and referee-facing
+ * doorway builds its link from getAppOrigin(): /booking, /portal, /rights,
+ * /consent, /reference. The apex fallback below is right for production and
+ * catastrophic anywhere else, because `app/booking` and the rest of the
+ * agency surface do not exist on `main` at all — so a staging deployment with
+ * no NEXT_PUBLIC_APP_URL set emailed real people links to gettailr.com, which
+ * answered 404. Every external door of the B2B product, dead, and only from
+ * the outside: every screen inside the product worked perfectly.
+ *
+ * It was found when an interview invite 404'd during a walk-through, and it
+ * is very likely why no walk-through had ever been completed.
+ *
+ * A missing env var must not be able to send a candidate to the wrong
+ * DEPLOYMENT. Production still gets the apex default; a preview gets itself.
+ * VERCEL_BRANCH_URL is preferred over VERCEL_URL because it is the stable
+ * branch alias rather than a per-deployment hostname that changes on every
+ * push — a link in an email outlives the deployment that sent it.
+ *
+ * Server-only, which is where every one of those links is built. In the
+ * browser these are undefined and the configured value or the apex applies,
+ * exactly as before.
+ */
+function nonProductionOrigin(): string | null {
+  const env = process.env.VERCEL_ENV
+  // Not on Vercel, or on production: nothing to substitute.
+  if (!env || env === "production") return null
+  return (
+    normaliseOrigin(process.env.VERCEL_BRANCH_URL) ??
+    normaliseOrigin(process.env.VERCEL_URL)
+  )
+}
+
 export function getAppOrigin(): string {
   return (
     normaliseOrigin(process.env.NEXT_PUBLIC_APP_URL) ??
     normaliseOrigin(process.env.NEXT_PUBLIC_SITE_URL) ??
+    nonProductionOrigin() ??
     APEX
   )
 }
@@ -67,8 +103,17 @@ export function getMarketingOrigin(): string {
   return normaliseOrigin(process.env.NEXT_PUBLIC_MARKETING_URL) ?? "https://www.gettailr.com"
 }
 
+const BUSINESS_DEFAULT = "https://agencies.gettailr.com"
+
+/**
+ * Where business links point. 22 Sep 2026: this had no preview fallback, so
+ * on staging every hiring-manager invite and teammate invite linked to
+ * agencies.gettailr.com — which answers 404, because there is no B2B
+ * production yet. "The client invite link is not working." The same fix
+ * getAppOrigin got on 15 Sep: a preview links to itself.
+ */
 export function getBusinessOrigin(): string {
-  return normaliseOrigin(process.env.NEXT_PUBLIC_BUSINESS_URL) ?? "https://agencies.gettailr.com"
+  return normaliseOrigin(process.env.NEXT_PUBLIC_BUSINESS_URL) ?? nonProductionOrigin() ?? BUSINESS_DEFAULT
 }
 
 /** Absolute B2B URL, e.g. businessPath('/agencies') → https://agencies.gettailr.com/agencies */
@@ -87,8 +132,14 @@ export function originHost(origin: string): string {
 }
 
 /** Derived, never a constant — the business domain is expected to change. */
+/**
+ * The CONFIGURED business host, for host routing in proxy.ts. Deliberately
+ * not the preview fallback above: on a preview the fallback host is the same
+ * host as the app, and host-splitting a host from itself would redirect in a
+ * loop. Links fall back; routing does not.
+ */
 export function getBusinessHost(): string {
-  return originHost(getBusinessOrigin())
+  return originHost(normaliseOrigin(process.env.NEXT_PUBLIC_BUSINESS_URL) ?? BUSINESS_DEFAULT)
 }
 
 /** Absolute product URL, e.g. appPath('/tailor') → https://app.gettailr.com/tailor */

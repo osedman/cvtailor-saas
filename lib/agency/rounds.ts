@@ -26,8 +26,12 @@
  * writes go through the service role in the same operation as the audit row.
  */
 
+import { nextRoundNumber } from "./round-number"
+import { getInterviewSettings } from "./interview-settings"
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
 import { mintBookingToken, sendBookingInvite } from "./booking"
+// Recruiter-only, and in its own module on purpose — see round-debrief.ts.
+import { readDebriefs, type RoundDebrief } from "./round-debrief"
 import type {
   AgencyContext,
   HiringContext,
@@ -165,7 +169,9 @@ export async function withdrawSlot(ctx: HiringContext, slotId: string): Promise<
 }
 
 // ============================================================
-// Rounds — the recruiter books, because they own the process
+// Rounds — created by the cohort invitation, then booked by the candidate
+// (11 Sep 2026). scheduleRound below stays for the exception: somebody who
+// cannot use their own link.
 // ============================================================
 
 export interface OpenSlot {
@@ -177,6 +183,23 @@ export interface OpenSlot {
   endsAt: string
   /** When the client offered it — the fact that opens "round N to book". */
   offeredAt: string
+  /**
+   * Can the CANDIDATE take this one themselves?
+   *
+   * This list and the candidate's doorway disagreed, silently, until 15 Sep
+   * 2026: a recruiter saw every window that had not finished, while
+   * listOpenWindows additionally required it to be beyond the minimum notice
+   * and long enough for the interview. On staging that was three windows
+   * here and none there, so a recruiter could offer a time no candidate
+   * could ever pick — and the candidate was told every time had been taken.
+   *
+   * The window is NOT hidden from the recruiter: booking somebody in by hand
+   * is the documented exception for the candidate who cannot self-book. It
+   * is labelled instead, so offering it is a choice rather than an accident.
+   */
+  selfBookable: boolean
+  /** Why not, when it is not. Empty when it is. */
+  notSelfBookableBecause: string
 }
 
 /** Slots a recruiter can actually book: this agency's, live, still ahead, and
@@ -225,15 +248,33 @@ export async function listOpenSlots(ctx: AgencyContext, roleId?: string): Promis
     ])
   )
 
-  return free.map((s) => ({
-    id: s.id as string,
-    contactId: s.contact_id as string,
-    company: byId.get(s.contact_id as string)?.company ?? "",
-    contactName: byId.get(s.contact_id as string)?.fullName ?? "",
-    startsAt: s.starts_at as string,
-    endsAt: s.ends_at as string,
-    offeredAt: (s.created_at as string) ?? (s.starts_at as string),
-  }))
+  // The candidate's own rules, applied here only to LABEL. Same two facts
+  // listOpenWindows filters on, read from the same settings.
+  const { settings } = await getInterviewSettings(ctx.agencyId, roleId ?? "")
+  const noticeCutoff = Date.now() + settings.minNoticeHours * 3_600_000
+  const needMs = settings.durationMinutes * 60_000
+
+  return free.map((s) => {
+    const starts = Date.parse(s.starts_at as string)
+    const lengthMs = Date.parse(s.ends_at as string) - starts
+    const tooSoon = starts <= noticeCutoff
+    const tooShort = lengthMs < needMs
+    return {
+      id: s.id as string,
+      contactId: s.contact_id as string,
+      company: byId.get(s.contact_id as string)?.company ?? "",
+      contactName: byId.get(s.contact_id as string)?.fullName ?? "",
+      startsAt: s.starts_at as string,
+      endsAt: s.ends_at as string,
+      offeredAt: (s.created_at as string) ?? (s.starts_at as string),
+      selfBookable: !tooSoon && !tooShort,
+      notSelfBookableBecause: tooSoon
+        ? `inside the ${settings.minNoticeHours}h notice — the candidate cannot pick this one`
+        : tooShort
+          ? `shorter than ${settings.durationMinutes} minutes — the candidate cannot pick this one`
+          : "",
+    }
+  })
 }
 
 export interface AgencyRoundRow {
@@ -254,10 +295,29 @@ export interface AgencyRoundRow {
    * by design (§5.5: the HM writes notes the recruiter can see); append-only
    * upstream, so "latest" is the live one and history stays on the dossier. */
   clientDecision: { decision: string; note: string; decidedAt: string } | null
-  /** The client has written the round up. The content lives on the dossier;
-   * this is the flag the selection screen sequences on ("no artifact, no
-   * progression"). */
+  /** The client has written the round up. The flag the selection screen
+   * sequences on ("no artifact, no progression"). */
   hasDebrief: boolean
+  /**
+   * What the write-up actually SAYS, for the round detail card.
+   *
+   * Until 18 Sep this module read `round_id` alone, so the recruiter's screen
+   * knew a write-up existed and could not show a word of it — the text was
+   * two screens away, on the dossier, while the decision it explains sat
+   * here. Ose walked the loop and said so.
+   *
+   * The write-up is the CLIENT's sentence about the hour they spent with
+   * somebody. It is shown whole and unedited; nothing parses it, scores it,
+   * or derives a signal from it, and `writtenBy` is carried so the screen
+   * never attributes a recruiter's own note to the client. There is no author
+   * beyond that — the artifact row is UNIQUE per round, one write-up with no
+   * author column — so the UI must not imply a person.
+   *
+   * kind='debrief' only. The other kind is 'transcript', which exists solely
+   * where a candidate consented, and reading it unfiltered would leak that
+   * consent by inference.
+   */
+  debrief: RoundDebrief | null
   /** The candidate's answer to the booking invite; 'pending' until they act. */
   candidateResponse: "pending" | "confirmed" | "declined"
   createdAt: string
@@ -310,20 +370,15 @@ export async function listRoundsForRole(
   // other kind is 'transcript', which exists only where the candidate
   // consented, so an unfiltered read would leak consent by inference.
   const roundIds = rounds.map((r) => r.id as string)
-  const [{ data: decisionRows }, { data: debriefRows }] = await Promise.all([
+  const [{ data: decisionRows }] = await Promise.all([
     admin
       .from("round_decisions")
       .select("round_id, decision, note, created_at")
       .eq("agency_id", ctx.agencyId)
       .in("round_id", roundIds)
       .order("created_at", { ascending: false }),
-    admin
-      .from("round_artifacts")
-      .select("round_id")
-      .eq("agency_id", ctx.agencyId)
-      .eq("kind", "debrief")
-      .in("round_id", roundIds),
   ])
+  const debriefs = await readDebriefs(ctx, roundIds)
   const latestDecision = new Map<string, { decision: string; note: string; decidedAt: string }>()
   for (const d of decisionRows ?? []) {
     const key = d.round_id as string
@@ -335,8 +390,6 @@ export async function listRoundsForRole(
       })
     }
   }
-  const debriefed = new Set((debriefRows ?? []).map((a) => a.round_id as string))
-
   return rounds.map((r) => ({
     id: r.id as string,
     candidateId: r.candidate_id as string,
@@ -350,7 +403,8 @@ export async function listRoundsForRole(
     company: byContact.get(r.contact_id as string) ?? "",
     captureConsentStatus: (r.capture_consent_status as string) ?? "pending",
     clientDecision: latestDecision.get(r.id as string) ?? null,
-    hasDebrief: debriefed.has(r.id as string),
+    hasDebrief: debriefs.written.has(r.id as string),
+    debrief: debriefs.body.get(r.id as string) ?? null,
     candidateResponse: ((r.candidate_response as string) ?? "pending") as "pending" | "confirmed" | "declined",
     createdAt: (r.created_at as string) ?? "",
   }))
@@ -415,29 +469,35 @@ export async function scheduleRound(
 
   const { data: existing } = await admin
     .from("interview_rounds")
-    .select("round_number")
+    .select("id, round_number, status")
     .eq("role_id", input.roleId)
     .eq("candidate_id", input.candidateId)
-    .order("round_number", { ascending: false })
-    .limit(1)
-  const roundNumber = ((existing?.[0]?.round_number as number) ?? 0) + 1
-
-  const { data: round, error } = await admin
-    .from("interview_rounds")
-    .insert({
-      agency_id: ctx.agencyId,
-      role_id: input.roleId,
-      candidate_id: input.candidateId,
-      contact_id: slot.contact_id as string,
-      round_number: roundNumber,
-      slot_id: input.slotId,
-      scheduled_at: slot.starts_at as string,
-      duration_minutes: input.durationMinutes ?? 45,
-      meeting_url: (input.meetingUrl ?? "").slice(0, MAX_URL),
-      status: "scheduled",
-    })
-    .select("id")
-    .single()
+  // A cancelled round's number is still owed; its row is reused (round-number.ts).
+  const { roundNumber, reuseId } = nextRoundNumber(
+    (existing ?? []).map((r) => ({ id: r.id as string, round_number: r.round_number as number, status: r.status as string }))
+  )
+  const booking = {
+    contact_id: slot.contact_id as string,
+    slot_id: input.slotId,
+    scheduled_at: slot.starts_at as string,
+    duration_minutes: input.durationMinutes ?? 45,
+    meeting_url: (input.meetingUrl ?? "").slice(0, MAX_URL),
+    status: "scheduled",
+  }
+  const { data: round, error } = reuseId
+    ? await admin
+        .from("interview_rounds")
+        .update({ ...booking, candidate_response: "pending", candidate_responded_at: null, updated_at: new Date().toISOString() })
+        .eq("id", reuseId)
+        .eq("agency_id", ctx.agencyId)
+        .eq("status", "cancelled")
+        .select("id")
+        .single()
+    : await admin
+        .from("interview_rounds")
+        .insert({ agency_id: ctx.agencyId, role_id: input.roleId, candidate_id: input.candidateId, round_number: roundNumber, ...booking })
+        .select("id")
+        .single()
   // The partial unique index on slot_id IS the booking mechanism: a race
   // surfaces here as a duplicate-key error rather than two people in one slot.
   if (error) {

@@ -50,6 +50,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       const body = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {
+        // A 429 is "wait", not "broken": the route's own sentence names the
+        // wait. If a 429 ever arrives without it (a proxy in front), say the
+        // same thing from Retry-After rather than a send failure.
+        if (res.status === 429 && !body.error) {
+          const secs = Number(res.headers.get("Retry-After")) || 60
+          const wait =
+            secs >= 3600 ? `${Math.ceil(secs / 3600)} hour(s)`
+            : secs >= 60 ? `${Math.ceil(secs / 60)} minute(s)` : `${secs} second(s)`
+          return { error: `You're doing that a lot — please wait ${wait} and try again.` }
+        }
         return { error: body.error || "Error sending magic link email" }
       }
       return { error: null }

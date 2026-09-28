@@ -23,13 +23,15 @@
 
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
 import { assertChecklistComplete } from "./handover-checklist"
+import { winningRows } from "./evidence-layers"
+import { notify } from "./notify"
 import { getCandidateCompliance } from "./compliance"
 import {
   EMPLOYER_CHECK_NOTICE,
   EVIDENCE_LABEL,
   SPONSORSHIP_LABEL,
 } from "./compliance-vocab"
-import type { AgencyContext } from "./types"
+import type { AgencyContext, Strength } from "./types"
 
 export const HANDOVER_ENGINE = "handover-1"
 
@@ -113,6 +115,10 @@ export async function generateHandoverPack(
     .eq("agency_id", ctx.agencyId)
     .eq("role_id", input.roleId)
     .eq("candidate_id", input.candidateId)
+    // A voided pack is not the pack (22 Sep 2026): voiding exists so a draft
+    // frozen against the wrong candidate can be abandoned and the right one
+    // generated, and re-attaching to it here would defeat exactly that.
+    .is("voided_at", null)
     .order("generated_at", { ascending: true })
     .limit(1)
     .maybeSingle()
@@ -159,14 +165,20 @@ export async function generateHandoverPack(
     ])
   )
 
-  const { data: evidenceRows } = await admin
+  // round_id + created_at decide which LAYER wins (evidence-layers.ts). Read
+  // raw, a requirement with a CV row saying "missing" and a round row saying
+  // "strong" appeared BOTH in the dossier and under Known gaps (21 Sep 2026).
+  const { data: evidenceRows, error: evidenceError } = await admin
     .from("candidate_evidence")
-    .select("requirement_id, strength, quote, source_cite, origin")
+    .select("requirement_id, strength, quote, source_cite, origin, round_id, created_at")
     .eq("candidate_id", input.candidateId)
+  if (evidenceError) throw evidenceError
 
   const evidence: HandoverSnapshot["evidence"] = []
   const gaps: HandoverSnapshot["gaps"] = []
-  for (const e of evidenceRows ?? []) {
+  for (const e of winningRows(
+    (evidenceRows ?? []) as Array<{ requirement_id: string; strength: Strength; quote: string | null; source_cite: string; origin: string; round_id: string | null; created_at: string }>
+  ).values()) {
     const req = reqById.get(e.requirement_id as string)
     if (!req) continue
     if ((e.strength as string) === "missing") {
@@ -303,7 +315,10 @@ export async function generateHandoverPack(
         snapshot,
         engine_version: HANDOVER_ENGINE,
         generated_by: ctx.userId,
-        delivered_to_contact_id: input.contactId ?? null,
+        // Not stored at generation: "delivered to" is set by delivery, which
+        // checks the contact. Storing the request body here let a POST link a
+        // pack to another agency's contact (21 Sep 2026).
+        delivered_to_contact_id: null,
       })
       .select("id")
       .single()
@@ -357,11 +372,33 @@ export async function deliverHandoverPack(
 
   const { data: contact } = await admin
     .from("client_contacts")
-    .select("id")
+    .select("id, company")
     .eq("id", contactId)
     .eq("agency_id", ctx.agencyId)
     .maybeSingle()
   if (!contact) throw new AgencyAccessError("contact not found in your agency")
+
+  // THE ROLE'S CLIENT, not any contact in the address book (21 Sep 2026). A
+  // delivered pack is final, so handing it to Acme when the role is Beta's is
+  // unrecoverable. The role's own contact, the brief's contact, or someone at
+  // the same company.
+  const [{ data: role }, { data: brief }] = await Promise.all([
+    admin.from("job_roles").select("company, contact_id").eq("id", pack.role_id as string).eq("agency_id", ctx.agencyId).maybeSingle(),
+    admin.from("role_briefs").select("contact_id").eq("role_id", pack.role_id as string).eq("agency_id", ctx.agencyId).maybeSingle(),
+  ])
+  const norm = (v: unknown) => String(v ?? "").trim().toLowerCase()
+  const atThisClient =
+    contactId === role?.contact_id ||
+    contactId === brief?.contact_id ||
+    (norm(role?.company) !== "" && norm(contact.company) === norm(role?.company))
+  if (!atThisClient) {
+    throw new AgencyAccessError(`That contact is not at ${role?.company || "this role's client"} — hand the pack to someone at the hiring company.`)
+  }
+
+  // Freeze what is true NOW. The checklist gate above reads today's facts;
+  // the stored draft may predate a reference arriving or right to work being
+  // recorded, and delivery would have stamped that older picture for good.
+  await generateHandoverPack(ctx, { roleId: pack.role_id as string, candidateId: pack.candidate_id as string })
 
   const { error } = await admin
     .from("handover_packs")
@@ -378,5 +415,82 @@ export async function deliverHandoverPack(
     entityRef: (pack.candidate_ref as string) ?? "",
     action: "delivered",
     toValue: { pack_id: packId, contact_id: contactId },
+  })
+
+  // Tell the employer contact it is there (22 Sep 2026). Until now
+  // "delivered" was a label only: nothing reached the client. Never fatal —
+  // the delivery is recorded whether or not the email goes.
+  try {
+    const { data: role } = await admin.from("job_roles").select("title").eq("id", pack.role_id as string).maybeSingle()
+    await notify(admin, {
+      kind: "handover_delivered",
+      agencyId: ctx.agencyId,
+      actorId: ctx.userId,
+      contactId,
+      roleId: pack.role_id as string,
+      roleTitle: (role?.title as string) ?? "your role",
+    })
+  } catch {
+    /* audited inside notify; delivery stands */
+  }
+}
+
+/**
+ * Void an UNDELIVERED handover pack (22 Sep 2026).
+ *
+ * A pack is frozen at generation, and until now there was no way back from
+ * one frozen against the wrong candidate: generation returns the existing
+ * row rather than minting twins, so the mistake was the record.
+ *
+ * DELIVERED PACKS CANNOT BE VOIDED, and the check constraint enforces it as
+ * well as this function. The client has it; a product that could un-send it
+ * would be lying about what they hold. The DB refuses, so a future caller
+ * that forgets this rule fails loudly rather than quietly rewriting history.
+ */
+export async function voidHandoverPack(
+  ctx: AgencyContext,
+  packId: string,
+  reason: string
+): Promise<void> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  const trimmed = (reason ?? "").trim().slice(0, 500)
+  if (!trimmed) throw new AgencyAccessError("say why this pack is being voided")
+
+  const { data: pack, error: readError } = await admin
+    .from("handover_packs")
+    .select("id, agency_id, role_id, candidate_id, candidate_ref, delivered_at, voided_at")
+    .eq("id", packId)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!pack || pack.agency_id !== ctx.agencyId) {
+    throw new AgencyAccessError("that pack is not on this agency")
+  }
+  if (pack.voided_at) return
+  if (pack.delivered_at) {
+    throw new AgencyAccessError(
+      "this pack has been handed over — the client has it, and it stays on the record as it was sent"
+    )
+  }
+
+  const { error } = await admin
+    .from("handover_packs")
+    .update({ voided_at: new Date().toISOString(), voided_by: ctx.userId, void_reason: trimmed })
+    .eq("id", packId)
+    .eq("agency_id", ctx.agencyId)
+    // Guarded: delivery between the read and the write leaves the pack alone.
+    .is("delivered_at", null)
+    .is("voided_at", null)
+  if (error) throw error
+
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    roleId: pack.role_id as string,
+    candidateId: (pack.candidate_id as string) ?? null,
+    actorId: ctx.userId,
+    entityType: "handover",
+    entityRef: (pack.candidate_ref as string) ?? "",
+    action: "pack_voided",
+    reason: trimmed,
   })
 }

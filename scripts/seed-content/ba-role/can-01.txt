@@ -1,0 +1,24 @@
+Amara Okonkwo
+London (hybrid) · o.oifoh+ba01@gmail.com · 07700 900901
+
+SUMMARY
+Business Analyst with nine years delivering innovation and change projects inside law firms. Led the analysis on a generative AI contract review pilot that went from proof of concept to firm-wide rollout in fourteen months.
+
+EXPERIENCE
+
+Senior Business Analyst, Legal Innovation — Fairbridge LLP (2021–present)
+- Led business analysis for a generative AI contract review pilot across three practice groups, defining success measures with partners and running the vendor evaluation of Kira, Luminance and Harvey.
+- Mapped forty-two matter intake and document review processes in BPMN, wrote the requirements documentation, and built the data analysis in Power BI that showed a 31% reduction in first-pass review time.
+- Worked in a Scrum team as the product-side analyst: owned the backlog, ran sprint planning with engineering, and wrote the user stories for the NLP clause extraction service.
+- Engaged stakeholders from trainee to senior partner, alongside IT, the risk and compliance team and four external vendors, and ran fortnightly steering with the Innovation Committee.
+- Facilitated more than sixty discovery workshops and structured interviews with fee earners, and ran cross-functional sessions between knowledge lawyers and data scientists.
+- Translated model behaviour, hallucination risk and confidence thresholds into plain business language for partners and into acceptance criteria for engineers.
+- Wrote the firm's guidance on legal privilege, client confidentiality and data privacy when using AI tools, reviewed with the General Counsel and the DPO.
+- Contribute to the firm's innovation roadmap: quarterly briefings on legal tech trends, AI developments and regulatory change including the EU AI Act.
+
+Business Analyst — Calder & Rowe Solicitors (2017–2021)
+- Requirements and process mapping for the iManage Work migration and a HighQ client collaboration portal.
+- Kanban delivery with an in-house development team; user stories, acceptance testing and release notes.
+
+SKILLS
+Business analysis · BPMN process mapping · Requirements documentation · Power BI · SQL · Scrum & Kanban · Jira · Confluence · Workshop facilitation · Legal tech: iManage, HighQ, Kira, Luminance, Harvey · NLP and generative AI concepts · Data privacy, legal privilege, AI ethics

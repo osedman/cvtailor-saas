@@ -22,6 +22,32 @@ import type { AgencyContext } from "./types"
 
 export type ReferenceStatus = "drafted" | "requested" | "received" | "chasing" | "declined"
 
+/**
+ * What a referee is being asked for (23 Sep 2026, Ose's decision).
+ *
+ * A CHARACTER reference is a person who worked with them, answering what
+ * they were like to work with. An HR reference is the employer's HR team
+ * confirming facts — dates and job title — and usually not permitted to say
+ * anything else. Asking both the same four open questions, which is what we
+ * did until today, invites HR to refuse a question we should not have put.
+ *
+ * The kind decides which form the referee's link opens. It is fixed when the
+ * referee is added, because it is also what the request email says they are
+ * being asked for.
+ */
+export type ReferenceKind = "character" | "hr"
+export const REFERENCE_KINDS: ReferenceKind[] = ["character", "hr"]
+
+export const KIND_LABEL: Record<ReferenceKind, string> = {
+  character: "Character reference",
+  hr: "HR reference",
+}
+
+/** Guard for anything arriving from a request body or a database row. */
+export function asReferenceKind(v: unknown): ReferenceKind {
+  return v === "hr" ? "hr" : "character"
+}
+
 const MAX_NAME = 200
 const MAX_ANSWER = 4000
 
@@ -43,6 +69,7 @@ export interface ReferenceRow {
   refereeEmail: string
   relationship: string
   status: ReferenceStatus
+  kind: ReferenceKind
   noticeSentAt: string | null
   receivedAt: string | null
 }
@@ -55,7 +82,7 @@ export async function listReferences(
   const { data, error } = await admin
     .from("candidate_references")
     .select(
-      "id, candidate_id, candidate_ref, referee_name, referee_email, relationship, status, notice_sent_at, received_at"
+      "id, candidate_id, candidate_ref, referee_name, referee_email, relationship, status, kind, notice_sent_at, received_at"
     )
     .eq("agency_id", ctx.agencyId)
     .eq("candidate_id", candidateId)
@@ -69,6 +96,7 @@ export async function listReferences(
     refereeEmail: (r.referee_email as string) ?? "",
     relationship: (r.relationship as string) ?? "",
     status: (r.status as ReferenceStatus) ?? "drafted",
+    kind: asReferenceKind(r.kind),
     noticeSentAt: (r.notice_sent_at as string | null) ?? null,
     receivedAt: (r.received_at as string | null) ?? null,
   }))
@@ -79,6 +107,8 @@ export interface AddRefereeInput {
   refereeName: string
   refereeEmail: string
   relationship?: string
+  /** Character or HR. Anything unrecognised reads as character. */
+  kind?: ReferenceKind | string
 }
 
 /** Record a referee the candidate has named. Nothing is sent yet. */
@@ -111,6 +141,7 @@ export async function addReferee(
       referee_email: email,
       relationship: cap(input.relationship, MAX_NAME),
       status: "drafted",
+      kind: asReferenceKind(input.kind),
       created_by: ctx.userId,
     })
     .select("id")
@@ -123,7 +154,7 @@ export async function addReferee(
     actorId: ctx.userId,
     entityType: "reference",
     entityRef: (candidate.ref as string) ?? "",
-    action: "referee_added",
+    action: `referee_added_${asReferenceKind(input.kind)}`,
     // The referee's name and address stay out of the log; they are a third
     // party whose data we hold on the thinnest possible basis.
     toValue: { reference_id: data.id as string },
@@ -139,6 +170,8 @@ export interface ReferenceRequest {
   candidateName: string
   agencyName: string
   isChase: boolean
+  /** What they are being asked for — the email says so before they click. */
+  kind: ReferenceKind
 }
 
 /**
@@ -159,7 +192,7 @@ export async function requestReference(
 
   const { data: ref, error } = await admin
     .from("candidate_references")
-    .select("id, agency_id, candidate_id, referee_name, referee_email, status, notice_sent_at")
+    .select("id, agency_id, candidate_id, referee_name, referee_email, status, kind, notice_sent_at")
     .eq("id", referenceId)
     .eq("agency_id", ctx.agencyId)
     .maybeSingle()
@@ -180,8 +213,10 @@ export async function requestReference(
     .update({
       request_token_hash: hashToken(raw),
       status: isChase ? "chasing" : "requested",
-      // Stamped once, on the first ask. A chase is not a new notice.
-      notice_sent_at: (ref.notice_sent_at as string | null) ?? new Date().toISOString(),
+      // notice_sent_at is NOT stamped here. The notice is the email, and the
+      // email has not been attempted yet — stamping first recorded "notice
+      // sent" for referees whose email failed (21 Sep 2026). The caller stamps
+      // it with markReferenceNoticeSent() once the send actually succeeds.
     })
     .eq("id", referenceId)
     .eq("agency_id", ctx.agencyId)
@@ -199,7 +234,7 @@ export async function requestReference(
     entityType: "reference",
     entityRef: (candidate?.ref as string) ?? "",
     action: isChase ? "reference_chased" : "reference_requested",
-    toValue: { reference_id: referenceId, notice_sent: true },
+    toValue: { reference_id: referenceId },
   })
 
   return {
@@ -209,7 +244,106 @@ export async function requestReference(
     candidateName: (candidate?.full_name as string) ?? "the candidate",
     agencyName: (agency?.name as string) ?? "the agency",
     isChase,
+    kind: asReferenceKind(ref.kind),
   }
+}
+
+/**
+ * Record that the fair-processing notice actually reached the referee.
+ * Called only after sendEmail reports success. Stamped once: a chase is not a
+ * new notice, so an existing stamp is left alone.
+ */
+export async function markReferenceNoticeSent(ctx: AgencyContext, referenceId: string): Promise<void> {
+  const admin = agencyAdmin()
+  const { error } = await admin
+    .from("candidate_references")
+    .update({ notice_sent_at: new Date().toISOString() })
+    .eq("id", referenceId)
+    .eq("agency_id", ctx.agencyId)
+    .is("notice_sent_at", null)
+  if (error) throw error
+}
+
+/**
+ * Take a referee off a candidate — the way back out of a typo (22 Sep 2026).
+ *
+ * Until now a referee, once added, was permanent: the wrong address or the
+ * wrong person could only be moved FORWARD, into an email to a stranger.
+ *
+ * Two outcomes, and which one you get is not a choice:
+ *
+ *   · NOTHING HAS BEEN SENT — the row is deleted outright. Nobody was
+ *     contacted, no notice went out, and this person never knew they were
+ *     named. Keeping a record of a mistake about a third party who was never
+ *     told they were in our database is not a trail; it is the thing the
+ *     trail is supposed to protect them from.
+ *   · THE REQUEST HAS GONE — the row is kept and marked `declined`, which is
+ *     already the enum's word for "this referee is not answering". A sent
+ *     email cannot be unsent, and the referee may reply after the recruiter
+ *     has moved on; the record of what they were told has to survive.
+ *
+ * Audited either way, and returns which of the two happened so the screen
+ * can say it rather than guess.
+ */
+export async function removeReferee(
+  ctx: AgencyContext,
+  referenceId: string
+): Promise<{ outcome: "deleted" | "withdrawn" }> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  const { data: row, error: readError } = await admin
+    .from("candidate_references")
+    .select("id, candidate_id, candidate_ref, status, notice_sent_at, received_at")
+    .eq("id", referenceId)
+    .eq("agency_id", ctx.agencyId)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!row) throw new AgencyAccessError("that referee is not on this agency")
+
+  // A reference already given belongs to the referee, not to us. Their words
+  // are the record; removing them would be editing evidence.
+  if (row.received_at) {
+    throw new AgencyAccessError("this referee has already answered — their reference stays on the record")
+  }
+
+  // "Contacted" is the notice, not the status: markReferenceNoticeSent()
+  // stamps it in the same operation as the email, so it is the one field
+  // that cannot be true without a message having left.
+  const contacted = row.notice_sent_at !== null
+
+  if (!contacted) {
+    const { error } = await admin
+      .from("candidate_references")
+      .delete()
+      .eq("id", referenceId)
+      .eq("agency_id", ctx.agencyId)
+      // Guarded: if the request went out between the read and the delete,
+      // this matches zero rows and the row survives, which is the safe way
+      // to lose the race.
+      .is("notice_sent_at", null)
+    if (error) throw error
+  } else {
+    const { error } = await admin
+      .from("candidate_references")
+      .update({ status: "declined" })
+      .eq("id", referenceId)
+      .eq("agency_id", ctx.agencyId)
+    if (error) throw error
+  }
+
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    candidateId: row.candidate_id as string,
+    actorId: ctx.userId,
+    entityType: "reference",
+    entityRef: (row.candidate_ref as string) ?? "",
+    action: contacted ? "referee_withdrawn" : "referee_deleted",
+    reason: contacted
+      ? "Referee withdrawn after the request had been sent"
+      : "Referee removed before anything was sent",
+  })
+
+  return { outcome: contacted ? "withdrawn" : "deleted" }
 }
 
 export interface RefereeView {
@@ -218,6 +352,8 @@ export interface RefereeView {
   refereeName: string
   relationship: string
   status: ReferenceStatus
+  /** Which form this link opens. The page cannot infer it. */
+  kind: ReferenceKind
 }
 
 /** What the referee's page renders. Token only — no account, ever. */
@@ -227,7 +363,7 @@ export async function peekReference(rawToken: string): Promise<RefereeView | nul
 
   const { data: ref, error } = await admin
     .from("candidate_references")
-    .select("id, agency_id, candidate_id, referee_name, relationship, status")
+    .select("id, agency_id, candidate_id, referee_name, relationship, status, kind")
     .eq("request_token_hash", hashToken(rawToken))
     .maybeSingle()
   if (error) throw error
@@ -244,6 +380,7 @@ export async function peekReference(rawToken: string): Promise<RefereeView | nul
     refereeName: (ref.referee_name as string) ?? "",
     relationship: (ref.relationship as string) ?? "",
     status: (ref.status as ReferenceStatus) ?? "requested",
+    kind: asReferenceKind(ref.kind),
   }
 }
 

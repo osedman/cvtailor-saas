@@ -20,8 +20,15 @@
  * AA — and it is exactly what `.agd-date` (the hero eyebrow) is set in. Point
  * it at the light cut used for dark grounds: #ff8368 measures 7.1:1 there.
  * Scoped to .hm-main so this is a fix to the hiring surface, not a silent
- * restyle of the recruiter dashboard some other agent is working on. */
-.ag-app:has(.hm-main) {
+ * restyle of the recruiter dashboard some other agent is working on.
+ *
+ * SCOPE CORRECTED 22 Sep 2026. This was `.ag-app:has(.hm-main)` — every
+ * theme, not just the dark one. Dark stopped being "the /hiring surface" and
+ * became a user toggle (`[data-ag-theme="dark"] .ag-app.ag-themed`), so the
+ * light cut was landing on cream in LIGHT mode at about 2.2:1: error text
+ * and `.agd-date` were the ones wearing it. It now applies only where the
+ * ground is actually dark. */
+[data-ag-theme="dark"] .ag-app.ag-themed:has(.hm-main) {
   --ag-coral-text: #ff8368;
 }
 
@@ -336,23 +343,58 @@
 }
 
 /* ── The workspace nav (23 Aug 2026): three places and a primary act. ────── */
-.hm-nav {
-  display: flex; align-items: center; gap: 4px;
-  padding: 8px 28px; border-bottom: 1px solid var(--agd-line, rgba(255,255,255,0.08));
+/* THE HORIZONTAL NAV STRIP IS GONE (19 Sep 2026).
+ *
+ * `.hm-nav` was a row of small uppercase mono pills across the top of <main>.
+ * The five places belong in a left rail — Figma frame 15 — and a strip is a
+ * set of tabs on one screen where a rail is a place you are in. The tell was
+ * the responsive check: the strip WRAPPED TO TWO ROWS at 375px and that was
+ * written down as a pass, when a thing that wraps is not the thing that was
+ * designed. Replaced by .hm-rail below. */
+
+/* The rail: the hiring manager's five places, down the left.
+ *
+ * `.ag-app` is display:flex and the recruiter's own `.ag-sidebar` already
+ * sits beside `.ag-main` in it, so this is the same shell shape rather than a
+ * second layout. Slightly wider than the recruiter's 232px because these are
+ * sentence-case places, not numbered steps. */
+.hm-rail {
+  width: 272px; flex: none; align-self: stretch;
+  border-right: 1px solid var(--ag-border);
+  padding: 24px 16px; display: flex; flex-direction: column; gap: 28px;
+  background: var(--ag-paper);
 }
-.hm-nav-item {
-  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
-  text-transform: uppercase; text-decoration: none; color: var(--ag-ink-3);
-  padding: 6px 12px; border-radius: var(--r-pill); border: 1px solid transparent;
+.hm-rail-nav { display: flex; flex-direction: column; gap: 2px; }
+
+/* Sentence case at reading size, NOT the uppercase micro-mono of the chrome.
+ * These are the names of places a person goes, and the typography guardrail
+ * wants prose in the design system's face rather than mono. */
+.hm-rail-item {
+  font-family: var(--ag-sans); font-size: var(--t-body); line-height: 1.3;
+  text-decoration: none; color: var(--ag-ink-2);
+  padding: 11px 14px; border-radius: var(--r-sm, 8px);
 }
-.hm-nav-item:hover { color: var(--ag-ink); }
-.agd-main .hm-nav-item { color: rgba(253, 252, 249, 0.55); }
-.agd-main .hm-nav-item:hover { color: rgba(253, 252, 249, 0.9); }
-.hm-nav-item.on { border-color: var(--ag-coral); color: var(--ag-coral); }
-.agd-main .hm-nav-item.on { color: #ff8a70; border-color: rgba(220, 79, 51, 0.6); }
-.hm-nav-cta { text-decoration: none; }
-/* You are here: the act is the page you are on, so it stops inviting. */
-.hm-nav-cta.on { opacity: 0.6; pointer-events: none; }
+.hm-rail-item:hover { background: var(--ag-bg-2, var(--ag-cream)); color: var(--ag-ink); }
+/* Tinted and coral, the way frame 15 draws it — a filled place, not a pill
+ * with a border. */
+.hm-rail-item.on { background: var(--ag-tint-1); color: var(--ag-coral-text); font-weight: 500; }
+
+.hm-rail-foot { margin-top: auto; border-top: 1px solid var(--ag-border); padding: 14px 8px 0; }
+
+/* Below the tablet break the rail stops being a column and rides along the
+ * top, scrolling sideways in ITSELF rather than making the page do it. A
+ * 272px column on a 375px screen leaves 100px for the work. */
+@media (max-width: 860px) {
+  .ag-app:has(.hm-rail) { flex-direction: column; }
+  .hm-rail {
+    width: auto; align-self: auto; flex-direction: row; align-items: center;
+    gap: 16px; padding: 12px 16px;
+    border-right: none; border-bottom: 1px solid var(--ag-border);
+  }
+  .hm-rail .ag-brand, .hm-rail-foot { display: none; }
+  .hm-rail-nav { flex-direction: row; gap: 4px; overflow-x: auto; }
+  .hm-rail-item { white-space: nowrap; padding: 8px 12px; }
+}
 
 /* Role rows that are doors look like the button rows the recruiter side has. */
 .hm-role-door { text-decoration: none; cursor: pointer; }
@@ -361,8 +403,59 @@
 /* Interviews summary rows on the dashboard. */
 .hm-round-line { display: flex; align-items: center; gap: 12px; padding: 12px 16px; text-decoration: none; }
 
+/* Waiting on you · across every role — 18 Sep 2026.
+   The row is who / what / the one act, and it must WRAP rather than push the
+   act off the edge: .ag-screen-head losing its primary action at 375px is a
+   live defect on five recruiter screens and this must not join them. The
+   action keeps its own line on a narrow viewport instead of being clipped. */
+/* ROW, SAID OUT LOUD (20 Sep 2026).
+   This composes onto .agd-card, which sets flex-direction: column. Declaring
+   `display: flex` alone inherited that column, so the three children's
+   `flex: 1 1 220px` / `2 1 280px` — written as column WIDTHS — were applied
+   as HEIGHTS down the main axis. Each row rendered 571px tall with its text
+   floating in the middle, and every section below it was pushed off the
+   screen. The screen looked designed wrong; it was one missing property.
+   Never rely on the default direction when composing onto a card class. */
+.hm-across-row { display: flex; flex-direction: row; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; }
+
+/* This role at a glance — 19 Sep 2026, frame 15.
+   A ladder, not a progress bar: a bar implies a percentage and there isn't
+   one. A done rung is struck through and steps back in colour, because the
+   reader's eye should land on what has NOT happened yet. */
+.hm-glance { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.hm-glance-row { display: flex; align-items: center; gap: 14px; }
+.hm-glance-dot { flex: none; width: 22px; height: 22px; border-radius: 999px; background: var(--ag-bg-2, var(--ag-cream)); border: 1px solid var(--ag-border); }
+.hm-glance-row[data-done] .hm-glance-dot { background: var(--ag-calm); border-color: var(--ag-calm); }
+.hm-glance-label { color: var(--ag-ink); line-height: 1.4; }
+.hm-glance-row[data-done] .hm-glance-label { color: var(--ag-ink-3); text-decoration: line-through; }
+
+/* One decision, one row: who, what was said, when. The whole row is the link
+   into the round it belongs to, because the decision only means anything
+   beside the write-up it rested on. */
+.hm-decision-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--r-sm, 8px); border: 1px solid var(--ag-border); text-decoration: none; color: inherit; }
+.hm-decision-row:hover { border-color: var(--ag-line-2); }
+
+/* The rail's own narrow-screen behaviour is with .hm-rail above. The rule
+   that used to live here made the five-place STRIP wrap to two rows at
+   375px, and its passing measurement is what disguised the fact that a strip
+   had been built where a rail was designed. */
+.hm-across-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 220px; }
+.hm-across-what { flex: 2 1 280px; min-width: 0; color: var(--ag-ink-2); line-height: 1.5; }
+/* A wait is calm on purpose: nothing here turns red because time passed. */
+.hm-across-what[data-mode="wait"],
+.hm-across-what[data-mode="done"] { color: var(--ag-ink-3); }
+.hm-across-wait { flex: none; white-space: nowrap; }
+.hm-across-row .agd-tbtn { flex: none; }
+
+@media (max-width: 620px) {
+  .hm-across-row { align-items: flex-start; }
+  .hm-across-row .agd-tbtn { width: 100%; text-align: center; }
+}
+
 /* One candidate's lanes on the client side. */
-.hm-loop-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+/* Also composed onto .agd-card — same column-inheritance trap as
+   .hm-across-row above, found by the guard rather than by a screenshot. */
+.hm-loop-row { display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 10px 14px; }
 
 /* The loop lanes render on the DARK client surface here; the light-side
    palette in agencies.css inverts. Keep the states readable on ink. */
@@ -388,3 +481,557 @@
 .hm-setup-window.on { border-color: var(--ag-coral); color: var(--ag-ink); }
 .hm-setup-window-day { font-weight: 600; }
 .hm-setup-window-time { font-family: var(--ag-mono); font-size: var(--t-small); color: var(--ag-ink-3); margin-left: auto; }
+
+/* Capacity verdict on the interview set-up screen. Three levels, and the
+ * short one is a warning rather than a block: judgement stays with the
+ * person, so proceeding is a choice and never an accident. */
+.hm-capacity.ok { border-color: var(--ag-border); }
+.hm-capacity.tight { border-color: var(--ag-warn-mark); }
+.hm-capacity.short { border-color: var(--ag-coral); background: var(--ag-tint-1); }
+
+/* ── The action bar (11 Sep 2026) ─────────────────────────────────────────
+ * Persistent, because the confirm used to sit at the foot of a long screen:
+ * on a cohort of fifteen you made fifteen decisions and then went looking
+ * for the button. It carries the count and the single act. */
+.hm-actionbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--ag-border);
+  border-radius: var(--r-md);
+  background: var(--ag-paper);
+  box-shadow: 0 -6px 20px rgba(30, 24, 19, 0.08);
+}
+.hm-actionbar-count { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .hm-actionbar { transition: box-shadow 0.15s ease; }
+}
+
+/* ── The interview loop rail (15 September 2026) ────────────────────────────
+ * Frame 11. Not a stepper: it carries how many people have reached each
+ * point, because a cohort sits on several rungs at once and a single "you
+ * are here" marker would have to lie about the rest.
+ *
+ * It is a READOUT, not a control. Nothing here is clickable, so nothing here
+ * may look clickable — no pointer, no hover lift, no press state. The one
+ * thing a reader can act on lives in the card underneath. */
+.hm-loop { display: flex; flex-direction: column; gap: 10px; }
+
+.hm-loop-rail {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px;
+  list-style: none; margin: 0; padding: 4px;
+  background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md);
+}
+.hm-loop-rung {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 12px 8px; border-radius: var(--r-sm);
+  background: var(--ag-cream); text-align: center;
+}
+/* The filled run stops where the cohort has got to — the shape you read
+ * before you read any number. */
+.hm-loop-rung[data-reached="true"] { background: var(--ag-bg-2); }
+
+/* The rung that is the reader's own. COLOUR IS NOT THE ONLY CUE: it also
+ * carries the word "yours" and a caret, because a border alone fails anyone
+ * who cannot separate these two browns. */
+.hm-loop-rung[data-yours="true"] {
+  background: var(--ag-tint-1);
+  box-shadow: inset 0 0 0 1px var(--ag-coral);
+}
+
+.hm-loop-n {
+  font-family: var(--ag-display); font-size: 21px; font-weight: 600; line-height: 1.1;
+  color: var(--ag-ink);
+  /* Counts change under a poll; tabular figures stop the rail twitching. */
+  font-variant-numeric: tabular-nums;
+}
+.hm-loop-rung[data-reached="false"] .hm-loop-n { color: var(--ag-ink-3); }
+.hm-loop-rung[data-yours="true"] .hm-loop-n { color: var(--ag-coral-deep); }
+
+.hm-loop-label {
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; color: var(--ag-ink-3);
+}
+.hm-loop-rung[data-yours="true"] .hm-loop-label { color: var(--ag-coral-deep); }
+.hm-loop-yours {
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; color: var(--ag-coral-deep);
+}
+
+.hm-loop-exits { margin: 0; font-size: var(--t-small); line-height: 1.5; color: var(--ag-ink-2); }
+
+/* One sentence of what the whole thing is, before any of it has happened. */
+.hm-loop-intro { margin: 0; font-size: var(--t-body); line-height: 1.6; color: var(--ag-ink-2); max-width: 66ch; text-wrap: pretty; }
+.hm-loop-intro b { color: var(--ag-ink); font-weight: 600; }
+
+/* Five rungs do not fit a phone. Two rows of the same grid keeps the order
+ * and the meaning; squeezing them to 60px each would keep neither. */
+@media (max-width: 640px) {
+  .hm-loop-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .hm-loop-rung { padding: 10px 4px; }
+  .hm-loop-n { font-size: 18px; }
+}
+
+/* ── The interview room (17 September 2026) ─────────────────────────────────
+ * Figma frame 13 band B. One candidate, all their rounds, the one that needs
+ * them open.
+ *
+ * DENSITY IS DELIBERATELY DIFFERENT HERE. The recruiter's tables are dense
+ * because a recruiter scans; this is one person at reading size because a
+ * hiring manager is deciding about them. Same tokens, different rhythm — that
+ * difference is the design, not an inconsistency. */
+.hm-room { display: flex; flex-direction: column; gap: 18px; }
+/* As a page it needs its own top margin; in the modal the bar supplies it. */
+.hm-room[data-modal="false"] { margin-top: 22px; }
+
+.hm-room-head { display: flex; align-items: flex-start; gap: 16px; }
+.hm-room-name { font-family: var(--ag-display); font-size: 26px; line-height: 1.15; font-weight: 600; letter-spacing: var(--track-tight); margin: 0; text-wrap: balance; }
+.hm-room-sub { margin: 4px 0 0; font-size: var(--t-small); color: var(--ag-ink-2); }
+.hm-room-where { flex: none; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); background: var(--ag-tint-1); border-radius: var(--r-xs); padding: 4px 9px; }
+
+/* The chain. Reading down it should answer "what has already happened to this
+ * person" without leaving the room. */
+.hm-room-rounds { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;
+  background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); overflow: hidden; }
+.hm-room-round { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-top: 1px solid var(--ag-border); }
+.hm-room-round:first-child { border-top: none; }
+.hm-room-round[data-kind="now"] { background: var(--ag-tint-1); }
+.hm-room-round[data-kind="off"] { opacity: 0.6; }
+.hm-room-mark { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); flex: none; }
+.hm-room-round[data-kind="now"] .hm-room-mark { color: var(--ag-coral); }
+.hm-room-rn { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); flex: none; }
+.hm-room-round[data-kind="now"] .hm-room-rn { color: var(--ag-coral-deep); }
+.hm-room-when { font-size: var(--t-small); }
+.hm-room-state { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); flex: none; }
+
+/* What they are deciding against — the shortlist they approved weeks ago. */
+.hm-room-ev { background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.hm-room-ev-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.hm-room-ev-title { margin: 0; font-size: var(--t-body); font-weight: 600; }
+.hm-room-ev-meta { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); margin-left: auto; }
+.hm-room-ev-body { margin: 0; font-size: var(--t-small); line-height: 1.6; color: var(--ag-ink-2); max-width: 74ch; text-wrap: pretty; }
+.hm-room-ev-gaps { margin: 0; font-size: var(--t-small); line-height: 1.6; color: var(--ag-ink-2); }
+.hm-room-ev-gaps b { color: var(--ag-ink); font-weight: 600; }
+
+/* The write-up. The loudest thing in the room, because it is the one act. */
+.hm-room-act { background: var(--ag-tint-1); border: 1px solid var(--ag-coral); border-radius: var(--r-md); padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+.hm-room-act[data-quiet="true"] { background: var(--ag-paper); border-color: var(--ag-border); }
+.hm-room-eyebrow { margin: 0; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); }
+.hm-room-act[data-quiet="true"] .hm-room-eyebrow { color: var(--ag-ink-3); }
+.hm-room-act-title { margin: 0; font-family: var(--ag-display); font-size: 19px; font-weight: 600; letter-spacing: var(--track-tight); }
+.hm-room-title { margin: 0; font-family: var(--ag-display); font-size: 20px; font-weight: 600; }
+.hm-room-note { margin: 0; font-size: var(--t-small); line-height: 1.6; color: var(--ag-ink-2); max-width: 74ch; text-wrap: pretty; }
+.hm-room-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hm-room-save {
+  border: none; border-radius: var(--r-sm); padding: 10px 16px; cursor: pointer;
+  background: var(--ag-coral); color: var(--ag-cream);
+  font-family: var(--ag-sans); font-size: var(--t-body); font-weight: 500;
+  transition: background 0.12s, opacity 0.12s;
+}
+.hm-room-save:hover:not(:disabled) { background: var(--ag-coral-deep); }
+.hm-room-save:disabled { opacity: 0.45; cursor: default; }
+.hm-room-draft { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+
+/* The decision. Closed until the write-up is in — the gate is a rule, so it
+ * is stated in words above the row and not only implied by the disabling. */
+.hm-room-dec { background: var(--ag-paper); border: 1px solid var(--ag-line-2); border-radius: var(--r-md); padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+.hm-room-dec[data-open="false"] { opacity: 0.6; }
+.hm-room-dec[data-open="true"] { border-color: var(--ag-coral); }
+.hm-room-dec-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.hm-room-dec-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--ag-line-2); border-radius: var(--r-sm);
+  background: var(--ag-cream); color: var(--ag-ink-2);
+  padding: 10px 15px; cursor: pointer; font-family: var(--ag-sans); font-size: var(--t-body);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.hm-room-dec-btn:hover:not(:disabled) { background: var(--ag-bg-2); border-color: var(--ag-ink-3); color: var(--ag-ink); }
+.hm-room-dec-btn:disabled { opacity: 0.5; cursor: default; }
+.hm-room-dec-note { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+
+.hm-room-back { align-self: flex-start; border: none; background: none; cursor: pointer; padding: 0; color: var(--ag-ink-2); font-family: var(--ag-sans); font-size: var(--t-body); }
+.hm-room-back:hover { color: var(--ag-ink); }
+
+@media (pointer: coarse) {
+  .hm-room-dec-btn, .hm-room-save { min-height: 44px; }
+}
+@media (max-width: 640px) {
+  .hm-room-head { flex-direction: column; gap: 8px; }
+  .hm-room-round { flex-wrap: wrap; gap: 6px 10px; }
+  .hm-room-state { width: 100%; }
+  .hm-room-dec-btn { flex: 1 1 140px; justify-content: center; }
+}
+
+/* ── The headline role's own rounds (20 Sep 2026, frame 20) ───────────────
+   "If an interview is happening the hiring manager should be able to clearly
+   see for who and what round." The card names the role; these name the people
+   and the rounds inside it. Rows, never controls — a wait carries no button,
+   and a round being in progress does not make it something to press.
+   Direction is stated: this sits inside .hm-one-card, and the row that taught
+   us that lesson is .hm-across-row above. */
+.hm-one-rounds {
+  display: flex; flex-direction: column; gap: 6px;
+  list-style: none; margin: 14px 0 0; padding: 0;
+  /* The card is align-items: flex-start, so without this the rows hug their
+     own text and float in the middle of a wide card. Capped rather than
+     full-bleed: these are a short list, not a table. */
+  align-self: stretch; max-width: 560px;
+}
+/* Tokens, not translucent white. The first version of this used
+   rgba(253,252,249,.06) on the assumption that .hm-one-card was a dark
+   surface — it is not, it is --ag-paper, so the rows rendered as bare text
+   with no container at all on the deployed build. Verified in the browser,
+   both themes. */
+.hm-one-round {
+  display: flex; flex-direction: row; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 9px 12px; border-radius: var(--r-sm);
+  background: var(--ag-cream);
+  border: 1px solid var(--ag-border);
+}
+.hm-one-round-who { flex: 1 1 auto; min-width: 0; font-size: var(--t-body); font-weight: 500; color: var(--ag-ink); }
+.hm-one-round-when { flex: none; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); color: var(--ag-ink-3); white-space: nowrap; }
+/* Live is the one state that expires on its own, so it is the one allowed to
+   draw the eye. Colour is not the only signal — the label reads "Happening
+   now" rather than a time. */
+.hm-one-round[data-live] { border-color: var(--ag-coral); background: var(--ag-tint-1); }
+.hm-one-round[data-live] .hm-one-round-when { color: var(--ag-coral-deep); font-weight: 500; }
+
+/* The quieter half of the list: roles where someone else holds the next move.
+   Lower contrast than the to-do rows above it, because it is information
+   rather than a job. */
+.hm-one-rest[data-quiet] { opacity: 0.82; }
+.hm-one-rest[data-quiet] .hm-one-rest-label { opacity: 0.8; }
+
+/* ── The shortlist row (20 Sep 2026, frame 20) ────────────────────────────
+   The screen promised "everyone your recruiter has put in front of you, with
+   the evidence behind each" and rendered a name, a title and one sentence —
+   the same sentence under every candidate. The evidence was in the snapshot
+   all along; the workspace mapper dropped it while the portal rendered it.
+
+   A card, not a strip: the row now carries several lines, so it stops being
+   a table row pretending to be one. Direction is stated, as .hm-across-row
+   above taught us the hard way. */
+.hm-sl-card {
+  display: flex; flex-direction: column; align-items: stretch; gap: 9px;
+  padding: 15px 17px;
+}
+.hm-sl-head { display: flex; flex-direction: row; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.hm-sl-name { font-size: 15px; font-weight: 600; color: var(--ag-ink); }
+.hm-sl-sub { flex: 1 1 auto; min-width: 0; }
+.hm-sl-chip {
+  flex: none; padding: 3px 9px; border-radius: var(--r-sm);
+  border: 1px solid var(--ag-border); background: var(--ag-cream);
+  font-family: var(--ag-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); color: var(--ag-ink-3); white-space: nowrap;
+}
+.hm-sl-chip[data-live] { border-color: var(--ag-coral); background: var(--ag-tint-1); color: var(--ag-coral-deep); }
+
+/* The recruiter's words about this person: prose, and the most readable
+   thing in the card. */
+.hm-sl-note {
+  margin: 0; font-size: var(--t-body); line-height: 1.6; color: var(--ag-ink-2);
+  padding-left: 12px; border-left: 2px solid var(--ag-tint-2);
+}
+.hm-sl-evidence { margin: 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink-2); }
+.hm-sl-gaps { margin: 0; font-size: var(--t-caption); line-height: 1.5; color: var(--ag-ink-3); }
+.hm-sl-foot { display: flex; flex-direction: row; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hm-sl-state { font-size: var(--t-body); color: var(--ag-ink-3); }
+.hm-sl-state[data-mode="act"] { color: var(--ag-coral-deep); font-weight: 500; }
+
+/* A greeting from a person, set as prose — it used to render in .agd-aside,
+   the monospace face this product reserves for machine data. */
+.hm-sl-intro {
+  margin: 0 0 14px; padding: 14px 16px; border-radius: var(--r-md);
+  background: var(--ag-paper); border: 1px solid var(--ag-border);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.hm-sl-intro p { margin: 0; font-size: var(--t-body); line-height: 1.6; color: var(--ag-ink-2); max-width: 70ch; }
+.hm-sl-intro cite { font-style: normal; font-size: var(--t-caption); color: var(--ag-ink-3); }
+
+/* Withheld is not the same as absent: the screen must never imply the
+   recruiter wrote nothing when they simply did not disclose it. */
+.hm-sl-withheld { margin: 10px 0 0; font-size: var(--t-caption); color: var(--ag-ink-3); }
+
+/* The recruiter has not confirmed a finished round took place. Information,
+   never a wall: the write-up is offered anyway, because writing it up is
+   what confirms it. */
+.hm-unconfirmed {
+  margin: 0 0 12px; font-size: var(--t-caption); line-height: 1.55;
+  color: var(--ag-ink-3);
+}
+
+/* ============================================================
+   The three places and the role room — Figma frame 23 (22 Sep 2026).
+   Tokens only, so the surface follows whichever theme is in force.
+   ============================================================ */
+
+/* Room head and stage bar. The current stage carries weight AND words (a
+   screen-reader suffix), done stages carry a tick, and stages not reached
+   are plain text rather than links. */
+.hm-room-head { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.hm-back { font-size: var(--t-small); color: var(--ag-ink-3); text-decoration: none; width: fit-content; }
+.hm-back:hover { color: var(--ag-ink); }
+.hm-room-title { margin: 2px 0 0; }
+.hm-stagebar ol { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 10px 0 0; padding: 0; }
+.hm-stagebar li { display: flex; align-items: center; gap: 6px; }
+.hm-stagebar li + li::before { content: "→"; color: var(--ag-ink-3); font-size: var(--t-small); }
+.hm-stage {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 6px 14px;
+  border: 1px solid var(--ag-line-2); border-radius: var(--r-pill); background: var(--ag-paper);
+  font-size: var(--t-small); font-weight: 500; color: var(--ag-ink-3); text-decoration: none;
+}
+.hm-stagebar li[data-state="done"] .hm-stage { color: var(--ag-ink); }
+.hm-stagebar li[data-state="current"] .hm-stage { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); font-weight: 600; }
+.hm-stagebar li[data-here] .hm-stage { box-shadow: 0 0 0 3px var(--ag-tint-2); }
+a.hm-stage:hover { border-color: var(--ag-ink-3); }
+a.hm-stage:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; }
+.hm-stage-lede { margin: 0 0 12px; }
+
+/* The written-down hand-off at the foot of every stage. */
+.hm-handoff {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 18px;
+  padding: 14px 18px; border: 1px solid var(--ag-border); border-radius: 12px; background: var(--ag-paper);
+}
+.hm-handoff[data-ready] { background: var(--ag-tint-1); border-color: var(--ag-tint-2); }
+.hm-handoff p { flex: 1 1 280px; margin: 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink); }
+
+/* To do: one row per owed thing. The coral bar is a second signal, never the
+   only one — the row's words say what is owed. */
+.hm-todo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.hm-todo-row {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap; min-height: 72px;
+  padding: 14px 16px 14px 18px; border: 1px solid var(--ag-border); border-left: 4px solid var(--ag-line-2);
+  border-radius: 12px; background: var(--ag-paper);
+}
+.hm-todo-row[data-urgent] { border-color: var(--ag-tint-2); border-left-color: var(--ag-coral); }
+.hm-todo-text { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.hm-todo-title { font-size: 15.5px; font-weight: 600; color: var(--ag-ink); overflow-wrap: anywhere; }
+.hm-todo-meta { font-size: var(--t-small); color: var(--ag-ink-3); overflow-wrap: anywhere; }
+.hm-todo-cta { min-height: 40px; }
+
+/* Quiet lists: coming up, the rest of a round, history, outcomes. */
+.hm-quiet-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--ag-border); border-radius: 10px; background: var(--ag-paper); }
+.hm-quiet-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid var(--ag-border); font-size: var(--t-body); color: var(--ag-ink); }
+.hm-quiet-list li:first-child { border-top: none; }
+.hm-quiet-list li > span:last-child { color: var(--ag-ink-3); font-size: var(--t-small); }
+.hm-quiet-list li > span[data-decision="advance"] { color: var(--ag-coral-deep); font-weight: 500; }
+.hm-quiet-list a { color: var(--ag-ink); text-decoration: none; font-weight: 500; }
+.hm-quiet-list a:hover { text-decoration: underline; }
+.hm-q-strong { font-weight: 600; }
+
+/* A finished round: one line, opened on request. */
+.hm-history { border: 1px solid var(--ag-border); border-radius: 10px; background: var(--ag-paper); }
+.hm-history > summary { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; list-style: none; min-height: 44px; }
+.hm-history > summary::-webkit-details-marker { display: none; }
+.hm-history > summary > span:first-child { font-weight: 600; color: var(--ag-ink); }
+.hm-history-sum { flex: 1; color: var(--ag-ink-3); font-size: var(--t-small); }
+.hm-history-open { color: var(--ag-coral-deep); font-size: var(--t-small); font-weight: 500; }
+.hm-history[open] .hm-history-open { visibility: hidden; }
+.hm-history > summary:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: -2px; border-radius: 10px; }
+.hm-history .hm-quiet-list { border: none; border-top: 1px solid var(--ag-border); border-radius: 0 0 10px 10px; }
+
+/* Plain explanation cards (no shortlist here, round not started, preparing). */
+.hm-note-card { padding: 18px 20px; border: 1px solid var(--ag-border); border-radius: 12px; background: var(--ag-paper); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.hm-note-card p { margin: 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink-2); }
+.hm-note-card .hm-note-title { font-weight: 600; color: var(--ag-ink); font-size: 15.5px; }
+
+/* Roles list. */
+.hm-role-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.hm-role-link { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border: 1px solid var(--ag-border); border-radius: 12px; background: var(--ag-paper); text-decoration: none; }
+.hm-role-link:hover { border-color: var(--ag-line-2); }
+.hm-role-link:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; }
+.hm-role-title { font-size: 16px; font-weight: 600; color: var(--ag-ink); }
+.hm-role-meta { font-size: var(--t-small); color: var(--ag-ink-3); }
+.hm-role-progress { display: flex; gap: 4px; margin: 4px 0; }
+.hm-role-progress > span { flex: 1; height: 6px; border-radius: 3px; background: var(--ag-border); }
+.hm-role-progress > span[data-state="done"] { background: var(--ag-coral-deep); }
+.hm-role-progress > span[data-state="current"] { background: var(--ag-coral); }
+.hm-role-next { font-size: var(--t-body); color: var(--ag-ink-2); }
+.hm-role-next[data-yours] { color: var(--ag-coral-deep); font-weight: 600; }
+
+/* Shortlist stage additions. */
+.hm-sl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.hm-sl-state[data-tone="fwd"] { color: var(--ag-coral-deep); background: var(--ag-tint-1); }
+.hm-decision-head { margin: 0 0 6px; }
+
+/* The shortlist being built — board 29 (28 Sep 2026). Names only, in one
+   list card; the avatar is round (a person, not the recruiter's square
+   chips), tint-2 with coral-deep initials. A withheld or unnamed row gets a
+   dashed "?" so it never reads as a missing image. No font stack declared:
+   everything here is the surface's sans. */
+.hm-sling-aside { font-size: var(--t-small); color: var(--ag-ink-3); }
+.hm-sling-sub { margin: 0 0 14px; font-size: var(--t-body); line-height: 1.6; color: var(--ag-ink-2); max-width: 66ch; text-wrap: pretty; }
+.hm-sling-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--ag-border); border-radius: 10px; background: var(--ag-paper); }
+.hm-sling-row { display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 11px 16px; border-top: 1px solid var(--ag-border); }
+.hm-sling-row:first-child { border-top: none; }
+.hm-sling-avatar {
+  flex: none; width: 30px; height: 30px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ag-tint-2); color: var(--ag-coral-deep);
+  font-size: var(--t-micro); font-weight: 600;
+}
+.hm-sling-avatar[data-unknown] { background: transparent; border: 1px dashed var(--ag-line-2); color: var(--ag-ink-3); }
+.hm-sling-who { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hm-sling-name { font-size: var(--t-body); font-weight: 600; color: var(--ag-ink); overflow-wrap: anywhere; }
+.hm-sling-why { font-size: var(--t-caption); color: var(--ag-ink-3); }
+.hm-sling-when { flex: none; margin-left: auto; font-size: var(--t-small); color: var(--ag-ink-3); white-space: nowrap; }
+.hm-sling-foot { margin: 12px 0 0; font-size: var(--t-small); color: var(--ag-ink-3); }
+.hm-sling-divider { border: 0; border-top: 1px solid var(--ag-border); margin: -20px 0 24px; }
+
+/* Diary. */
+.hm-diary { list-style: none; margin: 0; padding: 0; border: 1px solid var(--ag-border); border-radius: 10px; background: var(--ag-paper); }
+.hm-diary li { display: grid; grid-template-columns: minmax(180px, 220px) 1fr auto; gap: 14px; align-items: center; padding: 13px 16px; border-top: 1px solid var(--ag-border); }
+.hm-diary li:first-child { border-top: none; }
+.hm-diary-when { font-weight: 600; color: var(--ag-ink); font-variant-numeric: tabular-nums; }
+.hm-diary a { color: var(--ag-ink); text-decoration: none; }
+.hm-diary a:hover { text-decoration: underline; }
+.hm-diary-join { font-size: var(--t-small); color: var(--ag-coral-deep); }
+.hm-diary-join[data-none] { color: var(--ag-ink-3); }
+
+/* The delivered handover pack: a document, printable. */
+.hm-pack { margin-top: 12px; padding: 24px 28px; border: 1px solid var(--ag-border); border-radius: 14px; background: var(--ag-paper); }
+.hm-pack-eyebrow { margin: 0 0 6px; font-size: var(--t-small); color: var(--ag-ink-3); }
+.hm-pack-actions { margin: 12px 0 4px; }
+.hm-pack-section { margin-top: 20px; }
+.hm-pack-section h3 { margin: 0 0 8px; font-size: 15.5px; font-weight: 600; color: var(--ag-ink); }
+.hm-pack-section ul { margin: 0; padding-left: 18px; line-height: 1.6; color: var(--ag-ink-2); font-size: var(--t-body); }
+.hm-pack-section p { margin: 0 0 6px; font-size: var(--t-body); line-height: 1.6; color: var(--ag-ink-2); }
+.hm-pack-src { color: var(--ag-ink-3); font-size: var(--t-small); }
+.hm-pack-q { font-weight: 600; color: var(--ag-ink); }
+.hm-pack-ref { padding: 10px 0; border-top: 1px solid var(--ag-border); }
+.hm-pack-footer { margin-top: 24px; font-size: var(--t-small); color: var(--ag-ink-3); }
+@media print {
+  .hm-rail, .agd-topbar, .hm-side-band, .hm-room-head, .ag-print-hide { display: none !important; }
+  .hm-pack { border: none; padding: 0; }
+}
+
+@media (max-width: 720px) {
+  .hm-todo-cta { width: 100%; justify-content: center; }
+  .hm-diary li { grid-template-columns: 1fr; gap: 4px; }
+  .hm-pack { padding: 18px 16px; }
+}
+
+/* ---- 7. The candidate detail, and the CV ---------------------------------
+ * Figma frame 24, bands E and F (22 Sep 2026). The rule changed: a hiring
+ * manager reads the name, the evidence and the CV and decides from them.
+ * Everything here reads the same tokens as the rest of the surface, so the
+ * dark theme needs no second palette, and nothing declares a font stack —
+ * the CV body reaches mono through var(--ag-mono) because it is a document
+ * whose line breaks carry meaning, not because it is machine output. */
+
+.hm-sl-more {
+  align-self: flex-start;
+  min-height: 44px;            /* the pass: 44px targets, 8px apart */
+  padding: 10px 16px;
+  margin-top: 4px;
+  background: transparent;
+  border: 1px solid var(--ag-border);
+  border-radius: 8px;
+  color: var(--ag-ink);
+  font-size: var(--t-caption);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.hm-sl-more:hover { background: var(--ag-bg-2); border-color: var(--ag-ink-4); }
+
+.hm-cand {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 18px;
+  background: var(--ag-bg-2);
+  border: 1px solid var(--ag-border);
+  border-radius: 12px;
+  /* The detail is long and there may be several open at once. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 420px;
+}
+.hm-cand-block { display: flex; flex-direction: column; gap: 6px; }
+.hm-cand-block p { margin: 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink-2); }
+
+.hm-cand-score { display: flex; align-items: baseline; gap: 10px; }
+.hm-cand-score-n {
+  font-size: 28px;
+  line-height: 1.1;
+  color: var(--ag-coral-text);
+  /* Tabular figures so 78 and 100 do not shuffle the label sideways. */
+  font-variant-numeric: tabular-nums;
+}
+.hm-cand-score span { font-size: var(--t-caption); color: var(--ag-ink-3); }
+
+.hm-cand-ev { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.hm-cand-ev li { display: flex; flex-direction: column; gap: 3px; }
+.hm-cand-ev b { font-size: var(--t-caption); font-weight: 600; color: var(--ag-ink); }
+/* A quote is quoted. The marks come from the element, not from the data —
+ * a quote assembled with literal " characters breaks the moment the CV
+ * itself contains one. */
+.hm-cand-ev q { font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink-2); }
+
+.hm-cand-withheld { padding: 12px 14px; background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); border-radius: 10px; }
+
+.hm-cv { margin: 0; padding: 18px; background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: 10px; }
+.hm-cv-seal {
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ag-border);
+  font-size: var(--t-micro, 12px);
+  color: var(--ag-ink-3);
+}
+.hm-cv-name { margin: 0; font-size: 20px; line-height: 1.3; color: var(--ag-ink); }
+.hm-cv-title { margin: 2px 0 12px; font-size: var(--t-caption); color: var(--ag-ink-3); }
+.hm-cv-text {
+  margin: 0;
+  font-family: var(--ag-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ag-ink-2);
+  /* The CV's own line breaks are its structure; wrap rather than scroll
+   * sideways, which is what a phone would otherwise be handed. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.hm-cv-note {
+  margin: 14px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--ag-border);
+  font-size: var(--t-micro, 12px);
+  color: var(--ag-coral-text);
+}
+
+.hm-linkbtn {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--ag-coral-text);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .hm-cand { padding: 14px; }
+  .hm-sl-more { width: 100%; text-align: center; }
+}
+
+/* The pass again: nothing here animates under a stated preference. The
+ * global rule in agencies.css covers transitions; this is the local one for
+ * the only transition this file adds. */
+@media (prefers-reduced-motion: reduce) {
+  .hm-sl-more { transition: none; }
+}
+
+/* ---- 8. The brief, on the client side (frame 25, band B) ----------------- */
+.hm-brief-sigs { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 12px 0 8px; font-size: var(--t-caption); color: var(--ag-ink-2); }
+.hm-brief-sigs span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; border: 2px solid var(--ag-coral); vertical-align: -1px; }
+.hm-brief-sigs span[data-on]::before { background: var(--ag-ink); border-color: var(--ag-ink); }
+.hm-brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
+.hm-brief-actions .agd-tbtn { min-height: 44px; }
+@media (max-width: 480px) { .hm-brief-actions { flex-direction: column; align-items: stretch; } .hm-brief-actions .agd-tbtn { width: 100%; text-align: center; } }

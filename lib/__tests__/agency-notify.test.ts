@@ -64,9 +64,14 @@ import { notify, facesClient, resolvePreference, type NotifyEvent } from "../age
 
 /** Every kind, and the side it is allowed to reach. */
 const CLASSIFICATION: Record<NotifyEvent["kind"], "agency" | "client"> = {
-  brief_filed: "agency",
-  brief_answered: "client",
   invite_accepted: "agency",
+  handover_delivered: "client",
+  // The client brief (23 Sep 2026): three to the contact, two to the agency.
+  brief_sent: "client",
+  brief_changed: "client",
+  brief_approved: "client",
+  brief_amended_by_client: "agency",
+  brief_approved_by_client: "agency",
   debrief_recorded: "agency",
   consent_answered: "agency",
   reference_submitted: "agency",
@@ -205,21 +210,6 @@ describe("recipients", () => {
     expect(sendEmail).not.toHaveBeenCalled()
   })
 
-  it("a client event reaches only that contact", async () => {
-    const admin = fakeAdmin({
-      client_contacts: { data: { email: "hm@client.test", full_name: "Dana Hall", agency_id: "a1" } },
-    })
-    const out = await notify(admin, {
-      kind: "brief_answered",
-      agencyId: "a1",
-      actorId: "rec-1",
-      contactId: "c1",
-      roleTitle: "Senior Engineer",
-      accepted: true,
-    })
-    expect(out).toBe("sent")
-    expect(sendEmail.mock.calls.map((c) => (c[0] as SendArgs).to)).toEqual(["hm@client.test"])
-  })
 })
 
 describe("what the email says", () => {
@@ -240,17 +230,14 @@ describe("what the email says", () => {
     expect(html.toLowerCase()).not.toContain("declined")
   })
 
-  it("escapes a role title rather than rendering it as markup", async () => {
-    const admin = fakeAdmin({
-      client_contacts: { data: { email: "hm@client.test", full_name: "Dana", agency_id: "a1" } },
-    })
+  it("escapes what it interpolates rather than rendering it as markup", async () => {
+    const admin = fakeAdmin({ job_roles: { data: { created_by: "rec-1" } }, members: MEMBERS })
     await notify(admin, {
-      kind: "brief_answered",
+      kind: "debrief_recorded",
       agencyId: "a1",
-      actorId: "rec-1",
-      contactId: "c1",
-      roleTitle: '<img src=x onerror="alert(1)">',
-      accepted: false,
+      actorId: null,
+      roleId: "role-1",
+      candidateRef: '<img src=x onerror="alert(1)">',
     })
     const html = (sendEmail.mock.calls[0]![0] as SendArgs).html
     expect(html).not.toContain("<img")
@@ -404,32 +391,6 @@ describe("preferences, applied", () => {
     expect(entry.toValue).toMatchObject({ of: 1 })
   })
 
-  it("a client-facing notification ignores preferences entirely", async () => {
-    // brief_answered is a message to somebody's client about their own brief.
-    // If this ever consulted the table it would be letting a recruiter mute
-    // their client's reply.
-    let prefsQueried = false
-    const base = fakeAdmin({
-      client_contacts: { data: { email: "hm@client.test", full_name: "Dana", agency_id: "a1" } },
-    })
-    const admin = {
-      from: (name: string) => {
-        if (name === "notification_prefs") prefsQueried = true
-        return (base as unknown as { from: (n: string) => unknown }).from(name)
-      },
-    } as never
-
-    const out = await notify(admin, {
-      kind: "brief_answered",
-      agencyId: "a1",
-      actorId: "rec-1",
-      contactId: "c1",
-      roleTitle: "Staff Platform Engineer",
-      accepted: true,
-    })
-    expect(out).toBe("sent")
-    expect(prefsQueried, "brief_answered must never consult the preference table").toBe(false)
-  })
 })
 
 describe("migration 29 and the event list stay in step", () => {
@@ -459,5 +420,25 @@ describe("migration 29 and the event list stay in step", () => {
           .toContain(`'${kind}'`)
       }
     }
+  })
+})
+
+describe("the handover reaches the employer contact (22 Sep 2026)", () => {
+  it("goes to that contact only, and links to their handover stage", async () => {
+    const admin = fakeAdmin({
+      client_contacts: { data: { email: "hm@client.test", full_name: "Dana Hall", agency_id: "a1" } },
+    })
+    const out = await notify(admin, {
+      kind: "handover_delivered",
+      agencyId: "a1",
+      actorId: "rec-1",
+      contactId: "c1",
+      roleId: "role-9",
+      roleTitle: "Senior Engineer",
+    })
+    expect(out).toBe("sent")
+    const call = sendEmail.mock.calls[0]![0] as SendArgs
+    expect(call.to).toBe("hm@client.test")
+    expect(call.html).toContain("/hiring/roles/role-9/handover")
   })
 })

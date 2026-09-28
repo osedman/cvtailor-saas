@@ -11,7 +11,7 @@ import { errorMessage } from "@/lib/error-message"
 
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
-import { generateHandoverPack, deliverHandoverPack } from "@/lib/agency/handover"
+import { generateHandoverPack, deliverHandoverPack, voidHandoverPack } from "@/lib/agency/handover"
 
 export const maxDuration = 30
 
@@ -71,5 +71,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ro
     return NextResponse.json({ ok: true })
   } catch (e) {
     return fail(e)
+  }
+}
+
+/**
+ * DELETE { packId, reason } → void an undelivered pack.
+ *
+ * For a pack frozen against the wrong candidate. Generation returns the
+ * existing pack rather than minting twins, so without this the mistake IS
+ * the record. A delivered pack is refused: the client has it.
+ */
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  try {
+    await params
+    const auth = await requireAgencyContext()
+    if (!auth.ok) {
+      return NextResponse.json(
+        { error: auth.failure === "unauthenticated" ? "Unauthorised" : "No agency membership" },
+        { status: auth.failure === "unauthenticated" ? 401 : 403 }
+      )
+    }
+    const body = await req.json().catch(() => ({}))
+    const packId = typeof body?.packId === "string" ? body.packId : ""
+    const reason = typeof body?.reason === "string" ? body.reason : ""
+    if (!packId) return NextResponse.json({ error: "packId is required" }, { status: 400 })
+
+    await voidHandoverPack(auth.ctx, packId, reason)
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    if (error instanceof AgencyAccessError) {
+      const incomplete = /say why/.test(errorMessage(error))
+      return NextResponse.json({ error: errorMessage(error) }, { status: incomplete ? 422 : 403 })
+    }
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }

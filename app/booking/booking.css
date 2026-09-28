@@ -25,3 +25,13 @@
   .bk-row { flex-direction: column; gap: 2px; }
   .bk-row dt { width: auto; }
 }
+
+/* Self-booking: the times still free, one tap each. Comfortably tappable
+ * (WCAG 2.5.8) because this is a phone screen more often than not. */
+.bk-slots { display: grid; gap: 8px; margin-top: 14px; }
+.bk-slot { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; width: 100%; min-height: 56px; padding: 12px 14px; border: 1px solid var(--cs-line, #e6ded2); border-radius: 10px; background: #fff; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.bk-slot:hover:not(:disabled) { border-color: #dc4f33; }
+.bk-slot:focus-visible { outline: 2px solid #dc4f33; outline-offset: 2px; }
+.bk-slot:disabled { opacity: 0.6; cursor: default; }
+.bk-slot-day { font-weight: 600; }
+.bk-slot-time { font-size: 0.9em; opacity: 0.75; }

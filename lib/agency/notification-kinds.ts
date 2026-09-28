@@ -12,11 +12,9 @@
  * preferences), kept beside the keys so the two cannot drift.
  */
 
-/** Every kind a person may switch. brief_answered is deliberately absent: it
- * is a message to somebody's client about their own brief, not a preference a
- * recruiter holds, and migration 29's check constraint refuses to store it. */
+/** Every kind a person may switch. The brief kinds went with the client-brief
+ * flow (22 Sep 2026); stored brief_filed preference rows are simply unread. */
 export const SWITCHABLE_KINDS = [
-  "brief_filed",
   "debrief_recorded",
   "consent_answered",
   "reference_submitted",
@@ -38,12 +36,6 @@ export const NOTIFICATION_COPY: Record<
   SwitchableKind,
   { eyebrow: string; title: string; blurb: string }
 > = {
-  brief_filed: {
-    eyebrow: "A brief arrives",
-    title: "A hiring manager asks you to hire",
-    blurb:
-      "The one this was built for. Briefs used to sit unseen for days because nothing said they had landed. Goes to whoever invited that client.",
-  },
   debrief_recorded: {
     eyebrow: "A write-up lands",
     title: "An interviewer writes up their round",
@@ -77,7 +69,6 @@ export const NOTIFICATION_COPY: Record<
 
 /** Short labels for the agency defaults card, where the row is one line. */
 export const NOTIFICATION_SHORT: Record<SwitchableKind, string> = {
-  brief_filed: "A brief arrives",
   debrief_recorded: "A write-up lands",
   consent_answered: "A candidate replies",
   reference_submitted: "A reference comes back",

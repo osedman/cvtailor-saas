@@ -11,8 +11,7 @@
  * half again, spread across at least two working days — or, with no
  * calendar connected, proposes the same shape across a range of days they
  * pick. They untick what they do not want and confirm. Decisions and
- * windows land as one act, and the recruiter's next action becomes "book
- * round 1".
+ * windows land as one act, and the recruiter watches the board fill.
  *
  * Proposals are computed here, in the browser, because this is where the
  * hiring manager's time zone is known for free; the tokens never leave the
@@ -23,10 +22,15 @@ import { use, useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import "../../../hiring.css"
-import { HiringNav, EmptyBand } from "@/components/agency/hm-shared"
+import { EmptyBand } from "@/components/agency/hm-shared"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
 import { SignOut } from "@/components/agency/sign-out"
 import { proposeWindows, windowsWanted, type Interval } from "@/lib/calendar/windows"
+import { assessCapacity, type Capacity } from "@/lib/calendar/capacity"
+import { CohortBoard, type BoardData } from "@/components/agency/cohort-board"
+import { LoopRail } from "@/components/agency/loop-rail"
+import { loopProgress, type LoopRungKey } from "@/lib/agency/cohort-status"
+import { DEFAULT_SETTINGS, type InterviewSettings } from "@/lib/agency/interview-rules"
 
 interface Entry {
   ref: string
@@ -46,7 +50,7 @@ interface CalendarStatus {
   connection: { provider: string; label: string; connectedAt: string } | null
   providers: Array<{ key: string; label: string; configured: boolean }>
 }
-type Choice = "interview" | "decline" | ""
+type Choice = "interview" | "hold" | "decline" | ""
 
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
 const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
@@ -58,32 +62,170 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
   const [screen, setScreen] = useState<"loading" | "ready" | "none" | "unauthed" | "error">("loading")
   const [shortlist, setShortlist] = useState<Shortlist | null>(null)
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null)
+  const [disconnecting, setDisconnecting] = useState(false)
+
+  /**
+   * Hand the diary access back (22 Sep 2026). Confirmed, because the windows
+   * already offered are not withdrawn with it — those are promises made to
+   * candidates and they stay until they are withdrawn one by one.
+   */
+  async function disconnectCalendar() {
+    const ok = window.confirm(
+      "Disconnect your calendar? Tailr stops reading your busy time. Times you have already offered stay offered — withdraw those separately if you need to."
+    )
+    if (!ok) return
+    setDisconnecting(true)
+    setScanError(null)
+    try {
+      const res = await fetch("/api/hiring/calendar/status", { method: "DELETE" })
+      if (!res.ok) {
+        setScanError("We could not disconnect your calendar. Nothing has changed — try again.")
+        return
+      }
+      const again = await fetch("/api/hiring/calendar/status")
+      if (again.ok) setCalendar((await again.json()) as CalendarStatus)
+      // A scan's results belong to a calendar that is no longer connected.
+      setProposed(null)
+      setBusy(null)
+    } catch {
+      setScanError("We could not disconnect your calendar. Nothing has changed — try again.")
+    } finally {
+      setDisconnecting(false)
+    }
+  }
   const [choices, setChoices] = useState<Record<string, Choice>>({})
-  const [duration, setDuration] = useState(45)
+  /**
+   * The latest ROUND decision per candidate, which is not the same thing as
+   * their shortlist action.
+   *
+   * 20 Sep 2026: after writing up round 1 and declining somebody, this screen
+   * offered them again for round 2 — "3 shortlisted · 3 chosen", windows
+   * sized for 3 — while the header two inches above correctly read "offer
+   * interview times for 2 candidates". The selection was seeded from the
+   * SHORTLIST action ("interview", chosen before round 1 ever happened) and
+   * never consulted what the rounds had since decided.
+   *
+   * Read from the hiring manager's own dashboard payload: they made these
+   * decisions, so nothing here is newly disclosed. CohortMember carries only
+   * a `decided` boolean on purpose — "the rail counts people and never needs
+   * to know which way anyone went" — so it is deliberately not the source.
+   */
+  const [roundDecision, setRoundDecision] = useState<Record<string, string | null>>({})
+  // The rules the round is scheduled BY (10 Sep 2026). They were three
+  // throwaway controls; they are a stored, reusable object now, so the
+  // proposal, the capacity check and the recruiter all read the same numbers.
+  const [rules, setRules] = useState<InterviewSettings>(DEFAULT_SETTINGS)
+  const setRule = <K extends keyof InterviewSettings>(k: K, v: InterviewSettings[K]) =>
+    setRules((p) => ({ ...p, [k]: v }))
   const [busy, setBusy] = useState<Interval[] | null>(null)
   const [scanning, setScanning] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
-  const [rangeFrom, setRangeFrom] = useState(() => toDateInput(new Date(Date.now() + 86_400_000)))
-  const [rangeDays, setRangeDays] = useState(10)
+  const [capacity, setCapacity] = useState<Capacity | null>(null)
+  // Once anyone has been invited, this screen stops being a set-up form and
+  // becomes the scheduling board. One screen, two phases of the same job.
+  const [board, setBoard] = useState<BoardData | null>(null)
+  const loadBoard = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/hiring/roles/${roleId}/cohort`)
+      if (!res.ok) return
+      setBoard((await res.json()) as BoardData)
+    } catch {
+      /* the board simply does not render rather than guessing */
+    }
+  }, [roleId])
+  useEffect(() => {
+    void loadBoard()
+  }, [loadBoard])
   const [proposed, setProposed] = useState<Interval[] | null>(null)
   const [short, setShort] = useState(false)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = useState(false)
-  const [done, setDone] = useState<{ interviewed: number; declined: number; offered: number } | null>(null)
+  const [done, setDone] = useState<{ interviewed: number; invited: number; held: number; declined: number; offered: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  /**
+   * Where the cohort is, and which rung is the hiring manager's own.
+   *
+   * "Yours" is a different question from "where is everyone" and is answered
+   * separately: the only rung a hiring manager personally holds up is the
+   * write-up, because booking is the candidate's act and deciding needs the
+   * write-up first. When nothing is theirs, nothing is marked — a rail that
+   * always points at something teaches the reader to ignore it.
+   */
+  const progress = useMemo(
+    () => loopProgress((board?.members ?? []).map((m) => ({ status: m.status, decided: m.decided }))),
+    [board]
+  )
+  const yours: LoopRungKey | null = useMemo(
+    () => ((board?.members ?? []).some((m) => m.status === "feedback_due") ? "met" : null),
+    [board]
+  )
 
   const load = useCallback(async () => {
     try {
-      const [s, c] = await Promise.all([fetch(`/api/hiring/roles/${roleId}/shortlist`), fetch("/api/hiring/calendar/status")])
+      const [s, c, st] = await Promise.all([
+        fetch(`/api/hiring/roles/${roleId}/shortlist`),
+        fetch("/api/hiring/calendar/status"),
+        fetch(`/api/hiring/roles/${roleId}/interview-settings`),
+      ])
       if (s.status === 401) return setScreen("unauthed")
       if (s.status === 404) return setScreen("none")
       if (!s.ok) return setScreen("error")
       const body = (await s.json()) as { shortlist: Shortlist }
       setShortlist(body.shortlist)
       const initial: Record<string, Choice> = {}
-      for (const e of body.shortlist.entries) initial[e.ref] = e.action === "interview" || e.action === "approve" ? "interview" : e.action === "decline" ? "decline" : ""
+      for (const e of body.shortlist.entries) {
+        initial[e.ref] =
+          e.action === "interview" || e.action === "approve"
+            ? "interview"
+            : e.action === "hold"
+              ? "hold"
+              : e.action === "decline"
+                ? "decline"
+                : ""
+      }
       setChoices(initial)
+
+      // Best effort: losing this must not take the screen down, it only makes
+      // the selection less informed.
+      void fetch("/api/hiring/dashboard")
+        .then((d) => (d.ok ? d.json() : null))
+        .then((payload) => {
+          const rs = payload?.dashboard?.rounds
+          if (!Array.isArray(rs)) return
+          const latest: Record<string, { n: number; decision: string | null }> = {}
+          for (const r of rs as Array<Record<string, unknown>>) {
+            if (r.role_id !== roleId || r.status === "cancelled") continue
+            const ref = String(r.candidate_ref ?? "")
+            const n = Number(r.round_number ?? 0)
+            if (!ref) continue
+            if (!latest[ref] || n >= latest[ref].n) {
+              latest[ref] = { n, decision: (r.latest_decision as string | null) ?? null }
+            }
+          }
+          const byRef: Record<string, string | null> = {}
+          for (const [ref, v] of Object.entries(latest)) byRef[ref] = v.decision
+          setRoundDecision(byRef)
+          // Somebody declined at their last round is not in the next wave.
+          // They stay on the list, visibly, with the reason — this unselects
+          // them, it does not remove them.
+          setChoices((prev) => {
+            const next = { ...prev }
+            for (const [ref, decision] of Object.entries(byRef)) {
+              if (decision === "decline" && next[ref] === "interview") next[ref] = ""
+            }
+            return next
+          })
+        })
+        .catch(() => {})
       if (c.ok) setCalendar((await c.json()) as CalendarStatus)
+      if (st.ok) {
+        const saved = (await st.json()) as { settings: InterviewSettings }
+        // A window that has already passed helps nobody: default the range
+        // forward rather than showing last month's.
+        const from = saved.settings.windowFrom && saved.settings.windowFrom >= toDateInput(new Date()) ? saved.settings.windowFrom : null
+        setRules({ ...saved.settings, windowFrom: from, windowTo: from ? saved.settings.windowTo : null })
+      }
       setScreen("ready")
     } catch {
       setScreen("error")
@@ -95,6 +237,12 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
   }, [load])
 
   const chosen = useMemo(() => Object.entries(choices).filter(([, c]) => c === "interview").map(([ref]) => ref), [choices])
+  const held = useMemo(() => Object.values(choices).filter((c) => c === "hold").length, [choices])
+  const declined = useMemo(() => Object.values(choices).filter((c) => c === "decline").length, [choices])
+  const undecided = useMemo(
+    () => (shortlist?.entries ?? []).filter((e) => !e.action && !choices[e.ref]).length,
+    [shortlist, choices]
+  )
   const wanted = windowsWanted(chosen.length)
   // Read off the URL rather than useSearchParams so this page needs no
   // Suspense boundary — the same choice the workflow page makes.
@@ -103,16 +251,33 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
     setCalendarNote(new URLSearchParams(window.location.search).get("calendar"))
   }, [])
 
+  /** The range to look across: what they chose, or the next fortnight. */
+  function range(): { from: Date; to: Date; days: number } {
+    const from = rules.windowFrom ? new Date(`${rules.windowFrom}T00:00:00`) : new Date(Date.now() + 86_400_000)
+    from.setHours(0, 0, 0, 0)
+    const to = rules.windowTo ? new Date(`${rules.windowTo}T23:59:59`) : new Date(from.getTime() + 14 * 86_400_000)
+    const days = Math.max(1, Math.ceil((to.getTime() - from.getTime()) / 86_400_000))
+    return { from, to, days }
+  }
+
   async function scan() {
     setScanning(true)
     setScanError(null)
     try {
-      const from = new Date(`${rangeFrom}T00:00:00`)
-      const to = new Date(from.getTime() + rangeDays * 86_400_000)
+      const { from, to } = range()
       const res = await fetch(`/api/hiring/calendar/busy?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`)
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         setScanError(typeof body?.error === "string" ? body.error : "Could not read your calendar.")
+        // The connection is permanently gone, not merely unhappy: the server
+        // has already deleted the row. Re-read the status so this screen drops
+        // back to "Connect Google Calendar" instead of leaving a connected
+        // pill above a scan button that can now only fail.
+        if (body?.reconnect === true) {
+          const again = await fetch("/api/hiring/calendar/status")
+          if (again.ok) setCalendar((await again.json()) as CalendarStatus)
+          else setCalendar((c) => (c ? { ...c, connection: null } : c))
+        }
         return
       }
       const intervals = (body.busy ?? []) as Interval[]
@@ -126,22 +291,51 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
   }
 
   function propose(intervals: Interval[]) {
-    const from = new Date(`${rangeFrom}T00:00:00`)
-    const p = proposeWindows({ candidates: chosen.length, durationMinutes: duration, busy: intervals, from, days: rangeDays })
+    const { from, days } = range()
+    const p = proposeWindows({
+      candidates: chosen.length,
+      durationMinutes: rules.durationMinutes,
+      bufferMinutes: rules.bufferMinutes,
+      perDayMax: rules.maxPerDay,
+      busy: intervals,
+      from,
+      days,
+      // The candidate's notice period is the same setting the booking page
+      // filters on. Offering inside it produces a window nobody can see.
+      minNoticeMinutes: rules.minNoticeHours * 60,
+    })
     setProposed(p.windows)
     setShort(p.short)
     setPicked(new Set(p.windows.map((w) => w.start)))
   }
+
+  // Capacity is measured against what is TICKED, not what was proposed —
+  // unticking is how a manager says no, and the count has to follow.
+  useEffect(() => {
+    if (!proposed) return setCapacity(null)
+    const picks = proposed.filter((w) => picked.has(w.start))
+    setCapacity(assessCapacity(picks, chosen.length, rules))
+  }, [proposed, picked, chosen.length, rules])
 
   async function confirm() {
     if (!shortlist) return
     setSubmitting(true)
     setError(null)
     try {
+      // The rules are saved first and on their own: they are what every
+      // later offer, reminder and reschedule is measured against, so they
+      // must not depend on the rest of this succeeding.
+      await fetch(`/api/hiring/roles/${roleId}/interview-settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: rules }),
+      }).catch(() => {})
       const fresh = shortlist.entries.filter((e) => !e.action)
       const decisions = fresh
         .map((e) => ({ ref: e.ref, action: choices[e.ref] }))
-        .filter((d): d is { ref: string; action: "interview" | "decline" } => d.action === "interview" || d.action === "decline")
+        .filter((d): d is { ref: string; action: "interview" | "hold" | "decline" } =>
+          d.action === "interview" || d.action === "hold" || d.action === "decline"
+        )
       let written = 0
       if (decisions.length > 0) {
         const r = await fetch(`/api/hiring/roles/${roleId}/decisions`, {
@@ -172,12 +366,29 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
         offered = Array.isArray(b?.offered) ? b.offered.length : 0
         if (b?.failed) setError(`${offered} offered, then: ${b.failed.error}`)
       }
+      // The cohort goes out as a WAVE, and the first one is not a special
+      // case: the planner sizes it against the windows just offered, so
+      // nobody is invited into a room with no chair. The windows must land
+      // first — an invitation with nothing to choose from is worse than none.
+      let invited = 0
+      let waveNote = ""
+      if (chosen.length > 0) {
+        const r = await fetch(`/api/hiring/roles/${roleId}/cohort`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ release: true }),
+        })
+        const b = await r.json().catch(() => ({}))
+        if (Array.isArray(b?.invited)) invited = b.invited.length
+        if (typeof b?.remaining === "number" && b.remaining > 0) {
+          waveNote = `${b.remaining} waiting in reserve.`
+        }
+      }
+      void waveNote
       void written
-      setDone({
-        interviewed: chosen.length,
-        declined: Object.values(choices).filter((c) => c === "decline").length,
-        offered,
-      })
+      void invited
+      await loadBoard()
+      setDone({ interviewed: chosen.length, invited, held, declined, offered })
       announceRoleChanged()
     } catch {
       setError("Something went wrong. Nothing you had already confirmed is lost.")
@@ -205,7 +416,6 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
           </>
         )}
       </div>
-      {screen === "ready" && <HiringNav />}
 
       <div className="agd-page" aria-busy={screen === "loading"}>
         {screen === "loading" && (
@@ -228,20 +438,68 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
               <p className="ag-banner" role="alert">The calendar was not connected ({calendarNote.replace(/-/g, " ")}). You can still pick a range of days below.</p>
             )}
 
+            {/* WHERE YOU ARE, before anything else on the screen.
+             *
+             * Ose, walking staging: "I'm sending out the interview invites
+             * and I don't know where I am in the process." The setup below
+             * is numbered 1 and 2 and works; what was missing is everything
+             * after you press invite. This says it once, at the top, whether
+             * or not a cohort exists yet — so the screen answers "what am I
+             * about to start?" and not only "what did I just do?" */}
+            <section className="agd-band" aria-labelledby="loop-h">
+              <div className="agd-eyebrow-row">
+                <h2 className="agd-eyebrow" id="loop-h">Your interview loop</h2>
+                <span className="agd-rule" />
+                {board && board.members.length > 0 && (
+                  <span className="agd-aside">how far each person has got</span>
+                )}
+              </div>
+              {!board || board.members.length === 0 ? (
+                <p className="hm-loop-intro">
+                  <b>You choose who to meet</b>, you offer times from your diary, <b>they pick their
+                  own</b>, you meet, you write up what you thought, and then you decide. Half of
+                  that is not yours to do — the two steps below are.
+                </p>
+              ) : (
+                <LoopRail progress={progress} yours={yours} />
+              )}
+            </section>
+
+            {board && board.members.length > 0 && (
+              <section className="agd-band" aria-labelledby="cohort-h">
+                <div className="agd-eyebrow-row">
+                  <h2 className="agd-eyebrow" id="cohort-h">Your interview cohort</h2>
+                  <span className="agd-rule" />
+                  <span className="agd-aside">everyone you invited, and where they are</span>
+                </div>
+                <CohortBoard
+                  board={board}
+                  hat="client"
+                  remindEndpoint={`/api/hiring/roles/${roleId}/cohort`}
+                  onChanged={() => void loadBoard()}
+                  offerMoreHref={`/hiring/roles/${roleId}/interviews#setup-when`}
+                  roomHref={(ref) => `/hiring/roles/${roleId}/rounds/${encodeURIComponent(ref)}`}
+                  releaseEndpoint={`/api/hiring/roles/${roleId}/cohort`}
+                />
+              </section>
+            )}
+
             {done ? (
               <section className="agd-band">
                 <div className="ag-receipt" role="status">
                   <div className="ag-receipt-head">
                     <span className="ag-receipt-eyebrow">Confirmed</span>
                     <span className="ag-receipt-confirmed">
-                      {done.interviewed} to interview{done.declined ? `, ${done.declined} not for this role` : ""}
+                      {done.invited} invited to book{done.invited < done.interviewed ? ` of ${done.interviewed} chosen` : ""}
+                      {done.held ? `, ${done.held} on hold` : ""}
+                      {done.declined ? `, ${done.declined} not for this role` : ""}
                       {done.offered ? `, ${done.offered} interview windows offered` : ", no windows offered yet"}.
                     </span>
                   </div>
                   <div className="ag-receipt-cells">
                     <div className="ag-receipt-cell"><span className="ag-receipt-label">Now owned by</span><span className="ag-receipt-value">Your recruiter</span></div>
-                    <div className="ag-receipt-cell"><span className="ag-receipt-label">Their next task</span><span className="ag-receipt-value">{done.offered ? `Book round 1 for ${done.interviewed} candidate${done.interviewed === 1 ? "" : "s"} into your windows.` : "Wait for your interview windows, then book round 1."}</span></div>
-                    <div className="ag-receipt-cell"><span className="ag-receipt-label">Then</span><span className="ag-receipt-value">Each candidate confirms; the rounds land in your diary; you write each one up before deciding.</span></div>
+                    <div className="ag-receipt-cell"><span className="ag-receipt-label">Their next task</span><span className="ag-receipt-value">{done.offered ? `Nothing — ${done.interviewed} candidate${done.interviewed === 1 ? " picks their" : "s pick their"} own time from your windows. Your recruiter watches it fill.` : "Offer some times, then the candidates can book."}</span></div>
+                    <div className="ag-receipt-cell"><span className="ag-receipt-label">Then</span><span className="ag-receipt-value">Each booking takes that window off the board; the rounds land in your diary; you write each one up before deciding.</span></div>
                   </div>
                 </div>
                 <p style={{ marginTop: 14 }}>
@@ -259,7 +517,11 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                   {shortlist.intro && <p className="agd-sub" style={{ marginBottom: 12 }}>{shortlist.intro}</p>}
                   <div className="hm-setup-list">
                     {shortlist.entries.map((e) => {
-                      const locked = !!e.action
+                      // Declined at their last round: locked out of the next
+                      // wave, and told so in words. Still listed — this is a
+                      // decision being respected, not a candidate removed.
+                      const declinedLastRound = roundDecision[e.ref] === "decline"
+                      const locked = !!e.action || declinedLastRound
                       const c = choices[e.ref] ?? ""
                       return (
                         <div key={e.ref} className={`hm-setup-row${c === "interview" ? " chosen" : ""}`}>
@@ -272,11 +534,27 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                             </span>
                           </div>
                           {locked ? (
-                            <span className="ag-pill">{e.action === "decline" ? "Not for this role" : e.action === "question" ? "You asked a question" : "Interview"} · already decided</span>
+                            <span className="ag-pill">
+                              {declinedLastRound
+                                ? "You declined this round · not in the next wave"
+                                : `${e.action === "decline" ? "Not for this role" : e.action === "hold" ? "On hold" : e.action === "question" ? "You asked a question" : "Interview"} · already decided`}
+                            </span>
                           ) : (
                             <div className="agd-seg" role="group" aria-label={`Decision for ${e.ref}`}>
-                              <button type="button" aria-pressed={c === "interview"} onClick={() => setChoices((p) => ({ ...p, [e.ref]: c === "interview" ? "" : "interview" }))}>Interview</button>
-                              <button type="button" aria-pressed={c === "decline"} onClick={() => setChoices((p) => ({ ...p, [e.ref]: c === "decline" ? "" : "decline" }))}>Not for this role</button>
+                              {([
+                                ["interview", "Interview"],
+                                ["hold", "Hold"],
+                                ["decline", "Not for this role"],
+                              ] as const).map(([value, label]) => (
+                                <button
+                                  key={value}
+                                  type="button"
+                                  aria-pressed={c === value}
+                                  onClick={() => setChoices((p) => ({ ...p, [e.ref]: c === value ? "" : value }))}
+                                >
+                                  {label}
+                                </button>
+                              ))}
                             </div>
                           )}
                         </div>
@@ -284,7 +562,9 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                     })}
                   </div>
                   <p className="agd-aside" style={{ marginTop: 10 }}>
-                    Full evidence for each candidate is in the shortlist your recruiter sent you. "Not for this role" is a signal to your recruiter, not a removal.
+                    Full evidence for each candidate is in the shortlist your recruiter sent you. <b>Hold</b> keeps
+                    somebody in reserve without inviting them yet. Every one of these is a signal to your recruiter,
+                    never a removal, and nothing is sent to the candidate except an invitation to book.
                   </p>
                 </section>
 
@@ -295,29 +575,76 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                     <span className="agd-aside">{chosen.length === 0 ? "choose candidates first" : `we will propose ${wanted} windows for ${chosen.length}`}</span>
                   </div>
 
+                  {/* THE RULES, NOT THE APPOINTMENTS. Answered once, then the
+                      proposal, the capacity check and the recruiter all read
+                      the same numbers. */}
                   <div className="hm-setup-controls">
                     <label className="hm-field">
                       <span className="hm-field-label">Interview length</span>
-                      <select className="ag-input" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
-                        <option value={30}>30 minutes</option>
-                        <option value={45}>45 minutes</option>
-                        <option value={60}>60 minutes</option>
+                      <select className="ag-input" value={rules.durationMinutes} onChange={(e) => setRule("durationMinutes", Number(e.target.value))}>
+                        {[15, 30, 45, 60, 90].map((n) => <option key={n} value={n}>{n} minutes</option>)}
                       </select>
                     </label>
                     <label className="hm-field">
-                      <span className="hm-field-label">From</span>
-                      <input className="ag-input" type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
+                      <span className="hm-field-label">Where</span>
+                      <select className="ag-input" value={rules.locationKind} onChange={(e) => setRule("locationKind", e.target.value as InterviewSettings["locationKind"])}>
+                        <option value="video">Video call</option>
+                        <option value="phone">Phone</option>
+                        <option value="in_person">In person</option>
+                      </select>
                     </label>
                     <label className="hm-field">
-                      <span className="hm-field-label">Across</span>
-                      <select className="ag-input" value={rangeDays} onChange={(e) => setRangeDays(Number(e.target.value))}>
-                        <option value={5}>5 days</option>
-                        <option value={10}>10 days</option>
-                        <option value={14}>14 days</option>
-                        <option value={21}>21 days</option>
+                      <span className="hm-field-label">{rules.locationKind === "in_person" ? "Address or room" : rules.locationKind === "phone" ? "Who calls whom" : "Which platform"}</span>
+                      <input
+                        className="ag-input"
+                        placeholder={rules.locationKind === "in_person" ? "e.g. Meeting room 2" : rules.locationKind === "phone" ? "e.g. we call you" : "e.g. Google Meet"}
+                        value={rules.locationDetail}
+                        onChange={(e) => setRule("locationDetail", e.target.value)}
+                      />
+                    </label>
+                    <label className="hm-field">
+                      <span className="hm-field-label">Earliest day</span>
+                      <input className="ag-input" type="date" value={rules.windowFrom ?? ""} onChange={(e) => setRule("windowFrom", e.target.value || null)} />
+                    </label>
+                    <label className="hm-field">
+                      <span className="hm-field-label">Latest day</span>
+                      <input className="ag-input" type="date" value={rules.windowTo ?? ""} onChange={(e) => setRule("windowTo", e.target.value || null)} />
+                    </label>
+                    <label className="hm-field">
+                      <span className="hm-field-label">Most in one day</span>
+                      <select className="ag-input" value={rules.maxPerDay} onChange={(e) => setRule("maxPerDay", Number(e.target.value))}>
+                        {[1, 2, 3, 4, 5, 6, 8].map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </label>
+                    <label className="hm-field">
+                      <span className="hm-field-label">Gap between</span>
+                      <select className="ag-input" value={rules.bufferMinutes} onChange={(e) => setRule("bufferMinutes", Number(e.target.value))}>
+                        {[0, 15, 30, 60].map((n) => <option key={n} value={n}>{n === 0 ? "None" : `${n} minutes`}</option>)}
+                      </select>
+                    </label>
+                    <label className="hm-field">
+                      <span className="hm-field-label">Invite in waves of</span>
+                      <select
+                        className="ag-input"
+                        value={rules.waveSize ?? ""}
+                        onChange={(e) => setRule("waveSize", e.target.value ? Number(e.target.value) : null)}
+                      >
+                        <option value="">Everyone at once</option>
+                        {[3, 4, 5, 6, 8, 10].map((n) => <option key={n} value={n}>{n} at a time</option>)}
+                      </select>
+                    </label>
+                    <label className="hm-field">
+                      <span className="hm-field-label">Notice a candidate gets</span>
+                      <select className="ag-input" value={rules.minNoticeHours} onChange={(e) => setRule("minNoticeHours", Number(e.target.value))}>
+                        {[0, 12, 24, 48, 72].map((n) => <option key={n} value={n}>{n === 0 ? "No minimum" : `${n} hours`}</option>)}
                       </select>
                     </label>
                   </div>
+                  <p className="agd-aside" style={{ marginTop: 8 }}>
+                    Answer these once. Every candidate you invite is offered times that obey them, and your recruiter sees the same
+                    rules. Inviting in waves keeps ten people from racing for four windows: the rest wait, and go out when the first
+                    wave has had its time or a window frees up.
+                  </p>
 
                   <div className="hm-setup-source">
                     {connected ? (
@@ -328,6 +655,21 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                         </button>
                         <button type="button" className="agd-tbtn" disabled={chosen.length === 0} onClick={() => propose([])}>
                           Propose without scanning
+                        </button>
+                        {/*
+                          Disconnect. The DELETE has existed since the
+                          calendar shipped and no screen ever called it: you
+                          could hand Tailr access to your diary and had no way
+                          to take it back (22 Sep 2026). Granting access needs
+                          a click, so withdrawing it should not need an email.
+                        */}
+                        <button
+                          type="button"
+                          className="agd-tbtn"
+                          disabled={disconnecting}
+                          onClick={() => void disconnectCalendar()}
+                        >
+                          {disconnecting ? "Disconnecting…" : "Disconnect"}
                         </button>
                       </>
                     ) : (
@@ -352,6 +694,26 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                   {scanError && <p className="ag-banner" role="alert">{scanError}</p>}
                   {busy && <p className="agd-aside">Read {busy.length} busy span{busy.length === 1 ? "" : "s"} from your calendar. Nothing about them is stored.</p>}
 
+                  {capacity && chosen.length > 0 && (
+                    <div className={`ag-banner hm-capacity ${capacity.level}`} role="status">
+                      <div style={{ fontWeight: 600 }}>{capacity.headline}</div>
+                      {(capacity.rejected.tooSoon > 0 || capacity.rejected.overDailyCap > 0 || capacity.rejected.tooShort > 0) && (
+                        <div className="ag-meta" style={{ marginTop: 4 }}>
+                          {[
+                            capacity.rejected.tooSoon > 0 && `${capacity.rejected.tooSoon} inside your ${rules.minNoticeHours}-hour notice`,
+                            capacity.rejected.overDailyCap > 0 && `${capacity.rejected.overDailyCap} over your ${rules.maxPerDay}-a-day limit`,
+                            capacity.rejected.tooShort > 0 && `${capacity.rejected.tooShort} shorter than ${rules.durationMinutes} minutes`,
+                          ].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                      {capacity.level === "short" && (
+                        <div className="ag-meta" style={{ marginTop: 4 }}>
+                          Widen the range, raise the daily limit, or invite fewer people for now — you can invite the rest when times open up.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {proposed && (
                     <div className="hm-setup-windows">
                       {short && (
@@ -374,18 +736,51 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                   )}
                 </section>
 
-                <section className="agd-band">
-                  {error && <p className="ag-banner" role="alert">{error}</p>}
-                  <div className="hm-brief-actions">
-                    <button type="button" className="agd-tbtn primary" disabled={submitting || (chosen.length === 0 && !Object.values(choices).includes("decline"))} onClick={() => void confirm()}>
-                      {submitting ? "Confirming…" : `Confirm ${chosen.length} to interview${picked.size ? ` and offer ${picked.size} windows` : ""}`}
-                    </button>
-                    <button type="button" className="agd-tbtn" onClick={() => router.push(`/hiring/roles/${roleId}`)}>Not now</button>
+                {error && (
+                  <section className="agd-band">
+                    <p className="ag-banner" role="alert">{error}</p>
+                  </section>
+                )}
+
+                {/*
+                  THE ACTION BAR (11 Sep 2026, Ose): persistent, carrying the
+                  count and the single act. The confirm used to sit at the
+                  bottom of a long screen, so on a cohort of fifteen you made
+                  fifteen decisions and then had to go looking for the button.
+                */}
+                <div className="hm-actionbar" role="region" aria-label="Invite your cohort">
+                  <div className="hm-actionbar-count">
+                    <strong>
+                      {chosen.length === 0
+                        ? "Nobody selected yet"
+                        : `${chosen.length} candidate${chosen.length === 1 ? "" : "s"} selected`}
+                    </strong>
+                    <span className="ag-meta">
+                      {[
+                        held > 0 && `${held} on hold`,
+                        declined > 0 && `${declined} not for this role`,
+                        undecided > 0 && `${undecided} still to decide`,
+                        picked.size > 0 && `${picked.size} window${picked.size === 1 ? "" : "s"} to offer`,
+                      ].filter(Boolean).join(" · ") || "Choose who you want to interview"}
+                    </span>
                   </div>
-                  <p className="agd-aside" style={{ marginTop: 8 }}>
-                    Your recruiter books each candidate into one of your windows; the candidate confirms; it lands in your diary.
-                  </p>
-                </section>
+                  <span className="ag-grow" />
+                  <button type="button" className="agd-tbtn" onClick={() => router.push(`/hiring/roles/${roleId}`)}>
+                    Not now
+                  </button>
+                  <button
+                    type="button"
+                    className="agd-tbtn primary"
+                    disabled={submitting || (chosen.length === 0 && held === 0 && declined === 0)}
+                    onClick={() => void confirm()}
+                  >
+                    {submitting
+                      ? "Sending…"
+                      : chosen.length === 0
+                        ? "Save these decisions"
+                        : `Invite ${chosen.length} to interview`}
+                  </button>
+                </div>
               </>
             )}
           </>

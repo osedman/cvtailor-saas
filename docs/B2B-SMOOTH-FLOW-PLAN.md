@@ -223,11 +223,26 @@ start target · client contact. Saving mints the role through the same
 conversion contract the HM path uses (`BRIEF_CONVERSION_COLUMNS`, so the JD
 cannot silently vanish again) and lands on step 02 parse.
 
-The hiring manager's "Post a brief" stays as a secondary path: a client can
+~~The hiring manager's "Post a brief" stays as a secondary path: a client can
 still send one, it lands in the inbox, and accepting it pre-fills this form
 rather than minting a role on its own. It drops out of the HM nav's primary
 slot (Home · My roles keep it reachable from a role's Overview). Nothing is
-deleted; the origin just moves to the desk that owns the process.
+deleted; the origin just moves to the desk that owns the process.~~
+
+**SUPERSEDED 15 Sep 2026 — Ose went further than this.** Both doors are gone:
+the dashboard's primary "Post a brief" and the nav's "Send a brief". A hiring
+manager can no longer start a role at all; opening one is wholly the
+recruiter's act. The paragraph above described the intended half-measure, and
+the code had in fact implemented neither cleanly — `hm-shared.tsx` carried the
+demotion in a comment while the dashboard still rendered the brief as its
+PRIMARY button, so the two surfaces disagreed and the louder one was winning.
+
+The ROUTE survives deliberately: `/hiring/briefs/new` and
+`POST /api/hiring/briefs` still answer, because deleting them would leave the
+recruiter's briefs inbox unable to ever receive a new brief. **Open
+consequence:** the inbox can now only ever hold what already exists, so if
+briefs are meant to be gone for good, the inbox and the accept-to-mint-a-role
+path are the next things to decide.
 
 **5b · The matched list, shown to the recruiter**
 
@@ -297,9 +312,43 @@ Turn the switch off and reload the recruiter's screen: the row is gone.
 
 - The copy table above applied across both hats and the doorways.
 - `web-design-guidelines` pass on every touched screen, desktop and mobile.
-- Success measures from the review, wired into the dashboard route's timings:
-  brief accepted → submission; submission → all decisions; slot offered →
-  booked; decision → pack delivered.
+- ~~Success measures from the review, wired into the dashboard route's
+  timings: brief accepted → submission; submission → all decisions; slot
+  offered → booked; decision → pack delivered.~~ **STRUCK 15 Sep 2026.**
+
+  Two of the four cannot be measured: nobody has pressed "That's all my
+  decisions", so `submission → all decisions` and `decision → pack delivered`
+  both have a sample size of zero — by fact, not by bug. And the surface they
+  would live on, the Desk health band, was deleted on 10 Sep (`e007e61`, from
+  Ose's walk of staging) together with the Reports nav item, while the route
+  went on computing six measures for a client that had stopped reading them.
+  Both halves of that dead payload were removed the same day this was struck.
+
+  The three missing spans were written and verified first — against the
+  DEPLOYED schema (all columns present, RLS on, `authenticated` holds SELECT
+  with a policy on each) and as real SQL against seeded staging, where
+  `slot offered → booked` returned **n=6** and the other two returned n=0.
+  The shape to rebuild from, when there is something to measure:
+
+  - **slot → booked**: `availability_slots.created_at` → the earliest
+    `interview_rounds.created_at` whose `slot_id` points at it. Skip revoked
+    slots — a withdrawn offer is not a slow one.
+  - **submission → all decisions**: earliest `submission_recipients.created_at`
+    for the role → the latest `role_decision_completions` row for that role
+    when its `action` is `completed`. Append-only newest-wins, so a role
+    withdrawn after completing is not complete. Note this is a DIFFERENT
+    question from the existing `shortlist_to_reply`, which measures the first
+    reply: a client who answers on one candidate and then goes quiet for
+    three weeks scores well on that and has not finished.
+  - **decision → pack delivered**: that completion → the earliest
+    `handover_packs.delivered_at`. `generated_at` is when the recruiter made
+    the pack; only `delivered_at` ends the role.
+
+  Every measure needs its own `n` beside it, so a tile can say "nothing to
+  average yet" rather than show a blank that reads as zero. No SLA anywhere:
+  this product has no agreed service level, so nothing is coloured late.
+
+  **Revisit once the loop has been walked by a person.**
 
 ## Definition of done for the whole plan
 

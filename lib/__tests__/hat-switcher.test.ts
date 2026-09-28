@@ -60,8 +60,10 @@ describe("the way between the two surfaces", () => {
 
   it("neither flag is defaulted true", () => {
     // Defaulting on would show every recruiter a door into a client workspace.
-    expect(hiring).toMatch(/useState\(false\)[\s\S]{0,80}?/)
-    expect(hiring).toMatch(/setAlsoRecruiter\(Boolean\(/)
+    // The flag is loaded in the shared hook since frame 23.
+    const hook = read("components/agency/hm-room.tsx")
+    expect(hook).toMatch(/const \[alsoRecruiter, setAlsoRecruiter\] = useState\(false\)/)
+    expect(hook).toMatch(/setAlsoRecruiter\(Boolean\(/)
     expect(agencies).toMatch(/also_hiring_manager\?: boolean/)
   })
 })

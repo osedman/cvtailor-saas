@@ -25,6 +25,8 @@ const store = vi.hoisted(() => ({
   updates: [] as Row[],
   audit: [] as Row[],
   notified: [] as Row[],
+  /** Interview rules rows, both layers. Empty means nobody has set any. */
+  interviewSettings: [] as Row[],
 }))
 
 const admin = vi.hoisted(() => ({
@@ -33,9 +35,42 @@ const admin = vi.hoisted(() => ({
     let mode: "select" | "update" = "select"
     let patch: Row = {}
     const chain: Record<string, unknown> = {}
+    const extra: Array<(row: Row) => boolean> = []
+    let sortBy: { col: string; asc: boolean } | null = null
     chain.select = () => { mode = "select"; return chain }
     chain.eq = (c: string, v: unknown) => { filters[c] = v; return chain }
     chain.update = (p: Row) => { mode = "update"; patch = p; return chain }
+    chain.is = (c: string, v: unknown) => { filters[c] = v; return chain }
+    /*
+     * These four are IMPLEMENTED, not stubbed. A chain method that ignores
+     * its arguments and returns `chain` makes every query look correct, which
+     * is the standing lesson here: a mock that does not implement the filter
+     * it is handed will agree with wrong code forever.
+     */
+    chain.neq = (c: string, v: unknown) => { extra.push((row: Row) => row[c] !== v); return chain }
+    chain.gt = (c: string, v: unknown) => { extra.push((row: Row) => String(row[c]) > String(v)); return chain }
+    chain.not = (c: string, op: string, v: unknown) => {
+      if (op !== "is") throw new Error(`mock .not does not implement "${op}"`)
+      extra.push((row: Row) => !(v === null ? row[c] === null || row[c] === undefined : row[c] === v))
+      return chain
+    }
+    chain.order = (c: string, opts?: { ascending?: boolean }) => {
+      sortBy = { col: c, asc: opts?.ascending !== false }
+      return chain
+    }
+    /* Only the one form the settings resolver uses — `col.eq.v,col.is.null`.
+     * Anything else throws rather than silently matching everything. */
+    chain.or = (expr: string) => {
+      extra.push((row: Row) =>
+        expr.split(",").some((clause) => {
+          const [col, op, val] = clause.split(".")
+          if (op === "is" && val === "null") return row[col] === null || row[col] === undefined
+          if (op === "eq") return String(row[col]) === val
+          throw new Error(`mock .or does not implement "${clause}"`)
+        })
+      )
+      return chain
+    }
 
     const rowsFor = () => {
       if (table === "interview_rounds") {
@@ -44,6 +79,12 @@ const admin = vi.hoisted(() => ({
       if (table === "agencies") return [{ name: "Halcyon Search", notice_from_name: "", notice_reply_to: "" }]
       if (table === "client_contacts") return [{ company: "Meridian Health" }]
       if (table === "candidates") return [{ ref: "CAN-01", full_name: "Amara Okafor", email: "a@example.test" }]
+      if (table === "interview_settings") {
+        return (store.interviewSettings ?? []).filter(
+          (r: Row) =>
+            Object.entries(filters).every(([k, v]) => r[k] === v) && extra.every((p) => p(r))
+        )
+      }
       return []
     }
 
@@ -54,7 +95,12 @@ const admin = vi.hoisted(() => ({
         hit.forEach((r) => Object.assign(r, patch))
         return { data: null, error: null }
       }
-      return { data: rowsFor(), error: null }
+      const rows = rowsFor()
+      if (sortBy) {
+        const { col, asc } = sortBy
+        rows.sort((a: Row, b: Row) => (String(a[col]) < String(b[col]) ? -1 : 1) * (asc ? 1 : -1))
+      }
+      return { data: rows, error: null }
     }
     chain.maybeSingle = () => Promise.resolve({ data: rowsFor()[0] ?? null, error: null })
     chain.single = () => Promise.resolve({ data: rowsFor()[0] ?? null, error: null })
@@ -201,4 +247,82 @@ describe("clicking twice", () => {
     seed()
     expect(await respondToBooking("nope", "confirmed")).toBe("not_found")
   })
+})
+
+/**
+ * The agency default reaches the candidate's doorway.
+ *
+ * The point of the two-layer change: the minimum notice decides whether a
+ * candidate can still move a time, and before 19 Sep 2026 it could only be
+ * set one role at a time. These go through the real path — peekBooking ->
+ * mayReschedule -> getInterviewSettings — so a default that resolves
+ * correctly in a unit test but never reaches the person would still fail.
+ */
+describe("the agency default reaches the doorway", () => {
+  const row = (roleId: string | null, minNoticeHours: number) => ({
+    agency_id: "a1",
+    role_id: roleId,
+    interview_type: "Hiring manager interview",
+    duration_minutes: 45,
+    location_kind: "video",
+    location_detail: "",
+    window_from: null,
+    window_to: null,
+    min_notice_hours: minNoticeHours,
+    buffer_minutes: 15,
+    max_per_day: 4,
+    reschedule_policy: "until_notice",
+    wave_size: null,
+    wave_release_hours: 48,
+    reschedule_limit: 1,
+  })
+
+  /*
+   * peekBooking reads the clock itself, so the interview is seeded FIVE HOURS
+   * from now rather than at a fixed date — between the two notice periods
+   * under test. A hard-coded timestamp would drift into the past and start
+   * passing for the wrong reason.
+   */
+  const inFiveHours = () => new Date(Date.now() + 5 * 3_600_000).toISOString()
+
+  it("a long agency default stops a move nobody set a role rule for", async () => {
+    seed({ candidate_response: "confirmed", scheduled_at: inFiveHours() })
+    store.interviewSettings = [row(null, 24)]
+    const view = await peekBooking(TOKEN)
+    expect(view.reschedule.allowed).toBe(false)
+    expect(view.reschedule.because).toMatch(/too close/i)
+  })
+
+  it("a short agency default lets the same move through", async () => {
+    seed({ candidate_response: "confirmed", scheduled_at: inFiveHours() })
+    store.interviewSettings = [row(null, 0)]
+    const view = await peekBooking(TOKEN)
+    expect(view.reschedule.allowed).toBe(true)
+  })
+
+  it("the role's own rule beats the agency default", async () => {
+    seed({ candidate_response: "confirmed", scheduled_at: inFiveHours() })
+    store.interviewSettings = [row(null, 24), row("role-1", 0)]
+    const view = await peekBooking(TOKEN)
+    expect(view.reschedule.allowed).toBe(true)
+  })
+
+  it("with neither layer set, the product default of 24 hours applies", async () => {
+    seed({ candidate_response: "confirmed", scheduled_at: inFiveHours() })
+    store.interviewSettings = []
+    const view = await peekBooking(TOKEN)
+    expect(view.reschedule.allowed).toBe(false)
+  })
+
+  /*
+   * A NOTE ON WHAT THESE DO NOT CATCH, because the first draft claimed they
+   * did. Loosening the mock's `.or` so it stops filtering leaves all four
+   * passing — the resolver still picks the role's row out of whatever comes
+   * back, so a sloppier query changes nothing about the outcome here. The
+   * `.or` is implemented faithfully anyway (it keeps the mock honest about
+   * what Postgres would return), but the thing that actually protects the
+   * precedence is resolveSettingsRows, tested directly in
+   * interview-settings-layers.test.ts. Probed 19 Sep 2026; both statements
+   * are from running it, not from reasoning about it.
+   */
 })

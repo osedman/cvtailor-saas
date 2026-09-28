@@ -11,6 +11,7 @@ import { describe, it, expect } from "vitest"
 import {
   ageLabel,
   deriveSubState,
+  handoffFor,
   nextAction,
   type RoleFacts,
   type RoundFacts,
@@ -31,6 +32,7 @@ function facts(over: Partial<RoleFacts> = {}): RoleFacts {
     failures: 0,
     reviewed: 0,
     undecided: 0,
+  decisionsCompleteAt: null,
     submission: null,
     openWindows: 0,
     lastWindowOfferedAt: null,
@@ -58,14 +60,31 @@ function round(over: Partial<RoundFacts> = {}): RoundFacts {
   }
 }
 
+/**
+ * A submission that genuinely WENT somewhere: to the portal, addressed to a
+ * named client contact.
+ *
+ * The format and recipient count were added 18 Sep 2026. Before that this
+ * fixture was called `sent` and modelled no delivery at all — which is
+ * exactly why nothing caught the receipt claiming "sent to the client" over a
+ * document submission with no recipients, on a role with no client. A mock
+ * that does not implement the thing its name promises will agree with wrong
+ * code forever.
+ */
 const sent = (over: Partial<NonNullable<RoleFacts["submission"]>> = {}) => ({
   generatedAt: "2026-09-03T09:00:00Z",
+  format: "portal",
+  recipients: 1,
   submitted: 3,
   decided: 0,
   advanced: 0,
   lastActionAt: null,
   ...over,
 })
+
+/** Generated and taken away as a file. Nothing left Tailr, nobody was named. */
+const generatedOnly = (over: Partial<NonNullable<RoleFacts["submission"]>> = {}) =>
+  sent({ format: "document", recipients: 0, ...over })
 
 describe("the shortlist ladder", () => {
   it("starts at intake with nothing parsed", () => {
@@ -127,11 +146,13 @@ describe("the interview loop", () => {
     expect(s.party).toBe("client")
     expect(s.since).toBe("2026-09-03T12:00:00Z")
   })
-  it("advanced with a window open is the recruiter's round 1 to book", () => {
+  it("advanced with a window open means round 1 goes out for them to choose", () => {
+    // Since 11 Sep 2026 the candidate books every round, so nobody waits on
+    // a recruiter to seat them.
     const s = deriveSubState(facts({ ...base, openWindows: 2, lastWindowOfferedAt: "2026-09-03T14:00:00Z" }))
     expect(s.key).toBe("round-to-book")
-    expect(s.chip).toBe("ROUND 1 TO BOOK")
-    expect(s.party).toBe("recruiter")
+    expect(s.chip).toBe("ROUND 1 GOING OUT")
+    expect(s.party).toBe("candidate")
     expect(s.since).toBe("2026-09-03T14:00:00Z")
   })
   it("a pending invite waits on the candidate, by ref", () => {
@@ -141,11 +162,35 @@ describe("the interview loop", () => {
     expect(s.candidateRef).toBe("CAN-03")
     expect(nextAction(facts({ ...base, rounds: [round()] }), "recruiter", "r1").waitingOn.label).toBe("Candidate CAN-03")
   })
-  it("a confirmed round is booked and waits on nobody but the date", () => {
-    const s = deriveSubState(facts({ ...base, rounds: [round({ candidateResponse: "confirmed" })] }))
+  it("a confirmed round STILL TO COME is booked and waits on nobody but the date", () => {
+    // An explicit clock, because the fixture's date is fixed and the rule now
+    // reads the clock: this assertion used to pass only because it never
+    // looked, and it was asserting "booked" about a round sixteen days past.
+    const before = new Date("2026-09-04T09:00:00Z")
+    const s = deriveSubState(facts({ ...base, rounds: [round({ candidateResponse: "confirmed" })] }), before)
     expect(s.key).toBe("booked")
     expect(s.party).toBe("nobody")
     expect(s.since).toBe("2026-09-04T10:00:00Z")
+  })
+  it("the same round, while it is running, is happening now", () => {
+    // The fixture round is 10:00-10:45.
+    const during = new Date("2026-09-04T10:30:00Z")
+    const s = deriveSubState(facts({ ...base, rounds: [round({ candidateResponse: "confirmed" })] }), during)
+    expect(s.key).toBe("happening-now")
+    expect(s.chip).toBe("HAPPENING NOW")
+    // Named, but nothing is owed until it ends — no control appears.
+    expect(nextAction(facts({ ...base, rounds: [round({ candidateResponse: "confirmed" })] }), "client", "r1", during).mode).toBe("wait")
+  })
+
+  it("the same round, once it has ENDED, is the client's write-up", () => {
+    // The bug, 20 Sep 2026: this stayed "booked · nothing is needed until it
+    // happens" for ever, while the cohort table on the same screen had long
+    // since said WRITE-UP DUE. Nobody has to press anything for the clock to
+    // move.
+    const after = new Date("2026-09-04T11:00:00Z")
+    const s = deriveSubState(facts({ ...base, rounds: [round({ candidateResponse: "confirmed" })] }), after)
+    expect(s.key).toBe("write-up-due")
+    expect(s.party).toBe("client")
   })
   it("a completed round with no write-up waits on the client, since the slot ended", () => {
     const s = deriveSubState(facts({ ...base, rounds: [round({ status: "completed", candidateResponse: "confirmed" })] }))
@@ -164,8 +209,10 @@ describe("the interview loop", () => {
     const f = facts({ ...base, openWindows: 1, rounds: [round({ status: "completed", hasDebrief: true, decision: "advance", decidedAt: "2026-09-04T15:00:00Z" })] })
     const s = deriveSubState(f)
     expect(s.key).toBe("round-to-book")
-    expect(s.chip).toBe("ROUND 2 TO BOOK")
-    expect(nextAction(f, "recruiter", "r1").title).toBe("Book round 2 for CAN-03")
+    expect(s.chip).toBe("ROUND 2 GOING OUT")
+    // Round two is self-booked too: the recruiter watches, never seats.
+    expect(nextAction(f, "recruiter", "r1").title).toBe("Round 2 is going out to CAN-03")
+    expect(nextAction(f, "recruiter", "r1").mode).toBe("wait")
   })
   it("advance at the planned count is take to close-out — a plan, not a gate", () => {
     const f = facts({ ...base, rounds: [round({ roundNumber: 2, status: "completed", hasDebrief: true, decision: "advance", decidedAt: "2026-09-04T15:00:00Z" })] })
@@ -187,7 +234,7 @@ describe("the interview loop", () => {
   it("a cancelled booking is owed again", () => {
     const f = facts({ ...base, openWindows: 1, rounds: [round({ status: "cancelled" })] })
     expect(deriveSubState(f).key).toBe("round-to-book")
-    expect(deriveSubState(f).chip).toBe("ROUND 1 TO BOOK")
+    expect(deriveSubState(f).chip).toBe("ROUND 1 GOING OUT")
   })
   it("close-out outranks a write-up owed on another candidate", () => {
     const f = facts({
@@ -284,5 +331,62 @@ describe("the module stays browser-safe", () => {
     // The only runtime import is the browser-safe phases module.
     const imports = [...code.matchAll(/^\s*import\s[^\n]*from\s+["']([^"']+)["']/gm)].map((m) => m[1])
     expect(imports).toEqual(["./phases"])
+  })
+})
+
+/**
+ * The receipt after a seam (handoffFor).
+ *
+ * UNTESTED UNTIL 18 SEPTEMBER 2026, which is how it came to claim a delivery
+ * that never happened. Its own docstring promised it "never says 'sent' when
+ * nothing was"; on ROL-2416 it said "Shortlist of 2 sent to the client" over a
+ * document submission with no recipients, on a role with no client contact at
+ * all — and the hiring manager's side was correctly empty the whole time.
+ *
+ * A submission ROW existing is not a delivery. Same shape as the
+ * `200 {enabled:false}` lesson: the thing that should have changed is
+ * recipients, not the presence of a record.
+ */
+describe("the receipt only claims what actually happened", () => {
+  const withClient = (submission: RoleFacts["submission"], over: Partial<RoleFacts> = {}) =>
+    facts({ phase: "interviews", submission, ...over })
+
+  it("says SENT when it went to a named recipient", () => {
+    const h = handoffFor(withClient(sent({ submitted: 2 })), "recruiter", "r1")
+    expect(h?.confirmed).toMatch(/Shortlist of 2 sent to Owen Castellano/)
+    expect(h?.then).toMatch(/chooses who to interview/)
+  })
+
+  it("never says SENT for a document nobody was addressed in", () => {
+    const h = handoffFor(withClient(generatedOnly({ submitted: 2 })), "recruiter", "r1")
+    // "sent TO" is the claim under test, not the word "sent" — the sentence
+    // legitimately says "Nothing has been sent from Tailr", and a blunter
+    // assertion failed on its own correct copy.
+    expect(h?.confirmed).not.toMatch(/sent to/i)
+    expect(h?.confirmed).toMatch(/generated as a document/)
+    expect(h?.confirmed).toMatch(/Nothing has been sent from Tailr/)
+  })
+
+  it("names the missing client contact, because that is the blocking fact", () => {
+    // No contact on the role means no hiring manager can see it at all, so
+    // the receipt must say so rather than leave it to be discovered by
+    // opening an empty screen. This is the ROL-2416 case exactly.
+    const h = handoffFor(withClient(generatedOnly({ submitted: 2 }), { clientName: null }), "recruiter", "r1")
+    expect(h?.then).toMatch(/No client contact is on this role/)
+    expect(h?.confirmed).not.toMatch(/\bsent to\b/i)
+  })
+
+  it("tells a recruiter WITH a client contact to send it themselves", () => {
+    const h = handoffFor(withClient(generatedOnly({ submitted: 2 })), "recruiter", "r1")
+    expect(h?.then).toMatch(/Send it to Owen Castellano yourself/)
+    expect(h?.then).not.toMatch(/No client contact/)
+  })
+
+  it("a zero-recipient EMAIL is not a delivery either", () => {
+    // The rule is recipients, not format. An email submission generated
+    // without anybody on it has sent exactly as much as a document has.
+    const h = handoffFor(withClient(generatedOnly({ format: "email", submitted: 2 })), "recruiter", "r1")
+    expect(h?.confirmed).toMatch(/generated as an email/)
+    expect(h?.confirmed).not.toMatch(/\bsent to\b/i)
   })
 })

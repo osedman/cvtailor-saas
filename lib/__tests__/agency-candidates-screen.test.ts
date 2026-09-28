@@ -65,19 +65,15 @@ describe("the nav, after the walk-through", () => {
     expect(nav).toMatch(/key: "candidates"[\s\S]*href: "\/agencies\/candidates"/)
   })
 
-  it("no page nests a section that just returns to its own top", () => {
-    // "Today" scrolled to the top of the page the Dashboard item already
-    // routes to: one destination, two names, the second leading nowhere new.
-    const sections = dashboard.slice(dashboard.indexOf("sections={["))
-    const block = sections.slice(0, sections.indexOf("]}"))
-    expect(block).not.toContain('label: "Today"')
-    expect(block).not.toContain('id: "top"')
+  it("the dashboard nests no sections at all any more", () => {
+    // "Today" once scrolled to the top of the page its own nav item already
+    // routed to. The whole mechanism went on 10 Sep 2026 when the dashboard
+    // became live roles and nothing else.
+    expect(dashboard).not.toContain("sections={[")
   })
 
-  it("Candidates is no longer duplicated as a dashboard section", () => {
-    const sections = dashboard.slice(dashboard.indexOf("sections={["))
-    const block = sections.slice(0, sections.indexOf("]}"))
-    expect(block).not.toContain('label: "Candidates"')
+  it("Candidates is a nav route, never a dashboard section", () => {
+    expect(dashboard).not.toContain('label: "Candidates"')
   })
 })
 

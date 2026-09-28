@@ -7,15 +7,16 @@
 import { describe, it, expect } from "vitest"
 import { readFileSync } from "fs"
 import { join } from "path"
-import { tsCode } from "./helpers/source-scan"
+import { tsCode, screenSource } from "./helpers/source-scan"
 
 const read = (p: string) => tsCode(readFileSync(join(process.cwd(), p), "utf8"))
 
 describe("the recruiter's Today route", () => {
   const src = read("app/api/agency/today/route.ts")
   it("derives every row from the ladder, never from a stage column", () => {
-    expect(src).toMatch(/getRoleFacts\(auth\.ctx, r\.id as string, now\)/)
-    expect(src).toMatch(/nextAction\(facts, "recruiter", facts\.roleId\)/)
+    // Batched since 10 Sep 2026: one assembly for every role, not one each.
+    expect(src).toMatch(/getRoleFactsBatch\(auth\.ctx, \(roles \?\? \[\]\)\.map/)
+    expect(src).toMatch(/nextAction\(f, "recruiter", f\.roleId\)/)
     expect(src).not.toMatch(/stage_state/)
   })
   it("leaves closed roles out", () => {
@@ -48,7 +49,7 @@ describe("the client's routes go through the projection", () => {
   it.each(["app/api/hiring/roles/[roleId]/header/route.ts", "app/api/hiring/today/route.ts"])("%s", (p) => {
     const src = read(p)
     expect(src).toMatch(/listClientRoles\(auth\.ctx\)/)
-    expect(src).toMatch(/getClientRoleHeader\(auth\.ctx/)
+    expect(src).toMatch(/getClientRoleHeaders?\(auth\.ctx/)
     expect(src).not.toMatch(/getRoleFacts\(/)
     expect(src).not.toMatch(/status: 403[^\n]*Role/)
   })
@@ -62,17 +63,28 @@ describe("the header renders where the plan says", () => {
     "app/agencies/roles/[roleId]/close-out/page.tsx",
     "app/agencies/roles/[roleId]/candidates/[candidateId]/dossier/page.tsx",
   ])("%s — recruiter", (p) => {
-    const src = read(p)
+    // screenSource, not read: candidate detail is a shell plus an extracted
+    // component since 14 Sep 2026, and the header lives in the component.
+    const src = screenSource(p)
     expect(src).toMatch(/<RoleHeader roleId=\{roleId\} hat="recruiter" \/>/)
     // The header owns the owner select now; the sidebar box that held it goes.
     expect(src).not.toMatch(/ag-active-role/)
   })
-  it("the client's role page — client", () => {
-    expect(read("app/hiring/roles/[roleId]/page.tsx")).toMatch(/<RoleHeader roleId=\{roleId\} hat="client" \/>/)
+  it("the client's role room — every stage page carries the room header (frame 23)", () => {
+    for (const p of [
+      "app/hiring/roles/[roleId]/shortlist/page.tsx",
+      "app/hiring/roles/[roleId]/round/[n]/page.tsx",
+      "app/hiring/roles/[roleId]/decision/page.tsx",
+      "app/hiring/roles/[roleId]/handover/page.tsx",
+    ]) {
+      expect(read(p), p).toMatch(/<RoomHeader room=\{room\} roleId=\{roleId\}/)
+    }
   })
   it("both homes read their queue from the ladder's routes", () => {
     expect(read("app/agencies/page.tsx")).toMatch(/fetch\("\/api\/agency\/today"\)/)
-    expect(read("app/hiring/page.tsx")).toMatch(/fetch\("\/api\/hiring\/today"\)/)
+    // The hiring side loads once, in the shared hook every place uses.
+    expect(read("components/agency/hm-room.tsx")).toMatch(/fetch\("\/api\/hiring\/today"\)/)
+    expect(read("app/hiring/page.tsx")).toMatch(/useHiringData\(\)/)
   })
 })
 

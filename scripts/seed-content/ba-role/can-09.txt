@@ -1,0 +1,22 @@
+Chloe Whitfield
+Edinburgh (hybrid) · o.oifoh+ba09@gmail.com · 07700 900909
+
+SUMMARY
+Business Analyst with five years in fintech, most recently writing requirements for a machine-learning fraud model and the operations tooling around it.
+
+EXPERIENCE
+
+Business Analyst — Kelpie Payments (2021–present)
+- Business Analyst delivering change projects on fraud, disputes and merchant onboarding.
+- Requirements documentation and process mapping for a machine learning fraud scoring model; a working understanding of AI concepts from that project.
+- Data analysis in SQL and Looker to size problems and measure outcomes.
+- Agile environment (Scrum): backlog management, sprint planning and user story creation.
+- Stakeholder management with product, engineering, compliance and payment scheme vendors.
+- Facilitated workshops and interviews with operations analysts and merchants.
+- Translate technical concepts into clear business language for the risk committee.
+
+Junior Business Analyst — Kelpie Payments (2019–2021)
+- Supported onboarding process mapping and UAT.
+
+SKILLS
+Business analysis · Requirements · Process mapping · SQL · Looker · Scrum · Jira · ML concepts (fraud scoring) · Workshop facilitation

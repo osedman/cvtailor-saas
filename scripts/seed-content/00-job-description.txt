@@ -1,0 +1,30 @@
+Senior Data Engineer — Patient Platform
+Meridian Health · London (hybrid, 2 days on site) · £85,000–£95,000
+
+ABOUT THE ROLE
+Meridian Health runs the appointment and records platform used by 40 NHS trusts.
+We are rebuilding the data layer that sits under it. You would own the pipelines
+that move clinical and operational data between services, and the models the
+analytics team builds on.
+
+WHAT YOU WILL DO
+- Design and own batch and streaming pipelines moving ~2TB/day
+- Rebuild our dbt models and take responsibility for data quality and testing
+- Work directly with clinical safety and information governance colleagues
+- Mentor two junior engineers
+
+WHAT WE NEED
+- Strong commercial Python, five years or more
+- Production experience with Apache Airflow or an equivalent orchestrator
+- Deep SQL, including query tuning on large tables
+- dbt in production, not just evaluated
+- Cloud data warehouse experience: Snowflake, BigQuery or Redshift
+- Streaming experience: Kafka, Kinesis or similar
+- Infrastructure as code, ideally Terraform
+- Experience handling personal or special category data under UK GDPR
+- Prior work in healthcare, clinical or another regulated domain
+- Evidence of mentoring or leading engineers
+
+NICE TO HAVE
+- FHIR or HL7
+- Experience migrating off a legacy warehouse

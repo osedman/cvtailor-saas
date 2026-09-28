@@ -542,6 +542,8 @@ _Last updated: 30 July 2026_
 
 | Item | Type | PR | Notes |
 |------|------|----|-------|
+| Weekly digest 28 Sep — "Some of those jobs were never real" | Content | — | 826 posts, 21–28 Sep. Themes delivered as a Word doc ([email/digest-themes-2026-09-28.docx](../email/digest-themes-2026-09-28.docx)) — Ose wants the options as a .docx, not an inline picker. Ose picked A (ghost jobs). Sent 70 of 77 subscribed, 0 failures, all delivered |
+| Weekly digest 14 Sep — "The headlines say your job is over" | Content | — | Fresh pull in [email/reddit-digest-2026-09-14.md](../email/reddit-digest-2026-09-14.md): 821 posts, 7–14 Sep, all ten feeds landed (1–7 Sep is the recurring `t=week` coverage gap). Format change this cycle: full report with FOUR candidate themes written up neutrally, Ose picked — chose D (AI career panic) over my ranking. Editorial line held in the copy: **no company named anywhere** — the report, quotes and hiring-data rebuttal all reached us second-hand via Reddit, and a Claude-drafted Tailr digest adjudicating Anthropic claims would be compromised in either direction; the email argues the pattern instead ("a press release is a belief; a job posting is money behind one") and widens beyond devs for the general list. Sent 67 of 74 subscribed, 0 failures, all delivered. Commit deliberately excludes the concurrent agency-session working tree; PROJECT.md staged by single hunk to avoid the 13 Aug commit-collision repeat |
 | Weekly digest 1 Sep — "You do not owe them that answer" | Content | — | Fresh pull in [email/reddit-digest-2026-09-01.md](../email/reddit-digest-2026-09-01.md): 577+ posts, 25 Aug–1 Sep (note: `t=week` feeds only reach 7 days back, so 20–25 Aug is a coverage gap). Theme: interview questions you can decline + the paper trail — chosen on resonance over volume (the salary-history story topped two subs at once; layoff despair was bigger at 46 posts but is mood, not advice — same call as the 6 Aug mental-health cluster). Legality phrased jurisdiction-carefully for the UK-heavy list ("a growing list of places ban it; everywhere, you can decline"); identity details in the source story generalised out per the standing rule. Sent to 64 of 71 subscribed, 0 failures, all confirmed `delivered`. Test initially hard to find in Gmail (promotions/spam) — worth watching deliverability trend next send |
 | Social: "The resume arms race" — first Tailr social content | Design + Content | — | 22 Aug. Repurposes Theme 3 of [email/reddit-digest-2026-08-06.md](../email/reddit-digest-2026-08-06.md), unused in any send so not a repeat for subscribers. Copy for four surfaces in [Marketing/social/arms-race-2026-08-22.md](../Marketing/social/arms-race-2026-08-22.md): 8-slide carousel, 45s TikTok script with beat timings, Facebook long-form, IG caption. **New Figma file `Tailr — Social`** (`HCgBalqZ1wbKOzQ9ca1jiO`) — the three existing files are all product design, so marketing had no home. 8 frames at 1080x1350 on brand cream/ink/coral in Hanken Grotesk (note: its bold style is `ExtraBold`, no space, unlike Inter's `Extra Bold`); slide 8 inverts to ink with a coral CTA. Verified: no text overflow on any slide, screenshot-checked. **Deliberately NOT used: the original Reddit reply's best line** — it is another person's writing and lifting it into commercial marketing is not the same as quoting it in internal research; the argument is paraphrased throughout. **Blocked on:** Ose's sign-off on the frames, and confirmation of which account posts (no Tailr social handle recorded anywhere in the repo) |
 | Weekly digest 22 Aug — "The part of your CV you are afraid to write" | Content | — | Fresh Reddit pull recorded in [email/reddit-digest-2026-08-20.md](../email/reddit-digest-2026-08-20.md): 836 unique posts, 13–20 Aug, five subs, two passes each (`top/.rss?t=week` + `new/.rss`), deduped by post id. Seven of ten feeds 429'd on first request; ~40 min of escalating backoff for the set. Theme: the history people are afraid to list (61 posts, the only cluster spread across all five subs) — the mirror of the 13 Aug send about lines doing no work. Sensitive specifics (disability, sex work, immigration status) generalised out deliberately. Sent to 62 of 69 subscribed, 0 failures, all 62 confirmed `delivered` by Resend. CTA moved to `app.gettailr.com/tailor` (canonical — `www.gettailr.com/tailor` redirects there) from the `.vercel.app` link the previous four used |
@@ -3807,6 +3809,3881 @@ real user sees it, the same gate as the capture consent.
 **Verified:** typecheck clean, 1,090 tests green, production build
 clean. Not clicked by a person.
 
+## 🧽 10 Sep 2026 — Ose's review: the dashboard cut to live roles, the slowness fixed at its cause, and the scan shown where candidates arrive
+
+Ose walked staging and dictated a review. Three of its items built here; the
+rest recorded below, unbuilt.
+
+**The dashboard is live roles and nothing else.** It carried seven bands —
+Today, Also needs you, briefs, the queue, live roles, clients, desk health —
+and a nav whose four sections expanded into more of them. His words: "it's
+too busy… for MVP let's skim this down completely… just keep it to live
+roles." Now one band, one row per live role, each carrying what the ladder
+says it needs next, with the search narrowing those rows. The nav's
+expanding sections are gone entirely. Briefs still surface through the nav's
+own waiting count. The page went from 675 lines to 422; the attention-card
+engine, the queue builder and the role filter went with the bands.
+
+**The slowness had one cause, and it was mine.** `/api/agency/today` called
+`getRoleFacts` once per role in a loop, and each call ran about a dozen
+queries: twenty open roles was several hundred round trips before the
+dashboard could paint. I flagged the risk in that route's own comment when I
+wrote it, and it arrived. `lib/agency/role-facts.ts` is now
+**`getRoleFactsBatch`** — each table read ONCE with an `in (…)` and grouped
+in memory, a fixed query count whatever the role count — and `getRoleFacts`
+is a one-role call into it, so there is still one assembler. The client's
+side (`/api/hiring/today`) batches the same way, per agency, and the client
+projection was extracted so the single read and the batch cannot drift.
+
+**The scan is shown where candidates arrive.** His ask: "where we parse the
+requirements first and we are scanning for candidates… create a window in
+that add candidates part that shows either the process or the profiles or
+the people who are being scanned. Let's add that first." Step 03 now carries
+the whole process: needs-requirements → publish-and-scan (with the minimum
+score, right there) → scan running → checked on a date, then the people. It
+used to render only once matching was already live, so a fresh role said
+nothing and the publish control sat far below at role level.
+
+**Decided with him before building:** the window shows the process and the
+people who matched *and* turned on the discoverable switch. Everyone else
+the scan touched stays a rounded count, never named. His words: "process
+plus matched people, no un-opted profiles." So the consent wall is exactly
+where migration `20260905120000` put it.
+
+**The rail bug he caught.** "The shortlist workflow navigation appears on the
+bottom of the main navigation, which is just wrong." It was: the seven steps
+and the global nav were stacked in one sidebar with identical styling, so the
+role's rail read as more global nav. Both role rails are now a named group
+with a rule above them (`.ag-rail-group`). If he wants the steps out of the
+sidebar altogether that is a Figma frame, not a hygiene fix.
+
+### Recorded from the same review, NOT built
+
+1. **The brief becomes the recruiter's, and creating it creates the role.**
+   His words: the client brief "should initiate the role, and that is the
+   responsibility of the recruiter" — carrying the number of interview
+   stages, the role information and the attached JD, which then goes to the
+   hiring manager; the brief then identifies the role ("here's the brief,
+   here's what this role is, this role is live, it's in shortlisting").
+   Intake already carries those fields (5 Sep, `job_roles.contact_id`), so
+   what is left is the direction — today a brief flows client → recruiter,
+   and he wants recruiter → client — and what then happens to the briefs
+   inbox. Needs a decision before code.
+2. **Confirmed as already right:** shortlisting done → candidates get the
+   link → the client is prompted for calendar availability → that starts the
+   interview workflow. Built 5 Sep, and he described it back unprompted.
+
+**Verified:** typecheck clean, full suite green, production build clean.
+Not clicked by a person — Ose's walk is the verification.
+
+## 🗓 10 Sep 2026 (later) — the interview phase spec, and its foundation
+
+Ose specified the interview phase in full: a **batch** scheduling workflow,
+not ten separate ones. Recorded verbatim in intent as
+`docs/INTERVIEW-PHASE-PLAN.md`, with an honest map of what his MVP list
+already has in the product (most of the calendar half shipped 5 Sep) and
+what is genuinely new. The promise it is all serving: *choose who you want
+to interview, approve your availability once, and Tailr coordinates the
+rest.*
+
+**Built now, the foundation everything downstream reads:**
+
+- **Interview rules** (`agency.interview_settings`, migration
+  `20260910090000`): interview type, duration, location kind and detail,
+  date range, minimum notice, buffer, maximum per day, rescheduling policy.
+  One row per role, audit-coupled, no authenticated writes. Plus
+  `agency.interview_templates` for reuse across roles. Before this the
+  numbers existed only as arguments to `proposeWindows()` in the browser —
+  nothing stored, so nothing enforceable, reusable or visible to the
+  recruiter.
+- **Capacity validation** (`lib/calendar/capacity.ts`, pure): measures the
+  ticked windows against the rules and the cohort, and reports usable slots,
+  spare, and why any window was rejected — inside the notice period, over
+  the daily cap, shorter than the interview. Ose's line: twelve candidates
+  against seven slots must not proceed without a clear warning. It warns; it
+  never blocks, because judgement belongs to people.
+- **The client's set-up screen** now asks the rules once and shows the
+  verdict live as they tick windows.
+
+**Two traps hit and recorded.** The audit log's `entity_type` has both a
+check constraint and a TS union, held together by a test after a rebuild
+once silently dropped `member` — so `'interview'` was added to both, with
+the new list built from the deployed one. And importing `DEFAULT_SETTINGS`
+from a module that reaches `agencyAdmin` dragged `next/headers` into the
+browser bundle and failed the build, exactly as CLAUDE.md's lesson says;
+the shape and validator now live in `lib/agency/interview-rules.ts`, which
+imports nothing, with a test pinning that.
+
+**Two conflicts raised for Ose, not resolved:**
+
+1. **Candidate self-booking reverses a settled decision.** §5.4/§5.5 (13–14
+   Aug) says the recruiter books rounds. The spec has candidates pick from
+   the open pool. Better for batch, but it is a reversal, and what goes is
+   the recruiter's control over who is seated when. The mechanism already
+   allows it: double-booking is prevented by the partial unique index on
+   `interview_rounds.slot_id`, not by the recruiter being the only actor.
+2. **"Recommended candidates" collides with `role_recommendations`**, which
+   means a role recommended *to a person*. Same word, opposite direction,
+   and the repo already has a scar from reusing "shortlist". "Interview
+   cohort" is clean; alternatives for the other half are in the plan.
+
+**Ose to run in tailr-staging:** `20260910090000_interview_settings.sql`.
+
+**Verified:** typecheck clean, 1,106 tests, production build clean. Not
+clicked by a person.
+
+## 🎟 11 Sep 2026 — candidates self-book, and the cohort is the cohort
+
+Ose settled both conflicts: **candidates self-book, the recruiter just has
+visibility of what has been booked**, and the subset the client chooses is
+the **interview cohort** ("recommended candidates" is dropped — it pointed
+the same word the opposite way from `role_recommendations`).
+
+This amends §5.4/§5.5, where the recruiter booked rounds. What did NOT
+change is the mechanism: double-booking was always prevented by the partial
+unique index on `interview_rounds (slot_id)`, never by the recruiter being
+the only actor — so moving who claims a window weakens nothing.
+
+**How it works now.** Confirming on the client's set-up screen records the
+decisions, offers the windows, and then invites the cohort:
+`inviteCohort` (lib/agency/cohort.ts) creates one round per chosen candidate
+with **no slot and no time** — the round IS the invitation — mints a booking
+token and sends a self-booking email with no calendar attachment, because an
+.ics for an unchosen hour is a lie a phone will put in someone's week.
+
+The candidate's doorway now has two shapes. A round with a time held keeps
+the old confirm/decline. A round without one shows the windows still free,
+in their own timezone, one tap each. Claiming writes `slot_id` with
+`.is("slot_id", null)` and reads the constraint's answer: a `23505` is
+somebody a second quicker, and the page re-renders honestly with that window
+gone rather than pretending it failed. Windows offered are filtered by the
+role's own rules — the notice period, already held, revoked, long enough for
+the interview, and never a window offered against a different role.
+
+Nobody is invited twice: a candidate with a live round is skipped, because
+two links to one person is how somebody ends up holding two windows.
+
+**Verified:** typecheck clean, 1,121 tests, production build clean. Not
+clicked by a person — and note the email guard means invitations only
+actually send to allowlisted addresses on staging, which is the safety net
+working, not a failure.
+
+**Still to build from the spec:** hold as a third decision and the
+persistent action bar, the cohort scheduling dashboard for the client, the
+recruiter's read-only view of the same board, reminders, rescheduling,
+video links and waves.
+
+## 📋 11 Sep 2026 (later) — the cohort scheduling board, one derivation and two hats
+
+Ose: "build the cohort dashboard." Built for both sides at once, because
+candidates book themselves now and the recruiter's half of that bargain is
+seeing the board fill.
+
+**One derivation.** `getCohortBoard` (lib/agency/cohort.ts) and the pure
+`lib/agency/cohort-status.ts` are what both screens read, so the client and
+the recruiter can never disagree about who is booked. Status is derived from
+the round and never stored: no slot is awaiting a choice, a slot is booked, a
+decline is "no suitable time", a round whose time has passed is a write-up
+due until the write-up exists.
+
+**Ose's status list, mapped honestly rather than faked.** He listed Selected
+→ Invitation sent → Booked → Confirmed → Interview complete → Feedback due.
+Two of those do not exist here and the module says so: *Selected* is a
+decision on the shortlist before any round exists, so it belongs to that
+board; *Booked* and *Confirmed* are the same event once candidates choose
+their own time, and showing both would be two names for one fact.
+
+**What each hat gets.** Identical rows; a different closing sentence. The
+client is told they can offer more times and gets the link to do it; the
+recruiter is told nothing here seats anyone. The recruiter's route has no
+POST at all and never touches `slot_id` — visibility, as agreed.
+
+**The capacity line, where it matters most.** The board compares windows left
+against people still to book, and says plainly when there are fewer windows
+than people — the same arithmetic as the set-up screen, at the moment it
+actually bites.
+
+**Sending a link again mints a fresh one, and the board says so.** The stored
+token is a hash and cannot be reversed, so a reminder is necessarily a new
+link and the old one stops working. Better to state that than to let someone
+wonder why the first email died. Somebody who already holds a time cannot be
+reminded of anything, and is not offered the button.
+
+**Verified:** typecheck clean, 1,134 tests, production build clean. No
+migration — the board reads rounds that already exist. Not clicked by a
+person.
+
+**Still to build from the spec:** hold as a third decision with the
+persistent action bar, reminders on a schedule rather than on a click,
+rescheduling, video links, and invitation waves.
+
+## ✋ 11 Sep 2026 (evening) — hold, and the action bar
+
+Step 1 of Ose's interview spec, finished.
+
+**Hold** is the third decision (migration `20260911090000` widens
+`client_actions.action`). It is the call a client who is unsure would
+otherwise have had to make as a decline — the wrong signal entirely, and one
+that reaches a candidate as a closed door. It is also the reserve that
+invitation waves will run on when they are built.
+
+Like every other client action it is a signal on a submission and never a
+removal: same insert path, same audit row, nothing hidden from the
+recruiter, nothing sent to the candidate. Only the interviewed become cohort
+members, so a hold invites nobody.
+
+The list of allowed decisions lives in ONE place (`CLIENT_DECISIONS`) and
+both the library and the route validate against it, so a fourth cannot
+arrive by being typed into a route. The constraint was rebuilt from the
+deployed list, keeping the portal's own `approve` and `question` — the same
+discipline as the audit entity-type rebuild that once dropped a value.
+
+**The action bar** is sticky at the foot of the set-up screen, carrying the
+count, what is still undecided, how many windows are about to be offered,
+and the one act. The confirm used to sit at the bottom of a long screen, so
+on a cohort of fifteen you made fifteen decisions and then went looking for
+the button. It also saves when nobody is being interviewed, because "none of
+these" is still an answer the recruiter needs.
+
+**Verified:** typecheck clean, 1,142 tests, production build clean.
+
+**Ose to run in tailr-staging:** `20260911090000_client_action_hold.sql`.
+
+**Left from the spec:** reminders on a schedule rather than on a click,
+rescheduling, video links, and invitation waves.
+
+## 🌊 11 Sep 2026 (night) — waves, scheduled reminders, rescheduling and joining links
+
+Ose: "build everything please with clean code." The rest of the interview
+spec, in one migration (`20260911100000`) and four small modules.
+
+**Waves** (`lib/agency/waves.ts`). A pure planner decides how many go out;
+everything else asks it. Capacity is always the binding constraint, never
+the wave size — inviting five into three windows recreates the exact race
+waves exist to prevent — and the reason a release was the size it was is
+shown rather than inferred. **Wave one is not a special case**: the first
+invitation is simply the first release, so a rule that caps later waves can
+never fail to apply to the first.
+
+Two deliberate lines. **No ranking**: the reserve keeps the order the client
+decided in, not a score Tailr invented. **Hold is not the reserve**: someone
+marked hold stays held, because auto-releasing them would override the
+judgement just recorded — the reserve is people the client said they want to
+interview who have not gone out yet.
+
+**Scheduled reminders** (`lib/agency/interview-reminders.ts`). A nudge to
+somebody still choosing, and a reminder the day before an interview they
+booked. Each stamps the round when it goes, and quiet is measured from the
+LAST contact rather than the invitation — without both, this is a machine
+for mailing people every hour. One unreachable address is counted, never
+thrown, so it cannot stop everybody else's.
+
+**Rescheduling** (`rescheduleBooking`). The candidate moves their own
+interview inside the client's policy and allowance. The new window is taken
+BEFORE the old is released, because the other order can leave somebody
+holding nothing at all. Every refusal names the next step; "you cannot" with
+no explanation is what makes a candidate email a recruiter.
+
+**Joining links.** A standing link the client pasted into their rules is
+carried through to the people they are meeting. Tailr does NOT mint Meet or
+Teams links: its calendar consent is deliberately read-only, and widening it
+to write events is a decision rather than a convenience. Anything that is
+not a link stays a description.
+
+All four hang off the cron, which now reports nudges, reminders and waves
+released. `releaseDueWaves` is deliberately dumb — it asks the planner about
+each live role and lets it answer zero, which is cheaper than keeping a
+schedule in sync with reality.
+
+**Verified:** typecheck clean, 1,165 tests, production build clean.
+
+**Ose to run in tailr-staging:** `20260911100000_waves_reminders_reschedule.sql`
+(and `20260911090000_client_action_hold.sql` if it has not gone yet).
+
+## 🧭 11 Sep 2026 (late) — the consistency pass: one model, said the same way everywhere
+
+Ose: finish the build, make the screens and flows logically sound, tidy both
+navigation bars, fix the UI still wrong in the flow. An audit of every screen
+and both navs found the build telling two stories. All of it fixed.
+
+**The one that mattered: round one was self-booked and round two was not.**
+`inviteCohort` skipped any candidate with a *live* round, and a completed
+round counts as live — so after an advance the next round fell back to the
+recruiter, and the ladder still said "Book round 2". Nothing was broken; the
+product simply disagreed with itself. Now an invitation is blocked only by an
+OPEN round, the reserve counts open rounds, and every round is self-booked.
+The ladder says ROUND N GOING OUT and waits on the candidate on both hats.
+
+**The recruiter's interviews screen was still a booking console** with the
+read-only board bolted above it. Booking somebody in yourself survives —
+the exception is real, a candidate with no email or one who rings — but it
+is folded into a labelled `<details>` that says when it is for, and the
+screen's copy no longer claims the recruiter seats anyone.
+
+**Two screens were dead ends.** The workflow and step 06 rendered the seven
+steps and no route to Interviews or Close-out at all. Both now carry
+`RoleRail`. Step 06's rail also hard-coded a ✓ on every step but its own, so
+it claimed progress the role may not have made; it shows numbers now,
+because that page does not know.
+
+**The hiring manager was being told they had interviews they did not have.**
+A cohort round carries `scheduled_at: null` until somebody picks, and
+"Coming up" counted those — rendering "No time set · Scheduled". It counts
+booked interviews now and says how many are still choosing.
+
+**Windows could be offered two ways**, one of them attached to no role and
+obeying none of the interview rules — no duration, no notice, no daily cap.
+That path is gone (`OfferTimes` deleted, 96 lines); `/hiring/interviews`
+shows what is offered and points at the role.
+
+**Both navs tidied.** The recruiter's eight flat items are two groups,
+Navigate and Your desk. The key/label inversion is fixed (`roles` meant
+Today). On the client's side, a role's own cohort screen lit "Home" while a
+nav item named Interviews pointed elsewhere; it lights Interviews now.
+
+**Copy swept** across both hats: fourteen places said the recruiter books,
+arranges or confirms times, including two module headers that contradicted
+the modules next to them.
+
+**A new guard** (`self-booking-consistency.test.ts`) scans every screen for
+"the recruiter books", pins the open-round rule, the honest counts and the
+rails, so the product cannot drift back into two stories.
+
+**Verified:** typecheck clean, 1,181 tests, production build clean. All four
+migrations confirmed applied on staging by effect.
+
+## 🪜 13 Sep 2026 — one level at a time: the recruiter sidebar shows the level you are working at
+
+Signed off in Figma first (`03 · Navigation`, file `AWRRbEOX6rLsltutFDL3zs`),
+beside `01 · Three phases` and `02 · Role header`.
+
+**The sidebar showed four labelled lists and eighteen things to click** —
+Navigate, Your desk, This role and Shortlist workflow — on the screen whose
+one job is pasting a job description. Three individually-correct fixes made
+it: role screens gained the global nav (3 Sep, because Briefs / Clients /
+Audit / Settings were unreachable from it), the eight items became two groups
+(11 Sep), and the role rail arrived because Interviews and Close-out were a
+genuine dead end (11 Sep, later). **None of them is reverted.**
+
+**`AgencyNav` has two scopes now.** Desk screens are unchanged: Navigate +
+Your desk, eight items, current one marked. Inside a role the whole desk
+collapses to one link — **← All roles** — and every global destination stays
+one click from it, because it points at the level directly above a role.
+Your desk does not render inside a role at all.
+
+**The role's three phases are said once, in the header.** `RoleRail` and
+`PhaseRail` built the same three hrefs from the same `phaseHref`; the header
+also says which phase the role is IN, carries the sub-state, and is the only
+one of the two that survives below 900px, where `.ag-sidebar` is
+`display:none`. `RoleRail` is deleted (68 lines). The dossier's second role
+fetch went with it — it existed only to feed that rail.
+
+**The Client briefs count survives the collapse.** It is still the only thing
+that surfaces a brief waiting in another of your agencies (four sat unseen
+for a week). Inside a role it renders only when the count is above zero: the
+guarantee, without a permanently-silent row beside a single link up. One
+fetch, one component, both scopes.
+
+**The way up needs no data, on purpose.** `RoleHeader` renders nothing until
+its facts load and nothing at all if they fail — so the way ACROSS a role can
+be absent, and the way OUT must therefore never sit behind the same fetch.
+A test pins that.
+
+**The workflow screen's chrome went from four bands to three.** The step
+eyebrow and the Back / Next pair share one line (`.ag-stepbar`); they were
+always about the same thing. Back / Next stays — below 900px the sidebar is
+hidden, so on a phone those two buttons are the only way through the seven
+steps.
+
+**Counted, on the worst screen:** 4 labelled groups / 18 rail items → 1 group
+/ 11, seven of them the steps. On Interviews, close-out and the dossier: 0
+groups / 4.
+
+**The hiring-manager nav was read beside it and deliberately left alone.** It
+is desk-scope only, so it has no second level to collapse; both navs now say
+exactly one level at a time.
+
+**Guards re-pinned, then probe-mutated.** `agency-nav.test.ts` and
+`self-booking-consistency.test.ts` now pin the new mechanism — role scope, at
+most one labelled group per role screen, steps only where they are the work,
+no desk item in the role scope, the unconditional way up, and the briefs
+count. Six deliberate regressions were introduced one at a time and **all six
+failed the suite**, so the pins are load-bearing rather than decorative.
+
+**Verified:** typecheck clean, 1,191 tests, production build clean with
+placeholder env. The new CSS was confirmed in the SERVED chunk, not just on
+disk. The role sidebar was rendered from the real server HTML with the real
+stylesheet at desktop and at 1440 / 1024 / 768 / 480 / 375 / 320 — the step
+bar is one 52px line down to 480 and wraps to two below it, with nothing
+overflowing at any width. Contrast measured: 4.86:1, 16.29:1, 5.59:1, all AA.
+
+**Then Ose walked it on staging and the dossier read as stranded.** It hangs
+off a candidate which hangs off a role, and it was the one role screen with
+no crumb of its own — so with the desk collapsed it named neither parent.
+It carries `ROL-0000 / CAN-00 / Dossier` now, built to the shipped
+`.ag-crumb` pattern. The crumb comes from the ROUTE PARAMS, never the
+payload: a dossier that fails to load is exactly when being stranded costs
+something, so the labels degrade to "Role / Candidate" rather than the links
+disappearing. Same rule as the link up, and pinned by two tests that were
+probe-mutated.
+
+**Not verified by me:** the signed-in walk-through on staging. Local
+unauthenticated rendering reaches the role shell but not real role data.
+
+## 📤 13 Sep 2026 (later) — step 07: a completed state that was still armed
+
+Designed in Figma first (`04 · The submission screen, and the matched list`,
+frame 347:2) and signed off. Three faults, found by reading the screen and
+the route rather than by guessing.
+
+**“Sent” was a live button.** After a successful send the primary still read
+`✓ Submission sent` and was still ENABLED — disabled only while busy or on an
+empty shortlist — so the instant a send finished it was clickable again, and
+a second click minted a second snapshot, fresh portal links and another email
+to the client. The route's only refusal is the right-to-represent gate;
+nothing anywhere said "already sent". The primary stops existing once its job
+is done: what replaces it is `.ag-sent-chip`, a fact with no pointer and no
+hover, and the only primary left on the screen is the handoff card's "Go to
+interviews". Re-sending survives as a secondary that opens an alertdialog
+naming exactly what it will do.
+
+**And it was worse after a reload.** `snap` is only populated by a send in
+THIS session, so a role that had already gone to the client came back with
+`snap === null` and offered a live "Send to client" as though nothing had
+happened. `alreadySent` consults the derived phase as well.
+
+**Typing the introduction was the slowest thing on the screen.** The pane's
+derived lists were computed inside its render IIFE and `intro` is component
+state, so every keystroke rebuilt every row: a Map lookup per candidate per
+must-have, a requirements filter per candidate for gaps, and `resolveProbes`
+per candidate. They are memoised at component level now, and `intro` is
+deliberately not a dependency of any of them.
+
+**The submission route rescored one candidate at a time** — roughly four
+sequential round-trip waves each, so ten candidates meant forty waves in
+series against `maxDuration = 60`, and `MAX_CANDIDATES_PER_ROLE` is meant to
+go to fifty. It runs through a bounded pool of five now, writing results back
+at their own index so the pre-sort ordering (and therefore ties) is identical
+to the sequential version. Requirements are role-level and were re-read once
+per candidate; the route already holds them and passes them in.
+
+**One fix in the design was NOT built, and the frame says so.** The plan had
+the route's second read of candidate / evidence / reviews collapsed into the
+rescore's. Reading the two queries properly showed they fetch DIFFERENT
+COLUMNS of the same rows, so collapsing them means widening a helper four
+other callers share — they would all start pulling `call_answers` they never
+use. Left alone, and recorded rather than quietly dropped.
+
+**Also corrected:** `Candidate.source` omitted `"matched"` while the CHECK
+constraint has allowed it since `20260815090000` and five rows on staging
+carry it. The union is derived from the migration by a test now.
+
+**Guards:** `submission-step.test.ts`, ten pins, all six probe mutations
+caught — armed primary restored, `intro` re-added as a dependency, the
+reload gate narrowed, the sequential loop restored, the purge-race guard
+dropped, and requirements re-read per candidate.
+
+**Verified:** typecheck clean, 1,204 tests, production build clean from a
+fresh checkout of origin/staging with the changes overlaid. The send bar was
+rendered in both states against the served stylesheet.
+
+## 🃏 13 Sep 2026 (later still) — the matched list becomes cards
+
+Ose, on seeing it: the UI is bland. Card view, signed off on frame 04.
+
+**It was a stack of `.ag-check-row`** — the handover checklist's row — where
+the band, the state and every piece of evidence were the same neutral
+`.ag-pill`, no avatar, and the only thing separating evidence from its
+absence was `opacity: 0.55` set inline. "Strong match" and "R3 · missing"
+were the same object. This is the one screen where a person arrives from the
+consumer app rather than from a CV someone uploaded, and it looked like a
+debug view of one.
+
+**One person, one card, one state.** Three parts saying three different
+things: who they are and how well they matched; what they were matched
+against; what you can do about it. The avatar, the tier weights and the
+`.ag-dot` strength marks are the components the compare matrix and the client
+preview already use, so a person from the consumer app is finally described
+in the same language as a person from a CV.
+
+**MISSING gets the mark the product built for it.** `.ag-dot.missing` — a
+dashed empty ring — has existed all along; this screen was the one place not
+using it. An absence is drawn as an absence now, in a dashed chip at full
+opacity, and still says the word. A test fails if any evidence chip is dimmed
+again.
+
+**A band, never a number.** The design mock drew a score of 84; the payload
+does not carry one. `matched_people` projects `band` only — fit / strong /
+very strong — because "#1, #2, #3" implies a precision the score does not
+have. The mock was wrong and the build follows the payload; a test pins that
+`MatchedPerson` has no score field.
+
+**The grid:** `auto-fit` with a 280px minimum, so it drops to two then one
+with no breakpoint of its own; `flex: 1` on the body and `margin-top: auto`
+on the footer, so cards in a row are equal height and their actions line up
+however much evidence a person has. Measured against the served stylesheet:
+heights 257/257/257, no sideways scroll, missing chip `border-style: dashed`
+at `opacity: 1`.
+
+**Guards:** `matched-list.test.ts`, nine pins, five probe mutations all
+caught — missing faded again, the dashed border dropped, the footer
+unpinned, the strength dot removed, and cards reverted to checklist rows.
+
+**Verified:** typecheck clean, 1,213 tests, production build clean from a
+fresh checkout with the changes overlaid.
+
+**Next:** Wave 4's decisions-complete and proxy-hire. Proxy-hire is confirmed
+in shape — a placement recorded without an advance decision needs a stated
+reason, is audit-logged, and never auto-closes the role.
+
+## ⚖️ 14 Sep 2026 — Wave 4: the two facts the loop was inferring
+
+Designed in Figma first (`05 · Wave 4`, frame 354:2) and signed off. Both
+items were the same mistake in different places: the product decided
+something important by reading around the edge of it.
+
+**The plan was being used as a gate.** `next-action.ts:179` fired "take to
+close-out" when the last completed round decided advance at or beyond
+`planned_rounds` — and the same file's header calls the plan "a plan, never
+a gate". A client who decided early was told to keep going; one who wanted
+an extra round was told to close out. The measure the plan asks for,
+submission → all decisions, had no end timestamp to measure to.
+
+There is a rung ABOVE the derived one now, never instead of it: when the
+client has said they are finished, that fact answers and `since` is the
+moment they said so. The derivation is untouched underneath, so a role whose
+client never presses the button behaves exactly as before. The receipt knows
+which of the two it came from and does not invent a name — the client said
+they were finished, not who they picked.
+
+`agency.role_decision_completions` is append-only, newest wins, the shape
+`round_decisions` already uses. A withdrawal resolves to NULL rather than to
+a timestamp, so a reopened role falls back to the derived rung on its own
+with no second state to keep in sync. It closes nothing.
+
+**A placement could be money recorded against a stranger.**
+`lib/agency/placements.ts` read no decisions at all, so a fee, a rebate
+window and a start date could be recorded for a candidate nobody ever
+advanced. That happens legitimately — clients hire off-process — so the
+route DERIVES whether an advance decision exists at write time and asks for
+a reason only when it does not. The recruiter never ticks a box claiming it.
+The audit log distinguishes the two. `outside_process` joins the compliance
+columns under the existing never-filters scan: a fact about how a hire
+happened, never a mark against a person.
+
+### 🐛 The first migration applied cleanly and shipped two holes
+
+Both found by probing the deployed schema, neither visible in the SQL.
+
+**The CHECK passed on NULL, in the direction that mattered.**
+`(outside_process = true and length(trim(outside_process_reason)) > 0)` is
+NULL when the reason is NULL — and a CHECK refuses only on FALSE. So the
+flag could be set with no reason at all, which is the single thing it
+existed to prevent. The other direction refused correctly, which is exactly
+why it looked like it worked. Probed both ways: refused-flag-without-reason
+was `f`, refused-reason-without-flag was `t`. `coalesce` fixes it.
+
+**service_role could not write the new table.** It was created with `grant
+select to authenticated` and nothing else. `placements`, `round_decisions`
+and `candidate_compliance` all carry an explicit service_role grant; the new
+one carried none, so every write would have failed at runtime while the
+mocked tests stayed green. **This project has now shipped that fault three
+times** — the rule "verify grants by attempting the write AS THE ROLE" is
+there for a reason and reading the SQL back is not the same thing.
+
+Repair: `20260914090000_wave4_repair_grants_and_null_safety.sql`.
+
+**A guard shipped with a blind spot too, and probing caught it.** The link
+proof was pinned with "this string appears in the file" — which passed while
+the WRITER's copy was replaced with `true`, because the READER's copy still
+matched. It asserts both doors separately now. Nine probe mutations across
+Wave 4; eight caught first time, the ninth is why there are nine.
+
+**Verified:** typecheck clean, 1,231 tests, production build clean. Schema
+objects confirmed against the deployed database, not the migration file.
+
+**Both migrations applied to tailr-staging and verified BY EFFECT, not by
+reading them back:**
+
+- The repaired constraint refuses all three bad shapes — flag without a
+  reason (which the first version accepted), reason without the flag, and a
+  whitespace-only reason — and still ACCEPTS a valid pair, so it is refusing
+  the right things rather than everything.
+- `service_role` can insert into `role_decision_completions`, attempted AS
+  service_role inside a rolled-back block rather than by reading the grant
+  table. That is the check this project had skipped three times.
+- Every probe ran inside a transaction that aborts; confirmed afterwards
+  that no completion row and no flagged placement persisted.
+
+## 📈 14 Sep 2026 (later) — MAX_CANDIDATES_PER_ROLE to 50
+
+Held at 10 by exactly one thing, and it was not the mail side (closure mail
+has batched at 50 and paced since August). It was the submission route
+rescoring the shortlist one candidate at a time — roughly four sequential
+round-trip waves each, so fifty would have been about two hundred waves in
+series against that route's `maxDuration = 60`. The bounded pool shipped
+earlier today makes fifty ~40 waves instead.
+
+The cap governs what a RECRUITER may upload. It deliberately does not cap
+people who apply to themselves through consumer matching: applying is the
+candidate's own act, and a recruiter's upload budget must never silence it.
+`lib/matching/apply.ts` still does not import it and a test keeps it so.
+
+**The cap and the pool are pinned together**, because they are one decision:
+if the pool ever goes back to sequential, fifty is unsafe again.
+
+**A pin of mine was too loose, and probing caught it.** `CONCURRENCY = 1` is
+the sequential loop wearing a pool's clothes, and a `\d+` scan waved it
+through. The test reads the value now and asserts it is above one. Probed at
+1 and at 0; both fail.
+
+**Verified:** typecheck clean, 1,234 tests.
+
+## 🧵 14 Sep 2026 — the stale tailored CV (mechanism B)
+
+**The bug.** `role_recommendations.tailor_history_id` points at a tailor RUN,
+and applying sent that run's document guarded only by
+
+    rec.tailored_against_hash === snapshot.requirements_hash
+
+which fingerprints **the role**. Republish with changed requirements and the
+tailored CV retires correctly. Change **the person** and nothing happened: a
+user who updated their evidence bank and then applied to a role they tailored
+last week sent a document built from a bank that no longer existed — and
+`/found` still called it tailored, because the card applied the same one-sided
+check. The screen promised a document the send would not use.
+
+One axis was guarded; there were always two.
+
+**The fix.** `role_recommendations.tailored_source_hash` stores the person
+side at link time, and both must match. `profileHash` already existed in
+`scan-core.ts` for the scan's skip-on-unchanged, already tested, so it is
+reused rather than reimplemented — a second copy is how ROL-2403's apply
+409'd forever, on hashes that differed only in invisible separator bytes.
+
+`/found` reads the bank once for the list and passes the hash into
+`joinFound`, which keeps it a pure join. Its default is `""`, which fails the
+comparison, so a caller that supplies nothing gets not-tailored rather than a
+guess.
+
+**What this deliberately cannot cover.** The CV a user pastes into the tailor
+screen is never stored server-side — it lives in their browser and arrives
+per run — so "they pasted a different CV and did not re-tailor" is not
+knowable here and no column can make it so. That axis is handled by
+disclosure, which already exists: `/found` names the day the tailored CV was
+saved ("12 Sep, edits included"). **Mechanism A, the localStorage restore
+race, is still open and is a different fix.**
+
+**NULL means unprovable, and is not honoured.** Links made before the column
+fall back to the evidence bank until the person tailors again. That is the
+conservative direction on a document that goes to an employer, and
+re-tailoring identical inputs is a free cache hit on `/api/tailor`'s
+`input_hash`. It does mean every existing tailored link on staging reverts to
+"Tailor my CV" once this ships.
+
+**No grant work was needed and none was done:** the client UPDATE grant on
+that table is column-scoped to `(state, seen_at, dismissed_at)`, so a new
+column is unwritable by `authenticated` the moment it exists. A test pins
+both halves of that.
+
+**A scan of mine matched its own documentation.** The test asserting the
+migration grants nothing failed on the migration's own comment explaining
+why no grant is needed. It strips comments with `sqlCode` now — the trap
+this repo has shipped once before.
+
+**Guards:** five probe mutations, all caught — apply ignoring the person
+side, the check short-circuited, NULL counting as provable, `/found`
+disagreeing with apply, and `joinFound` defaulting to a guess.
+
+**Verified:** typecheck clean, 1,242 tests.
+
+**Open:** `20260914140000_tailored_source_hash.sql` is written and NOT yet
+applied; the code is built and NOT yet pushed, because `/found` selects the
+new column and would break without it.
+
+## 🧲 14 Sep 2026 — the stale CV draft (mechanism A), and the pair is closed
+
+The other half of the stale-CV report, and it was three faults in one effect
+pair rather than the one "race" the note described.
+
+**The filename led the text into storage.** `parseFile` wrote
+`cvtailor:cv-filename` the instant an upload parsed; the text waited out an
+800ms debounce. Upload a new CV over an old one and reload inside that window
+and the editor came back showing the NEW file's name above the OLD file's
+text — a document mislabelled as the one that replaced it, which you would
+then tailor and send. The label led the content, so the lie was invisible.
+One writer now, and it writes both keys or clears both.
+
+**Nothing flushed.** A reload, a back-navigation or a closed tab inside those
+800ms discarded everything typed since the last write, and the restore then
+brought back the previous CV as though nothing had happened. Flushed on
+`pagehide` (which fires where `unload` does not on mobile Safari), on
+`visibilitychange` to hidden, and on unmount.
+
+**The guard was dead code.** `if (saved && !cvText)` with empty deps can only
+ever see the first render's `cvText`, which the parent always initialises to
+`""`. It read like protection and never was. It reads a ref now.
+
+**🐛 And the first version of this fix could delete the CV it was protecting.**
+Making the exit flush write unconditionally meant an unmount BEFORE the
+restore had committed — React StrictMode double-invokes effects on mount, and
+a fast navigation does the same in production — would flush an empty editor
+and remove the saved draft. `persistCvNow(allowClear)` is the asymmetry: the
+debounce may clear, because 800ms of an empty field is someone meaning it;
+the exit path may not. **A flush rescues work; it must never be able to
+destroy it.** Caught by testing the fix in a browser rather than reasoning
+about it.
+
+**Verified in the running app, not only by scan:** `pagehide` at 120ms
+rescued an edit storage did not yet hold; pasting a different CV removed the
+stale filename; a fast exit with an empty editor left a seeded CV untouched;
+a settled clear still cleared; text and filename restored together.
+
+**Guards:** `cv-draft-persistence.test.ts`, six pins, six probe mutations,
+all caught. No DOM test environment exists in this repo (vitest runs `node`),
+so these are source scans — the browser run is the behavioural evidence.
+
+**Verified:** typecheck clean, 1,248 tests.
+
+**Both stale-CV mechanisms are now closed.** B retired the tailored CV when
+the evidence bank moved; A stops the draft itself going stale or mislabelled.
+
+## 🌱 14 Sep 2026 — staging seeded for the walk-through, and a due notice suppressed
+
+**An Art 14 notice was sitting due, to a real third party.** CAN-01 on
+ROL-2413, `scheduled_for` 12 Sep, recipient not one of Ose's aliases — the
+August incident live again. Verified before touching it: nothing has ever
+been sent from that table (`sent_at` null on every row), the row had not been
+updated since it was created on 5 Sep, so the daily cron has not processed it
+— consistent with Vercel crons running only on Production while staging is a
+branch deploy. The `sendEmail` allowlist guard also sits before the network
+call and would have refused the address. Two contingent facts, and the
+established remedy is data: suppressed with `suppression_list`, matching the
+other nine. **Zero notices are now scheduled.**
+
+**Correction to a claim made in the same breath:** seeding candidates by SQL
+does NOT schedule notices. `agency.candidates` carries only an updated_at
+trigger; Art 14 notices are created in `ingestCandidate`, in application
+code. The risk of seeding was lower than stated.
+
+**ROL-2411 (AI & Automation Consultant, 10 requirements, previously empty)**
+now carries four candidates spanning the range the screens need:
+
+| | overall | musts | coverage | confidence |
+|---|---|---|---|---|
+| CAN-01 Priya Raman | 94 | 5/5 | 100% | 4 |
+| CAN-02 Marcus Bell | 56 | 3/5 | 80% | 3 |
+| CAN-03 Ada Okonkwo | 30 | 0/5 | 50% | 2 |
+| CAN-04 Tom Vance | 18 | 1/5 | 30% | 1 |
+
+**Every quote traces to its own candidate's CV, and the database proved it
+before writing.** Each candidate has real `cv_text`; the seed built the
+evidence in a temp table, then refused to insert unless
+`position(quote in cv_text) > 0` for all forty rows. Nothing was invented
+relative to source, which is the one shortcut this table cannot take. Scores
+are DERIVED from that evidence rather than typed, so the numbers and the
+cards cannot disagree; `inputs_hash` is deliberately `seed-14sep-not-a-real-
+hash` and the first real action recomputes it.
+
+**Two prerequisites were missing and are now fixed.** No role had a
+`contact_id` at all, so Ose could not act as hiring manager anywhere and
+"That's all my decisions" could never have rendered — ROL-2411 now points at
+the linked Meridian Health contact. And the button is gated on a round
+existing, so one completed round sits on CAN-01 with `slot_id` null: a round
+that exists, not one anybody booked.
+
+**Ready to walk:** the shortlist workflow (steps 02–07 render from real
+evidence), proxy-hire (no candidate on the role has an advance decision, so
+any placement demands a reason), decisions-complete (HM hat on ROL-2411), and
+the matched cards — `agency.matched_people` returns a row already, now that
+one account has `discoverable` on.
+
+All seeded rows carry `source_detail = 'SEEDED FIXTURE 14 Sep 2026 — not a
+real person'` and `o.oifoh+seed-*@gmail.com` addresses, so they are trivially
+identifiable and reach nobody but Ose.
+
+## 🔬 14 Sep 2026 (night) — the evidence card, and step 06 as a modal that keeps its address
+
+Both from frame 06 and frame 07, signed off first.
+
+### The evidence card
+
+Step 04 is where a recruiter overrides the machine's read of a person. The
+control for it was **four unlabelled coloured circles** whose meaning lived in
+a legend above ten cards, gone by the second one — a WCAG 1.4.1 problem on
+the most consequential control in the product. The quote that ties the
+judgement to something the person said was `t-small`, italic, `ink-3`: the
+palest text on the card.
+
+**The legend is deleted, because every option now carries its own name and
+its own weight** — STRONG 1.0 / TRANSFERABLE 0.7 / PARTIAL 0.4 / MISSING 0.0.
+The information that used to scroll away lives where the decision is made.
+The quote is body size, full ink, in real quotation marks with its source as
+a label beneath. An override says *"Tailr read this as partial. You marked it
+strong."* instead of `was partial · now strong` in 10px mono.
+
+**The weights had three copies and now have one.** `STRENGTH_VALUE` was
+private to `scoring.ts` and the legend hardcoded the numbers again in JSX, so
+the UI could have told a recruiter a requirement was worth 0.7 while the
+score used something else. `lib/agency/strengths.ts` is the single
+definition, server-import-free because `scoring.ts` imports `crypto` — the
+same rule as `phases.ts` and `settings-limits.ts`. The page's private copy of
+the strength ORDER went with it.
+
+Measured against the served stylesheet: one row at 600px, wrapping to two at
+360px with the words intact, never falling back to colour. 44px targets under
+`@media (pointer: coarse)` only — ten requirements × four options is a lot of
+vertical rhythm to spend on a device that does not need it.
+
+### Candidate detail, in two places
+
+Opening somebody from compare should not cost you your place in compare. What
+it must not cost is the URL: step 06 is one of the seven, it is the evidence
+record for a named person, and it is the screen most likely to be sent to a
+colleague. A state-only modal would have broken deep linking, back behaviour
+(severity HIGH) and "modals must not be used for primary navigation flows" —
+and this codebase has the scar, step 06 having once fallen out of a
+pane-derived rail and gone missing for four days.
+
+So: **one component, one URL, two entrances.** The evidence moved to
+`components/agency/candidate-detail.tsx`; the page became a 75-line shell.
+`@modal/(.)candidates/[candidateId]` intercepts navigation from inside the
+flow and renders it over the pane, which stays mounted and scrolled. A cold
+load, a refresh or somebody else's link misses the intercept and gets the
+page. **The app's first parallel route** — `default.tsx` returns null,
+without which the slot 404s the whole route on a hard load.
+
+Escape, backdrop and Back all close it; Back works because this is a real
+navigation. Focus moves into the panel and returns to the row that opened it.
+Below 900px it becomes a bottom sheet, because the sidebar is already
+`display:none` there and a centred dialog would be a full screen pretending
+otherwise.
+
+**Three guards broke and were right to.** They asserted the page file
+contained `<RoleHeader>`, which had moved. The guarantee had not gone — the
+file had. `screenSource()` in the scan helper now reads a screen as
+everything that draws it, with one place naming the delegation.
+
+**🐛 And `var(--ag-bg)` does not exist in this stylesheet.** The panel was
+transparent and had no radius. Caught by measuring computed styles in a
+browser rather than reading the CSS back; a test now fails if `var(--ag-bg)`
+appears anywhere.
+
+**Two harness artefacts, both nearly mistaken for bugs.** `.ag-app` is
+`display: flex`, so a test wrapper with an explicit width shrinks to content;
+and the design tokens are scoped to `.ag-app`, so anything rendered outside
+it computes every `var()` to nothing. Both looked exactly like broken CSS.
+The lesson is the harness must reproduce the real ancestor chain, not just
+the element.
+
+**Guards:** `candidate-detail-modal.test.ts` (14 pins) and the sourcing-step
+pins; thirteen probe mutations across the two, all caught.
+
+### 🐛 And a sticky column was crushing its cards
+
+Reported mid-session as "the UI is broken": on step 07 the disclosure list
+was sliced mid-row and the recipients form was cut off below Name.
+
+`.ag-sub-side` and `.ag-det-side` are flex COLUMNS with a `max-height` and
+`overflow-y: auto`. Flex items shrink before their container overflows, and
+`.ag-card` is `overflow: hidden` — so every card was squeezed shorter than
+its content and sliced it, while the column never scrolled. The scrollbar had
+been there the whole time with nothing to do.
+
+**Pre-existing since the staging root (11 Aug), not from this session's work**
+— it only became visible once those columns held enough content to overflow,
+which today's seeding did. `> * { flex: none; }` on both; measured after:
+no card clips, and the column scrolls 1090px of content in a 573px box.
+`.ag-det-side` matters twice now, since candidate detail also renders inside
+the modal.
+
+**Verified:** typecheck clean, 1,270 tests, production build clean — the
+build output lists both `/agencies/roles/[roleId]/(.)candidates/[candidateId]`
+and the real page, which is the intercept registering.
+
 ---
 
-_Last updated: 5 September 2026_
+## 15 September 2026 — step 06 learned step 04's language
+
+### The evidence record now says what it means
+
+Step 04 and step 06 describe the same four strengths, and a recruiter moves
+between them constantly — since 14 Sep step 06 also opens as a modal over
+compare, so it is the surface they land on most. On 14 Sep the screening card
+learned to print `STRONG 1.0` on the control itself and deleted the legend
+whose numbers it had been duplicating. The evidence record was still saying
+the same thing in a bare 8px circle.
+
+**What the handoff got wrong, and worth recording:** `docs/NEXT-SESSION-EVIDENCE.md`
+said step 06 had no legend anywhere. It had one, with all four strengths and
+their weights. The real fault was narrower — the legend was a **fifth**
+hardcoded copy of `STRENGTH_VALUE`, and the row itself still carried colour
+alone. The fix is the same; the reasoning had to change, because deleting the
+legend is a removal of working information, not the filling of a hole.
+
+**Designed in Figma first** — frame `08 · The record, read as a map` (371:2)
+in "Tailr — Hiring Manager Concept", signed off before any code.
+
+**The row now carries:** its own strength in words and weight
+(`strengthLabel()`), a requirement that WRAPS, and the quote on the row at one
+clamped line with its source — openable to full body size. An override says
+what happened in a sentence, as at step 04. The legend is gone.
+
+**Two calls made deliberately, both flagged by the handoff as decisions:**
+- The quote is on the row, clamped, rather than hidden. You can see that
+  evidence EXISTS for all ten requirements without a click, which is the
+  question a reading surface is actually asked.
+- More than one row opens at once (`open` is a `Set`). A single-open
+  accordion is a working-surface control; reading a record means holding two
+  requirements side by side. An "Open every quote" control does the
+  whole-record pass, and hides itself when nothing has a quote.
+
+**The shape did NOT change.** Still a compact row — three lines, ~78px against
+the card's ~150px — so ten still read as a map on one screen. Sharing the
+vocabulary was the task; sharing the shape would have been the failure.
+
+**One definition of the weights, finally.** `WEIGHT_MULTIPLIER` moved out of
+`scoring.ts` (which imports `crypto`, so no client component could reach it —
+that is *why* the screen kept its own copy) into `lib/agency/strengths.ts`.
+`scoring.ts` and `lib/matching/prefilter.ts` both import it now. Three copies
+became one; the legend's hardcoded `1.0 / 0.7 / 0.4 / 0.0` is deleted.
+
+**Performance invariant restored.** `evidenceFor` was `evidence.find(...)`
+running twice per requirement rendered. Evidence is indexed into a `Map` once
+per data change. `.ag-evrow` gained `content-visibility: auto`, which
+`.ag-mx-row` and `.ag-ev-card` already had and it did not.
+
+**Kept:** the MISSING sentence verbatim and never clipped, `.ag-missing-chip`,
+and the screen staying read-only — overrides belong to step 04 and this must
+never grow a picker.
+
+**Guards:** `lib/__tests__/evidence-row-language.test.ts`, 14 pins, all eleven
+regressions probe-mutated and watched to fail. One probe initially did not
+fail; the cause was a `sed` escaping error in the probe itself, not a blind
+pin — re-probed properly and it failed. A second pin was caught mid-write
+asserting `weightPoints` when `weightPointsLabel` contains that substring.
+
+**Verified by rendering, not by reading.** The served CSS chunk was curled and
+grepped (Turbopack has served a stale `globals.css` before); the harness
+reproduced the real ancestor chain (`.ag-app` → `.ag-main` → `.ag-screen` →
+`.ag-card`), because every token is scoped to `.ag-app`. Rendered at 1440 and
+375, and inside `.ag-modal-body` as well as on the page. The one-line clamp
+was proved with a 340-character quote, collapsed and open side by side.
+
+**Design pass** (`web-design-guidelines`): two real findings, both fixed — the
+"Open every quote" button was a dead control when no requirement had a quote,
+and the disclosure had `aria-expanded` with no `aria-controls` naming what it
+revealed.
+
+### ⚠️ CORRECTED 15 Sep: that 375px finding was a measurement artifact
+
+**This section originally reported that the agency shell overflows at 375px
+because `.ag-main` keeps `padding: 32px` with no mobile override. That was
+wrong, and the evidence for it looked strong** — the old row and the new row
+were rendered side by side at the same width and clipped identically.
+
+**headless Chrome on macOS clamps its window to a 500px minimum.**
+`--window-size=375` is accepted silently, the page still lays out at 500, and
+the PNG is then cropped to 375. So every "clipped at 375" screenshot was a
+crop of a working layout, and the before and after cropped the same way.
+
+The control that caught it: a `div` at `width: 100%` cannot overflow its
+viewport. Rendered at `--window-size=375` its right edge was cut off anyway,
+and the page reported `innerWidth = 500`.
+
+**The harness that actually works is an iframe.** `<iframe width="375">` gives
+its document a genuine 375px viewport — media queries resolve against it and
+`scrollWidth` means what it says. Measured that way, **step 06 overflows by
+exactly 0 at 375 and at 320.** The evidence row is fine on a phone; it always
+was. The compare matrix reports `right=817` inside a 375 viewport but sits in
+a `overflow-x: auto` wrapper and contributes nothing to the document's
+scrollWidth — a wide table scrolling in its own container, which is correct.
+
+Nothing shipped against the bad diagnosis; no CSS was written for it. It did
+reach this file and a Notion card as a known defect, and both are corrected.
+
+### ⚠️ Found for real: the primary action is off-screen at 375px
+
+Measured in a true 375 viewport: `innerWidth 375`, `document scrollWidth 430`
+— **55px of genuine horizontal overflow**, and the overflowing node is the
+action group. The furthest-right thing in it is the primary button at
+`right=430`. At 320 the primary button is off the page entirely.
+
+`.ag-screen-head` is `display: flex; justify-content: space-between` with **no
+`flex-wrap`**, so the action group can never drop below the headline. It is
+used by `app/agencies/clients`, `roles`, `roles/[roleId]`, `briefs` and
+`components/agency/candidate-detail` — so "Build submission", "Add to
+submission" and the step's Next control are all unreachable on a phone.
+`.ag-card-head` has the same shape and does not overflow today only because
+every current title is short enough. `.ag-legend` already carries
+`flex-wrap`, which is the proof the pattern was understood when written.
+
+Designed as Figma frame `09 · The agency shell on a phone` (377:2). Not yet
+implemented — awaiting sign-off.
+
+**Verified:** typecheck clean, 1,284 tests, production build clean.
+
+---
+
+## 15 September 2026 — the hiring manager's dashboard answers one question
+
+### What needs you, and nothing else
+
+A hiring manager is not a user of this product. They are a busy person with a
+role open and a recruiter doing the work, and they arrive with one question:
+is anything mine? The old dashboard answered it with three bands of rows to
+read. It now answers it once, in words, at the top.
+
+Designed as Figma frame `10 · The hiring manager's dashboard` (384:2), against
+a prototype Ose supplied (`components/hiring/` in tailr-b2-b.zip). Signed off
+before implementation.
+
+**The part that matters is the NO.** When the next action belongs to the
+recruiter, the card keeps its shape, names who holds it and since when, and
+renders **no button at all**. The old "needs you" row stayed a `<Link>` even
+while waiting, so a hiring manager clicked through to discover there was
+nothing there — the same judgement that removed the dead "Open every quote"
+control on step 06 yesterday.
+
+**What we took from the prototype:** the hierarchy (greeting → the one thing →
+the ladder), the "no button when waiting" rule, and the line "You only ever
+see what has been disclosed to you", which does real work — the HM's view is
+disclosure-filtered, not row-filtered, and saying so is the difference between
+a sparse screen reading as trust and reading as a bug.
+
+**What we did NOT take.** The prototype assumes a single role and a single
+hiring manager; ours cannot. The prototype hardcodes `Brief agreed &
+clarified: done`; `lib/agency/next-action.ts` already derives all of it from
+`RoleFacts` with nothing stored. The prototype is light; `/hiring` has been
+dark since 13 Aug and flipping it would be a far larger change made by
+accident. And the prototype shows "in 3 days · 72h" — next-action.ts refuses
+to invent an SLA and says so in its docstring, so the card shows a date and an
+honest age and never colours a wait as late.
+
+`today === null` renders as its own dashed "Checking what needs you…" state,
+never as the calm one: "nothing needs you" over a failed read is the same lie
+as `200 {enabled:false}`.
+
+### The brief doors are closed
+
+Both, as agreed. Wave 5a had already decided the brief was the recruiter's job
+description and no longer the primary act — but `hm-shared.tsx` carried that
+decision in a comment while `app/hiring/page.tsx` still rendered "Post a
+brief" as its PRIMARY button. **The two surfaces disagreed and the louder one
+was winning.** Opening a role is the recruiter's act now.
+
+The empty-state copy said "Post a brief to start one" — an instruction to
+press something that no longer exists — and is rewritten.
+
+**The ROUTE deliberately survives.** `/hiring/briefs/new` and
+`POST /api/hiring/briefs` still answer; only the doors are gone. Deleting them
+would leave the recruiter's briefs inbox unable to ever receive a new brief,
+which is a separate decision. Checked before cutting: nothing in
+`lib/email.ts` or the notification templates links to the brief form, so no
+already-delivered mail 404s.
+
+**Consequence to keep in view:** a hiring manager can no longer start a role.
+If briefs are meant to be gone for good, the briefs inbox and the
+accept-to-mint-a-role path are the next things to look at.
+
+**Guards:** `hiring-nav.test.ts` — the pin that asserted the nav CARRIED a
+brief CTA is inverted into one that keeps both doors shut, plus three new pins
+(no dashboard door, no "Post a brief" instruction, and the route still
+exists). All four probe-mutated and watched to fail.
+
+One of those guards initially matched **its own explanatory comment** — the
+trap `helpers/source-scan.ts` exists to prevent, and which its docstring says
+has now bitten seven times. Fixed by scanning `tsCode()` rather than raw
+source, which is what the helper is for.
+
+**Verified by rendering.** The served CSS chunk was curled and grepped, and
+the harness reproduces the real dark chain — `<html data-ag-theme="dark">` →
+`.ag-app.ag-themed` → `.ag-main.agd-main.hm-main` → `.agd-page`. Measured in
+the browser rather than eyeballed: `ctaCountAct: 1, ctaCountWait: 0` — the
+button exists when the work is yours and genuinely does not when it is not.
+An earlier harness omitted `.agd-page` and rendered flush to the left edge,
+which looked exactly like a padding bug and was not one.
+
+**Verified:** typecheck clean, 1,287 tests, production build clean —
+`/api/hiring/briefs` still registers, which is the kept route.
+
+---
+
+## 15 September 2026 (later) — Desk health struck, and the dead payload with it
+
+### Measuring a process nobody has run
+
+Wave 6 asks for four success spans wired into the dashboard route. Two of them
+**cannot be measured**: nobody has pressed "That's all my decisions", so
+`submission → all decisions` and `decision → pack delivered` both have a
+sample size of zero — by fact, not by bug.
+
+The three missing spans were written and **verified before being thrown away**,
+which is the part worth keeping. Against the DEPLOYED staging schema: all
+fourteen columns present, RLS on, `authenticated` holding SELECT with a policy
+on each. Then as real SQL against seeded data:
+
+| span | result |
+|---|---|
+| slot offered → booked | **n=6**, 0.0 days — the mechanism works end to end |
+| submission → all decisions | n=0 |
+| decision → pack delivered | n=0 |
+
+`slot → booked` returning six real samples is what proves the other two zeros
+are honest rather than broken. The shape to rebuild from is recorded in
+`docs/B2B-SMOOTH-FLOW-PLAN.md` Wave 6, including why
+`submission → all decisions` is a different question from the existing
+`shortlist_to_reply` (first reply ≠ finished) and why every measure needs its
+own `n` beside it.
+
+### The dead payload, and the five days nobody noticed
+
+**The "Desk health" band was deleted on 10 Sep** (`e007e61`, from Ose's walk of
+staging) along with the Reports nav item. The route went on computing six
+measures for it — three averages, two breach sentences and a percentage, each
+over its own pass across submissions, recipients and client actions — and
+shipping them to a client that had stopped reading them.
+
+Both halves are gone: 76 lines of computation out of the route, the `health`
+key off the response, the dead interface off `app/agencies/page.tsx`, and two
+docstrings that still advertised a band deleted five days earlier.
+
+**No query was removed, and an earlier claim that some would be was wrong.**
+`submissions`, `submission_recipients`, `client_actions` and `handover_packs`
+are all read elsewhere in the route. What went is computation and payload
+weight, not a round trip.
+
+### The guard that should have existed
+
+`lib/__tests__/dashboard-no-dead-payload.test.ts`. Not "health specifically" —
+the CLASS: every top-level key the route returns must be read by
+`app/agencies/page.tsx`. A key that leaves the route and is read by nobody is
+latency the whole desk pays on every load, and it is invisible in review
+because both halves look reasonable alone.
+
+Nothing pinned `health`, which is precisely why it survived five days and why
+removing it broke no test. Three probe mutations, all caught: shipping a key
+nobody reads, reviving one struck measure, and restructuring the response so
+the scan matches nothing (the way this kind of guard dies silently). The third
+probe initially "passed" because the probe SCRIPT was broken — Python has
+`rfind`, not `lastIndexOf` — which is the second time this week a probe's own
+bug nearly read as a blind guard. A probe that does not visibly mutate the
+file proves nothing.
+
+### Also corrected in the plan
+
+**Wave 5a is superseded.** It said the hiring manager's "Post a brief" *stays*
+as a secondary path and that "nothing is deleted". Ose went further on 15 Sep:
+both doors are gone. The paragraph is struck with the reason, and the open
+consequence recorded — the briefs inbox can now only ever hold what already
+exists.
+
+**Verified:** typecheck clean, 1,305 tests, production build clean.
+
+---
+
+## 🐛 15 September 2026 — "nothing happens when I pick a time": the doorway was explaining an absence by guessing
+
+**Reported:** selecting a proposed interview time does nothing.
+
+**Reproduced,** against live staging rather than by reading code. Three
+candidates hold a valid booking link in the choose-a-time state right now, and
+all three see **no times at all** plus this sentence:
+
+> "Every time has been taken. Your recruiter will be in touch with more."
+
+Nothing had been taken. At 14:52 on 15 Sep there were nine windows: six in the
+past, three in the future — and all three starting before 16 Sep 14:52, i.e.
+inside the 24-hour minimum notice. They were excluded for being *too soon* and
+the candidate was told a different, false reason.
+
+**Cause, in one sentence:** the doorway had exactly one empty-state sentence
+and it asserted the times were *taken*, but `listOpenWindows` drops a window
+for three different reasons — already held, inside the minimum notice, or
+shorter than the interview — so whenever the reason was anything but "held",
+the candidate was told something untrue.
+
+It is worse than saying nothing: it invents a race they lost.
+
+### The fix
+
+`listOpenWindows` now returns `{ windows, reason }` — `none_offered`,
+`all_taken` or `unbookable` — narrowed from the widest fact to the narrowest
+so the candidate is told the truest thing rather than the first thing. The
+doorway renders a sentence per reason, and every branch keeps "nothing about
+your application has changed", which was the one good thing about the original
+copy. A reason is attached ONLY when the list was actually empty, since a
+reason beside a full list reads as an error.
+
+**Proof the original case passes:** the same three round ids that produced the
+false message now derive `unbookable`.
+
+### The divergence that allowed it
+
+`listOpenSlots` (recruiter) and `listOpenWindows` (candidate) read the same
+table through different filters:
+
+| | recruiter | candidate |
+|---|---|---|
+| time | `ends_at > now` | `starts_at > now + minNoticeHours` |
+| long enough | not checked | `>= durationMinutes` |
+
+So a recruiter saw three bookable windows while the candidate saw none, and
+could offer a time nobody could ever pick. `scheduleRound` validates only
+"has it already passed", so booking one succeeds.
+
+Each slot now carries `selfBookable` and a reason, and the recruiter's picker
+marks the unbookable ones **You only**. They are **not hidden**: booking
+somebody in by hand is the documented exception for the candidate who cannot
+self-book, and filtering them out would delete that capability.
+
+### Also fixed on the way
+
+The doorway restated `BookingView` as a hand-written local type — ten fields —
+which is precisely how it stayed ignorant of the reason the server had
+learned. It imports the real type now; types are erased, so no server code
+reaches the browser bundle (build confirms).
+
+### The probe that mattered
+
+Four probe mutations. The third **passed when it should have failed**: the
+guard was `/filter\([^)]*selfBookable/`, and `[^)]*` cannot span the `)` in
+`(s) => s.selfBookable`, so it matched nothing while the capability was
+deleted. **That is the exact `[^)]*` trap the tailr-b2b skill documents**, hit
+for the second time in this repo. Fixed to `/\.filter\([\s\S]{0,60}?selfBookable/`
+plus a positive assertion that the list is still built from every free slot.
+
+### Sibling found, NOT fixed
+
+`getHiringDashboard` lists the hiring manager's own offered slots by
+`ends_at > now` — the recruiter's rule, not the candidate's. So an HM can
+believe they have offered three usable windows when no candidate can take any
+of them. Same class, third surface. Left alone because the agreed scope was
+the candidate's message plus the recruiter's label; worth deciding separately.
+
+**Verified:** typecheck clean, 1,316 tests, production build clean, and the
+three empty states rendered against the served CSS.
+
+---
+
+## 🌱 15 September 2026 (later) — windows re-seeded so the loop can be walked
+
+Six availability windows on **ROL-2411 · Meridian Health**, the role all three
+outstanding invitations sit on: 17 Sep 09:00 / 11:00 / 14:00, 18 Sep 10:00 /
+15:00, 19 Sep 09:00 — all UTC, 60 minutes each. Enough for three candidates to
+each take one and still leave spares.
+
+Written with their `audit_log` rows in the same statement, because `offerSlot`
+is audit-coupled and a bare insert would have produced windows that nobody
+offered. Marked `SEEDED FIXTURE` in the audit `reason`, with a null actor —
+attributing them to Ose would have been a lie in a compliance trail.
+
+**Verified by effect, not by insert count.** Re-running the two list rules
+against the deployed data afterwards:
+
+| | before | after |
+|---|---|---|
+| candidate sees (`listOpenWindows`) | **0** | **6** |
+| recruiter sees (`listOpenSlots`) | 3 | 9 |
+| marked **You only** | — | 3 |
+
+The three the candidate still cannot take are the stale ones from the original
+bug; they now carry the label shipped in `06d24b4` rather than being silently
+unbookable, and they pass out of both lists on their own within a day.
+
+**The walk is unblocked.** All three rounds are `scheduled` / `pending` with
+their booking tokens intact, and every candidate address clears the non-prod
+email allowlist — so the invite actually sends rather than being refused.
+
+To get the booking link: role → **Interviews** → the cohort board → **Send
+again** on a candidate. That mints a fresh token and emails the self-booking
+invite (`remindCohortMember` refuses only when a slot is already held). The
+raw token is shown once and deliberately not recorded here.
+
+No application code changed.
+
+---
+
+## 🚨 15 September 2026 — every doorway link staging sent pointed at production
+
+**Reported as a 404 while sending interview invites.** It is not the invite.
+
+`getAppOrigin()` falls through to `APEX = https://gettailr.com` when neither
+`NEXT_PUBLIC_APP_URL` nor `NEXT_PUBLIC_SITE_URL` is set. That default is
+correct for production and catastrophic anywhere else, because **the agency
+surface does not exist on `main` at all** — `git ls-tree origin/main` returns
+zero files under `app/booking`. Confirmed live: `gettailr.com/booking/test`
+answers **404**, and so does `/consent/test`.
+
+**It is not one link. It is every external door of the B2B product:**
+
+| doorway | who it is emailed to |
+|---|---|
+| `/booking` | the candidate, to pick an interview time |
+| `/portal` | **the client, to read the shortlist** |
+| `/rights` | the candidate, on an Art 14 notice |
+| `/consent` | the candidate, for capture consent |
+| `/reference` | the referee |
+
+All five build their URL from `getAppOrigin()`. Every one of them, emailed
+from staging, went to a host where it has never existed.
+
+**The shape of it is the nastiest part:** every screen INSIDE the product
+worked perfectly. The failure was only ever visible to someone outside it,
+holding a link — which is exactly the population that cannot report a bug to
+us. It is very likely why the full walk-through has never been completed.
+
+### The fix
+
+A missing env var must not be able to send a candidate to the wrong
+DEPLOYMENT. `getAppOrigin()` now falls back, on a non-production Vercel
+environment only, to the deployment's own origin before reaching for the
+apex. `VERCEL_BRANCH_URL` is preferred over `VERCEL_URL` because it is the
+stable branch alias rather than a per-deployment hostname — **a link in an
+email outlives the deployment that sent it.** Production is untouched: with
+`VERCEL_ENV=production` the apex default still applies.
+
+This is a safety net, not the whole answer. **`NEXT_PUBLIC_APP_URL` should
+still be set explicitly on the staging environment** — the code fix means a
+forgotten variable degrades to "links point at this deployment" instead of
+"links point at a different product".
+
+**Guards:** four new pins in `site-url.test.ts` — a preview uses itself, the
+branch alias beats the per-deployment URL, production keeps the apex, and an
+explicit setting still wins. Three probe mutations, all caught, including
+reverting to the exact production fallback that caused this.
+
+**Verified:** typecheck clean, 1,320 tests, production build clean.
+
+---
+
+## 🪜 15 September 2026 — the interview loop tells you where you are
+
+Ose, walking staging: _"I'm sending out the interview invites and I don't know
+where I am in the process."_ Figma frame `11 · The interview loop` (394:2),
+signed off before code.
+
+The setup was never the problem — it is numbered "1 · Who do you want to
+interview?" and "2 · When can you interview?" and it works. **The numbering
+stops at 2.** Everything after you press invite — they book, you meet, you
+write up, it is decided — had no shape on screen, so the moment you finished
+the guided part was the moment you stopped knowing where you were.
+
+### Why this is not a stepper, which is the whole design
+
+Every reference answers "multi-step process" with a stepper: *Step 2 of 4*,
+one marker on one rung. It is wrong here in a way that would have looked right
+in review. **A cohort is not at a stage** — four people sit on four rungs at
+once, and any single marker has to pick one of them and be wrong about the
+other three.
+
+So the rail carries a DISTRIBUTION: how many people have reached each point.
+"Which part is mine?" is a different question and gets its own answer rather
+than a colour on a bar.
+
+**Cumulative, because that is already this file's convention.** `cohortSummary`
+has always counted booked as `booked + feedback_due + complete` — reached this
+point, not sitting exactly here. A rail counting only current status would show
+BOOKED falling to zero as people progress, which reads as going backwards.
+
+**Five rungs, not the six in the frame.** In this product choosing IS inviting
+— the action bar says "Invite N to interview" — so CHOSEN and INVITED would be
+two names for one fact, the exact trap `cohort-status.ts` already calls out for
+Booked/Confirmed. And "no suitable time" and "cancelled" are not progress:
+they are exits, counted separately, because somebody who found no time did not
+get less far — they left, and folding them into "invited" would quietly
+inflate every number after it.
+
+### Intuitive, specifically
+
+Run through the `ui-ux-pro-max` rules, the ones that changed the build:
+
+- **Colour is never the only cue.** The reader's own rung carries the word
+  "yours" and a caret, not just a coral border — the same rule that put
+  "STRONG 1.0" on the evidence row instead of a coloured dot.
+- **It is a readout, so it must not look like a control.** No pointer, no
+  hover, no press state. A rung that invites a click and does nothing is the
+  dead-control failure again.
+- **A row of numbers cannot be read aloud.** The rail is `aria-hidden` and
+  carries one spoken sentence instead of announcing "4 3 2 1 0".
+- **Tabular figures**, so the rail cannot twitch as counts change.
+- **No SLA.** An age is not a breach; nothing turns red because time passed.
+
+### From the get-go
+
+With no cohort yet the band renders one sentence of the whole process —
+"You choose who to meet, you offer times from your diary, they pick their own,
+you meet, you write up what you thought, and then you decide" — with the
+subject of each act explicit, because half of them are not the reader's. The
+screen now answers "what am I about to start?" and not only "what did I just
+do?"
+
+### Also fixed on the way
+
+`BoardMember` was a hand-written copy of `CohortMember`, so when the server
+grew a `decided` flag this file had no way to know — the same drift that let
+the booking doorway keep asserting a reason the server had stopped believing,
+found this morning. It imports the type now.
+
+**Guards:** `loop-rail.test.ts`, 14 pins. Six probe mutations, all caught:
+counting current status only, folding exits into invited, turning it into a
+stepper, making the rungs look clickable, marking the reader's rung by colour
+alone, and dropping tabular figures.
+
+**Verified:** typecheck clean, 1,334 tests, production build clean, rendered
+against the served CSS in the real dark chain, and measured at a true 375px
+viewport — `overflowing: 0`, the rail wrapping 3+2 with its order intact.
+
+---
+
+## 🧰 15 September 2026 (late) — a seeding script, and the guard that caught me pointing it at production
+
+Two asks: a clean cohort to walk from the start, and a script so fixtures stop
+rotting. Both are `scripts/seed-walkthrough.mjs`:
+
+```
+node scripts/seed-walkthrough.mjs state   ROL-2411
+node scripts/seed-walkthrough.mjs windows ROL-2411 [--days 2,3,4] [--dry]
+node scripts/seed-walkthrough.mjs clone   ROL-2411 [--title "..."] [--dry]
+```
+
+`windows` computes every time **relative to now** and generates only windows
+that clear the role's own minimum notice AND the interview length — the two
+rules `listOpenWindows` applies. It is idempotent: it skips a window that
+already exists at that start. This is the third time aged fixtures have
+blocked a walk, and absolute timestamps are why.
+
+`clone` copies a role's SHORTLIST into a fresh one — requirements, candidates,
+evidence, scores — and stops there. Rounds, decisions, references and the
+submission are the walk itself; seeding them would be seeding the thing under
+test. **Cloning rather than inventing is the safety property**: every source
+row already satisfies constraints like `evidence_quote_iff_present`, so copies
+do too. Hand-written fixtures are how you get rows that look like bugs.
+
+**`ROL-2416` — "AI & Automation Consultant — walk-through"** now exists: 10
+requirements, 4 candidates, 40 evidence rows, 4 scores, and nothing else.
+Verified by effect rather than by the success message — 0 evidence rows
+pointing at the source role's requirements, 0 score `effective` keys pointing
+at them either, and 4 distinct rights tokens with 0 shared.
+
+### The part worth keeping
+
+**The first draft resolved to the production database.** It imported
+`loadMailEnv` because that helper already parsed .env files — and that helper
+reads `.env.mail.local` FIRST, by design, because (its own docstring)
+"production credentials can live there for a send without repointing the local
+dev server". On this machine that file holds the service-role key for
+`wgpaaafseibcqagiiavt` — **"Cv-Tailor tool", the consumer production
+database.** A fixture-seeding tool aimed at staging, pointed at production.
+
+It was caught by the project guard. **And the guard only caught it because it
+is an ALLOW-list.** The draft before that had a deny-list containing a
+production ref that had been *guessed rather than looked up* — a guard that
+reads as protection and protects nothing, since it would have waved through
+the exact project it hit. An allow-list refuses an unknown project by default;
+a deny-list permits one by default. The script now resolves its own env and
+never reads the mailers' file.
+
+Worth noting separately: **`.env.local` in this repo has no Supabase URL at
+all; `.env.development.local` points at staging and `.env.mail.local` points
+at production.** Any script that parses env files here needs to say which it
+means.
+
+### And a partial write, cleaned up
+
+The clone failed mid-way on its first real run: `rights_token` is globally
+unique and database-generated, and copying it fails the insert — after the
+role and its ten requirements were already written. It left `ROL-2415`, a role
+with requirements and nobody in it, which was deleted after confirming nothing
+referenced it. The script now validates before it writes, rolls the role back
+if candidates fail, and never clones a column the database generates. A rights
+token is a candidate's private door to their own data; two people must never
+share one.
+
+**Guards:** `seed-script-safety.test.ts`, 7 pins — never reads the mailers'
+env file, decides by allow-list and not deny-list, has a `--dry` that writes
+nothing, stamps rows as fixtures with a null actor, never clones a
+database-generated unique column, and contains exactly one delete (the
+rollback of a role it made seconds earlier). Four probes, all caught,
+including reverting to `loadMailEnv`.
+
+**Verified:** typecheck clean, 1,341 tests, production build clean.
+
+---
+
+## 🗄️ 17 September 2026 — a finished role leaves the live table
+
+Ose: _"on the live roles, it shouldn't be there once the handover is there."_
+Figma frame 13, band A, approved. First of the three pieces.
+
+**My first diagnosis was wrong and worth recording.** I claimed closed roles
+were still listed, reasoning from `roleCards` mapping every role. They are
+not: `/api/agency/today` has always carried `.neq("status", "closed")`, and
+the live band renders `today`, not `roleCards`. Ose's actual words pointed at
+the real thing — **the handover**, not the status.
+
+**What was really happening.** Closing a role is a separate, deliberate act
+because it starts the retention clock on every candidate attached to it. So a
+role can be finished in practice and open in the data:
+
+| role | pack delivered | status | was in the live queue |
+|---|---|---|---|
+| ROL-2410 | **24 Aug** | draft | **yes** |
+| ROL-2408 | **24 Aug** | draft | **yes** |
+| ROL-2409, ROL-2413 | never delivered | draft | yes, correctly |
+| ROL-2411 | delivered | closed | already excluded |
+
+Two roles handed over three weeks earlier were still sitting in the live
+queue. And the same fact says something worse: **their retention clocks have
+never started**, because nobody closed them.
+
+### The fix, and the distinction it refuses to tidy away
+
+`today` now also drops a role whose pack has actually been **delivered** —
+keyed on `pack.deliveredAt`, which `RoleFacts` already carried, so no new
+query. Delivery is the honest end: the employer becomes controller at that
+moment.
+
+The archive holds both endings and **says which is which**, because the
+difference is a job somebody still owes. A closed role reads as history; a
+delivered-but-open one reads a shade louder, says "close it to start
+retention", and links through to do it.
+
+**It never closes a role by itself**, and there is a guard for that:
+auto-closing on delivery would start a retention clock nobody chose to start.
+The archive offers the act; it does not perform it.
+
+`phase` deliberately stays keyed on a pack EXISTING rather than being
+delivered — generating a pack IS the handover phase, and conflating them
+would have moved a role out of the live table the moment a draft was made.
+ROL-2409 and ROL-2413 have exactly that shape and must stay live.
+
+### A standing decision, reversed by the person who made it
+
+`agency-nav.test.ts` pinned **"the dashboard renders one band, and it is the
+roles"** — from Ose's 10 Sep walk, where the dashboard was cut to live roles
+and nothing else. The archive breaks that pin, so the pin is rewritten to
+encode the new rule (exactly two bands, Live roles and Archive) with the
+reason and both dates. The original intent is kept intact: the four bands
+removed on 10 Sep stay removed, and nothing expands into more.
+
+**Guards:** `role-archive.test.ts`, 13 pins, six probes all caught —
+including reverting the delivered filter, keying on a pack existing rather
+than delivered, collapsing the two endings into one, dropping the "nothing is
+deleted" promise, and auto-closing on delivery. Plus two more on the rewritten
+band pin.
+
+**Verified:** typecheck clean, 1,354 tests, production build clean, and the
+band rendered against the served CSS.
+
+**Left for Ose:** ROL-2408 and ROL-2410 are handed over and unclosed on
+staging right now. Closing them is a real act with a real consequence — it
+starts retention on their candidates — so it is his to press, not mine.
+
+---
+
+## 🚪 17 September 2026 — the interview room
+
+Ose: _"a pop-up window for each candidate ... a distinct UI that helps the hire
+manager perform those rounds and see the rounds."_ Figma frame 13 band B,
+approved. Second of three pieces.
+
+**It is a place, not a pop-up.** `/hiring/roles/[id]/rounds/[ref]` — a real
+URL that answers a cold load, because a write-up is exactly the thing somebody
+starts, gets called away from, and comes back to. Opened from the loop it is a
+panel over the loop; opened from a link it is a page. That is the same
+intercepting-route pattern candidate detail has used since 14 Sep, reused
+deliberately: a second, subtly different modal is how a product ends up with
+two answers to "how do I get out of this".
+
+**The gate is the submission, not the role.** A hiring manager holds a role; a
+recruiter may be interviewing somebody on that role they never submitted — a
+bench candidate, a second wave, somebody met speculatively. Opening a room on
+"there is a round on a role you hold" would disclose that person's existence.
+The gate is `getClientShortlist`, and everything the room says about the
+PERSON comes out of the frozen submission snapshot rather than the live
+candidate row. The candidates table is read for `id` alone, to find the
+rounds.
+
+404 rather than 403 when there is no room: "never sent to you" and "does not
+exist" must look identical from outside.
+
+**The write-up still gates the decision**, and the gate reads from the server
+falling back to this tab — component state alone meant a client who wrote one
+up and reloaded got an empty box and no way through.
+
+**The draft survives.** Kept per ROUND id, so two candidates' half-written
+impressions cannot land on each other; written as they type; cleared once it
+has become a record so it cannot resurface on the next round as if it were
+about them. Every storage call is wrapped, because a private window is not a
+reason to fail.
+
+### The bug this uncovered: "round 2 of 2" was a guess
+
+Both hiring-manager screens passed `planned={2}` as a **literal** while
+`job_roles.planned_rounds` has been a real field set at intake. **A
+three-round process was being told it was on its final round** — and "the last
+round" is exactly what this piece had to get right. `planned_rounds` now
+travels with every `HiringRound`, and no screen hardcodes it.
+
+The plan is still never a gate: the room SAYS "this was the last planned
+round" and offers close-out, but refuses nothing. A fourth round after three
+planned stays allowed, as `next-action.ts` has always insisted.
+
+### What the frame promised and the schema cannot say
+
+Frame 13 showed "Priya has not written hers yet". **It is not buildable.**
+`round_artifacts.round_id` is UNIQUE — one write-up per round, with no author
+on it — so per-interviewer write-ups do not exist in this data model. Left out
+rather than faked, and pinned so nobody adds the words without adding the
+schema. If two interviewers each owing a write-up is real, that is a migration
+and a decision, not a label.
+
+**Guards:** `interview-room.test.ts`, 25 pins. Seven probes, all caught —
+gating on the role instead of the submission, letting through a candidate who
+was never sent, taking the person's name from the live row, dropping the
+server-side write-up gate, leaving the draft behind after a decision, deleting
+the slot's `default.tsx`, and turning the planned count into a gate.
+
+**Verified:** typecheck clean, 1,379 tests, production build clean — the build
+output lists `(.)rounds/[candidateRef]` alongside the real page, which is the
+intercept registering. Rendered against the served CSS in the dark chain
+across three states.
+
+---
+
+## 🪞 17 September 2026 (later) — the recruiter's loop table: one ladder, not two
+
+Frame 13 band C, the last of the three pieces. **Most of it already existed**,
+and saying so is the honest report: the role's Interviews screen already had
+per-candidate rows, the round lanes, the client's note, "Book round N+1" and
+"Take to close-out →".
+
+What it also had was a **second implementation of the ladder**. An if/else
+chain derived "what happens next" inline — declined, booked, write-up due,
+decision due, cleared-all-rounds, advancing — while `deriveSubState` ran the
+real one for the role header **on the same screen**. Two derivations of "where
+is this person" do not stay equal; they disagree the first time either
+changes, and these would have disagreed in front of the recruiter, about one
+candidate, on one page.
+
+So `loopState` is exported from `next-action.ts` and both read it. The WORDS
+stay local on purpose — a recruiter and a hiring manager need different
+sentences about the same fact — but the fact is computed once.
+
+**And the list is ordered now**: what is yours, then what somebody else owes,
+then what is settled. It was in candidate order, which buries the single row
+that needs the recruiter.
+
+### The button frame 13 drew that does not exist
+
+The frame showed **"Nudge Owen"** beside a row waiting on the client's
+write-up. There is no such endpoint: `remindCohortMember` re-sends a BOOKING
+link and refuses outright once a slot is held. Nothing in the product chases a
+client for a write-up or a decision.
+
+So those rows carry the wait and no control — the same rule the hiring
+manager's dashboard follows, and the same judgement that removed the dead
+"Open every quote". A dead button is worse than none. **If chasing a client is
+something a recruiter should be able to do, that is a feature with an email in
+it, not a label.**
+
+**Guards:** `recruiter-loop-table.test.ts`, 12 pins — and unusually for this
+repo they are half BEHAVIOURAL rather than source scans, because exporting
+`loopState` finally made the ladder callable from a test. One of them is the
+`planned={2}` bug written as an assertion: advancing at round 2 of a
+three-round plan must NOT reach close-out.
+
+Five probes, all caught: reinstating the inline ladder, closing the loop a
+round early, letting a decline stop settling it, letting the decision come
+before the write-up, and dropping the ordering.
+
+**Verified:** typecheck clean, 1,391 tests, production build clean.
+
+### The three pieces are done
+
+Archive (`a25f44a`), the interview room (`e9bcfd5`), and this. What is still
+open from the design, and deliberately not built: **per-interviewer write-ups**
+— `round_artifacts.round_id` is UNIQUE, so "both interviewers have written up"
+is not a thing this schema can say, and frame 13 promised it. That is a
+migration and a product decision, not a label.
+
+---
+
+_Last updated: 17 September 2026_
+
+---
+
+## 🚶 18 September 2026 — the first walk, and the two things it found
+
+**The loop was walked by a person for the first time.** Ose opened ROL-2416 on
+staging, got as far as the hiring manager's workspace, and found two faults that
+no amount of structural verification had surfaced — because both are about what
+a screen says when it has nothing to say.
+
+Figma frame **14 · Interviews · the across-roles screen, and the recruiter's
+read** (`424:2` on `AWRRbEOX6rLsltutFDL3zs`), drawn and signed off before any
+code, as the rules require.
+
+### 1. `/hiring/interviews` was a screen with nothing to do on it
+
+His words: *"the screen just does nothing."* He was right, and nothing was
+broken. All three of its bands — what you owe, the loop role by role, what is
+coming up — fill only once a candidate has BOOKED. Before the first booking the
+page is empty by construction, and it had no way to say so: four empty bands
+and a sentence sending you back to the role you came from.
+
+Meanwhile ROL-2416 was waiting on him at that exact moment, and the dashboard
+knew.
+
+**What it was missing was the across-roles question.** The dashboard answers
+"what is the one thing now" for a single role. A role's own cohort screen
+answers "where is this cohort". Nobody answered *"what do I owe, anywhere?"* —
+which is the only reason to open a nav item called Interviews when you hold six
+live roles.
+
+So the screen gained one band above the three it already had: **Waiting on you ·
+across every role**, reading `/api/hiring/today` — the same ladder the dashboard
+and the role header read. No second derivation, no new endpoint, no new state.
+The empty headline changed from "Nothing is waiting on you" to "Nothing owed
+yet. Two roles are waiting on you."
+
+- The ladder is fetched SECOND and never gates the page: if it fails the three
+  reporting bands still render. A failed load must not read as an empty one —
+  and must not take the screen with it either.
+- Roles where nothing is yours still get a line. "Nothing for you" is the answer
+  to the question being asked; filtering them out would leave a person who owes
+  nothing staring at an empty band again.
+- **No button where it is not yours.** A wait carries the party and no control.
+  Frame 13 drew "Nudge Owen"; it still does not exist and is still not built.
+
+### 2. The recruiter could see that a write-up existed, not what it said
+
+`getRoundFacts` selected `round_id` from `round_artifacts` and nothing else, so
+the loop table knew a write-up existed and could not show a syllable. The text
+was two screens away on the dossier, while the decision it explains sat on the
+interviews screen. A recruiter reading "advanced" with no reasoning has to go
+hunting, or ring the client and ask them to say it again.
+
+The write-up now renders in **Round detail**, under the decision, whole and
+unedited. Nothing parses it, scores it, or derives a signal from it.
+`written_by` decides whether it reads as "The client's write-up" or "Your
+write-up", and no name is ever shown — `round_artifacts.round_id` is UNIQUE, so
+there is one write-up per round and no author column to read. Per-interviewer
+attribution remains the open migration + product decision, not something to
+paper over in a card.
+
+### 3. The duplication is gone
+
+The dashboard was rendering up to four round rows that `/hiring/interviews`
+renders in full — one dataset, two screens, two places to keep right. The
+dashboard band is now a signpost: how much is over there, and the door. The
+Interviews screen owns rounds; the dashboard owns the one thing that needs you
+now.
+
+### A guardrail fired, and was strengthened rather than loosened
+
+Moving the write-up text into `lib/agency/rounds.ts` failed
+`agency-transcription.test.ts` — **correctly**. That module is MIXED: hiring
+managers call `offerSlot`, `withdrawSlot` and `decideRound` from it, so a
+file-level scan forbids ANY read of `round_artifacts.content` there. §5.7 and
+the consent copy both promise the client is never handed the tape, and a
+file-level regex cannot tell a recruiter-scoped query from a client-scoped one
+ten lines away.
+
+The read moved to a new recruiter-only module, `lib/agency/round-debrief.ts`,
+which takes an `AgencyContext` and never a `HiringContext`. `rounds.ts` now
+contains **zero** references to `round_artifacts` — strictly stricter than
+before. Two new assertions keep the move honest: the module may not mention
+`HiringContext`, and its single query must carry `.eq("kind", "debrief")`
+(filtered in the query, not after it — a transcript row's mere existence
+discloses that a candidate consented).
+
+**Both were probe-mutated before being believed.** Dropping the `kind` filter
+failed the suite; widening the context to accept a `HiringContext` failed the
+suite; the file was restored and the suite is green. The first draft of the
+guard also matched the module's own documentation, which is the seventh time
+that trap has been hit — it now scans `code(...)` like the rest of the file.
+
+### Verified
+
+- `tsc --noEmit` clean; **1392 tests pass**, 1 skipped.
+- All three touched routes serve 200 from the dev server.
+- The new CSS was confirmed in the **served chunk**, not read from disk.
+- Measured at 375px inside an `<iframe width="375">` with a `width:100%`
+  control div reporting a genuine 324px viewport: the row's primary action
+  wraps to its own line and is **not clipped**, and the write-up card does not
+  overflow, clip, or scroll the page sideways. Body copy computes as Geist, not
+  mono.
+
+**Not verified, and cannot be from here:** neither screen has been seen signed
+in. Both need Ose's session on staging — which is the next step of the walk,
+not a substitute for it.
+
+---
+
+## 🧬 18 September 2026 — the clone that lost its client
+
+**ROL-2416 could never have been seen by a hiring manager.** Its `contact_id`
+was NULL, and the whole `/hiring` surface is contact-scoped. The recruiter's
+role header said *"the client is choosing who to interview"* while no client
+was attached to the role at all.
+
+### Root cause: a hand-maintained SELECT list
+
+`scripts/seed-walkthrough.mjs` → `findRole` read six columns
+(`id, ref, title, company, agency_id, status`) and `cloneRole` spreads that row
+straight into the new role. So the clone copied six columns and silently
+dropped the rest. Confirmed against ROL-2411, the role it was cloned from,
+ROL-2416 lost:
+
+`contact_id · jd_raw · location · salary_band · seniority · company_context · created_by`
+
+Every OTHER read in that script — requirements, candidates, evidence, scores —
+already used `select("*")`. This was the only one that did not.
+
+**Second time this class has cost a day.** `BRIEF_CONVERSION_COLUMNS` omitted
+`jd_raw`, and accepted briefs minted roles with an empty intake box, silently.
+The rule in the skill is already written: never hand-maintain a SELECT list.
+
+### The fix, and the guard
+
+`findRole` now selects `*`. That fixes today; it does not stop tomorrow, so
+`assertClonedFaithfully` reads the new role back **out of the database** and
+compares it with the source column by column. Anything the source had filled
+and the copy has not is named, and the role is rolled back before anything
+hangs off it. Identity and bookkeeping are exempt (`id`, `ref`, `title`,
+`status`, timestamps, `candidate_seq`, `closed_at`) — a clone must differ
+there; everything else is content.
+
+**Probed against the real failure**, read-only, with the ignore-list parsed out
+of the shipping source rather than retyped: the guard reports all seven lost
+columns including `contact_id`, and a self-compare returns empty — no false
+positives.
+
+### A safety test was strengthened rather than bumped
+
+The new rollback paths broke `seed-script-safety.test.ts`, which asserted
+`deletes.length === 1`. The rule was never broken — all three deletes are the
+same "roll back the role this script minted seconds ago" — but a COUNT is a
+proxy: it fails on safe additions and would pass a dangerous change that
+REPLACED the existing delete instead of adding to it. It now asserts the real
+constraint: every `.delete()` in the file is
+`from("job_roles").delete().eq("id", roleId)`. Probe-mutated — a delete against
+`candidates` fails it.
+
+### Still open from this walk
+
+- **ROL-2416's `contact_id` must be set by hand** before the walk can continue;
+  the clone fix does not repair a role already minted. Ose has the SQL.
+- **The recruiter's banner claims a delivery that did not happen.** ROL-2416's
+  submission was generated as `document` format with **0 recipients** — a file
+  the recruiter hands over themselves, naming no client — and the UI still says
+  "Shortlist of 2 sent to the client." A submission row exists, so the screen
+  asserts delivery. That is the `200 {enabled:false}` lesson wearing copy.
+  **Not yet fixed; next.**
+- Worth noting for the record: the role only appeared on the HM *dashboard* at
+  all because seeded windows were pinned to it under Meridian Health's contact,
+  and `client-header.ts` discovers a contact's roles via
+  `availability_slots.role_id`. The dashboard found it through a slot; the role
+  screen found nothing. A role can therefore reach a client through a side door
+  its own `contact_id` never opened — which is arguably its own defect.
+
+---
+
+## 🧾 18 September 2026 (later) — "sent" has to be earned
+
+**The recruiter's receipt claimed a delivery that never happened.** On ROL-2416
+it read *"Shortlist of 2 sent to the client. The interview workflow has
+started"* — over a submission generated as a **`document` with 0 recipients**,
+on a role with **no client contact at all**. Nothing had been sent, there was
+nobody to send it to, and the hiring manager's side was correctly empty the
+whole time.
+
+A submission ROW existing is not a delivery. That is the
+`200 {enabled:false}` lesson from CLAUDE.md wearing copy: the thing that should
+have changed is `recipients`, not the presence of a record.
+
+`handoffFor`'s own docstring already promised it *"never says 'sent' when
+nothing was"*. It does now.
+
+### The fix
+
+`RoleFacts.submission` gained `format` and `recipients`. The recipient count
+comes from rows `role-facts.ts` already reads for the client's actions, so it
+costs nothing. The `with-the-client` receipt now branches on **recipients, not
+format** — a zero-recipient email has delivered exactly as much as a document
+has:
+
+- **Delivered** → "Shortlist of N sent to {client}." Unchanged, now earned.
+- **Generated only** → "Shortlist of N generated as a document. Nothing has
+  been sent from Tailr." A document submission is not a failure — it is the
+  recruiter deliberately taking the shortlist away as a file — so it must not
+  read as one. But the next task is completely different, and the receipt has
+  to say which happened.
+- **Generated, and no client contact on the role** → "No client contact is on
+  this role, so nobody can act on it in Tailr. Add one, then send it to the
+  portal." The blocking fact, named, rather than left to be discovered by
+  opening an empty screen.
+
+### Why nothing caught it
+
+Two reasons, both fixed.
+
+1. **`handoffFor` had no tests at all.** It has five now, covering both
+   directions plus the no-contact case. Probe-mutated: forcing `delivered =
+   true` (the old behaviour) fails four of them.
+2. **The fixture was called `sent` and modelled no delivery** — no format, no
+   recipients. A mock that does not implement the thing its name promises will
+   agree with wrong code forever, which is the standing lesson about mocks in
+   this repo. `sent()` is now portal + 1 recipient, and `generatedOnly()` is
+   its honest sibling.
+
+One of the new assertions failed on its own correct copy first — `not
+.toMatch(/\bsent\b/)` against a sentence that legitimately says "Nothing has
+been **sent** from Tailr". The claim under test is "sent **to**", and the
+assertion says that now.
+
+### Judgement call, stated
+
+No Figma frame for this one. It is a copy-and-state correction inside an
+existing component whose layout does not change — not a new screen, a new
+section or a restyle. Frame 14 already covers the surfaces around it.
+
+**1397 tests pass.** Still not seen signed in; needs Ose's session, as before.
+
+---
+
+## ⚙️ 19 September 2026 — the notice period becomes an agency default
+
+**The field read as an agency default and was not one.** Interview rules lived
+only on `interview_settings`, whose `role_id` was the PRIMARY KEY and NOT NULL
+— so the 24-hour minimum notice, the setting that decides whether a candidate
+can book a time today, could only be changed one role at a time, forever. A
+desk that books same-day had to remember on every role it opened, and
+forgetting produced a candidate doorway that offered no times at all while
+working perfectly. That cost sessions on **15 and 18 September**.
+
+### The shape is borrowed, not invented
+
+`agency.notification_preferences` already solves this: a NULL in the scoping
+column IS the agency default, a non-null row is the override, and
+`resolvePreference()` is the single rule that reads them. This mirrors it
+exactly — `role_id` NULL is the agency's default, `role_id` set is that role's
+override — so the schema has one pattern for "a default somebody can override"
+rather than two that drift apart.
+
+`resolveSettingsRows` is pure, lives in the server-import-free module beside
+`DEFAULT_SETTINGS`, and is the only place precedence is decided.
+
+### Migration 20260918120000
+
+- The primary key on `role_id` goes; `role_id` becomes nullable.
+- **Two partial unique indexes** replace it: one override per role, and **one
+  default per agency**. Without the second, an agency could accumulate several
+  conflicting defaults and the resolver would pick whichever came back first.
+- A **tenancy trigger** refuses a row whose `role_id` belongs to a different
+  agency. Nothing enforced that before because `role_id` was the key and
+  `agency_id` came along for the ride; with two layers it matters, because
+  resolution filters on `agency_id`.
+- `grant ... to service_role` stated explicitly. Three shipped tables have been
+  found unwritable by the role that writes them because a grant to
+  `authenticated` looked complete.
+
+### The upsert had to go
+
+`role_id`'s key became a PARTIAL unique index, and **a partial unique index
+cannot be named as a PostgREST `onConflict` target** — the inference needs the
+index predicate, which the query string cannot carry. Left alone it would have
+failed at conflict-resolution time rather than at deploy time, which is the
+worst place to find out. `writeSettingsRow` now reads, then updates or inserts,
+and both layers go through that one writer.
+
+Also corrected while in there: `setInterviewSettings` logged its audit action
+from `saved`, which is now true for a role that has never had its own row
+whenever an agency default exists — so a role's FIRST override would have been
+recorded as an update to something that was not there. It reads `source` now,
+and carries what it inherited from in the reason.
+
+### Where it is set
+
+`/agencies/settings` gains **"Notice a candidate gets"**, alongside retention
+and the Art 14 delay. It says *"inherited — nobody has set this, so every role
+uses 24 hours"* until somebody does, then *"your desk's default · a role can
+still override it"*. Writers only, and audited: shortening it changes what
+every candidate on every future role is owed.
+
+### Verified, and one correction
+
+- **1415 tests pass.** 14 new on the resolver, migration and write path; 4 more
+  driving the real doorway path (`peekBooking → mayReschedule →
+  getInterviewSettings`) so a default that resolves in a unit test but never
+  reaches a person still fails.
+- **Probed both directions.** Making the agency default beat the role's
+  override fails 2; letting another role's override leak in fails 1; ignoring
+  the agency layer entirely fails 1.
+- **A claim in the first draft was false and is now a note in the file.** It
+  said loosening the mock's `.or` would fail the role-override test. Probing
+  showed all four still pass — the resolver picks the role row out of whatever
+  comes back, so a sloppier query changes nothing there. The `.or` is
+  implemented faithfully regardless, and the thing that actually protects
+  precedence is the resolver's own tests.
+- The mock gained working `.or`, `.gt`, `.neq`, `.not` and `.order` —
+  implemented, not stubbed. It had none of them, and a chain method that
+  ignores its arguments makes every query look correct.
+
+### 🐛 The first attempt at applying it failed, and why
+
+`ERROR: 42P16: column "role_id" is in a primary key`. The transition was two
+separate statements — drop the constraint, then drop NOT NULL — and the second
+ran with the key still in place. Because the SQL editor runs a whole script in
+one transaction, **the entire migration rolled back and nothing was applied**:
+PK still there, role_id still NOT NULL, no indexes, no trigger. Verified by
+querying the live catalogue rather than trusting the error message.
+
+Fixed by making the transition **one DO block**: the drop and the nullability
+change in a single statement, in order, with no chance of being split or
+reordered. The constraint is now found **by lookup** (`pg_constraint`,
+`contype='p'`) instead of by assuming it is called `interview_settings_pkey` —
+a table whose key was ever rebuilt by hand would carry another name, and
+`drop constraint if exists <assumed name>` would have matched nothing,
+succeeded, and left the next statement to fail exactly like this.
+
+A test now asserts the drop precedes the nullability change *inside* that
+block, and that the name is never assumed.
+
+**Still to do: this migration has not been applied to tailr-staging.** It must
+run BEFORE the deployed code reads it, per the standing rule.
+
+---
+
+## 🧷 19 September 2026 — a CV that survived its own deletion
+
+Tracing the 22 orphaned files in the staging `agency-cvs` bucket. The headline:
+**nothing in the app deletes a candidate outside the purge path.** All three
+`purge_candidate` callers — remove-added-in-error, rights requests, and the
+retention cron — correctly remove the blob afterwards. That part was sound.
+
+The orphans come from deletion being **fire-and-forget**, by four routes:
+
+1. **The purge path itself, when storage removal fails.** The RPC deletes the
+   row first; if the storage call then fails the cron logs it and moves on.
+   Its own comment says so: *"the next run will NOT retry these paths."*
+2. **`ingest.ts` — the pointer write was unchecked.** The upload's error was
+   handled and the `cv_storage_path` update's was discarded. **Fixed below.**
+3. **Any cascade from deleting a role.** `job_roles → candidates` is ON DELETE
+   CASCADE and nothing collects storage paths first. No app route deletes a
+   role, so this is manual SQL — which is most of how staging got here,
+   `reset-walkthrough.sql` included.
+4. **Cloned candidates share a blob.** `seed-walkthrough.mjs` copies
+   `cv_storage_path`, so two rows point at one file; purging either deletes it
+   and leaves the other dangling.
+
+**And nothing reconciles the bucket.** Recordings have a sweep in the cron;
+CVs have none. So an orphan from any route is permanent *and* invisible, which
+is why 22 sat there unnoticed.
+
+### Why it matters past staging
+
+`purge_candidate` finds a CV through `cv_storage_path` and nothing else. A blob
+whose pointer was never written **cannot be reached by an erasure request**. An
+Art 17 request would complete successfully and leave the file behind. That is
+§8.2 of `LEGAL-REVIEW-PACK.md` moving from a residual risk we are carrying to a
+demonstrated defect.
+
+### Fixed now: the pointer write
+
+The `cv_storage_path` update is checked. On failure the blob is **removed
+immediately** — keeping it would mean keeping a file no erasure path can ever
+reach, and losing the compliance copy is recoverable (the recruiter
+re-uploads) where an unreachable CV is not. If both the write and the cleanup
+fail, it logs `ORPHANED CV` by name, because the last line of defence is a
+string somebody can search for.
+
+Four assertions, scanning code rather than the prose the module now carries
+(the source-scan trap, hit seven times here). **Probed: reverting to the
+pre-fix two-liner fails all four.**
+
+### Not fixed, deliberately
+
+The **reconciliation sweep** — list the bucket, subtract referenced paths,
+delete what is left past a grace period. It is the thing that would have found
+all 22, and it is the same shape as the recordings sweep already in the cron.
+Ose's call (19 Sep): do it **before the first real candidate**, not before the
+walk. Zero members of the public have ever been through the B2B product, so
+nothing is at risk today — but it must be a decision rather than something
+that gets forgotten. Routes 1, 3 and 4 above stay open until it exists.
+
+**1420 tests pass.**
+
+---
+
+## 🧭 19 September 2026 — five places for the hiring manager
+
+Figma frame **15 · The hiring manager's five places, and a task-first
+dashboard** (`435:2`), drawn and signed off before code, per the repo rule.
+
+The nav was **Home** and **Interviews**. Two items meant everything else lived
+on the dashboard, which was a roles list, a task list, a rounds list and a
+diary on one screen. It is now five named places, each answering one question
+and each reaching real data:
+
+| place | question | route |
+|---|---|---|
+| My roles | what am I on, and where has each got to | `/hiring/roles` **(new)** |
+| Tasks | what needs me now | `/hiring` |
+| Shortlist | who was sent to me, and what did I say | `/hiring/shortlist` **(new)** |
+| Interviews | rounds, write-ups, my diary | `/hiring/interviews` |
+| Decisions | what have I already said | `/hiring/decisions` **(new)** |
+
+**No stubs.** Every place reads an endpoint that already exists — `today` for
+the ladder, `dashboard` for rounds, `roles/{id}/shortlist` for the snapshot. A
+nav item opening an empty screen is the same broken promise as a button that
+cannot do anything, which has bitten three times.
+
+### The dashboard is Tasks now
+
+- **The wait is titled after the person.** When the next act is somebody
+  else's, `next.title` names THEIR task, which read as an instruction to the
+  hiring manager. It says "Waiting on Mara Ellison" and drops the task to the
+  detail line.
+- **This role at a glance** — four rungs, all derived from facts the payload
+  already carries. Deliberately coarser than the recruiter's seven steps,
+  because a client sees none of the shortlisting work: the only honest signals
+  are that the role exists, somebody was put in front of them, a round
+  happened, and the loop ended. Plus the §5.4 rule said to the person it
+  protects: *"You only ever see what has been disclosed to you."*
+- **The roles list moved out.** Tasks answers "what needs me now"; My roles
+  answers "what am I on". Rendering both is what made this a corridor — the
+  same duplication the interviews list had on 18 Sep.
+
+### Two corrections to what I told Ose
+
+1. **The dark-theme concern was wrong.** I said `/hiring` was fixed dark,
+   scoped by `.ag-app:has(.agd-main)` — which is what the skill says. The code
+   has moved on: dark is a user TOGGLE (`data-ag-theme` on `<html>`, applied
+   to `.ag-themed`). `/hiring` already follows Owen's own choice, so building
+   to a light reference decided nothing. **The `tailr-b2b` skill is stale on
+   this point.**
+2. **Frame 03 is NOT reversed — I overstated that too.** Marking it on 19 Sep
+   showed its own eyebrow reads *"RECRUITER NAVIGATION"*: it was scoped to the
+   recruiter's sidebar from the start and never governed `/hiring`. Its
+   argument — one step of one role stacking four labelled lists and eighteen
+   things to click — stands unchanged. Five named places on the client's side
+   is not in tension with it. The frame now carries a **scope band** saying
+   so, and pointing at frame 15, rather than a "superseded" stamp it never
+   earned. A frame that looks reversed when it is only out of scope is how a
+   signed-off decision gets quietly discarded.
+
+The brief door stays closed. "My roles" lists roles the RECRUITER opened.
+
+### The nav guard was brittle, and is now behavioural
+
+`hiring-nav.test.ts` asserted the literal string `["/hiring/roles"]` appeared
+in the component. When `/hiring/roles` became its own place that string
+changed and the test failed **while the behaviour was correct** — a proxy
+breaking on a safe change, the same shape as counting deletes in the seed
+script.
+
+The active-state rules are now a pure `hiringNavFor(pathname)` and the suite
+runs against real paths: exactly one place lit on every workspace path, Tasks
+lit on a role page but NOT on My roles, Interviews lit on a cohort screen, and
+no sibling-prefix matches. **Probed:** matching Tasks by prefix fails 3;
+dropping the cohort exclusion fails 2.
+
+### Verified
+
+- `tsc` clean, **1426 tests pass**.
+- All five routes serve 200.
+- New CSS confirmed in the **served chunk**, not read from disk.
+- Measured at 375px inside an `<iframe width="375">` (control div reports a
+  genuine 339px): the five-item nav **wraps to two rows**, every item visible,
+  no sideways scroll on the nav or the page, and a completed rung renders
+  struck through.
+
+**Not verified:** none of it has been seen signed in. That needs Ose's session.
+
+---
+
+## 🧱 19 September 2026 (later) — the rail, built properly this time
+
+**The five places shipped as the wrong object.** Frame 15 draws a 272px column
+of sentence-case places down the left; what went out was `.hm-nav` — a
+horizontal strip of small uppercase mono pills inside each page's `<main>`.
+Same five words, same routes, same data. Ose: *"nothing from the screenshot
+was implemented."* He was right about the thing that matters.
+
+**The deploy was fine.** Verified server-side before answering, per Play 2: the
+three new routes 200 while a nonsense route 404s, and the shipped JS chunk
+contains `"My roles"` and `"This role at a glance"`. Not a cache problem, not a
+deploy problem — the layout was simply never built.
+
+### How the verification passed while the design failed
+
+The 375px check reported *"the five-item nav wraps to two rows"* and that was
+written down as a pass. **A thing that wraps is not the thing that was
+designed** — a rail cannot wrap. The measurement was true and the conclusion
+was wrong, which is worse than a failed check because it carries the
+authority of a number. The `.hm-nav { flex-wrap: wrap }` rule that produced it
+has been deleted, with a comment recording what it disguised.
+
+### What the rail is
+
+- `components/agency/hiring-sidebar.tsx`, mounted **once in
+  `app/hiring/layout.tsx`** rather than per-page. Five places rendered by eight
+  pages is eight chances to disagree, and rendering it per-page is precisely
+  why the strip happened: adding chrome to a page is easier than adding it to
+  the shell, and nothing objected.
+- `.ag-app` is `display:flex` and the recruiter's own `.ag-sidebar` already
+  sits beside `.ag-main` in it — same shell shape, not a second layout.
+- Sentence case at body size in the design system's face, tinted coral when
+  active. Not the uppercase micro-mono of the chrome: these are names of
+  places a person goes.
+- Below 860px it rides along the top and scrolls **inside itself**, because a
+  272px column on a 375px screen leaves 100px for the work.
+- **`HiringNav` and `.hm-nav` are deleted**, not left beside the rail. Two
+  navs with the same five words is how they drift.
+
+### The guard was the wrong shape too
+
+`hiring-nav.test.ts` asserted `<HiringNav />` appeared in seven page files —
+the right rule protected the wrong way, and the way that let chrome-in-a-page
+ship unchallenged. It now asserts the layout mounts the rail, that **no page
+renders nav chrome of its own**, that the retired strip is gone from both the
+component and the stylesheet, and that the invite doorway gets no rail
+(`showsHiringRail`, pure and tested against paths).
+
+That last assertion caught a real leftover: `.hm-nav { flex-wrap: wrap }` had
+survived in the stylesheet.
+
+### Verified, in a real viewport this time
+
+Measured inside an `<iframe>` at **1280** and **375**, reproducing the ancestor
+chain, because the Browser pane was hidden and reported `innerWidth: 0` —
+which made the 860px query match and would have "confirmed" a row layout.
+
+| | 1280 | 375 |
+|---|---|---|
+| column | **yes** | no (row, by design) |
+| items stack vertically | **yes** | no |
+| width | **272px** | full width |
+| left of main | **yes** | n/a |
+| full height | **yes** | n/a |
+| sentence case, not mono | **yes** | yes |
+| active tint | `#fff7f4` | `#fff7f4` |
+| page scrolls sideways | **no** | **no** |
+
+**1423 tests pass.** Still not seen signed in.
+
+---
+
+## 🔍 19 September 2026 — the matching window
+
+Figma frame **16 · Matching insights** (`442:2`), approved before code.
+
+Publishing a role produced a status pill and a cramped card. It now opens a
+window: what the scan is matching against, how far it has got, and who
+consented to be seen.
+
+### The line it does not cross, and why
+
+Ose asked for "an interactive insights pool of what candidates could be
+considered". **The method is showable; the pool is not.**
+
+`public.recruiter_profile_snapshot` returns null for a matched person who has
+NOT opted in — from the same code path, with the same timing, as for somebody
+who never matched at all. No flag, no distinct error, no channel a recruiter
+could read as *"there is somebody here"*. A window that hinted at those people
+would undo the one property that makes opting in safe, and it is a consent
+commitment in `LEGAL-REVIEW-PACK.md` §3.2 rather than a preference.
+
+So the window keeps three rules:
+
+1. **Nobody is browsed.** Only people who matched AND chose to be seen are
+   listed. No search, no filter over the pool.
+2. **The others stay rounded.** "A handful", never 7. An exact number is a
+   disclosure — watch it move as you change the threshold and you have learned
+   about individuals.
+3. **Bands, never a score.** The score never reaches the browser, so no
+   ranking of people exists here and none can be reconstructed.
+
+The progress bar is **indeterminate on purpose**. A percentage would be a
+count of people wearing a progress bar, and the count is the thing that must
+not be shown. Reduced motion gets a static bar.
+
+### It also removed a duplication
+
+The matched people were rendered on the workflow page AND in the role-level
+card — one list, two places, two chances to disagree, the same shape as the
+hiring manager's interviews list on 18 Sep. Step 03 is now a door into the
+window; the list exists once.
+
+### The guard caught a real feature loss, which is what it is for
+
+`matched-list.test.ts` pins what is a product promise rather than a
+preference: cards not checklist rows, an avatar, the strength mark, MISSING in
+words, and a band rather than a number. **The first version of the window
+dropped the avatar, the band class and the MISSING-in-words title** — exactly
+the silent loss the suite exists to prevent. Restored verbatim from the
+original markup.
+
+The suite now scans the component rather than the page (the promises are
+unchanged; only the file moved) and gained an assertion that the list **lives
+in exactly one place**.
+
+### Verified
+
+- `tsc` clean, **1424 tests pass**.
+- The workflow route serves 200; the five new CSS rules confirmed in the
+  **served chunk**.
+- Measured at 1280 against the real stylesheet: panel 1168px and fits, must-have
+  chips tinted apart from the rest, the missing chip **dashed and at full
+  opacity** (never dimmed — the original bug), the bucket dashed, the body
+  scrolls while the bar does not, no sideways scroll.
+- First measurement attempt read the CONSUMER stylesheet because the tab was
+  on `/` — every check came back false. Navigated to an agency route and
+  re-measured. Worth recording: a harness that loads the wrong stylesheet
+  fails in the same direction as broken CSS.
+
+**Not verified:** not seen signed in, and the scan itself has never run
+against a real opted-in user.
+
+### Later the same day — publishing moved into the window too
+
+Ose: *"Put the publish for Tailr matching in the Tailr window."* Right, and it
+exposed something the first pass had left standing: **the threshold and the
+publish button existed TWICE** — on the role-level card and again inside step
+03. Two ways to switch one thing on, and two number inputs that could disagree
+about what the minimum was.
+
+Both are now in the window, with the copy carried over verbatim (it was
+written carefully and says precisely what the scan does and does not do). The
+two cards became doors: they show the state and the way in, nothing else.
+
+That is the point of the change rather than a side effect. The card was the
+switch AND the status, so **the thing you turn on and the thing that shows you
+what it did were never on screen together**. Now you set the minimum, press
+publish, and watch the scan in the same window.
+
+Three assertions pin it, probed: reintroducing a second threshold input on the
+workflow screen fails the suite.
+
+**1427 tests pass.**
+
+### And then the card came off the screen — but not the door
+
+Ose: *"Remove it from the screen if it is in the pop up window."* Right: the
+card described what the window already describes, so it was a second surface
+reporting on the first.
+
+**Removing it outright recreated a bug this project has already paid for**,
+and the guard caught it in the same run. `matching-scan-guards.test.ts`
+asserts the publish control is not nested inside a single step's conditional,
+because a role opens on its FURTHEST step — so a door living only in
+`step === "candidates"` is unreachable the moment a role has candidates and
+opens on screening. That is the original report, verbatim: *"there's no button
+that lets me publish it."*
+
+What is there now is **one row**, not a card: the title, the state pill, the
+last scan, and the way in. It sits after every step block rather than inside
+one, and still stops at step 04 because publishing is a sourcing decision.
+
+**Probed:** moving that row back inside `step === "candidates"` fails the
+suite. The guard is doing exactly the job it was written for, twice in one
+day — it also caught the window dropping the avatar and the MISSING-in-words
+title earlier.
+
+**1427 tests pass.**
+
+### 19 Sep, later — the row is gone, and why the score looked broken
+
+**Nothing sits below the step content now.** The role-level card, then the row
+that replaced it, are both removed. Publishing lives in the matching window,
+reached from step 03. Two guards were repointed rather than deleted: the
+"reachable outside a step conditional" rule no longer applies because there is
+no control on the screen to place, and what remains asserted is that the
+screen carries none and the window carries one.
+
+**"Update score isn't working" — it was, and it wasn't.** `min_score` was
+saved as 10 at 10:57, confirmed in the database. But the scan that would USE
+it never ran: `next_scan_allowed_at` was 20 Sep 08:08, the 24-hour anti-probing
+cooldown. The 08:08 scan had run at the old threshold of 70 and matched
+nobody, so nothing reached the consumer account — which is the outcome that
+actually matters and the one being asked about.
+
+Saying "it worked" because the column changed was too narrow. The column
+changing is not the effect.
+
+Two things fixed:
+- **The cooldown is now stated in the window**, next to the button that
+  triggers it. The card that publishing replaced carried this copy and it was
+  dropped in the move, which is what made a correct update indistinguishable
+  from a broken one.
+- **The cooldown on ROL-2417 was cleared** on staging so a scan can run at the
+  new threshold.
+
+**Also found: all 8 `role_recommendations` rows are orphans.** Every
+`published_role_id` points at a role the reset deleted, and those rows are what
+`/found` reads — so a real account is holding stale matches against roles that
+no longer exist. Same class as the orphaned CVs: deletion cascades did not
+reach them. Not yet fixed.
+
+---
+
+## 🌱 19 September 2026 (late) — ten candidates, two roles, and one thing scheduled
+
+**ROL-2417 is seeded and parked at step 04.** Ten candidates, 100 evidence
+rows, zero reviews — real output from the real ingest pipeline, so the scores
+carry correct `inputs_hash` values and step 07 will not refuse them later.
+Scores run 91 → 38 with must-have coverage from 5/5 to 3/5, which is the
+variation the compare board needs to show anything.
+
+**Two roles, on purpose.** The ten CVs are data engineers, so ROL-2417 went
+back to being a data-engineering role — with business-analyst requirements
+every score was noise. **ROL-2418** carries the BA requirements Ose's own
+consumer profile matches and is published for matching. One role per purpose
+rather than one role doing both badly.
+
+### 🐛 I destroyed the first seeding run
+
+Re-pointing the role's requirements meant deleting them — and
+`candidate_evidence.requirement_id` CASCADEs from `requirements`. So every
+evidence row went, every candidate then had zero evidence, and a cleanup step
+meant to remove ONE empty row removed all eleven.
+
+The cleanup was reasonable; the cascade was not foreseen. **Evidence hangs off
+requirements, not only off candidates** — re-pointing a role's requirements is
+destructive to everything scored against them, and anything doing it must
+re-ingest rather than assume the candidates survive. Re-seeded from scratch;
+refs now start at CAN-12 because the sequence does not rewind.
+
+### Scheduled: recommendations on the compare board
+
+Ose, on seeing the compare board populated: the AI should suggest who to
+shortlist from the screening call and the final scores, in a second tab with
+the insight behind it.
+
+Written up in **`docs/NEXT-SESSION-SHORTLIST-RECOMMENDATIONS.md`** rather than
+started, because it is the most dangerous feature in the product — the first
+surface where software would offer an opinion about a person rather than a
+fact about their evidence, against a product whose whole argument is *"we
+structured what you told us, you decide"*.
+
+The handoff carries the lines that cannot move (no automatic rejection, no
+inference about a person, every claim traceable, `MISSING` never filled), the
+`round-delta` precedent for exactly this problem (its lane is **REVISITED**,
+not CONTRADICTION, because deciding two statements conflict is a judgement and
+judgements belong to people), and the one framing question the feature turns
+on: does the tab **suggest a shortlist** or **organise what is known**? Those
+are different products and only one is defensible without a second legal look.
+
+
+---
+
+## 🔧 The recommendations tab — step 05 (19 September 2026)
+
+**Built.** Staging only, on `staging`. Migration **`20260919120000_recommendation_audit.sql`**
+must be run in `tailr-staging` BEFORE the code, or every generation 500s on
+the audit insert.
+
+### The framing question, answered — then re-answered by Ose
+
+`docs/NEXT-SESSION-SHORTLIST-RECOMMENDATIONS.md` said to settle one thing
+first: does the tab **suggest a shortlist** (naming people) or **organise what
+is known** (naming gaps)?
+
+Ose first chose *organise what is known*, requirement-first, and Figma frame 19
+was built to it. On seeing it: **"it's not really giving any direct information
+that's useful… it should be an AI recommendation based on the shortlisting
+input. Maybe put a button there for AI recommendations. So when it becomes 50
+candidates for a role it can be efficient."**
+
+So the shipped feature **names people**. That is the decision, and the
+efficiency case is the point of it: at ten candidates the matrix is readable,
+at fifty it is not. Frame 19 was rebuilt as *"Recommend the shortlist. Show
+every reason."* (`AWRRbEOX6rLsltutFDL3zs`, node `461:2`).
+
+### What holds the line instead
+
+Naming people made the guardrails load-bearing rather than decorative:
+
+- **The model never sees a name.** Candidates go in as refs (`CAN-01`) and come
+  back as refs; names are reattached server-side afterwards.
+- **The model never sees the soft signals.** `candidate_reviews.communication`
+  and `.motivation` are the only columns in the schema that rate a person, and
+  they are not selected. Neither are the L01–L12 library probes — those are
+  motivation, logistics and ways of working, i.e. a read of a person. Only the
+  gap probes, keyed to a requirement ref, go in.
+- **Every reason shows its working.** The model does not write citations in
+  prose; it picks trace ids from a per-candidate allowlist computed from the
+  real rows. Invented ids are dropped, and a reason left with no surviving
+  trace is replaced by a fact line the server computes.
+- **Nobody falls off.** `items.length` always equals the candidate count.
+  A candidate the model forgot is appended to `not_yet` with a computed reason
+  rather than vanishing. Grouping is not filtering.
+- **No decision is written.** The route never touches `recruiter_reviews`;
+  a test asserts it contains no insert/update/upsert/delete at all. Shortlist /
+  hold / reject stay on the matrix.
+- **"Not recommended yet" keeps its adverb**, and the panel never prints
+  "rejected".
+
+### Files
+
+`lib/agency/recommendation.ts` (server-import-free — the page imports its
+types) · `app/api/agency/roles/[roleId]/recommendation/route.ts` ·
+`components/agency/recommendation-panel.tsx` · the tab bar and
+`compareTab` state in the step 05 pane · `.ag-reco-*` in `agencies.css` ·
+`lib/__tests__/agency-recommendation.test.ts` (36 tests).
+
+Model is **`claude-opus-5`**, not the `claude-sonnet-4-6` the parse and
+assessment routes use: this is the only output in the product that names
+people. ~10s and ~1.8k input tokens on a two-candidate probe.
+
+### 🐛 A runtime-only bug the build could not see
+
+The route first used `zodOutputFormat` for structured output. It type-checked,
+`next build` passed, and the whole test suite was green — and it throws
+`Cannot read properties of undefined (reading 'def')` **at request time**,
+because the helper in SDK 0.100.1 expects a zod **v4** schema (`schema._zod`)
+and this repo's `zod` import is the v3 classic API.
+
+The first person to press the button would have got a 500. Found by probing
+the live Anthropic API with the route's real prompt, which is the whole
+argument for probing it. Now a raw JSON schema via `jsonSchemaOutputFormat`,
+which has no zod dependency and matches how the parse route already writes
+schemas.
+
+The same probe caught a second thing the build cannot: the model wrote
+900-character paragraphs with trace ids inline in the prose. The prompt now
+asks for one sentence under 300 characters and forbids ids in prose (output
+came back 158–203 chars), and `trimToSentence` trims at a sentence boundary —
+a plain `.slice(0, 400)` had produced `"...R07 was not as"` on screen.
+
+### Verified, and not
+
+- ✅ 1,472 tests pass; `next build` compiles; the route is registered.
+- ✅ The live model call works — real API, real prompt, 10.2s, well-formed,
+  and it obeyed the rules unprompted (no person language, kept the adverb,
+  cited only allowed ids, flagged a CV/call discrepancy without resolving it).
+- ✅ Unauthenticated `POST` to the route returns **401**.
+- ✅ The new CSS is in the **served** chunk (33 `ag-reco` rules), not just on
+  disk — the Turbopack stale-stylesheet trap.
+- ❌ **Nobody has pressed the button signed in.** The local browser has no
+  agency session and ROL-2417 still has **zero reviews**, so there are no real
+  call answers to read yet. Ose is logging the screening calls.
+- ❌ **`docs/LEGAL-REVIEW-PACK.md` §5 has NOT been updated.** It currently
+  claims no automated decision-making as a clean fact, and a tab that names
+  people is the closest thing to one that has ever existed here. It needs a
+  paragraph before this goes anywhere near a real candidate.
+
+---
+
+## 🐛 The calendar dead end (20 September 2026)
+
+**Symptom.** Ose, on the hiring-manager availability screen: a "GOOGLE CALENDAR
+CONNECTED" pill above *Scan my Google Calendar*, and the scan returning
+**"Token has been expired or revoked."** every time.
+
+**Root cause, in two halves.** The message is Google's own `error_description`,
+surfaced verbatim from the refresh call — so the OAuth flow and the in-place
+refresh were both working correctly and Google had revoked the *refresh* token.
+Not a code bug.
+
+The code bug was what happened next. `busyBetween` threw and left the row in
+place; `getConnection` reports connected whenever a row exists; and the
+"Connect Google Calendar" link renders only when there is **no** row. So a dead
+token produced a connected pill above a button that could only ever fail, with
+**no way back through the UI at all** — the only escape was a `DELETE` on
+`/api/hiring/calendar/status`, which has no button. Same family as the briefs
+inbox reading "Nothing waiting on you" above an Unauthorised banner: a failed
+state rendering as a healthy one.
+
+**Fix.** `postForm` now throws a typed `TokenRequestError` carrying the
+provider's error **code**, not just its prose. `busyBetween` deletes the stale
+row and throws `CalendarReauthRequired` **only** on `invalid_grant` (or no
+refresh token at all); the busy route answers **409 `{reconnect: true}`**; and
+the screen re-reads calendar status on that flag, so it falls back to "Connect
+Google Calendar" on its own.
+
+**The sharp edge, and why it is tested.** Deleting the row on *any* refresh
+failure would be a worse bug than the dead end — one Google 500 or network blip
+would destroy a working connection. `isRevoked` keys on the code alone, and a
+test asserts it does NOT decide from the human-readable message, because that
+string varies by provider and locale. Probed: with the transient check removed,
+three tests fail. 13 tests in `lib/__tests__/calendar-reauth.test.ts`.
+
+**Still open, and it is not a code item.** The likely reason the refresh token
+was revoked is the Google Cloud OAuth consent screen sitting in **Testing**
+publishing status, where Google expires refresh tokens after **seven days**. If
+that is it, every hiring manager loses their calendar weekly until the app is
+published — and `calendar.readonly` is a sensitive scope, so verification has
+lead time. Worth checking in the Cloud console before any real HM is onboarded.
+
+---
+
+## 🐛 One screen, three ladders, two of them stale (20 September 2026)
+
+**Symptom.** Two ROL-2417 interviews were moved into the past on staging to
+test the write-up surface. The cohort table said **WRITE-UP DUE**; six lines
+below it the loop table said **"Round 1 booked — waiting on the interview"**,
+and the role header said **"Nothing is needed until it happens"** about an
+interview that already had.
+
+**Root cause.** `loopState` classified on `status` alone. A round nobody has
+pressed "mark done" on is still `'scheduled'`, so it read as *booked* for
+ever, however long ago it happened. `cohortStatus` had always read the clock —
+its comment says so: *"a booked round whose time has passed reads as complete
+even before anyone marks it so, because pretending it is still upcoming is
+worse."*
+
+The header comment in `next-action.ts` is about exactly this risk — `loopState`
+was exported so the recruiter's table and the role header could not disagree.
+They didn't. The third ladder in a different module did.
+
+**Fix.** `loopState` takes an optional `now` and, for a confirmed booking whose
+`scheduledAt` has passed, returns `write-up-due` instead of `booked`. One
+change fixes both stale views, because the role header's sub-state derives from
+`loopState` too. The threshold is the round's START, matching `cohortStatus`
+exactly — a second threshold would have moved the disagreement rather than
+ended it. An unconfirmed invitation is untouched (nothing happened, so nothing
+is owed), as are cancelled and declined rounds.
+
+**A test was enshrining the bug.** `agency-next-action.test.ts` asserted
+`booked` for a round scheduled `2026-09-04`, sixteen days in the past — it
+passed only because the code never looked at the clock. It now passes an
+explicit `now` on both sides of the moment. The new test in
+`recruiter-loop-table.test.ts` is pinned against `cohortStatus` itself rather
+than restating its rule, so if either threshold moves, it fails. Probed: with
+the clock-read removed, three tests fail.
+
+**Not changed, and worth a decision.** The threshold is the round's start, so a
+round reads as *write-up due* while it is still notionally running — at most
+`duration_minutes`. `endsAt` (scheduled_at + duration) already exists on
+`RoundFacts` and would be the more literal trigger, but moving to it means
+moving `cohortStatus` too, since `CohortRoundFacts` carries no `endsAt`.
+
+---
+
+## 🔧 The hiring manager's screens, part 1 (20 September 2026)
+
+Frame 20 (`AWRRbEOX6rLsltutFDL3zs`, node `464:2`). Bands A and C built here;
+band B (the shortlist's evidence) follows.
+
+### "Happening now" — the state that did not exist
+
+A round was booked or it was past, with nothing between, so at 09:01 the board
+still said *Booked · 09:00* and the one question a hiring manager actually has
+— who is in the room, and which round — had no answer anywhere.
+
+`cohortStatus` and `loopState` both gain it, with the same threshold: started,
+and not yet ended. This settles the open question from this morning's fix,
+which used the round's START for everything because `CohortRoundFacts` carried
+no end time. It carries one now (`scheduled_at + duration`), and **a missing
+end time still falls through to the write-up** — an absent value must never
+strand somebody "in the room" for ever. A test covers exactly that.
+
+It outranks every other rung on the role header and the recruiter's loop
+table, because it is the only state that stops being true on its own.
+
+It is **mode `wait`, not `act`**: nothing is owed while a round runs, and
+inventing a control would put a button on a screen with nothing to press.
+
+### Tasks: liveness before age
+
+`app/hiring/page.tsx` picked the headline from `acts[0] ?? the OLDEST wait`.
+So a role nobody had touched for a fortnight ("your recruiter is building the
+shortlist") outranked a role with three interviews booked for the next
+morning — and because the glance ladder renders only the headline role, the
+live role's phase was never shown. Ose: *"my tasks isn't reflecting the right
+phase of where the role is at."*
+
+Actions still beat waits — that part was right and has not moved. The tiebreak
+among **waits** is now liveness (`liveRank`), with age kept as the second test.
+
+Two more things on that screen:
+
+- **The headline card now names people and rounds**, not just the role:
+  `CAN-12 · Round 1 · Mon 21 Sep, 09:00`, live ones first and labelled
+  *Happening now*. `live` is computed from the same two facts the ladders use,
+  so it cannot drift from what the rest of the product says.
+- **Quiet roles stop vanishing.** `rest` was `acts` only, so a role with
+  nothing actionable disappeared from the screen entirely — which is how a
+  role could be invisible here while sitting in the middle of its interview
+  loop. They now render as "N other roles are open", lower contrast, no
+  controls.
+
+### Still open
+
+Band B — the shortlist tab, which promises "the evidence behind each" and
+shows a name, a title and the same sentence under every candidate.
+
+---
+
+## 🔧 The hiring manager's screens, part 2 — the shortlist (20 September 2026)
+
+Frame 20 band B. **The evidence was never missing.** The submission snapshot
+has carried `overall`, `must_have_hit/total`, `strengths` (requirement +
+verbatim quote), `gaps`, `probe_areas` and the recruiter's screening
+`narrative` since it was built — and the portal renders them from that same
+snapshot. `lib/agency/client-shortlist.ts` simply dropped every one of them
+while mapping, so the workspace screen promised "the evidence behind each"
+and showed a name, a title and one sentence.
+
+**Nothing here widens disclosure.** Each field is gated by the switch the
+recruiter froze at generation, read back verbatim — applying today's switches
+to yesterday's submission is exactly what an immutable snapshot exists to
+prevent. `notes` defaults to OFF and the other four default on, matching the
+submission builder, so a recruiter who never turned notes on does not have
+their screening narrative appear on a client screen because a later release
+decided it would be useful.
+
+**Withheld is not absent.** When notes are off the screen says "your
+recruiter's screening notes are not part of this submission" rather than
+implying none were written. A test asserts the wording never blames the
+recruiter for writing nothing.
+
+Also on the row: the candidate's round and when it is, with `live` computed
+from the same started-and-not-ended pair the ladders use, so the chip cannot
+drift. And the recruiter's greeting is prose now — it rendered in `.agd-aside`,
+the monospace face this product reserves for machine data, which made a
+human message read like a system log.
+
+8 tests in `lib/__tests__/client-shortlist-disclosure.test.ts`, probed: with
+the notes gate removed, three fail — including one that serialises the whole
+payload and greps it, so a leak through any other field is caught too.
+
+### Outstanding on these screens
+
+**Nobody has walked them signed in as a hiring manager, end to end.** Open
+since 14 Aug. Tonight alone that gap hid a 571px layout bug, three
+disagreeing status ladders, a calendar dead end, and a shortlist that dropped
+every field it promised.
+
+---
+
+## 🔧 The write-up completes the round (20 September 2026)
+
+Found on a walk-through: an interview that had ended 82 minutes earlier sat
+under "Coming up" on the hiring manager's screen, above "Needs your write-up
+or decision — **Nothing owed**."
+
+**The dependency pointed the wrong way.** A round became `completed` only when
+the RECRUITER pressed "Mark done", and the HM's owed list keyed off that
+status. But the recruiter is not in the room — Tailr does not host or record
+the call — so their knowledge that it happened is second-hand, learned from
+the HM or the candidate. The person with first-hand knowledge was blocked by
+the person without it, on every round, at fifty candidates.
+
+**Rationalised before building** (product-brainstorming skill). Asking what
+"Mark done" actually encodes: not "time has passed" — the clock knows that —
+but *"it genuinely took place"*, as against a no-show, a call moved by text,
+or one cut to ten minutes. The clock cannot know that, and a completed round
+feeds the handover pack that goes to an employer, so **auto-completing on
+elapsed time is wrong**: it would record interviews that never happened.
+
+The resolution is to remove the gate rather than make it obvious: **the
+write-up is first-hand testimony that the interview took place**, and better
+evidence than the click it was waiting for.
+
+### Built
+
+1. **`owed` reads the clock** — ended, and no write-up — not `status ===
+   "completed"`. `upcoming` means not yet started. Both now agree with
+   cohortStatus and loopState.
+2. **`recordDebrief` completes the round.** Only `scheduled → completed`; a
+   cancelled round stays cancelled, because writing up a round somebody
+   cancelled must not quietly resurrect it after its slot was given away.
+3. **The recruiter can say it did not happen.** After the end time, "Cancel"
+   becomes "It didn't happen" — same state change, same freed slot, but the
+   label stops pointing at the future. Without it the only way to clear a
+   no-show off the board was to mark it done, which puts an interview that
+   never occurred into a document sent to an employer.
+4. **A quiet line, not a wall**: "Your recruiter has not confirmed this took
+   place yet. Write it up if it did — that confirms it." The write-up stays
+   offered; a test asserts it is never disabled on that basis.
+
+Both screens now tick every 30s, because these states expire on their own: a
+hiring manager sitting on the page as an interview ends should not have to
+reload to be asked for the write-up.
+
+The authorship assumption checked out before building — `/api/hiring/debrief`
+already accepts the recruiter as author too (`recordDebrief` takes either
+context), so a recruiter who sat in on a round can write it up.
+
+---
+
+## 🐛 Two things a round decision has to change (20 September 2026)
+
+Both found by Ose walking the loop: write up round 1, decline one candidate,
+advance two.
+
+### The declined candidate was offered the next wave
+
+The hiring manager's interview setup read **"3 shortlisted · 3 chosen"**,
+listed the declined candidate, sized the windows **"for 3"** and offered
+**"Invite 3 to interview"** — while the header two inches above it correctly
+said *"offer interview times for 2 candidates"*.
+
+`choices` was seeded from the **shortlist action** — "interview", chosen
+before round 1 existed — and never consulted what the rounds had since
+decided. The next-action layer knew; the form underneath it did not.
+
+Now reads the latest round decision per candidate from the HM's own dashboard
+payload (they made those decisions; nothing is newly disclosed) and unselects
+anyone declined at their last round. `CohortMember` carries only a `decided`
+boolean by design — *"the rail counts people and never needs to know which way
+anyone went"* — so it is deliberately not the source.
+
+**It unselects; it does not hide.** They stay on the list with the reason on
+the row: *"You declined this round · not in the next wave"*. Declining is a
+signal, never a removal.
+
+### Close-out opened after round 1 of 2
+
+The card appeared whenever rounds existed and none was in the diary. After
+round 1, everyone written up and decided, nothing is booked — so it offered
+close-out while two advanced candidates were waiting on round 2.
+
+"No round is in the diary" is not "the loop is finished". It now reads the
+ladder already on that screen: if any candidate is `to-book`, `invited`,
+`booked`, `happening-now`, `write-up-due` or `decision-due`, the loop is
+mid-flight whatever the diary says. `close-out`, `declined` and `on-hold` are
+the resting states, so the door still opens on a role where the client
+declined everybody.
+
+### 🐛 And the null underneath it
+
+`job_roles.planned_rounds` is **null** on real roles, including ROL-2417.
+`loopState` compares `last.roundNumber >= planned`, and in JavaScript
+`1 >= null` is `1 >= 0` — **true**. An unset plan sent every advanced
+candidate straight to close-out the moment round 1 was decided.
+
+Both callers already default to 2, so this was not the live cause — but the
+failure is silent and lands on the most consequential rung in the ladder, and
+the same null-is-not-false family bit us on `placement_reason_iff_outside`
+(14 Sep). `loopState` now defends itself; a test covers null, undefined, 0
+and NaN.
+
+A wave-4 source guard pinned that line by its literal text and broke on the
+rename. Repointed at the SHAPE — the guarantee is that the derived rung still
+exists, not what its local variable is called.
+
+---
+
+## 🐛 A declined candidate was invited to round 2 (20 September 2026)
+
+**The worst bug of the walk-through, and it was not the one reported.** Ose
+reported that the booking page showed no times. Checking the data first showed
+something else: round 2 invitations existed for **CAN-12 and CAN-21** — and
+CAN-21 is the candidate he had just **declined**. **CAN-17, whom he advanced,
+had no round 2 at all.**
+
+**Cause.** `getWaveState` builds the reserve from `client_actions` where
+`action = 'interview'` — the SHORTLIST choice, made before any round existed —
+minus anyone holding a live `scheduled` round. After round 1 every round is
+`completed`, so nothing was filtered: the reserve became everyone originally
+chosen, in shortlist order (CAN-12, CAN-21, CAN-17), and the two free windows
+released the first two.
+
+It is the same mistake as the setup form's, fixed an hour earlier — the
+shortlist choice standing in for the round decision — except here it **creates
+rows**: a real interview round, with a booking token, for somebody who had
+been told "not for this role".
+
+**Fix.** The reserve now reads the latest `round_decisions` row per candidate,
+joined through `interview_rounds` so it is scoped to the role (a decision
+belongs to a round, and a candidate may sit on two roles). Decline and hold
+are both excluded — hold for the same reason this module's header already
+gives about shortlist holds: a deliberate "not now" that must not be
+auto-released. Only the LATEST decision counts, because decisions are
+append-only and a client may change their mind. Someone with no decision stays
+in the reserve, which is what makes wave one work.
+
+Probed: removing the filter puts `['CAN-12','CAN-21','CAN-17']` back and the
+test fails on the exact pair that shipped.
+
+### Data left behind on staging
+
+- CAN-21 holds a round-2 invitation created by this bug (id
+  `a2ab59d8-769d-4c6d-a994-4ded2ef9286d`), with a booking token.
+- CAN-17 is missing the round 2 they were advanced to.
+
+Neither is repaired automatically: cancelling somebody's interview and minting
+somebody else's are both acts with real-world consequences, and this is Ose's
+data to decide about.
+
+---
+
+## 🐛 Windows offered inside the notice period (20 September 2026)
+
+Reported as "I send times for round 2, click in as a candidate, and nothing
+reflects".
+
+**Both ends were behaving correctly.** `listOpenWindows` filters on
+`starts_at > now + minNoticeHours` — the candidate's notice is a real rule —
+and the windows offered were tomorrow 08:00 and 09:00 UTC under a **24-hour**
+notice, so the earliest bookable moment was 19:41 UTC the following day. Every
+window was correctly invisible.
+
+What was broken is that **`proposeWindows` did not know the setting existed**,
+so it suggested times that were unbookable the moment they were written, and
+no screen said why. The capacity banner already counted them ("N inside your
+24-hour notice") — it warned and offered them anyway.
+
+**Ose's call: option A** — the proposal respects the rule rather than warning
+about it.
+
+- `proposeWindows` takes `minNoticeMinutes` and never proposes inside it.
+  Omitted means no filtering, so no caller silently changes behaviour.
+- `offerWindows` filters the batch, and refuses outright when EVERY window is
+  too soon, naming the setting and the fix: *"Every window you picked is
+  inside the 24-hour notice your candidates get… Pick later times, or lower
+  the notice period above."*
+- Refused in the client batch, **not** in `offerSlot`: that primitive is
+  shared with the recruiter, who may legitimately seat somebody at short
+  notice. A first version of the guarding test banned the whole of rounds.ts
+  and failed on `listOpenSlots`, which reads the same setting to LABEL a slot
+  rather than to forbid one — describing is not forbidding.
+
+**For testing**, `min_notice_hours` on ROL-2417 is set to **0**, which is the
+existing "No minimum" option. Windows can be offered and booked immediately.
+Put it back to 24 before treating the role as realistic.
+
+---
+
+## 📋 Scheduled: the hiring manager's decisions reaching the recruiter
+
+Ose, after walking the loop to a final decision: *"I went to the agent side and
+it still has all the candidates from the shortlist. The hiring manager's
+decisions should be reflected — and especially at close-out, this should be
+automatic."*
+
+Verified on staging and written up in
+**`docs/NEXT-SESSION-DECISIONS-REACH-THE-RECRUITER.md`** rather than started,
+because the framing question has to be settled first.
+
+**The gap.** `agency.round_decisions` is read by `handover.ts` and — as of
+this session — `waves.ts`. Nothing else. Every recruiter surface that asks
+"who is on this shortlist" keys on `recruiter_reviews.decision`, which is a
+shortlist-stage fact frozen before any interview happened. So on ROL-2417,
+with CAN-12 declined at round 2, CAN-17 advanced twice and CAN-21 declined at
+round 1, all three still read `shortlist`.
+
+**Sharpest at close-out**, which offers a picker of every candidate on the
+role for "who got the job" — when the system already knows that exactly one
+has `advance` on the final round.
+
+**The question to settle:** does a round decision write back to
+`recruiter_reviews`, or does every surface learn to read the loop? Write-back
+fixes every screen for free but collapses "the recruiter did not shortlist
+them" into "the client interviewed them twice and passed", and there is
+deliberately no machine path that writes `'reject'`. Deriving it is consistent
+with the four ladders unified this session. Ose's call.
+
+**The signal for "automatic" already exists**: `role_decision_completions`,
+the client's "I'm done deciding", already outranking every derived rung in
+`deriveSubState`. Close-out should open with the hire pre-selected and the
+declined shown as not advanced — pre-selected, never decided, because
+recording a placement starts the retention clock and stays a human act.
+
+## ✅ The hiring manager's decisions reach the recruiter (21 September 2026)
+
+**Decided by Ose:** nothing writes back to `recruiter_reviews`. The
+recruiter's call and the client's decisions are two layers, side by side.
+Figma frame 21 (v2, after a ui-ux-pro-max pass), signed off.
+
+- **`lib/agency/stage.ts`** — `stageOf()`, the recruiter-side stage. Built ON
+  `loopState` rather than beside it; adds the two facts it does not see (a
+  placement outranks everything; "I'm done deciding" makes an advance final).
+  `suggestedHire()` is exactly one taken forward, or nobody.
+  **`lib/agency/stages.ts`** loads it per role through `getRoleFactsBatch`.
+- **Close-out** — the hire is a real radio group with each candidate's round
+  trail. One candidate taken forward is pre-selected and tagged Suggested,
+  with where the suggestion came from. "Confirm … as the hire" is a separate
+  act; references and the pack open only after it. An existing handover pack
+  counts as the confirmed pick. Nothing records, closes or hides anyone.
+- **Candidates table** — "Decision" renamed **Your call**; **What the client
+  decided** beside it; a summary strip; card layout under 720px. Filters stay
+  on the recruiter's call only.
+- **`hasAdvanceDecision`** now reads the client's LATEST word (latest decision
+  on the most recent decided round). CAN-12 — advanced R1, declined R2 — used
+  to count as advanced, so a placement for them skipped the off-process reason.
+- **Verified against staging ROL-2417** by running the real loader: CAN-17
+  taken forward R2 (suggested), CAN-12 not advanced R2, CAN-21 not advanced R1
+  with its cancelled R2 visible, `hasAdvanceDecision(CAN-12)` false.
+  ROL-2417 test settings restored first: notice 24h, wave 48h, planned 2.
+- **Not built (dropped from the v2 frame):** role-facts counts, the cohort
+  board's "In reserve" still counting declined candidates.
+- **Not yet clicked by a person** — the local preview was not signed in.
+
+## ✅ Settings → Team: add a teammate from the product (21 September 2026)
+
+`POST /api/agency/team` existed and no screen called it — adding a recruiter
+meant SQL. Found while adding Yemi as a staging tester. Figma frame 22,
+signed off.
+
+- **`components/agency/team-section.tsx`**, first section of Settings: member
+  list (role, suspended, "has not signed in yet"), owner-only role change and
+  suspend/reactivate, and an add form (recruiter or viewer). Acts immediately.
+  Suspend, never delete.
+- **🐛 The invite answered `201 {added:true}` when staging refused the email.**
+  Same shape as the `200 {enabled:false}` lesson. It now returns
+  `email: { sent, skipped }`, and the screen says "on the team, but we could
+  not email them" with the `EMAIL_ALLOWLIST` fix. Same-role re-invites change
+  nothing and say so.
+- **To add a staging tester:** their address must be on `EMAIL_ALLOWLIST`
+  (Vercel, Preview scope) — setting it REPLACES the default list, so keep
+  `o.oifoh@gmail.com,ose@lean-frame.com,@lean-frame.com` in it.
+
+## 🐛 Demo-day fixes: waves, speed, interview loop, handover (21 September 2026)
+
+Found live during Ose's demo, then two review passes over the interview loop
+and handover. All staging; no migration.
+
+**Speed — every button ~30s.** Supabase edge logs: ~4,700 of 4,800 queries
+in 3h came from Vercel **IAD (Virginia)** to a database in **eu-west-1
+(Ireland)** — 223ms average per call vs 72ms from London, 6s worst. One click
+runs dozens of calls in sequence. `vercel.json` now pins `"regions":
+["dub1"]`. Only this branch's deploys read it; production's `main` is
+untouched.
+
+**Interview loop**
+- 🐛 **The wave invited nobody** on ROL-2418: `getWaveState` read
+  `client_actions` agency-wide, and refs repeat across roles. Now scoped
+  through the role's submissions → recipients.
+- 🐛 `recordClientDecisions` looked candidates up by ref agency-wide →
+  `maybeSingle` errored → `candidate_id` written NULL → declined candidates
+  re-invited. Scoped to the role; a failed lookup throws.
+- 🐛 The reserve read "written up, not decided" as an advance and ignored
+  `planned_rounds`. Now: latest live round must be ADVANCED with rounds still
+  planned (or no round yet). Also fixes "In reserve" counting declined people.
+- 🐛 A cancelled round kept its number, so re-invites became "round 2" and
+  close-out came one interview early. `round-number.ts` reuses the cancelled
+  row's number (the unique key forces reuse — the 23505 hit by hand today).
+- 🐛 Wave capacity counted windows inside the notice period / too short.
+- 🐛 Booking and reschedule returned "claimed" when the guarded update
+  matched zero rows (two tabs). Reschedule now resets the pre-reminder.
+- 🐛 An old booking link could decline or move an interview already held.
+- 🐛 Candidate emails showed UTC times unlabelled (an hour early in BST);
+  a same-day reminder said "Tomorrow". Now UK time, labelled, Today/Tomorrow.
+- 🐛 A hiring manager's cohort POST could invite anyone on the role, not just
+  the shortlist sent to them.
+- 🐛 One transcription error skipped the day's reminders and wave releases.
+- A concurrent release colliding on a round number now skips that person
+  instead of aborting the rest of the wave.
+
+**Handover / close-out**
+- 🐛 **The hire could be emailed "the role closed"** — exemption keyed on
+  placements only. The delivered pack's candidate and the current pick are
+  now exempt.
+- 🐛 The pack could list a requirement as evidenced AND under Known gaps
+  (evidence layers read raw). Uses `winningRows`, latest layer wins.
+- 🐛 Delivery froze a stale draft; it now regenerates first.
+- 🐛 A pack could be delivered to a contact at another client (and the
+  dropdown defaulted to the first contact in the address book). Delivery now
+  requires the role's contact, the brief's contact, or the same company; the
+  dropdown defaults to the role's client.
+- 🐛 Generation stored an unchecked `delivered_to_contact_id` from the body.
+- 🐛 Changing the pick showed the old candidate "confirmed" on reload
+  (earliest pack) — now the newest pack.
+- 🐛 Closure result said "everyone was told" over failed or unknown sends.
+- 🐛 A referee's notice was stamped sent before the email was attempted.
+- 🐛 Failed reference / checklist loads read as empty or as the previous
+  candidate's checklist.
+
+**Open — needs Ose:** closing a role starts retention on the HIRE too, and
+`placements.candidate_id` cascades, so the purge deletes the placement (fee,
+rebate) with them. Needs a migration and a decision (exempt the hire from
+retention, or make the placement survive with `set null`).
+
+## ✂️ The client-brief flow is removed (22 September 2026)
+
+Ose: the recruiter's "Client briefs" page "doesn't work — there's no button to
+create the brief". By design it had none: it was an INBOX for briefs a hiring
+manager filed at `/hiring/briefs/new`, and that form had already lost every
+door from the workspace, so the inbox could never fill. Ose chose to remove
+the whole flow rather than just the nav item.
+
+- Deleted: `/agencies/briefs`, `/hiring/briefs/new`, `/api/agency/briefs/**`,
+  `/api/hiring/briefs/**` (incl. JD extract), `lib/agency/briefs.ts`,
+  `brief-limits.ts`, and their tests.
+- Nav: "Client briefs" and its badge fetch are gone.
+- Notifications: `brief_filed` / `brief_answered` removed; `facesClient()`
+  now returns false for every kind (the wall stays for a future one).
+- `next.config.js` redirects `/agencies/briefs` → `/agencies` and
+  `/hiring/briefs/new` → `/hiring` (not permanent), so "New brief" emails
+  already delivered do not 404.
+- KEPT: the `role_briefs` table and its reads — roles already minted from a
+  brief still show the brief's JD and contact. No migration.
+- Roles are created by the recruiter only.
+- **Follow-up (552978e):** the hiring manager's dashboard drops the Brief
+  step too — the "Brief agreed & clarified" glance row, the Brief rung, and
+  briefs that never became a role (no longer shown as roles or "with your
+  recruiter" cards, since nothing can answer them).
+
+## ✅ The hiring manager's three places (22 September 2026)
+
+Ose: the HM side was "too busy" — rounds, shortlist, tasks vs roles did not
+make sense or flow. Mapped all seven screens first: they sliced the same
+things three ways (task, role, phase across all roles); Tasks and My roles
+were one list drawn twice (Interviews drew it a third time); finished rounds
+rendered as full cards beside live ones; nothing handed off. Figma frame 23
+(+ band F, handover) signed off.
+
+- **To do** (`/hiring`): one row per thing OWED, across roles, each opening
+  the exact step (`buildTodo` in `lib/agency/hm-room.ts`). Fixes the old
+  one-rung-per-role rule that hid an owed write-up behind "round to book".
+- **Roles** (`/hiring/roles`): one row per role with its stage; opens the
+  ROLE ROOM. Finished roles stay listed.
+- **Role room**: Shortlist → Round 1…N → Decision → Handover, one page per
+  stage (`/hiring/roles/[id]/{shortlist,round/[n],decision,handover}`), a
+  stage bar, and a written hand-off at the foot of each. The bare role URL
+  opens the current stage. Only the live round is open; earlier rounds are one
+  line each ("Round 1 · 2 advanced"), write-ups one click away.
+- **Diary** (`/hiring/diary`): upcoming interviews + offered times. Nothing
+  finished.
+- Shortlist tells the current truth: a later round outranks the shortlist
+  choice; a re-sent shortlist no longer wipes earlier choices (actions read
+  across every recipient row of this contact); email/document submissions say
+  so instead of pointing at a page that 404s.
+- **Handover reaches the client** for the first time: `handover_delivered`
+  (client-facing notify kind) emails the contact it was delivered to, and
+  `GET /api/hiring/roles/[id]/handover` serves the sealed pack only to that
+  contact. Until now "delivered" reached nobody.
+- Old `/hiring/shortlist|interviews|decisions` redirect. Client ladder CTAs
+  point at the room. Verified against staging data for Ose's HM login.
+- Earlier the same day (bb3af14): two HM payload name leaks closed.
+
+## 🔓 The hiring manager sees the name, the evidence and the CV (22 September 2026)
+
+**Ose's decision, against the rule that was written into the code.**
+`lib/agency/client-auth.ts` said a client must never be returned a
+candidate's name, any CV text or any evidence row, and that needing
+otherwise was "a product decision with a DPIA attached". Ose: that is how
+the process works today — a hiring manager reads the CV and the evidence and
+decides from them. The rule changed; the DPIA is logged as OPEN rather than
+waited for.
+
+- **`lib/agency/cv-disclosure.ts`** — `redactContactDetails`, the only door.
+  Strips emails, UK and international phone numbers, personal links and UK
+  postcodes; keeps dates, salaries, headcounts, versions, the city and the
+  name. 19 tests probe BOTH directions, because a redactor that deleted the
+  document would pass a one-directional suite.
+- **A sixth disclosure switch, `cv`**, frozen into the submission snapshot
+  like the other five. **Defaults ON when generating** — this is the normal
+  case — and **reads OFF for any snapshot that predates it**: a submission
+  sent under the old promise is never retroactively widened. Four tests.
+- **Served live, never frozen.** `purge_candidate()` nulls `cv_text`; a copy
+  sealed inside a submissions row would survive the erasure it exists to
+  honour. The frozen part is the decision, the live part is the document.
+- **The CV file never travels** — text only. `cv_storage_path` stays on the
+  never list, along with email, phone and any way to reach the candidate:
+  a client who can ring them directly can cut the agency out of its fee.
+  Ose's call, asked and answered.
+- **`candidates.redacted` outranks the switch**, checked against the
+  snapshot AND against the live row at serve time, so withdrawing after the
+  submission was sent takes effect immediately.
+- **Every view is audited** (`cv_viewed_by_client`, naming contact,
+  submission and redaction version) in the same operation. A failed audit
+  write means no CV.
+- **`GET /api/hiring/roles/[roleId]/candidates/[candidateRef]/cv`** refuses
+  in five ways before it opens, and is scoped to the SUBMISSION, never the
+  ref — refs repeat across roles.
+- **The evidence cap went from 3 to 24.** The mapper was quietly deciding
+  which evidence the client was allowed to weigh.
+- **`components/agency/hm-candidate.tsx`** — the candidate detail in the
+  role room: score, recruiter's note, every quote, gaps, probe areas, and a
+  "withheld in this submission" block so a switch that is off never reads as
+  "nothing known". The CV has four outcomes — loading, the document, a
+  refusal with its reason, a failure with a retry — and none of them renders
+  as an empty one.
+- **🐛 Fixed in passing:** `hiring.css` applied the dark-ground coral
+  (`#ff8368`) in EVERY theme, so error text and `.agd-date` sat at about
+  2.2:1 on cream in light mode. Dark is a user toggle now, not the surface.
+- **Figma frame 24** (v2, after a ui-ux-pro-max pass), bands E and F.
+  Awaiting Ose's review.
+- **DPIA: `docs/DPIA-DECISIONS.md`**, new. Every disclosure decision, open
+  or cleared, with what a reviewer has to decide. A scheduled task emails
+  Ose the open items every Sunday. **The Art 14 notice at ingestion does not
+  yet mention the CV — the largest open gap.**
+- No migration. 1,588 tests green, build clean. **Not yet clicked by a
+  person: staging sign-in is still outstanding.**
+
+## 🗑 Six ways out, and the lines they do not cross (22 September 2026)
+
+Ose: "go through the app and find where logically there needs to be a delete
+function and add it." A survey found six objects a user could create and
+never remove, plus one capability with no way to reach it.
+
+**Migration `20260922120000_agency_soft_deletes.sql` — Ose runs it in
+tailr-staging. The four soft deletes below do not work until he has.**
+
+- **Discard a role** — `closed` is an OUTCOME: it starts the retention clock
+  and tells candidates the role is filled, which is the wrong verb for a
+  role added twice. Discarding leaves every list and count, and is REFUSED
+  once the role has candidates or a submission, with "close it instead".
+- **Archive a client contact** — a hard delete is refused by Postgres
+  anyway: rounds and packs attribute actions to a contact with RESTRICT. The
+  row and its attribution stay; the person leaves the address book and every
+  picker. Access is NOT revoked with it, and the confirm says so — a client
+  mid-shortlist should not lose their page because someone tidied up.
+- **Remove a referee** — deleted outright while nothing has been sent,
+  withdrawn (`declined`) once the request has gone, because an email cannot
+  be unsent. The response says WHICH, so the screen never claims a deletion
+  that did not happen. A reference already given stays: those are the
+  referee's own words.
+- **Void a placement** — `declined` and `fell_through` are outcomes about a
+  person; using one to correct a clerical mistake writes a false fact about
+  somebody's career into an audited table. A void takes the row out of fill
+  rate, fee value and rebate exposure, with a reason in writing.
+- **Void an UNDELIVERED handover pack** — generation returns the existing
+  pack rather than minting twins, so a pack frozen against the wrong
+  candidate WAS the record. A delivered pack is refused by the route and by
+  a check constraint: the client has it.
+- **Take back a matched-person invitation** — the state goes back to `seen`
+  and the "a recruiter asked about you" card leaves their /found page. The
+  match itself stays. Refused once they have applied.
+- **🐛 Disconnect a calendar** — `DELETE /api/hiring/calendar/status` has
+  existed since the calendar shipped and NO screen ever called it. A hiring
+  manager could hand Tailr their diary and had no way to take it back.
+
+**Left deliberately undeletable**, and the migration touches none of them:
+candidates after a notice (a sent notice cannot be unsent), round decisions
+and client actions (append-only), members (suspended), audit rows,
+candidate erasure outside `purge_candidate()`, and frozen submissions.
+
+- **Every reason column is wrapped in `coalesce`.** A CHECK refuses only on
+  FALSE and NULL is not FALSE — the hole `placement_reason_iff_outside`
+  shipped with on 14 Sep. Both directions and a whitespace-only value are
+  covered.
+- **24 guard tests** (`agency-soft-deletes.test.ts`), scans rather than
+  mocks. **One was vacuous and was caught by probe-mutating it**: a
+  1600-character slice ran past the function under test and read the NEXT
+  function's guard, so deleting the real one left the suite green. Sliced by
+  function body now, and the probe fails correctly.
+- 1,612 tests green, build clean. **Not yet clicked by a person.**
+
+## 📝 A reference is a character reference or an HR one (23 September 2026)
+
+Ose: references need to be "either character reference or HR reference", the
+recruiter picks which a candidate needs, and the character link should ask
+"simple date when they worked together, and two questions that can reflect
+the experience". Figma frame 24, bands C and H.
+
+**Migration `20260923090000_reference_kind.sql` — Ose runs it in
+tailr-staging BEFORE this code is used.**
+
+- **`candidate_references.kind`** ('character' | 'hr', default 'character')
+  decides which form the link opens and what the request email says. Every
+  reference taken before today WAS asked the character questions, so that is
+  what they are — 'unknown' would be more honest about our history and less
+  honest about what the referee answered.
+- **`candidates.references_wanted`** (text[]) is the recruiter's pick of
+  which kinds THIS candidate needs. An array, not two booleans, so "neither"
+  stays expressible instead of looking like an unanswered question.
+- **The character form is now the dates plus two questions.** Was four open
+  boxes, three of which overlapped. "How did you work with them, and for how
+  long?" became the dates; what remains is "What were they like to work
+  with?" and "Would you work with them again, and why?".
+- **The HR form asks facts only** — dates, job title, and an optional
+  factual note. No "what were they like": an HR team is usually not
+  permitted to answer it, so asking invites a reply they have to refuse. The
+  email says so before they click, and the subject differs.
+- **The dates are free text, not a date picker.** A picker demands a
+  precision nobody has about a job they left in 2021, and "spring 2021" is a
+  more honest answer than a wrong day. Plus "we still work together", which
+  clears the end date so the two cannot contradict each other.
+- **Answer keys are stable and that is the point.** Q1 (now the dates) and
+  Q3 (dropped) are NOT reused; the character form keeps Q2 and Q4, HR gets
+  H1/H2, the dates get D1/D2/D3. Reusing a key would silently re-label
+  something a referee already said about a real person.
+- **🐛 Caught in my own test:** the scan for "no 'unknown' state" matched the
+  migration's own COMMENT explaining why 'unknown' was not used — the same
+  trap as the scan that matched its own documentation. Comments stripped
+  before scanning.
+- 19 new tests, 1,631 green, build clean. **Not yet clicked by a person.**
+
+## 📜 The client brief, again — the terms of a search, signed by both sides (23 September 2026)
+
+Ose: set the client brief up again, but as the thing that DRIVES the role —
+rounds, basic rules the client reviews and can amend, approved on their
+side; a role connects to an approved brief and inherits it. Figma frame 25,
+signed off; band A redrawn to Ose's "as much dropdown as possible".
+
+**Migration `20260923120000_search_briefs.sql` — Ose runs it in
+tailr-staging BEFORE any of this is used.**
+
+- **What it is.** The 13 Aug brief was a JD inbox and died because the client
+  had no door to it. This one is a contract about HOW the search runs, in
+  two tiers: the client AGREES rounds (purpose, format, who, length),
+  decision turnaround, interview windows/notice/buffer/cap, what they are
+  shown, and the feedback promise; the client ACKNOWLEDGES fee/rebate/
+  invoice, ownership window, offer authority and ceiling, start target,
+  shortlist size, references wanted. One optional note is the only typing.
+- **The rule, once.** `search_brief_versions` carries the whole config per
+  version with two signatures. **Approved = both signatures on the SAME
+  version.** Amending, by either side, is a new row signed by its author —
+  the other side's approval was on the old row, which is what "clears"
+  means. Nothing is ever un-signed. The DB refuses a signature on an unsent
+  draft. `briefState()` in `lib/agency/brief-options.ts` is the whole state
+  machine (draft → sent → amended → approved → superseded), pure and tested.
+- **`brief-options.ts` imports nothing** — option sets, defaults,
+  `normaliseBrief` (every out-of-set value snaps to the default; references
+  kept in canonical order for the candidates constraint), `diffBrief`,
+  `applyClientAmendment` (tier-1 keys only), and `describe()` so both sides
+  render one sentence per line and never a uuid.
+- **`search-briefs.ts`** — create · save draft · send · amend · approve ·
+  discard an unsent draft, for the recruiter; read (own contact ids only,
+  never a draft) · amend tier-1 · approve, for the client;
+  `connectRoleToBrief` and `roleBriefStatus`. Every write audits. Five
+  notify kinds: three face the client (sent, changed, approved), two the
+  agency (client amended, client approved); the prefs constraint widened
+  for the agency two only — `agency-notify.test.ts` fails the build if a
+  client-facing kind becomes a preference.
+- **Connecting COPIES.** `job_roles.brief_config` + `brief_version`, plus
+  planned_rounds, contact_id and the one-to-one interview rules (round-1
+  duration, notice, buffer, max/day). The brief's time-of-day windows are
+  NOT mapped onto the settings' date windows — different facts. A DB check
+  refuses half a connection. **Divergence is computed on read**
+  (`roleBriefStatus`), never stored; the brief moving on to v3 does not
+  touch a running role, it reports it.
+- **Screens.** `/agencies/briefs` (list, waiting-on-you first) and
+  `/agencies/briefs/[id]` (band A form for a draft; band B review + amend
+  once sent). `/hiring/briefs/[id]` (band B: four lines with Change, seven
+  to read, "Approve v1" that becomes "Send v2 back" the moment a line
+  differs). A brief awaiting the client's signature is a To-do row above
+  everything — the door the first brief never had. Intake step 01 gains
+  "Run this role on a brief?" offering approved briefs at that company,
+  unsigned ones greyed with the reason. The same ON BRIEF Vn · N
+  DIFFERENCES chip on the recruiter's header and the client's room; the
+  room's stage bar reads round NAMES from the copied plan.
+- **Tests:** 21 on the pure module, 12 scans on the server half (approved
+  = both; current-version-only approval; amendment inserts and never
+  nulls a signature; client reads scoped and tiered; copy-not-live; grants).
+  Three removal-era tests (22 Sep) rewritten to the new object rather than
+  deleted: the client still cannot write a brief or mint a role.
+- 1,666 tests green, build clean. **Not yet clicked by a person.**
+
+## 🧪 End-to-end test on staging, and what it found (23 September 2026)
+
+Ose: "run a full end-to-end test, find bugs and performance issues, test it
+through other scenarios/paths/routes logically, use real world to test it,
+then document it and report back." Full report: **`docs/E2E-2026-09-23.md`**.
+Five testers in parallel against the real staging schema and data (writes
+rolled back, refs only). No browser session, so nothing was seen rendered.
+
+- **The bug Ose hit — "can't remove client access even if they're in".**
+  The Client access page loaded once and never again; a stale "Invited" row
+  offered Revoke, which correctly failed ("already accepted — unlink the
+  contact"), rolled back to the stale row, and "Remove access" never
+  appeared. Supabase logs: no PATCH ever reached `client_contacts`; no
+  `unlinked` audit row exists. **Fixed:** re-read on focus and after any
+  failed action; rows say when the person is ALSO a recruiter here (both
+  staging testers are), and the confirm names Settings → Team for that.
+- **15 fixed this session**, the worst four: the client's interview room
+  re-read the raw snapshot and leaked `full_name` for a redacted candidate
+  and private notes when notes were frozen off; the CV redactor missed US
+  numbers, left `+44 77` behind and passed scheme-less LinkedIn links (v2,
+  10 new tests); the nudge cron killed the candidate's booking link BEFORE
+  attempting the email (every non-founder nudge on staging); every
+  submission froze `cv: true` with no switch and no preview line for the
+  recruiter. Plus: partial brief payloads reset disclosure to defaults and
+  cleared the client's signature; send dropped unsaved edits; a voided pack
+  still named the hire; a voided placement could not be re-recorded;
+  `references_wanted` had no writer or reader; a revoked recipient still
+  tied a client to the role; viewers could run enrichment; GET /submission
+  was not scoped to the acting agency; discarded roles leaked into Today,
+  the dashboard and `getJobRole`; one throwing notice 500'd the daily cron;
+  the brief chip hid a failed check and reported a phantom difference.
+- **Needs Ose (migrations or decisions):** `candidates.rights_token` is
+  stored in PLAINTEXT and readable by every member (HIGH, DPIA-logged);
+  purge leaves the candidate's name in `submissions.snapshot` and
+  `handover_packs.snapshot` (HIGH, DPIA-logged); `authenticated` still holds
+  writes on five audit-coupled tables; nine missing indexes (SQL in the
+  report); the doorway rate tier locks shared IPs.
+- **Performance:** the per-call latency is fixed; the call COUNT is not.
+  Submission POST ≈105 calls (~25 deep); an HM room click ≈80 (the index
+  page loads everything to compute a redirect, then the stage page loads it
+  again); close-out ≈74 across nine fetches; the brief chip ≈48 because
+  `listBriefsForCompany` calls `loadBrief` in a loop; the candidates
+  endpoint pulls every `score_breakdowns` and `candidate_evidence` row in
+  the agency with no filter. Ranked table with fixes in the report.
+- **Checked and fine** is a long list in the report — RLS, grants,
+  constraints, the token doorways, the email guard, notify's wall, the
+  brief's two-signature rule, all probed, not read.
+- 1,679 tests green, build clean. **Still not clicked by a person.**
+
+## 🧭 The brief screens had no sidebar (24 September 2026)
+
+Ose: "This brief screen is rendering the nav bar weird." Both brief pages
+(`/agencies/briefs` and `/agencies/briefs/[briefId]`) rendered `AgencyNav`
+straight into the app frame with no `ag-sidebar` aside around it — so no
+Tailr brand block, no agency switcher, no sign-out, no footer, and the nav
+squeezed to its own width with the active pill clipped at the left edge.
+Every other agency page wraps the nav in that aside. Now they both do, with
+a footer that says what a brief is. Verified rendered on both pages in the
+dev preview. Tests green.
+
+## 🧷 Intake could not see the approved brief (24 September 2026)
+
+Ose: "When I'm in role intake and I want to select the approved brief it
+doesn't appear." The brief WAS approved (v2, both signatures, contact at
+"Meridian Health"). The role was made at 07:15 that morning with a blank
+company. The picker asks the server once, when the page opens, for briefs
+at the role's company — blank → none — and never asked again after the
+company was typed, so it sat on "No briefs with this client yet". Fixed:
+every intake save re-asks; the empty option now says WHY it is empty
+("Name the company above first" vs "No briefs with X yet"); and the
+company match is trimmed and case-insensitive (wildcards escaped) so
+"meridian health" finds "Meridian Health". 1,679 tests green.
+
+## 🔗 Run this role on a brief — recognised, one press, reversible (24 September 2026)
+
+Ose: "the run this role on a brief should automatically recognise the
+brief, the brief should not be empty if the agent has approved briefs.
+Also when the agent clicks connect and apply (remove the 'its
+configuration') it should apply it and allow the agent to continue unless
+they want to reverse."
+
+- **Never empty.** The picker lists every live brief on the agency, each
+  with its company, not only the role's company. The role's own client
+  sorts first; approved first within that. A brief at another client is
+  listed but greyed ("approved — but this role is for X") so nobody hunts.
+- **Recognised.** The one approved brief at the role's company — or the
+  only approved brief, for a role with no company yet — is picked for the
+  recruiter when the list arrives. They still press Connect; nothing is
+  copied by itself.
+- **One press.** The button is "Connect and apply". No confirm dialog. On
+  success the card says "On <brief> vN … carry on below."
+- **Reversible.** "Reverse — take the role off this brief" (confirm, then
+  DELETE /api/agency/roles/:id/brief → `disconnectRoleFromBrief`). It
+  unlinks and puts back the planned rounds, contact and company the
+  connect overwrote — connect now records those in its audit row's
+  `from_value`. Interview settings stay (a candidate may hold a slot).
+  Audit action `brief_disconnected`.
+- The company guard on connect is trimmed and case-blind. "Follow vN" on a
+  moved-on brief is a button now, not a hunt through the list.
+1,679 tests green. Still not clicked by a person — no staging sign-in.
+
+## 🏷 Connecting a brief names the role (24 September 2026)
+
+Ose: "Shouldn't the role pull the role title from the brief?" Yes. A role
+made from intake is "Untitled role" until someone types; the brief already
+names the search. Connect now copies the brief's title onto a role whose
+title is blank or "Untitled role" — a title the recruiter typed stays. The
+old title rides in the connect audit row and the reverse puts it back.
+Ose also asked for a JD attachment on the brief — needs a column, a
+storage path and a Figma frame; parked pending his call (see chat).
+
+## 🌱 Twenty candidates seeded into ROL-2419 for Ose's test (24 September 2026)
+
+Ose: "seed 20 candidates into the role for me to test (do this quickly)."
+New `scripts/seed-candidates.ts` runs the REAL ingest path (`ingestCandidate`,
+source `paste`) against staging — same extraction, evidence rules and scoring
+as the Add-candidates screen, so the `inputs_hash` is live and submission
+generation will accept it. Staging-only by allow-list, `--dry` first, never
+deletes, SEEDED FIXTURE audit row with a NULL actor. Content in
+`scripts/seed-content/ba-role/`: twenty fictional Business Analysts written
+to the role's ten requirements — six strong, seven middling, five weak, plus
+can-19 (same person as can-01, older CV → duplicate banner) and can-20 (no
+contact details → no-contact-details notice path). Result: 20/20 ingested,
+overall scores 28–97, evidence quotes verbatim, hashes live. Four candidates
+wear the duplicate banner, not one: ROL-2418 already had synthetic people on
+the same first three plus-addresses, so agency-wide detection flagged them
+too — checked against stored emails and identity hashes; working as designed.
+
+## ✏️ "Up to 10 per role" said 10; the server allows 50 (24 September 2026)
+
+Ose, reading the Add candidates step: "this is incorrect. change this as we
+can add up to 50 candidates." The cap went to fifty on 14 Sep 2026
+(`MAX_CANDIDATES_PER_ROLE`) and the screen kept saying ten. Copy fixed, and
+a guardrail test (`candidate-cap-copy.test.ts`) now reads the number from
+the route and fails if the screen quotes a different one.
+
+## 🎯 The consumer bug: tailoring "reduced the score" and stranded the person (24 September 2026)
+
+Ose: "when a role has found a candidate in the consumer app and they select
+'Tailor my CV to this role' before applying, it looks like it reduces the
+score, and there's no route back to the application with the new score."
+Nine-agent workflow: four readers, one implementer, three adversarial
+reviewers (all said fix-first), one fix round. 1,707 tests green, typecheck
+clean.
+
+**What was actually wrong.** Two engines on two scales, and no after-score
+existed anywhere. /found shows the scan's number: the recruiter's own
+assessor over the snapshot's fixed requirement list, scored by
+`computeScore` (must ×3 / important ×2 / nice ×1, calibration held). /tailor
+showed the free pipeline's `matchScore`: a different model re-extracting
+6–12 requirements from the brief prose under a STRICT prompt, must=2/else=1,
+strengths 1/0.6/0.25/0, no calibration — computed from the INPUT CV before
+the rewrite even ran. Identical judgements: 62 on /found, 49 on /tailor.
+Then: the role-mode banner (the only link back) unmounted on success, the
+toast named "your recommendations" without a link, /found ignored any
+deep link and never read a second number.
+
+**What changed.**
+- `lib/matching/role-match.ts` — role-mode-only Pass 3: the scan's own
+  `extractAssessment` on the TAILORED CV against the snapshot's list, scored
+  with the scan's own `strengthsForScoring` + `computeScore` holding the
+  scan's stored baselines. Before and after now differ only in evidence
+  strengths. Quote checks shape the displayed evidence, never the score
+  (the first cut gated the score on a byte-exact quote and a wrapped bullet
+  made "it went down" come back).
+- Stored in `tailor_history.result.roleMatch` (jsonb, no migration),
+  keyed by requirements hash + CV sha + engine version. Honoured on /found
+  only while the tailored link holds, the rec's score and calibration have
+  not moved (a rescan is detected), and the CV was not hand-edited since
+  (`result.tailoredCVEditedAt`, stamped by the history PATCH via
+  `lib/tailor-history-edit.ts`). Cache-hit recompute is rate-limited and
+  stores conditionally (no wholesale overwrite of a concurrent hand-edit).
+- /tailor role mode: a RoleResultStrip — "N% before → M% after" on one
+  scale, primary "Back to this role — apply when you're ready →" to
+  `/found?rec=<id>`, secondary "Open tailored CV"; a stale state after a
+  hand-edit tells the person to run Tailor again (free cache hit); the
+  toast gains a "Back to the role" action; the results tab opens on the
+  role-scale number. Banner and strip wrapped in `.ns` so tokens resolve.
+- /found: `?rec=` selects and scrolls to that card (never a dismissed one);
+  the band shows "N% match before tailoring" beside "M% after tailoring ·
+  scored the same way, on this CV", with a line saying the agency receives
+  the on-arrival number and reads the CV itself. The consent sheet line is
+  relabelled "Your match score on arrival (N%)…"; what crosses the wall is
+  unchanged, so `CONSENT_COPY_VERSION` was NOT bumped — Ose to confirm.
+- Cost: one extra Sonnet call per role-mode run, once per (row, snapshot,
+  CV bytes).
+
+**Owed.** (1) Figma: neither the after-number band nor the back-to-role
+strip exists in frame 144:2 ("Tailor-first apply — changed surfaces");
+built in the existing idiom, needs a frame and Ose's sign-off — the
+CLAUDE.md gate. (2) Not clicked by a signed-in person with a live
+recommendation; both pages render in the preview. (3) Follow-ups: send
+`roleMatch` across on apply when the tailored CV crosses (needs a consent
+bump); the Gaps tab still lists the free engine's requirements in role
+mode; the strip's CTA wraps at 375px.
+
+## 🎨 Step 05 redesign — the shortlist as a place (Figma board 26, awaiting Ose) (24 September 2026)
+
+Ose: "I need a better UI (ui-ux-pro-max plus another skill) to enhance this
+screen and process for the agent to select who is shortlisted — it feels a
+little manual and not intuitive. In addition the recommendation should not
+only be a recommendation but the ability to add to the agent's shortlist
+before they confirm it." Per the working rules, designed in Figma FIRST:
+**board 26 on the concept map page, node 528:2** —
+https://www.figma.com/design/AWRRbEOX6rLsltutFDL3zs/?node-id=528-2 —
+built with ui-ux-pro-max (bulk actions, one primary action per surface,
+44px targets, feedback) and frontend-design (the signature element).
+Nothing coded until Ose signs the board off.
+
+**The diagnosis (section A).** Three verbs of equal weight on every card;
+the shortlist was a number in the header; the recommendation was an essay on
+another tab; no way to move in one go.
+
+**The design.** (B) The shortlist becomes a right-hand rail — who is in, in
+score order, an empty "next add lands here" slot, the hold/passed record,
+and the only Confirm button. Every card gets ONE verb, "Add to shortlist",
+which flips to "✓ Shortlisted · Remove"; Hold and Pass survive as quiet
+text beneath; two "add in one go" chips (every must-have · 5, the four it
+recommends). (C) The recommendation keeps its three groups and gains a
+button per person and "Add the other N" per group; the rail sits beside it,
+the same object. (D) On a phone the rail is a sticky bar — "SHORTLIST · 3 ·
+Amara, Tomasz, Nadia · Confirm →" — that opens as a sheet. (E) The line it
+keeps: every add is the human's click (same PATCH as today); the
+recommendation never writes a decision by itself; Confirm opens step 06, it
+sends nothing; S/H/R still work, S now toggles add.
+
+Built by a 4-builder workflow, screenshot-reviewed (fix-first: a state
+contradiction on the phone, C missing the rail, a wrong count) and fixed;
+one leftover phone line fixed by hand. Only one test touches this tab's
+wording (no "rejected"); the redesign says "Pass".
+
+## 🖼 Board 27 — the consumer after-number and the way back, drawn after the fact (26 September 2026)
+
+The 24 Sep consumer fix shipped two surfaces with no Figma frame: the
+role-result strip on /tailor and the before · after band on /found. The
+working rules want a frame for every UI change, so board 27 records both as
+built — node 538:2, https://www.figma.com/design/AWRRbEOX6rLsltutFDL3zs/?node-id=538-2
+— with the stale state, the apply-sheet line, and the four rules the
+surfaces keep (one engine twice; display-only by construction; it stops
+counting when it should; one extra call, once). For Ose to sign off or send
+back. Also: Ose approved board 26 (step 05 redesign) on 24 Sep; the
+implementation is running against staging.
+
+## ✅ Step 05 rebuilt to board 26 — the shortlist is a place (26 September 2026)
+
+Ose approved board 26 on 24 Sep ("approved"). Implemented on staging by a
+six-agent workflow (server + UI implementers in parallel, three adversarial
+reviewers, one fix round) plus a hand pass on the low findings. 1,780+
+tests green, typecheck clean, production build run.
+
+**Server.** `lib/agency/decisions.ts` is now the ONE writer of
+`recruiter_reviews.decision` (a repo-wide test enforces it): `applyDecision`
+returns the previous value and writes one audit row per person (entity
+`decision`, action `decided`/`cleared`, reason `bulk` for the batch). The
+single route is refactored onto it with identical responses (and four fewer
+queries). New `PATCH /api/agency/roles/:id/decisions` takes up to 50
+`{candidateId, decision}` changes, pre-checks role AND agency in one select,
+reads the batch's previous values once, applies sequentially, returns
+`{updated[{candidateId, decision, previous}], skipped[]}`. Human-only:
+requireAgencyContext → assertWriter; viewers 403. **Exercised against
+staging for real:** three passed candidates → shortlisted (audit rows
+`decided/bulk`, from `reject` to `shortlist`) → undone with the returned
+previous → back to `reject`. 26 + 16 new tests.
+
+**UI.** `components/agency/shortlist-rail.tsx` (the rail, and the phone bar
+that opens it as a focus-trapped, inert-backed sheet), `decision-slot.tsx`
+(the one verb in its four states; "Pass" is the word for stored `reject`),
+`use-recommendation.ts` (the recommendation state lifted so the Matrix chip
+and the panel share it), `count-word.ts`. The page: header down to
+title/sub/Back; `.ag-cmp-layout` grid with the rail outside the tab switch;
+"ADD IN ONE GO" chips (must-have count, "The four it recommends" / "The ones
+it recommends" which runs the recommendation on the click first, and says
+so); bulk adds go through the new route with an 8-second "Added n · Undo"
+built from the server's `previous` values (a decision placed inside the
+window is dropped from the undo, never clobbered); 403 rolls back as
+view-only; 404/405 fall back to per-person writes; any other failure rolls
+back and reloads the board. Decisions bar keeps the tally and S/H/R hints.
+Recommendation tab: per-row slot, "Add all N / Add the other N" per group,
+third group collapsed behind "Show the thirteen ↓", board copy verbatim.
+Step 07's internal record now says "passed", not "reject".
+
+**Still owed.** Nobody signed in has clicked it (no recruiter session here):
+the sticky rail beside a wide matrix, the phone sheet and the undo notice
+above the bar should be eyeballed on staging at 1440 and 375. Copy
+deviation: the reading-card eyebrow says "{n} calls", not "call answers"
+(the route returns no answers total).
+
+## 📎 The JD on the brief — board 28 drawn, backend in flight (28 September 2026)
+
+Ose approved board 27 (26 Sep) and asked for the JD attachment on the brief,
+client-visible. Per the working rules, designed first: **board 28, node
+551:2** — https://www.figma.com/design/AWRRbEOX6rLsltutFDL3zs/?node-id=551-2.
+The design: an un-numbered first section "The job description" on the
+brief form (CLIENT AGREES tier) with attach / attached / replaced states;
+one review line on both sides ("Job description · name · size · Download",
+CHANGED pill with "was …", Change on the client's copy with a replace zone);
+the role's intake receives the text with a "FROM THE BRIEF · name" chip when
+a role connects (only if the box is empty; Extract requirements stays the
+recruiter's press); four rules (two sides only; a new file is a new version;
+the text goes one place; it dies with the brief). Awaiting Ose's sign-off
+before the UI is coded. The non-UI half — migration
+`supabase/migrations/20260926120000_brief_jd_files.sql` (private bucket
+`agency-briefs`, table `agency.search_brief_files`, browser holds no grant),
+`lib/agency/brief-files.ts`, `config.jdFileId` in the client-editable tier,
+four routes, connect copying text into `jd_raw` — is being built and
+reviewed by a workflow; migration to be run by hand, staging then prod.
+
+**Backend half landed (28 Sep).** Migration file, `lib/agency/brief-files.ts`
+(upload + pointer in one function, blob removed on a failed insert, 20 files
+per brief, content type by real extension with a hasOwnProperty guard,
+attachment headers), `config.jdFileId` (tier 1, client-editable, checked to
+be a live file ON THIS BRIEF before any version is written), four routes
+(recruiter/client upload with an `upload` rate-limit preset 10/min · 100/day;
+recruiter/client download scoped to the brief), connect copies the text into
+an empty `jd_raw` and names the file in the audit, discardDraft removes
+files. Two reviewers, twelve findings, all fixed. 1,810 tests green, tsc
+clean. Safe before the migration: reads touch the new table only when a
+version carries a file id, which no UI can set yet. Real-data exercise
+waits on the staging migration.
+
+**Migration applied to staging and verified (28 Sep).** Ose ran
+`20260926120000_brief_jd_files.sql` on staging. Checked: table present, row
+security on, only `postgres`/`service_role` hold grants (the browser has
+none), bucket `agency-briefs` private with no object policies, 10 MB and
+PDF/DOCX/TXT only. Real-data exercise on staging, 13 checks: draft created;
+upload wrote the pointer and an audit row (`brief_jd_attached`); a
+`jd.constructor` name refused; uploading alone left the version untouched;
+saving the draft with the id resolved `latest.jd` and the file name; a
+random id refused ("not on this brief"); download bytes matched by sha256;
+extracted text stored for the intake hand-off; the file unreadable through
+another brief; discard removed the rows and the blob. The blob check failed
+once in the same second as the delete (storage briefly served the old
+bytes) and passed on re-check: "Object not found", folder empty, no objects
+in the bucket. Leftover: one soft-discarded draft titled "EXERCISE · JD
+attachment · safe to ignore" and its audit rows, attributed to the owner.
+**Production** has none of the agency brief tables yet, so this file cannot
+run there until the 23 Sep brief migrations do — that belongs to the
+agencies production port, not now.
+
+## 👀 Names reach the hiring manager at shortlist — server on staging, screen awaits board 29 (28 September 2026)
+
+Ose: "On the hiring manager side the hiring manager should be able to see
+the names of the candidates, as soon as they're shortlisted." Until now a
+name reached the client only through a submission. New
+`lib/agency/client-shortlisting.ts` + `GET /api/hiring/roles/:id/shortlisting`
+return, for the contact tied to the role (the room's own tie check), each
+live-shortlisted candidate not already in their latest submission as
+`{ref, name|null, withheld, addedAt}` — nothing else. The candidate's
+answers govern, read in ONE place (`representClientVisibility` in
+`represent.ts`): declined/withdrawn never appear; asked-to-be-withheld →
+ref; not yet answered → ref "awaiting permission" unless
+`SHOW_NAMES_BEFORE_PERMISSION` is flipped (default false — the orchestrator's
+assumption, Ose to decide); a pending erasure or objection request drops
+them (the review found `erasure_requested_at` is never written). Verified on
+staging: a shortlisted unanswered candidate appeared as their ref and
+vanished when the decision was restored; an untied contact got nothing.
+Every shortlisted candidate on staging today is unanswered, so under the
+default the hiring manager sees refs only. DPIA entry logged (OPEN).
+Board 29 (node 571:2) draws the screen, the "added since" list after a
+submission, and the step 05 rail copy that must change with it.
+
+## 📎 The JD on the brief — the screens, built to board 28 (28 September 2026)
+
+Ose approved board 28. Built by a four-agent workflow (implementer, two
+reviewers, fix) plus a hand pass: the brief form's first section "The job
+description" (attach / attached / replaced, drop zone that is a real button,
+upload announced and focus kept), the review's first line on both sides
+with the CHANGED · WAS pill, and role intake's "From the brief" chip with a
+named Download. One deliberate change from the board: the meta line reads
+"TEXT READ" or "NO TEXT FOUND" (with a hint to paste the description)
+instead of a word count nobody stores. Copy corrected where the new section
+made old copy wrong ("the job description and the four numbered sections").
+Two accuracy fixes by hand: the hiring side's role-brief route no longer
+carries the file's name and id (the role's contact may not be the brief's
+addressee), and intake no longer claims the text "came from" the brief —
+it says the brief's job description is linked below. 1,871 tests green,
+tsc clean, build green. Not clicked by a person yet.
+
+**28 Sep, later.** Ose approved board 29 and decided "show names for
+unanswered too": `SHOW_NAMES_BEFORE_PERMISSION = true`, with the DPIA entry
+rewritten to say who decided, why (every shortlisted candidate on staging was
+unanswered, so references-only was not the feature asked for), and the
+asymmetry a reviewer must weigh — the submission still needs an audited
+override for the same person. A test now refuses the switch unless the DPIA
+log records it. Re-verified live on staging: the unanswered CAN-15 appeared
+by name and vanished on restore. Board 29 updated to match. The screen and
+the rail copy are being built.
+
+## 👀 Names at shortlist — the screen, built to board 29 (28 September 2026)
+
+The hiring manager's Shortlist stage now shows who is being shortlisted.
+Before a submission: "Being shortlisted · n so far", each name with when it
+was added, withheld people as their ref ("Asked to be withheld"), and a
+reworded note when nobody is shortlisted yet. After a submission: the
+submission as before, then "Added since · not sent yet". The list refreshes
+on focus and every minute while the tab is visible; a refetch failure keeps
+the last list; a 401/403/404 clears it (tie revoked). Built by a four-agent
+workflow; the review found a real high bug — a submission landing while the
+page was open read as "Nothing shortlisted yet" — fixed by reloading the
+submission when the live list reports one. The agency name in the copy is
+used only when the hiring manager is linked to one agency.
+
+The recruiter's rail says "{Company} sees each name as you add it. The CV,
+evidence and scores wait for the submission." with "Names visible to the
+client", and the new Confirm caption; the old "nothing reaches the client"
+caption is gone. It names the company, not one person (board 29 drew
+"Owen"), because every client-side contact tied to the role sees the names
+— linked contact, brief contacts, recipients, panellists, slot contacts;
+the DPIA entry says so and board 29 was updated to match. 1,895 tests green,
+tsc clean, build green. Not clicked by a person yet.
+
+## 🔗 Interview links failed for the second person on a network (28 September 2026)
+
+Ose: testing booking links, the first person chose a time and it worked; the
+next person got "this link is invalid" or "this time did not save".
+**Cause:** the booking route rate-limited every request per internet
+address at the sign-in tier (3/min, 15/day) BEFORE looking at the link, so
+a second person on the same Wi-Fi was refused with 429, and the page showed
+any refusal as a dead link or a failed save. Evidence: staging
+`rate_limits` had one caller at 6 requests in the 17:42:29 minute (3
+refused), three seconds before CAN-04 booked. Reproduced through the real
+route from a TEST-NET address: the fourth request from one network → 429.
+**Second bug, same moment:** picking a time someone had just taken returned
+`not_open` and the page showed nothing — the time silently vanished.
+**Fix:** per-link limit (20/min, 200/day) plus a per-network flood ceiling
+(120/min, 3000/day) in one helper, `checkDoorwayLimit`, used by the booking,
+consent and reference doorways (192-bit tokens: the strict tier never
+protected against guessing). Pages tell the truth: only 404 says "not
+valid"; 429 is a busy card that retries itself; 5xx says try again;
+`not_open` and `taken` both say the time was just taken. The security review
+caught a side effect — a replayed consent link could have emailed the
+agency's recruiters ~200 times a day — so a repeated consent answer is now a
+no-op and consent saves carry a 5/min, 20/day per-link limit. Re-ran the
+reproduction on staging: no refusal. 1,944 tests green (including the
+scenario as a test that fails with the old limit), tsc and build clean.
+Owed: a Figma frame for the new busy card (reuses the doorway classes);
+`hiring/accept` has the same per-network shape and was left alone.
+
+## 📅 Interviews moved to today; one time per candidate (28 September 2026)
+
+Ose: "move all the interviews to today and also a user should only be able
+to select one time."
+
+**Moved (staging data, 19:57 London).** The three upcoming round-2
+interviews on ROL-2419 moved from 30 Sep to today, each with its booked
+window so the diary stays in step, spread so every state can be tested:
+CAN-04 18:30 (finished), CAN-07 19:45 (in progress), CAN-21 21:00
+(upcoming). Their original times (30 Sep 10:00 / 11:00 / 12:00) are in each
+`fixture_rescheduled` audit row's from_value. Completed interviews were left
+where they happened; the hiring manager's 09:00–12:00 windows today would
+have clashed with the original hours.
+
+**One time per candidate.** The database already guaranteed one person per
+window (unique index on `interview_rounds.slot_id`) and one window per
+interview — staging had zero windows held twice and zero candidates with two
+open interviews. The second choice came from "Move": every role allowed one
+move up to 24 h before. The code default is now `reschedulePolicy: "none"`
+(`lib/agency/interview-rules.ts`), and ROL-2417/2418/2419 were switched to
+"none", audit-logged. A booked candidate now reads "This interview cannot be
+moved online — reply to your recruiter if you need to." The client's set-up
+screen can still allow moves for a role, as their explicit choice. The
+schema column default is still 'until_notice'; the code writes every column
+explicitly, so it is not reached.
+
+## 🤝 Colleagues in one office can accept their hiring invites (28 September 2026)
+
+Ose: "fix the hiring invite acceptance limit too." Reproduced from a TEST-NET
+address: the fourth colleague on one network was refused at acceptance
+(per-IP "auth", 3/min) and the eleventh at the invite preview (per-IP
+"share", 10/min). Both now use `checkDoorwayLimit` — per-link limit plus a
+per-network flood ceiling — like booking, consent and reference. The
+per-account "auth" limit on acceptance stays (stops a throwaway account
+grinding links). The accept page shows the shared busy/retry card for a 429
+or 5xx on the preview (only a 404 is a dead link; a dropped connection is no
+longer shown as one), themed to the hiring shell after the review caught it
+flashing cream in dark mode, and "Too many tries just now. Wait {n}, then
+accept again." for a refused accept. Re-ran the preview reproduction: eleven
+colleagues, none refused; the accept scenario runs as a test through the real
+route (ten colleagues, none refused; it refused the fourth on the old code).
+Accepted limitation, written into the route: a link holder can exhaust that
+link's bucket; re-issuing the invite clears it. 1,961 tests green, tsc and
+build clean. The sign-in code request (`request-otp`) still limits per network
+at 3/min by design and was not touched.
+
+## ✉️ Colleagues in one office can get sign-in codes (28 September 2026)
+
+Ose: "fix the sign-in code limit too." Reproduced with the limiter exactly
+as `request-otp` calls it (no email sent): colleagues 1–3 on one network got
+codes for their own addresses, the fourth was refused. The per-ADDRESS limit
+("auth", 3/min, 15/day — what stops an inbox being flooded) is unchanged and
+still charged first. The per-NETWORK limit moved from "auth" to a new
+`auth_net` preset, 20/min and 200/day per front door. Re-ran: ten colleagues
+on one network, none refused. The sign-in surfaces already showed the
+server's "please wait N…" sentence; the one gap (a 429 with no JSON body
+fell through to "Error sending magic link email") is closed in
+`auth-provider.tsx`. The email-abuse review cleared it: a refusal still
+reveals nothing about whether an address has an account, because both
+counters are charged before the account lookup. Written down in the preset:
+one network can now send 400 sign-in emails a day across both doors (was
+30), and nothing caps the total across networks. Follow-up, pre-existing and
+not changed here: the route returns generateLink's own error text on a 400,
+which can say whether an address has an account if sign-ups are disabled.
+1,969 tests green (the new tests fail on the old limit), tsc and build clean.
+
+## 🔒 Upstream error text no longer reaches strangers (28 September 2026)
+
+Ose: "fix the generateLink error message too." `request-otp` returned
+Supabase's `generateLink` error text on a 400 and Resend's on a 500.
+Supabase's words are facts about the account ("Signups not allowed" = no
+account, once sign-ups are off; "User is banned" = one exists) and can quote
+the address; Resend's describe our mail setup. Checked first: sign-ups are ON
+on staging and production today, so an unknown address gets an account, not
+an error — the leak was latent, live the day sign-ups go off or an account
+is banned. Reproduced with a test feeding the real route those refusals:
+8 failures. Now every generateLink refusal reads "We couldn't start sign-in
+for that address. Check it and try again."; Supabase's own per-account wait
+("only request this after N seconds") becomes the app's usual 429 with
+Retry-After; a failed send reads "We couldn't send the sign-in email just
+now."; logs carry status and code only, never the message. Siblings found
+and fixed: the rights and portal doorways returned the database's error text
+to whoever held the link — now "Something went wrong" with a name/code-only
+log, and a test covers all seven unauthenticated doorways. 1,984 tests green,
+tsc and build clean.

@@ -42,11 +42,24 @@ export type NotifyOutcome =
   | "failed"
 
 /** The events that cross the wall. Each one is the answer to an ask Tailr
- * already sends, except brief_filed, which had no ask at all. */
+ * already sends. brief_filed and brief_answered went with the client-brief
+ * flow (22 Sep 2026). */
 export type NotifyEvent =
-  | { kind: "brief_filed"; contactId: string; roleTitle: string }
-  | { kind: "brief_answered"; contactId: string; roleTitle: string; accepted: boolean }
   | { kind: "invite_accepted"; contactId: string }
+  /** Client-facing: the employer contact the pack was delivered to. */
+  | { kind: "handover_delivered"; contactId: string; roleId: string; roleTitle: string }
+  /**
+   * The client brief (23 Sep 2026, frame 25). Three face the CLIENT — a
+   * brief was sent to them, changed under them, or approved by both — and
+   * two face the AGENCY — the client changed or signed it. The contact id
+   * routes both directions: to the contact for client-facing kinds, and
+   * through whoever invited that contact for agency-facing ones.
+   */
+  | { kind: "brief_sent"; contactId: string; briefId: string; briefTitle: string; agencyName: string; version: number }
+  | { kind: "brief_changed"; contactId: string; briefId: string; briefTitle: string; agencyName: string; version: number; changed: number }
+  | { kind: "brief_approved"; contactId: string; briefId: string; briefTitle: string; agencyName: string; version: number }
+  | { kind: "brief_amended_by_client"; contactId: string; briefId: string; briefTitle: string; version: number; changed: number }
+  | { kind: "brief_approved_by_client"; contactId: string; briefId: string; briefTitle: string; version: number; both: boolean }
   | { kind: "debrief_recorded"; roleId: string; candidateRef: string }
   | { kind: "consent_answered"; roleId: string; candidateRef: string }
   | { kind: "reference_submitted"; roleId: string; candidateRef: string }
@@ -68,7 +81,12 @@ type Recipient = { email: string; name: string; userId: string | null }
  * manager unless somebody edits this function on purpose.
  */
 export function facesClient(kind: NotifyEvent["kind"]): boolean {
-  return kind === "brief_answered"
+  // handover_delivered (22 Sep 2026): the pack is for the employer, so the
+  // contact it was delivered to is told it is ready.
+  // brief_sent / brief_changed / brief_approved (23 Sep 2026): the brief is
+  // addressed to the contact by name and they are one of its two signatures.
+  // Nothing about a candidate travels in any of them — a brief is terms.
+  return kind === "handover_delivered" || kind === "brief_sent" || kind === "brief_changed" || kind === "brief_approved"
 }
 
 /**
@@ -312,28 +330,66 @@ function copyFor(input: NotifyInput): Copy {
   const agencyOrigin = getBusinessOrigin()
 
   switch (input.kind) {
-    case "brief_filed":
+    case "handover_delivered":
       return {
-        subject: `New brief: ${input.roleTitle}`,
-        eyebrow: "A brief arrived",
-        heading: "A hiring manager filed a brief.",
-        body: `They are asking you to hire for ${esc(input.roleTitle)}. It is waiting in your brief inbox, where you can accept it into a role or decline it with a note back to them.`,
-        ctaLabel: "Open the brief",
-        ctaUrl: `${agencyOrigin}/agencies/briefs`,
+        subject: `Your handover pack is ready: ${input.roleTitle}`,
+        eyebrow: "Handover",
+        heading: "Your handover pack is ready.",
+        body: `Your recruiter has handed over the record for ${esc(input.roleTitle)} — the evidence, your interview write-ups, the references and what was never evidenced. It is in your workspace to read, print or save.`,
+        ctaLabel: "Open the handover",
+        ctaUrl: `${agencyOrigin}/hiring/roles/${input.roleId}/handover`,
       }
 
-    case "brief_answered":
+    case "brief_sent":
       return {
-        subject: input.accepted
-          ? `Your brief was accepted: ${input.roleTitle}`
-          : `An update on your brief: ${input.roleTitle}`,
-        eyebrow: "Your brief",
-        heading: input.accepted ? "Your brief was accepted." : "Your recruiter replied to your brief.",
-        body: input.accepted
-          ? `Your recruiter has taken on ${esc(input.roleTitle)} and started work. You will see candidates here as they are put forward.`
-          : `Your recruiter has replied about ${esc(input.roleTitle)}, with a note explaining where things stand. Open it to read their reply.`,
-        ctaLabel: "See your briefs",
-        ctaUrl: `${agencyOrigin}/hiring`,
+        subject: `${input.agencyName} sent you a brief to approve: ${input.briefTitle}`,
+        eyebrow: "The brief",
+        heading: "How the search will run — for you to approve.",
+        body: `${esc(input.agencyName)} has set out the terms of the ${esc(input.briefTitle)} search: the rounds, how quickly you will decide, what you will be shown, and the feedback promise. Four things to agree, the rest to read. Change any line and it comes back to them as a new version.`,
+        ctaLabel: "Review the brief",
+        ctaUrl: `${agencyOrigin}/hiring/briefs/${input.briefId}`,
+      }
+
+    case "brief_changed":
+      return {
+        subject: `${input.agencyName} changed the brief: ${input.briefTitle} (v${input.version})`,
+        eyebrow: "The brief",
+        heading: "The brief has changed.",
+        body: `${esc(input.agencyName)} has sent v${input.version} of the ${esc(input.briefTitle)} brief, with ${input.changed === 1 ? "one line" : `${input.changed} lines`} changed and marked. Your earlier approval was on the previous version, so this one needs your signature again.`,
+        ctaLabel: "Read what changed",
+        ctaUrl: `${agencyOrigin}/hiring/briefs/${input.briefId}`,
+      }
+
+    case "brief_approved":
+      return {
+        subject: `Agreed: the brief for ${input.briefTitle} (v${input.version})`,
+        eyebrow: "The brief",
+        heading: "Both sides have signed.",
+        body: `You and ${esc(input.agencyName)} have approved v${input.version} of the ${esc(input.briefTitle)} brief. Roles can now run on it, and anywhere a role departs from it you will be shown the difference.`,
+        ctaLabel: "Open the brief",
+        ctaUrl: `${agencyOrigin}/hiring/briefs/${input.briefId}`,
+      }
+
+    case "brief_amended_by_client":
+      return {
+        subject: `Your client changed the brief: ${input.briefTitle} (v${input.version})`,
+        eyebrow: "The brief",
+        heading: "The client sent back a change.",
+        body: `v${input.version} of the ${esc(input.briefTitle)} brief has ${input.changed === 1 ? "one line" : `${input.changed} lines`} changed by the client and marked. Their signature is on it; yours is needed again.`,
+        ctaLabel: "Read what changed",
+        ctaUrl: `${agencyOrigin}/agencies/briefs/${input.briefId}`,
+      }
+
+    case "brief_approved_by_client":
+      return {
+        subject: input.both ? `Agreed: the brief for ${input.briefTitle} (v${input.version})` : `Your client approved the brief: ${input.briefTitle}`,
+        eyebrow: "The brief",
+        heading: input.both ? "Both sides have signed." : "The client has signed.",
+        body: input.both
+          ? `v${input.version} of the ${esc(input.briefTitle)} brief is approved by both sides. Roles can connect to it now.`
+          : `The client has approved v${input.version} of the ${esc(input.briefTitle)} brief. It is waiting on your signature to become the agreed terms.`,
+        ctaLabel: "Open the brief",
+        ctaUrl: `${agencyOrigin}/agencies/briefs/${input.briefId}`,
       }
 
     case "invite_accepted":
@@ -341,7 +397,7 @@ function copyFor(input: NotifyInput): Copy {
         subject: "Your client activated their access",
         eyebrow: "Client access",
         heading: "Your client is in.",
-        body: "The hiring manager you invited has signed in for the first time. They can now file briefs, give availability and write up rounds without going through you.",
+        body: "The hiring manager you invited has signed in for the first time. They can now give availability and write up rounds without going through you.",
         ctaLabel: "Open clients",
         ctaUrl: `${agencyOrigin}/agencies/clients`,
       }

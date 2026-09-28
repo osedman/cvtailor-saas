@@ -6,6 +6,9 @@
  *          profile, new addresses get an account created (no password; they
  *          sign in with the normal magic link flow and land in the agency).
  *          Audit logged; a plain notification email goes to the invitee.
+ *          The response says whether that email ACTUALLY went: staging only
+ *          mails EMAIL_ALLOWLIST, and a bare {added:true} over a refused send
+ *          let a tester be added and never hear about it (21 Sep 2026).
  * PATCH  — owner changes a member's role or suspends/reactivates them.
  *          Suspension revokes access immediately (member_agency_ids only
  *          returns active rows) but never erases their audit history.
@@ -47,12 +50,23 @@ export async function GET() {
       ? await publicAdmin.from("profiles").select("id, full_name, email").in("id", ids)
       : { data: [] }
     const profileById = new Map((profiles ?? []).map((p: { id: string }) => [p.id, p]))
+    // Whether each person has ever signed in — so an owner can tell an
+    // invite that landed from one still sitting in an inbox (or never sent).
+    const signedIn = new Map<string, boolean>()
+    await Promise.all(
+      ids.map(async (id) => {
+        const { data } = await publicAdmin.auth.admin.getUserById(id)
+        signedIn.set(id, Boolean(data?.user?.last_sign_in_at))
+      })
+    )
 
     return NextResponse.json({
       members: (members ?? []).map((m) => ({
         ...m,
         profile: profileById.get(m.user_id) ?? null,
+        signed_in: signedIn.get(m.user_id) ?? false,
       })),
+      caller_id: auth.ctx.userId,
       caller_role: auth.ctx.role,
     })
   } catch (error) {
@@ -102,6 +116,19 @@ export async function POST(req: NextRequest) {
     if (!userId) throw new Error("Could not resolve or create the invitee account")
 
     const admin = agencyAdmin()
+    // Already here in this role: say so and change nothing, rather than
+    // re-sending an invite that reads as new.
+    const { data: current, error: currentError } = await admin
+      .from("members")
+      .select("role, status")
+      .eq("agency_id", auth.ctx.agencyId)
+      .eq("user_id", userId)
+      .maybeSingle()
+    if (currentError) throw currentError
+    if (current && current.status === "active" && current.role === role) {
+      return NextResponse.json({ added: false, already: true, role })
+    }
+
     const { error: memberError } = await admin.from("members").upsert(
       {
         agency_id: auth.ctx.agencyId,
@@ -133,13 +160,16 @@ export async function POST(req: NextRequest) {
     // the calling request happened to arrive (a preview host, an internal
     // hostname, an apex redirect).
     const origin = getBusinessOrigin()
-    await sendEmail({
+    const mail = await sendEmail({
       to: email,
       subject: `You have been added to ${agencyRow?.name ?? "an agency"} on Tailr`,
       html: `<div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fffdfa;color:#1e1813;padding:32px 28px;"><p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#dc4f33;font-weight:700;">Tailr for Agencies</p><h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;">You are on the team.</h1><p style="margin:0 0 16px;line-height:1.6;">${escapeHtml(agencyRow?.name ?? "An agency")} has added you as a ${role} on Tailr. There is no password. Sign in with this email address and a login link arrives in your inbox.</p><p style="margin:0 0 16px;"><a href="${origin}/login" style="display:inline-block;background:#1e1813;color:#fffdfa;border-radius:8px;padding:10px 16px;font-weight:600;text-decoration:none;">Sign in to Tailr</a></p></div>`,
     })
 
-    return NextResponse.json({ added: true, role }, { status: 201 })
+    return NextResponse.json(
+      { added: true, role, email: { sent: mail.sent, skipped: mail.skipped ?? mail.error ?? null } },
+      { status: 201 }
+    )
   } catch (error) {
     return NextResponse.json(
       { error: errorMessage(error) },

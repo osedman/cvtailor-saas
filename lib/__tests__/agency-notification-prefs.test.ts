@@ -84,33 +84,33 @@ beforeEach(() => {
 describe("reading", () => {
   it("absent rows read as following the agency, and on", async () => {
     const view = await getNotificationPrefs(REC)
-    expect(view.mine.brief_filed).toBe("agency")
-    expect(view.defaults.brief_filed).toBe(true)
-    expect(view.effective.brief_filed).toBe(true)
+    expect(view.mine.debrief_recorded).toBe("agency")
+    expect(view.defaults.debrief_recorded).toBe(true)
+    expect(view.effective.debrief_recorded).toBe(true)
   })
 
   it("shows the agency default behind an inherited switch", async () => {
-    store.rows.push({ agency_id: "a1", user_id: null, event_kind: "brief_filed", enabled: false })
+    store.rows.push({ agency_id: "a1", user_id: null, event_kind: "debrief_recorded", enabled: false })
     const view = await getNotificationPrefs(REC)
-    expect(view.mine.brief_filed).toBe("agency")
-    expect(view.defaults.brief_filed).toBe(false)
-    expect(view.effective.brief_filed).toBe(false)
+    expect(view.mine.debrief_recorded).toBe("agency")
+    expect(view.defaults.debrief_recorded).toBe(false)
+    expect(view.effective.debrief_recorded).toBe(false)
   })
 
   it("a personal choice shows as mine and wins over the default", async () => {
-    store.rows.push({ agency_id: "a1", user_id: null, event_kind: "brief_filed", enabled: false })
-    store.rows.push({ agency_id: "a1", user_id: "rec-1", event_kind: "brief_filed", enabled: true })
+    store.rows.push({ agency_id: "a1", user_id: null, event_kind: "debrief_recorded", enabled: false })
+    store.rows.push({ agency_id: "a1", user_id: "rec-1", event_kind: "debrief_recorded", enabled: true })
     const view = await getNotificationPrefs(REC)
-    expect(view.mine.brief_filed).toBe("on")
-    expect(view.defaults.brief_filed).toBe(false)
-    expect(view.effective.brief_filed).toBe(true)
+    expect(view.mine.debrief_recorded).toBe("on")
+    expect(view.defaults.debrief_recorded).toBe(false)
+    expect(view.effective.debrief_recorded).toBe(true)
   })
 
   it("does not mistake a colleague's row for mine", async () => {
-    store.rows.push({ agency_id: "a1", user_id: "rec-2", event_kind: "brief_filed", enabled: false })
+    store.rows.push({ agency_id: "a1", user_id: "rec-2", event_kind: "debrief_recorded", enabled: false })
     const view = await getNotificationPrefs(REC)
-    expect(view.mine.brief_filed).toBe("agency")
-    expect(view.effective.brief_filed).toBe(true)
+    expect(view.mine.debrief_recorded).toBe("agency")
+    expect(view.effective.debrief_recorded).toBe(true)
   })
 
   it("only an owner is told they may edit the defaults", async () => {
@@ -121,41 +121,41 @@ describe("reading", () => {
 
 describe("writing my own", () => {
   it("stores my choice", async () => {
-    const view = await setMyPreference(REC, "brief_filed", "off")
-    expect(view.mine.brief_filed).toBe("off")
+    const view = await setMyPreference(REC, "debrief_recorded", "off")
+    expect(view.mine.debrief_recorded).toBe("off")
     expect(store.rows).toHaveLength(1)
     expect(store.rows[0]).toMatchObject({ user_id: "rec-1", enabled: false })
   })
 
   it("'follow the agency' DELETES my row rather than freezing today's value", async () => {
-    store.rows.push({ agency_id: "a1", user_id: null, event_kind: "brief_filed", enabled: false })
-    store.rows.push({ agency_id: "a1", user_id: "rec-1", event_kind: "brief_filed", enabled: true })
+    store.rows.push({ agency_id: "a1", user_id: null, event_kind: "debrief_recorded", enabled: false })
+    store.rows.push({ agency_id: "a1", user_id: "rec-1", event_kind: "debrief_recorded", enabled: true })
 
-    const view = await setMyPreference(REC, "brief_filed", "agency")
+    const view = await setMyPreference(REC, "debrief_recorded", "agency")
 
     // No row of my own left...
     expect(store.rows.filter((r) => r.user_id === "rec-1")).toHaveLength(0)
     // ...the agency's row untouched...
     expect(store.rows.filter((r) => r.user_id === null)).toHaveLength(1)
     // ...and I now follow it, rather than being stuck on the 'true' I had.
-    expect(view.mine.brief_filed).toBe("agency")
-    expect(view.effective.brief_filed).toBe(false)
+    expect(view.mine.debrief_recorded).toBe("agency")
+    expect(view.effective.debrief_recorded).toBe(false)
   })
 
   it("replaces rather than duplicates when I change my mind", async () => {
-    await setMyPreference(REC, "brief_filed", "on")
-    await setMyPreference(REC, "brief_filed", "off")
-    const mine = store.rows.filter((r) => r.user_id === "rec-1" && r.event_kind === "brief_filed")
+    await setMyPreference(REC, "debrief_recorded", "on")
+    await setMyPreference(REC, "debrief_recorded", "off")
+    const mine = store.rows.filter((r) => r.user_id === "rec-1" && r.event_kind === "debrief_recorded")
     expect(mine).toHaveLength(1)
     expect(mine[0]!.enabled).toBe(false)
   })
 
   it("audits the change", async () => {
-    await setMyPreference(REC, "brief_filed", "off")
+    await setMyPreference(REC, "debrief_recorded", "off")
     expect(store.audit).toHaveLength(1)
     expect(store.audit[0]).toMatchObject({
       entityType: "notification",
-      entityRef: "brief_filed",
+      entityRef: "debrief_recorded",
       action: "preference_set",
       actorId: "rec-1",
     })
@@ -164,29 +164,29 @@ describe("writing my own", () => {
 
 describe("writing the agency default", () => {
   it("only an owner may", async () => {
-    await expect(setAgencyDefault(REC, "brief_filed", false)).rejects.toBeInstanceOf(AgencyAccessError)
+    await expect(setAgencyDefault(REC, "debrief_recorded", false)).rejects.toBeInstanceOf(AgencyAccessError)
     expect(store.rows).toHaveLength(0)
     expect(store.audit).toHaveLength(0)
   })
 
   it("never overwrites somebody's own choice", async () => {
-    store.rows.push({ agency_id: "a1", user_id: "rec-1", event_kind: "brief_filed", enabled: true })
-    await setAgencyDefault(OWNER, "brief_filed", false)
+    store.rows.push({ agency_id: "a1", user_id: "rec-1", event_kind: "debrief_recorded", enabled: true })
+    await setAgencyDefault(OWNER, "debrief_recorded", false)
 
     const personal = store.rows.filter((r) => r.user_id === "rec-1")
     expect(personal).toHaveLength(1)
     expect(personal[0]!.enabled).toBe(true)
 
     // And that person still gets it, because their own choice wins.
-    expect((await getNotificationPrefs(REC)).effective.brief_filed).toBe(true)
+    expect((await getNotificationPrefs(REC)).effective.debrief_recorded).toBe(true)
     // While somebody who never chose now follows the new default.
-    expect((await getNotificationPrefs(OWNER)).effective.brief_filed).toBe(false)
+    expect((await getNotificationPrefs(OWNER)).effective.debrief_recorded).toBe(false)
   })
 
   it("replaces the previous default rather than stacking a second one", async () => {
-    await setAgencyDefault(OWNER, "brief_filed", false)
-    await setAgencyDefault(OWNER, "brief_filed", true)
-    const defaults = store.rows.filter((r) => r.user_id === null && r.event_kind === "brief_filed")
+    await setAgencyDefault(OWNER, "debrief_recorded", false)
+    await setAgencyDefault(OWNER, "debrief_recorded", true)
+    const defaults = store.rows.filter((r) => r.user_id === null && r.event_kind === "debrief_recorded")
     expect(defaults).toHaveLength(1)
     expect(defaults[0]!.enabled).toBe(true)
   })

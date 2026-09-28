@@ -76,7 +76,14 @@ describe("the write is audit-coupled", () => {
 
   it("asserts ownership, then writes the audit row", () => {
     expect(lib).toMatch(/candidate\.agency_id !== ctx\.agencyId/)
-    expect(lib).toMatch(/action: existing \? "placement_updated" : "placement_recorded"/)
+    // Three actions since 14 Sep 2026: an update, a first record, and a
+    // first record for a candidate the client never advanced. The last one
+    // is the whole point of the proxy-hire rule — an off-process hire must
+    // be legible in the audit log without reading the placement row.
+    expect(lib).toMatch(/action: existing/)
+    expect(lib).toMatch(/"placement_updated"/)
+    expect(lib).toMatch(/"placement_recorded"/)
+    expect(lib).toMatch(/"placement_recorded_outside_process"/)
   })
 
   it("one placement per candidate per role", () => {

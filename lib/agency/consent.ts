@@ -226,14 +226,27 @@ export async function recordDecision(
   const agencyId = round.agency_id as string
   const candidateId = round.candidate_id as string
 
-  const { error: updateError } = await admin
-    .from("interview_rounds")
-    .update({
-      capture_consent_status: decision,
-      capture_consent_at: new Date().toISOString(),
-    })
-    .eq("id", roundId)
-  if (updateError) throw updateError
+  // Repeating the answer they already gave changes nothing, so it records
+  // nothing and tells nobody. Without this, a link that POSTs the same (or an
+  // alternating) decision in a loop sends one recruiter email per request —
+  // the doorway rate limit is per link and generous by design. A repeated
+  // withdrawal still runs the cascade below (idempotent, and the privacy-safe
+  // side to err on), but only reports if it actually removed something.
+  const unchanged = round.capture_consent_status === decision
+  if (unchanged && decision !== "withdrawn") {
+    return { ok: true, decision, recordingPaths: [], rescoreCandidateId: null }
+  }
+
+  if (!unchanged) {
+    const { error: updateError } = await admin
+      .from("interview_rounds")
+      .update({
+        capture_consent_status: decision,
+        capture_consent_at: new Date().toISOString(),
+      })
+      .eq("id", roundId)
+    if (updateError) throw updateError
+  }
 
   const recordingPaths: string[] = []
   let rescoreCandidateId: string | null = null
@@ -274,6 +287,11 @@ export async function recordDecision(
     }
   }
 
+  // A repeated withdrawal that found nothing left to remove is a no-op.
+  if (unchanged && recordingPaths.length === 0 && rescoreCandidateId === null) {
+    return { ok: true, decision, recordingPaths, rescoreCandidateId }
+  }
+
   const { data: candidate } = await admin
     .from("candidates")
     .select("ref")
@@ -300,13 +318,16 @@ export async function recordDecision(
 
   // Agency-bound only. facesClient() keeps this off the hiring manager's
   // desk: the panel interviewing someone is never told what they chose.
-  await notify(admin, {
-    kind: "consent_answered",
-    agencyId,
-    actorId: null,
-    roleId: round.role_id as string,
-    candidateRef: (candidate?.ref as string) ?? "",
-  })
+  // Only a changed answer is news; a repeated withdrawal's clean-up is not.
+  if (!unchanged) {
+    await notify(admin, {
+      kind: "consent_answered",
+      agencyId,
+      actorId: null,
+      roleId: round.role_id as string,
+      candidateRef: (candidate?.ref as string) ?? "",
+    })
+  }
 
   return { ok: true, decision, recordingPaths, rescoreCandidateId }
 }

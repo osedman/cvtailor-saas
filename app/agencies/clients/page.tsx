@@ -134,6 +134,22 @@ export default function ClientAccessPage() {
 
   useEffect(() => {
     load()
+    /**
+     * Re-read when the tab comes back (23 Sep 2026). The rows were loaded
+     * once and never again, so a client who accepted while this tab sat
+     * open still showed "Invited · Revoke invite"; revoking then correctly
+     * failed ("invite already accepted — unlink the contact to remove
+     * access"), the optimistic row rolled back to the STALE state, and the
+     * "Remove access" button never appeared. That is "I can't remove access
+     * even if they're in", and it was a refresh away the whole time.
+     */
+    const onFocus = () => void load()
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onFocus)
+    return () => {
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onFocus)
+    }
   }, [load])
 
   async function addContact() {
@@ -163,6 +179,46 @@ export default function ClientAccessPage() {
       setError("Could not add that client.")
     } finally {
       setAddBusy(false)
+    }
+  }
+
+  /**
+   * Take a contact out of the address book (22 Sep 2026).
+   *
+   * Archive, not delete: rounds and handover packs attribute actions to this
+   * person with RESTRICT, so the row has to survive. It leaves this list, the
+   * recipient pickers and the role contact dropdown.
+   *
+   * Access is NOT revoked with it. A client halfway through a shortlist
+   * should not lose the page they are reading because somebody tidied up, so
+   * the confirm names the separate act rather than doing it quietly.
+   */
+  async function archiveContact(row: ClientAccessRow) {
+    const stillHasAccess = row.state === "linked" || row.state === "invited"
+    const ok = window.confirm(
+      stillHasAccess
+        ? `Archive ${row.company}? They leave your address book and the recipient lists.\n\nThis does NOT take away their access — ${row.state === "linked" ? "they can still sign in" : "their invite still works"}. Use ${row.state === "linked" ? "\u201cRemove access\u201d" : "\u201cRevoke invite\u201d"} first if that is what you want.`
+        : `Archive ${row.company}? They leave your address book and the recipient lists. Everything they have already done stays on the record.`
+    )
+    if (!ok) return
+    setBusyContact(row.contactId)
+    setError(null)
+    try {
+      const res = await fetch("/api/agency/contacts", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId: row.contactId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not archive that client.")
+        return
+      }
+      await load()
+    } catch {
+      setError("Could not archive that client. Nothing has changed.")
+    } finally {
+      setBusyContact(null)
     }
   }
 
@@ -203,6 +259,10 @@ export default function ClientAccessPage() {
     } catch (e) {
       setRows((prev) => (prev ? prev.map((r) => (r.contactId === rollback.contactId ? rollback : r)) : prev))
       setError(e instanceof Error ? e.message : failMessage)
+      // The server refused because the world moved on (an invite accepted
+      // under us, a link already gone). Re-read, so the row offers the act
+      // that is now the right one rather than the one that just failed.
+      void load()
       return null
     } finally {
       setBusyContact(null)
@@ -277,7 +337,7 @@ export default function ClientAccessPage() {
   async function removeAccess(row: ClientAccessRow) {
     if (
       !window.confirm(
-        `Remove ${row.company}'s access? They stop being able to sign in and post briefs or see interview rounds with you. Everything they have already sent you stays, the removal is written to the audit log, and you can invite them again later.`
+        `Remove ${row.company}'s client access? Their hiring workspace with you closes on their next click. Everything they have already done stays on the record, the removal is audited, and you can invite them again later.${row.alsoMember ? "\n\nThey are ALSO a recruiter on this agency. That login is separate and stays — suspend them under Settings → Team if that is what you mean." : ""}`
       )
     ) {
       return
@@ -528,6 +588,9 @@ export default function ClientAccessPage() {
                         <span className="ag-meta">{expiry ? `Expired ${expiry}` : "Invite ran out"}</span>
                       )}
                       {row.state === "linked" && <span className="ag-meta">Signs in as this address</span>}
+                      {row.state === "linked" && row.alsoMember && (
+                        <span className="ag-meta">Also a recruiter here — removing client access leaves that login</span>
+                      )}
                     </div>
 
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -561,6 +624,20 @@ export default function ClientAccessPage() {
                           Remove access
                         </button>
                       )}
+                      {/* Archive: the address book's own delete (22 Sep
+                          2026). A hard delete is refused by Postgres the
+                          moment this person has done anything — the FKs are
+                          RESTRICT and that attribution is the point. Access
+                          is a separate act and is not silently revoked with
+                          it; the confirm says so. */}
+                      <button
+                        className="ag-btn ag-btn-secondary"
+                        disabled={busy}
+                        onClick={() => archiveContact(row)}
+                        aria-label={`Archive ${row.company}`}
+                      >
+                        Archive
+                      </button>
                       {busy && <span className="ag-spin" />}
                     </div>
                   </div>
@@ -579,7 +656,7 @@ export default function ClientAccessPage() {
                 <ul style={{ margin: 0, paddingLeft: 18, fontSize: "var(--t-small)", color: "var(--ag-ink-2)", lineHeight: 1.65 }}>
                   <li>Post a brief for a role they want you to fill</li>
                   <li>Share the times they are free to interview</li>
-                  <li>See the interview rounds you have arranged with them</li>
+                  <li>See the interview rounds running with them</li>
                   <li>Record their decision after a round</li>
                 </ul>
               </div>
@@ -595,7 +672,7 @@ export default function ClientAccessPage() {
             </div>
             <div className="ag-card-body" style={{ borderTop: "1px solid var(--ag-border)" }}>
               <p className="ag-note" style={{ marginBottom: 8 }}>
-                Their side of Tailr shows only what has actually been created. Until a brief, an availability slot or an
+                Their side of Tailr shows only what has actually been created. Until a brief, an interview window or an
                 interview round exists, they see an empty screen — not a preview of one.
               </p>
               <p className="ag-note">

@@ -15,8 +15,16 @@ import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
 import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "@/lib/agency/probes"
-import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey } from "@/lib/agency/steps"
+import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey, isSourcingStep } from "@/lib/agency/steps"
+import { STRENGTHS, strengthWeightLabel } from "@/lib/agency/strengths"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
+import { BriefChip, useBriefStatus, type BriefStatusPayload } from "@/components/agency/brief-chip"
+import { MatchingWindow, type PoolPerson } from "@/components/agency/matching-window"
+import { RecommendationPanel } from "@/components/agency/recommendation-panel"
+import { useRecommendation } from "@/components/agency/use-recommendation"
+import { DecisionSlot } from "@/components/agency/decision-slot"
+import { ShortlistRail, ShortlistBar, type ShortlistEntry } from "@/components/agency/shortlist-rail"
+import { countWord } from "@/components/agency/count-word"
 import { roleLandingPath, type PhaseKey } from "@/lib/agency/phases"
 import {
   ArrowUpRight, Banknote, Briefcase, ChevronUp, FileText,
@@ -32,6 +40,22 @@ interface Role { id: string; ref: string; title: string; company: string; compan
 interface ClientOption { contactId: string; company: string; fullName: string }
 interface MatchedPerson { recommendationId: string; name: string; headline: string; band: string; evidence: Array<{ requirement_ref: string; strength: string; quote: string | null }>; state: string; invitedAt: string | null; appliedAt: string | null }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; salary_text?: string; source?: string; source_detail?: string; cv_storage_path?: string | null; parse_status: string; duplicate_of: string | null }
+/**
+ * One normalised shape, three containers. Before you send it is built from
+ * live state; after you send it is read back out of the frozen snapshot, so
+ * the preview stops being a guess and becomes the thing the client received.
+ *
+ * It lives at module scope because the value built from it is memoised: it
+ * used to be declared and rebuilt inside the submission pane's IIFE, which
+ * meant every keystroke in the introduction rebuilt every row.
+ */
+type SubmissionRow = {
+  key: string; ref: string; name: string; title: string; years: number | null; location: string
+  overall: number; confidence: number; reviewed: boolean; narrative: string
+  musts: Array<{ text: string; strength: string; quote: string | null }>
+  gaps: string[]; probes: string[]; comp: string; availability: string
+}
+
 interface Score {
   candidate_id: string; overall: number; must_have_hit: number; must_have_total: number
   original_overall: number | null; confidence_level: number; effective: Record<string, string>
@@ -68,7 +92,7 @@ interface SnapshotEntry {
   gaps: Array<{ requirement: string; weight: string }>
   probe_areas?: string[]
 }
-interface Disclosure { scores: boolean; evidence: boolean; probes: boolean; notes: boolean; logistics: boolean }
+interface Disclosure { scores: boolean; evidence: boolean; probes: boolean; notes: boolean; logistics: boolean; cv: boolean }
 interface Snapshot {
   generated_at: string
   disclosure?: Disclosure
@@ -95,7 +119,6 @@ interface Review { candidate_id: string; status: string; communication: number |
 interface Evidence { candidate_id: string; requirement_id: string; strength: string; quote: string | null; source_cite?: string }
 
 type Strength = "strong" | "transferable" | "partial" | "missing"
-const STRENGTHS: Strength[] = ["strong", "transferable", "partial", "missing"]
 const WEIGHT_ORDER: Record<string, "must" | "important" | "nice"> = { must: "important", important: "nice", nice: "must" }
 const GROUPS: Array<{ weight: "must" | "important" | "nice"; label: string; hint: string }> = [
   { weight: "must", label: "Must have", hint: "Weight about 45% of the score. Zero here is a hard fail." },
@@ -113,6 +136,13 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [scores, setScores] = useState<Record<string, Score>>({})
   const [reviews, setReviews] = useState<Record<string, Review>>({})
   const [decisions, setDecisions] = useState<Record<string, string | null>>({})
+  // The latest decisions, readable after an await. applyDecisions and
+  // addMany run after "+ The ones it recommends" has waited several seconds
+  // on the recommendation; the render-time closure they were created in is
+  // stale by then, and a snapshot taken from it would undo a hold the
+  // recruiter placed while it read. The ref is written on every render.
+  const decisionsRef = useRef<Record<string, string | null>>({})
+  decisionsRef.current = decisions
   const [evidence, setEvidence] = useState<Evidence[]>([])
   const [overrides, setOverrides] = useState<Record<string, Record<string, Strength>>>({})
   const [step, setStep] = useState<Step>("intake")
@@ -140,14 +170,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
    *  because a rejected pool or a fall-off is exactly when you need an
    *  eleventh candidate, and a locked door there would fight how recruiting
    *  actually goes. Opening it again is one click and changes nothing else. */
-  const [sourcingOpen, setSourcingOpen] = useState(false)
   const [closureNote, setClosureNote] = useState<string | null>(null)
   // Removing a candidate added in error. Confirmed, because it is a real
   // erasure and not a hide (22 Aug walk-through).
   const [removing, setRemoving] = useState<string | null>(null)
   const [removeBusy, setRemoveBusy] = useState(false)
   const [representAsk, setRepresentAsk] = useState<{ refs: string[]; format: string } | null>(null)
-  const [paste, setPaste] = useState("")
+  /** The deliberate second send. Never a default; see the send bar below. */
+  const [resendAsk, setResendAsk] = useState(false)
   const [jdUrl, setJdUrl] = useState("")
   const [extractResult, setExtractResult] = useState<{ requirements: number; constraints: number; filled: string[] } | null>(null)
   const [submissionResult, setSubmissionResult] = useState<{ format: string; entries: number; links: Array<{ url: string }>; snapshot: Snapshot | null } | null>(null)
@@ -171,6 +201,28 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // who did not choose that; they stay in the bucket.
   const [matched, setMatched] = useState<{ people: MatchedPerson[]; bucket: string } | null>(null)
   const [inviting, setInviting] = useState<string | null>(null)
+  /* The matching window (frame 16). Publishing opens it; it can be reopened
+   * from the card, so the scan is a place rather than a pill. */
+  const [matchWindow, setMatchWindow] = useState(false)
+  /* The pool: everyone who may be shown, not only those a scan accepted.
+     Fetched when the window opens — it is a read nobody needs until then. */
+  const [pool, setPool] = useState<{ people: PoolPerson[] } | null>(null)
+  useEffect(() => {
+    if (!matchWindow) return
+    let live = true
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/agency/roles/${roleId}/matching/pool`)
+        if (!live || !res.ok) return
+        const body = (await res.json()) as { people?: PoolPerson[] }
+        setPool({ people: Array.isArray(body.people) ? body.people : [] })
+      } catch {
+        /* the panel says "reading the pool" and stops; the rest of the
+           window is unaffected, the same rule the ladder follows */
+      }
+    })()
+    return () => { live = false }
+  }, [matchWindow, roleId])
   const loadMatched = useCallback(async () => {
     try {
       const res = await fetch(`/api/agency/roles/${roleId}/matching/people`)
@@ -183,6 +235,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   useEffect(() => {
     if (step === "candidates" && matching?.enabled) void loadMatched()
   }, [step, matching?.enabled, loadMatched])
+  // Publishing from inside the step should fill the list without a reload.
+  useEffect(() => {
+    if (matching?.enabled && matched === null) void loadMatched()
+  }, [matching?.enabled, matched, loadMatched])
   async function invite(recommendationId: string) {
     setInviting(recommendationId)
     setError(null)
@@ -204,20 +260,195 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       setInviting(null)
     }
   }
+  /**
+   * Take an invitation back (22 Sep 2026). The person stays on the matched
+   * list — they still match and still chose to be seen — but the "a recruiter
+   * asked about you" card leaves their /found page. Refused once they have
+   * applied, by the route.
+   */
+  async function withdrawInvite(recommendationId: string) {
+    setInviting(recommendationId)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/matching/invite`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendationId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not take that invitation back.")
+        return
+      }
+      await loadMatched()
+    } catch {
+      setError("Could not take that invitation back.")
+    } finally {
+      setInviting(null)
+    }
+  }
+  const [discarding, setDiscarding] = useState(false)
+  /**
+   * The brief this role runs on, and the ones it could (frame 25, bands C
+   * and D). One fetch feeds the chip under the header and the connect card
+   * in intake. Refetched after connecting, because connecting rewrites the
+   * role's planned rounds, contact and interview rules.
+   */
+  const briefStatusInitial = useBriefStatus(roleId, "recruiter")
+  const [briefStatus, setBriefStatus] = useState<BriefStatusPayload | null | "error">(null)
+  const [available, setAvailable] = useState<Array<{ id: string; title: string; company: string; matchesRole: boolean; version: number; state: string; contactName: string; summary: string; approvedAt: string | null }>>([])
+  const [pickBrief, setPickBrief] = useState("")
+  const [connecting, setConnecting] = useState(false)
+  useEffect(() => {
+    if (briefStatusInitial && briefStatusInitial !== "error") {
+      setBriefStatus(briefStatusInitial)
+      setAvailable(((briefStatusInitial as unknown as { available?: typeof available }).available ?? []))
+    } else if (briefStatusInitial === "error") setBriefStatus("error")
+  }, [briefStatusInitial])
+  const onBrief = Boolean(briefStatus && briefStatus !== "error" && briefStatus.status)
+  useEffect(() => {
+    // Recognise the brief: an approved one at this client (or the only
+    // approved one, for a role with no company yet) is picked for the
+    // recruiter. They still press Connect; nothing is copied by itself.
+    if (onBrief || pickBrief) return
+    const approved = available.filter((b) => b.state === "approved")
+    const here = approved.filter((b) => b.matchesRole)
+    const pick = here.length === 1 ? here[0] : here.length === 0 && approved.length === 1 ? approved[0] : null
+    if (pick) setPickBrief(pick.id)
+  }, [available, onBrief, pickBrief])
+  async function connectBrief(briefIdOverride?: string) {
+    // `briefIdOverride` is for "Follow vN": setPickBrief in the same tick
+    // would not be visible here yet.
+    const target = briefIdOverride ?? pickBrief
+    if (!target) return
+    setConnecting(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/brief`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ briefId: target }) })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) return setError(typeof body?.error === "string" ? body.error : "Could not connect the brief.")
+      const again = await fetch(`/api/agency/roles/${roleId}/brief`)
+      if (again.ok) {
+        const b = (await again.json()) as BriefStatusPayload & { available?: typeof available }
+        setBriefStatus(b)
+        setAvailable(b.available ?? [])
+      }
+      // The role itself changed under us: planned rounds, contact and rules.
+      const fresh = await fetch(`/api/agency/roles/${roleId}`)
+      if (fresh.ok) {
+        const b = await fresh.json()
+        if (b.role) setRole(b.role)
+      }
+      announceRoleChanged()
+    } catch {
+      setError("Could not connect the brief.")
+    } finally {
+      setConnecting(false)
+    }
+  }
+  /**
+   * Discard the role. The reason is required by both the route and the DB
+   * constraint, so it is asked for here rather than sent empty and refused.
+   */
+  async function discardRole() {
+    const reason = window.prompt(
+      "Discard this role? It leaves your lists; the record stays for the audit.\n\nWhy are you discarding it?"
+    )
+    if (reason === null) return
+    if (!reason.trim()) {
+      setError("Say why this role is being discarded.")
+      return
+    }
+    setDiscarding(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not discard this role.")
+        return
+      }
+      router.push("/agencies")
+    } catch {
+      setError("Could not discard this role. Nothing has changed.")
+    } finally {
+      setDiscarding(false)
+    }
+  }
   const [probePicker, setProbePicker] = useState(false)
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
-  const [disclosure, setDisclosure] = useState<Disclosure>({ scores: true, evidence: true, probes: true, notes: false, logistics: true })
+  const [disclosure, setDisclosure] = useState<Disclosure>({ scores: true, evidence: true, probes: true, notes: false, logistics: true, cv: true })
+  /*
+   * TYPING MUST NOT RE-RENDER THE SCREEN (19 Sep 2026).
+   *
+   * `intro` and `paste` were component state, so every keystroke in the
+   * client introduction or the CV paste box re-rendered this whole component
+   * — 3,045 lines and seven panes — to update one textarea. The derived lists
+   * were already memoised against exactly this (see step 07's note below), so
+   * the remaining cost was rebuilding the JSX itself, on every character.
+   *
+   * Refs instead. This is the pattern the probe answers already use on the
+   * screening step (`defaultValue` + a handler that does not set state), so
+   * the screen now behaves the same way wherever somebody types. The value is
+   * read at submit time, which is the only moment it is needed.
+   *
+   * `pasteLen` is state ON PURPOSE and the one exception: the Add candidate
+   * button is disabled until there are 100 characters, so that one number has
+   * to reach React. It changes at most twice per paste — crossing the
+   * threshold and back — rather than once per keystroke.
+   */
+  const introRef = useRef("")
+  /*
+   * `intro` still exists as state because the email and document previews
+   * render it live as you type, and losing that would be a silent feature
+   * loss dressed as a performance win. What changed is the FREQUENCY: the ref
+   * holds every keystroke, and state catches up 200ms after you stop. Typing
+   * is smooth, the preview still follows, and the component re-renders a few
+   * times per sentence instead of once per character.
+   */
   const [intro, setIntro] = useState("")
+  const introTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onIntroChange = useCallback((value: string) => {
+    introRef.current = value
+    if (introTimer.current) clearTimeout(introTimer.current)
+    introTimer.current = setTimeout(() => setIntro(value), 200)
+  }, [])
+  useEffect(() => () => { if (introTimer.current) clearTimeout(introTimer.current) }, [])
+  /** The default introduction, set once on load and never over a draft. */
+  const seedIntro = useCallback((text: string) => {
+    if (introRef.current) return
+    introRef.current = text
+    setIntro(text)
+  }, [])
+  const pasteRef = useRef("")
+  const [pasteLen, setPasteLen] = useState(0)
   const [previewFormat, setPreviewFormat] = useState<"document" | "email" | "portal">("document")
   // The compare board advertises S / H / R in the handoff; they act on the
   // card under the pointer or keyboard focus, falling back to the top ranked
   // candidate with no decision yet.
   const [focusedCandidate, setFocusedCandidate] = useState<string | null>(null)
   const [compareSort, setCompareSort] = useState<"score" | "must" | "name">("score")
+  // Step 05 has two tabs. The matrix is the default and stays the default:
+  // the recommendation is a second reading of the same material, never a
+  // replacement for the board the decisions are made on.
+  const [compareTab, setCompareTab] = useState<"matrix" | "reco">("matrix")
   const [mustOnly, setMustOnly] = useState(false)
   // Hiding is a view control on the compare board only. It never touches the
   // candidate, the score or any decision — the product does not remove people.
   const [hiddenCandidates, setHiddenCandidates] = useState<string[]>([])
+  // The recommendation's result lives here, not in its tab, because the
+  // Matrix tab's "+ The N it recommends" chip counts from the same result.
+  const reco = useRecommendation(roleId)
+  // "Add in one go" leaves an undo behind it for a few seconds: exactly the
+  // previous decision of each person it touched, so Undo is a true reversal
+  // and not a blanket clear.
+  const [undo, setUndo] = useState<{ n: number; previous: Array<{ candidateId: string; decision: string | null }> } | null>(null)
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current) }, [])
 
   const loadCandidates = useCallback(async () => {
     const res = await fetch(`/api/agency/roles/${roleId}/candidates`)
@@ -257,7 +488,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       setRole(body.role)
       setBriefJd(body.brief_jd ?? null)
       if (body.agency?.name) setAgencyName(body.agency.name)
-      setIntro((prev) => prev || `Hi — here are the candidates I'd put in front of you for ${body.role?.title ?? "this role"}. Each one has had a screening call with me, and I've noted where the CV overstated or understated the fit.`)
+      seedIntro(`Hi — here are the candidates I'd put in front of you for ${body.role?.title ?? "this role"}. Each one has had a screening call with me, and I've noted where the CV overstated or understated the fit.`)
       setRequirements(body.requirements ?? [])
       setConstraints(body.constraints ?? [])
       // Separate request, and a failure here must not take the role page with
@@ -322,6 +553,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       const el = document.activeElement
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return
       if (e.metaKey || e.ctrlKey || e.altKey) return
+      // The phone shortlist sheet is modal: while it is up, a key must not
+      // decide on whichever card was last hovered behind the scrim.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return
+      // On the recommendation tab no card is rendered; without a focused card
+      // a key would decide on "the first undecided" out of sight.
+      if (!focusedCandidate && !document.querySelector('.ag-cmp-card')) return
       const map: Record<string, string> = { s: "shortlist", h: "hold", r: "reject" }
       const next = map[e.key.toLowerCase()]
       if (!next) return
@@ -355,6 +592,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       const body = await res.json()
       if (!res.ok) throw new Error(body?.error || "That did not save.")
       setMatching(body.matching)
+      // Publishing opens the window (frame 16). Pausing does not — there is
+      // nothing to watch, and a window over a stopped scan would be a screen
+      // that reports on nothing.
+      if (enabled) setMatchWindow(true)
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -381,6 +622,45 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       }),
     })
     announceRoleChanged()
+    // The brief picker was loaded with whatever company the role had when
+    // the page opened — blank, for a role made moments ago. Re-ask now
+    // that the company may have a name.
+    void refreshBriefOptions()
+  }
+
+  async function disconnectBrief() {
+    if (!window.confirm("Take this role off its brief? Planned rounds, the client contact and the company go back to what they were before you connected.")) return
+    setConnecting(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/brief`, { method: "DELETE" })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) return setError(typeof body?.error === "string" ? body.error : "Could not take the role off the brief.")
+      setBriefStatus({ status: null } as BriefStatusPayload)
+      setPickBrief("")
+      const fresh = await fetch(`/api/agency/roles/${roleId}`)
+      if (fresh.ok) {
+        const b = await fresh.json()
+        if (b.role) setRole(b.role)
+      }
+      announceRoleChanged()
+      void refreshBriefOptions()
+    } catch {
+      setError("Could not take the role off the brief.")
+    } finally {
+      setConnecting(false)
+    }
+  }
+
+  async function refreshBriefOptions() {
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/brief`)
+      if (!res.ok) return
+      const b = (await res.json()) as BriefStatusPayload & { available?: typeof available }
+      setAvailable(b.available ?? [])
+    } catch {
+      /* the next save re-asks */
+    }
   }
 
   async function removeCandidate(candidateId: string) {
@@ -524,7 +804,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       const res = await fetch(`/api/agency/roles/${roleId}/candidates`, { method: "POST", ...bodyInit })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? "Ingestion failed")
-      setPaste("")
+      pasteRef.current = ""
+      setPasteLen(0)
       await loadCandidates()
     } catch (err) {
       setError(errorMessage(err))
@@ -630,9 +911,17 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   }
 
   async function decide(candidateId: string, decision: string | null) {
-    const rollback = decisions[candidateId] ?? null
-    const next = decisions[candidateId] === decision ? null : decision
+    const current = decisionsRef.current[candidateId] ?? null
+    const rollback = current
+    const next = current === decision ? null : decision
     setDecisions((prev) => ({ ...prev, [candidateId]: next }))
+    // A deliberate decision inside the undo window is the recruiter's last
+    // word on that person: the pending Undo must not put them back.
+    setUndo((u) => {
+      if (!u || !u.previous.some((p) => p.candidateId === candidateId)) return u
+      const previous = u.previous.filter((p) => p.candidateId !== candidateId)
+      return previous.length === 0 ? null : { n: previous.length, previous }
+    })
     announceRoleChanged()
     try {
       const res = await fetch(`/api/agency/candidates/${candidateId}/decision`, {
@@ -649,6 +938,142 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     }
   }
 
+  /**
+   * Several decisions in one click — "Add in one go", a group's add on the
+   * recommendation tab, and Undo. Same semantics per person as decide():
+   * the bulk route writes the same table, the same column and one audit row
+   * per candidate, and it is human-only like the single route. Never
+   * toggles: it sets exactly what it is given.
+   *
+   * The undo it leaves behind is built from what the SERVER says each
+   * person's previous value was (`updated[].previous`), not from the
+   * client's map at click time — the two differ after an await, and the
+   * server's is the one the audit row carries.
+   *
+   * On a non-2xx: the bulk route writes sequentially, so a 500 means some of
+   * the batch may already be saved. Replaying everyone through the single
+   * route would double-write and double-audit those people, so instead the
+   * board is put back and RELOADED from the server. The per-person fallback
+   * exists only for a 404/405, i.e. the bulk route is not deployed here yet.
+   */
+  async function applyDecisions(
+    changes: Array<{ candidateId: string; decision: string | null }>,
+    opts: { undoable: boolean } = { undoable: true }
+  ) {
+    if (changes.length === 0) return
+    const current = decisionsRef.current
+    const previous = changes.map((ch) => ({ candidateId: ch.candidateId, decision: current[ch.candidateId] ?? null }))
+    setDecisions((prev) => {
+      const next = { ...prev }
+      for (const ch of changes) next[ch.candidateId] = ch.decision
+      return next
+    })
+    announceRoleChanged()
+    const rollback = (ids: string[]) => {
+      if (ids.length === 0) return
+      setDecisions((prev) => {
+        const next = { ...prev }
+        for (const p of previous) if (ids.includes(p.candidateId)) next[p.candidateId] = p.decision
+        return next
+      })
+    }
+    const finish = (written: Array<{ candidateId: string; decision: string | null }>) => {
+      if (opts.undoable && written.length > 0) {
+        setUndo({ n: written.length, previous: written })
+        if (undoTimer.current) clearTimeout(undoTimer.current)
+        undoTimer.current = setTimeout(() => setUndo(null), 8000)
+      } else if (!opts.undoable) {
+        setUndo(null)
+      }
+    }
+    const everyone = changes.map((ch) => ch.candidateId)
+    let res: Response
+    try {
+      res = await fetch(`/api/agency/roles/${roleId}/decisions`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes }),
+      })
+    } catch {
+      // The request never got an answer: it may or may not have landed.
+      rollback(everyone)
+      await loadCandidates()
+      setError("Those decisions may not have saved; the board has been reloaded.")
+      return
+    }
+    if (res.ok) {
+      const body = await res.json().catch(() => ({}))
+      const skipped: Array<{ candidateId: string }> = Array.isArray(body?.skipped) ? body.skipped : []
+      const updated: Array<{ candidateId: string; previous: string | null }> = Array.isArray(body?.updated) ? body.updated : []
+      const failed = skipped.map((s) => s.candidateId)
+      rollback(failed)
+      if (failed.length > 0) setError(failed.length === changes.length ? "Those decisions did not save." : `${failed.length} of ${changes.length} did not save and were put back.`)
+      // Exact undo: the server's previous value per person.
+      const serverPrevious = new Map(updated.map((u) => [u.candidateId, u.previous ?? null]))
+      finish(
+        previous
+          .filter((p) => !failed.includes(p.candidateId))
+          .map((p) => ({ candidateId: p.candidateId, decision: serverPrevious.has(p.candidateId) ? serverPrevious.get(p.candidateId) ?? null : p.decision }))
+      )
+      return
+    }
+    if (res.status === 403) {
+      rollback(everyone)
+      setError("You have view-only access to this agency.")
+      return
+    }
+    if (res.status === 404 || res.status === 405) {
+      // The bulk route is not deployed here: one person at a time, same writer.
+      let viewOnly = false
+      const results = await Promise.allSettled(
+        changes.map((ch) =>
+          fetch(`/api/agency/candidates/${ch.candidateId}/decision`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ decision: ch.decision }),
+          }).then((r) => {
+            if (r.status === 403) viewOnly = true
+            if (!r.ok) throw new Error(String(r.status))
+          })
+        )
+      )
+      if (viewOnly) {
+        rollback(everyone)
+        setError("You have view-only access to this agency.")
+        return
+      }
+      const failed = changes.filter((_, i) => results[i].status === "rejected").map((ch) => ch.candidateId)
+      rollback(failed)
+      if (failed.length > 0) setError(failed.length === changes.length ? "Those decisions did not save." : `${failed.length} of ${changes.length} did not save and were put back.`)
+      finish(previous.filter((p) => !failed.includes(p.candidateId)))
+      return
+    }
+    // 400, 401, 5xx: nothing to retry. Some of the batch may be saved (the
+    // route writes in order), so the server's view replaces the optimistic one.
+    rollback(everyone)
+    await loadCandidates()
+    setError(
+      res.status === 401
+        ? "Your session has expired. Sign in again."
+        : "Some of those may have saved; the board has been reloaded."
+    )
+  }
+
+  /** The recruiter's one click that adds several people; each is their own decision. */
+  function addMany(candidateIds: string[]) {
+    const current = decisionsRef.current
+    const changes = candidateIds
+      .filter((id) => current[id] !== "shortlist")
+      .map((id) => ({ candidateId: id, decision: "shortlist" as string | null }))
+    void applyDecisions(changes, { undoable: true })
+  }
+
+  function undoLast() {
+    if (!undo) return
+    if (undoTimer.current) clearTimeout(undoTimer.current)
+    void applyDecisions(undo.previous, { undoable: false })
+  }
+
   async function generateSubmission(format: string, representOverride = false) {
     if (format === "portal" && chosenContacts.length === 0) {
       return setError("Choose at least one recipient. Portal links are personal, one per named person.")
@@ -663,7 +1088,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         body: JSON.stringify({
           format,
           disclosure,
-          intro,
+          intro: introRef.current,
           ...(representOverride ? { representOverride: true } : {}),
           ...(format === "portal" ? { recipients: chosenContacts.map((id) => ({ contact_id: id })) } : {}),
         }),
@@ -744,7 +1169,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     [reviews]
   )
   const shortlisted = decisionCounts.shortlist
-  const decisionTotals = `${decisionCounts.shortlist} shortlist · ${decisionCounts.hold} hold · ${decisionCounts.reject} reject`
+  // The words on screen: "passed" is the stored value "reject".
+  const decisionTotals = `${decisionCounts.shortlist} shortlisted · ${decisionCounts.hold} on hold · ${decisionCounts.reject} passed`
 
   // Six of the seven render here; Candidate detail is per-candidate and has
   // its own route, so the rail links out to it rather than switching a pane.
@@ -786,6 +1212,65 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     [candidates, scores]
   )
 
+  /**
+   * Step 07's derived lists, memoised (13 Sep 2026).
+   *
+   * They were computed inside the pane's render IIFE, so they rebuilt on
+   * EVERY render — and `intro` is component state, so writing the client
+   * introduction rebuilt every row on every keystroke: a Map lookup per
+   * candidate per must-have, a requirements filter per candidate for gaps,
+   * and resolveProbes per candidate. Typing was the slowest thing on the
+   * screen that exists to be typed on.
+   *
+   * `intro` is deliberately not a dependency of any of these.
+   */
+  const submissionSnap = submissionResult?.snapshot ?? null
+  const submissionShortlisted = useMemo(
+    () => rankedCandidates.filter((c) => decisions[c.id] === "shortlist"),
+    [rankedCandidates, decisions]
+  )
+  const submissionHeld = useMemo(
+    () => rankedCandidates.filter((c) => decisions[c.id] === "hold"),
+    [rankedCandidates, decisions]
+  )
+  const submissionMusts = useMemo(() => requirements.filter((r) => r.weight === "must"), [requirements])
+  const submissionRows = useMemo<SubmissionRow[]>(
+    () =>
+      submissionSnap
+        ? submissionSnap.shortlisted.map((e) => ({
+            key: e.ref, ref: e.ref, name: e.full_name, title: e.current_title ?? "", years: e.years,
+            location: e.location ?? "", overall: e.overall, confidence: e.confidence_level,
+            reviewed: e.reviewed, narrative: e.narrative,
+            musts: e.strengths.map((s) => ({ text: s.requirement, strength: "strong", quote: s.quote })),
+            gaps: e.gaps.map((g) => g.requirement),
+            probes: e.probe_areas ?? [],
+            comp: e.salary_confirm ?? "", availability: e.availability ?? "",
+          }))
+        : submissionShortlisted.map((c) => {
+            const sc = scores[c.id]
+            const rv = reviews[c.id]
+            return {
+              key: c.id, ref: c.ref, name: c.full_name, title: c.current_title ?? "", years: c.years,
+              location: c.location ?? "", overall: sc?.overall ?? 0, confidence: sc?.confidence_level ?? 2,
+              reviewed: rv?.status === "reviewed", narrative: rv?.notes ?? "",
+              musts: submissionMusts.map((r) => ({
+                text: r.text,
+                strength: effectiveStrength(c.id, r.id),
+                quote: evidenceAt(c.id, r.id)?.quote ?? null,
+              })),
+              gaps: requirements.filter((r) => effectiveStrength(c.id, r.id) === "missing").map((r) => r.text),
+              probes: Object.keys(rv?.call_answers ?? {}).length > 0
+                ? resolveProbes(Object.keys(rv!.call_answers!), requirements).map((p) => p.text)
+                : requirements
+                    .filter((r) => r.weight !== "nice" && ["missing", "partial"].includes(effectiveStrength(c.id, r.id)))
+                    .map((r) => r.text),
+              comp: c.salary_text ?? "", availability: rv?.availability ?? "",
+            }
+          }),
+    [submissionSnap, submissionShortlisted, submissionMusts, requirements, scores, reviews, effectiveStrength, evidenceAt]
+  )
+
+
   function setProbe(candidateId: string, id: string, value: string | null) {
     const current = reviews[candidateId]?.call_answers ?? {}
     const next = { ...current }
@@ -817,8 +1302,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
           </div>
         </button>
         <AgencySwitcher />
-        <AgencyNav />
-        <div>
+        <AgencyNav inRole />
+        {/* A named group, not more global nav: see .ag-rail-group. */}
+        <div className="ag-rail-group">
           <div className="ag-rail-label">Shortlist workflow</div>
           {WORKFLOW_STEPS.map((s) => {
             if (s.key === "detail") {
@@ -859,8 +1345,19 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       <main className="ag-main">
         <div className="ag-screen">
           {role && <RoleHeader roleId={roleId} hat="recruiter" />}
+          {role && <BriefChip roleId={roleId} hat="recruiter" data={briefStatus} />}
+          {/* ONE LINE, NOT TWO (13 Sep 2026). The eyebrow named the step and
+              the buttons moved between steps — the same subject, stacked as
+              two full-width bands, so the role header was followed by four
+              pieces of chrome before the box you are meant to paste a job
+              description into. They share a line now; nothing was removed.
+
+              Back / Next STAYS. Below 900px .ag-sidebar is display:none, so
+              on a phone these two buttons are the only way through the seven
+              steps — folding them away would strand the flow at that width. */}
           {role && (
-            <div className="ag-crumbbar" style={{ marginTop: -8 }}>
+            <div className="ag-crumbbar ag-stepbar" style={{ marginTop: -8 }}>
+              <p className="ag-step-eyebrow">Step {stepNumber(step)} · {stepLabel(step)}</p>
               <span className="ag-grow" />
               <button
                 className="ag-btn ag-btn-secondary"
@@ -877,9 +1374,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 Next →
               </button>
             </div>
-          )}
-          {role && (
-            <p className="ag-step-eyebrow">Step {stepNumber(step)} · {stepLabel(step)}</p>
           )}
           {error && (
             <div className="ag-banner" style={{ marginBottom: 16 }}>
@@ -941,6 +1435,17 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </label>
                   </div>
                   <div className="ag-card-body">
+                    {/* Board 28, band C: the file the brief carries, named,
+                        above the box its text landed in. Only when the
+                        version this role runs on has one. */}
+                    {briefStatus && briefStatus !== "error" && briefStatus.status?.jd && (
+                      <div className="ag-brief-jd-from-row">
+                        <span className="ag-field-label ag-brief-jd-from">From the brief · {briefStatus.status.jd.name}</span>
+                        <a className="ag-brief-jd-link" href={`/api/agency/briefs/${briefStatus.status.briefId}/jd/${briefStatus.status.jd.fileId}`} download aria-label={`Download ${briefStatus.status.jd.name}`}>
+                          Download
+                        </a>
+                      </div>
+                    )}
                     <textarea className="ag-textarea jd" placeholder="Paste the client's job description here" value={role.jd_raw} onChange={(e) => patchRole({ jd_raw: e.target.value })} onBlur={() => void saveIntake()} />
                     {/* The client's JD arrived with the brief. Accept copied
                         it in; this line is the provenance, and the button is
@@ -1021,6 +1526,90 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       </div>
                     </div>
                   </div>
+                  {/*
+                    Run this role on a brief (frame 25, band C). Only APPROVED
+                    briefs at this client are offered; an unsigned one is
+                    listed greyed with the reason so nobody hunts for it.
+                    Connecting COPIES the config and stamps the version.
+                  */}
+                  <div className="ag-card">
+                    <div className="ag-card-head">
+                      <span className="ag-card-title">Run this role on a brief?</span>
+                      <span className="ag-pill">Audit logged</span>
+                    </div>
+                    <div className="ag-card-body">
+                      {briefStatus && briefStatus !== "error" && briefStatus.status ? (
+                        <>
+                          <p className="ag-note" style={{ marginBottom: 10 }}>
+                            On <b>{briefStatus.status.title}</b> v{briefStatus.status.version}. Planned rounds, the client contact and the interview rules came from it{briefStatus.status.jd ? "; its job description is linked below" : ""} — carry on below.
+                            {briefStatus.status.movedOnTo ? ` The brief has since been approved as v${briefStatus.status.movedOnTo} — reconnect to follow it, or keep v${briefStatus.status.version}.` : ""}
+                          </p>
+                          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                            {briefStatus.status.movedOnTo && (
+                              <button className="ag-btn ag-btn-primary" onClick={() => void connectBrief(briefStatus.status!.briefId)} disabled={connecting}>
+                                {connecting ? "Connecting…" : `Follow v${briefStatus.status.movedOnTo}`}
+                              </button>
+                            )}
+                            <button className="ag-btn ag-btn-secondary" onClick={() => void disconnectBrief()} disabled={connecting}>
+                              Reverse — take the role off this brief
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="ag-note" style={{ marginBottom: 10 }}>
+                            {available.some((b) => b.state === "approved" && b.matchesRole) && role.company.trim()
+                              ? `The approved brief with ${role.company.trim()} is picked for you. `
+                              : available.some((b) => b.state === "approved")
+                                ? "Every approved brief on the agency is listed; connecting one names the company on the role. "
+                                : available.length > 0
+                                  ? "No brief is approved yet — an unsigned one is listed with the reason. "
+                                  : "No briefs yet. "}
+                            Connecting sets planned rounds, the client contact and the interview rules from the agreed terms.
+                          </p>
+                          <label className="ag-label" htmlFor="role-brief">Brief</label>
+                          <select id="role-brief" className="ag-input" value={pickBrief} onChange={(e) => setPickBrief(e.target.value)}>
+                            <option value="">{available.length > 0 ? "Choose a brief…" : "No briefs on this agency yet"}</option>
+                            {available.map((b) => (
+                              <option key={b.id} value={b.id} disabled={b.state !== "approved" || (!b.matchesRole && Boolean(role.company.trim()))}>
+                                {b.title || "Untitled"} · {b.company} · v{b.version} · {b.state !== "approved" ? (b.state === "draft" ? "draft — not sent yet" : b.state === "sent" ? `waiting on ${b.contactName} — cannot connect yet` : "waiting on you — cannot connect yet") : !b.matchesRole && role.company.trim() ? `approved — but this role is for ${role.company.trim()}` : `approved · ${b.summary}`}
+                              </option>
+                            ))}
+                          </select>
+                          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
+                            <button className="ag-btn ag-btn-primary" onClick={() => void connectBrief()} disabled={!pickBrief || connecting}>
+                              {connecting ? "Connecting…" : "Connect and apply"}
+                            </button>
+                            <button className="ag-btn ag-btn-secondary" onClick={() => router.push("/agencies/briefs")}>
+                              Start a new brief
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/*
+                    Discard — the way out of a role created twice or by
+                    mistake (22 Sep 2026). Not "close": closing is an outcome
+                    that starts the retention clock and tells candidates the
+                    role is filled. The server refuses this the moment anyone
+                    is on the role, and says to close it instead.
+                  */}
+                  <div className="ag-card">
+                    <div className="ag-card-head"><span className="ag-card-title">Discard this role</span><span className="ag-pill">Audit logged</span></div>
+                    <div className="ag-card-body">
+                      <p className="ag-note" style={{ marginBottom: 10 }}>
+                        For a role added twice, or by mistake. It leaves your lists and counts, and the
+                        record stays for the audit. Once anyone is on the role this is refused — close it
+                        instead, which tells the candidates and starts the retention clock.
+                      </p>
+                      <button className="ag-btn ag-btn-secondary" disabled={discarding} onClick={() => void discardRole()}>
+                        {discarding ? "Discarding…" : "Discard this role"}
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="ag-card">
                     <div className="ag-card-head"><span className="ag-card-title">Recruiter notes</span><span className="ag-pill">Private</span></div>
                     <div className="ag-card-body">
@@ -1120,60 +1709,103 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               <div className="ag-screen-head">
                 <div>
                   <h1 className="ag-title">Add candidates.</h1>
-                  <p className="ag-sub">PDF, DOCX or pasted text, up to 10 per role. Scoring runs on the server the moment a CV lands.</p>
+                  <p className="ag-sub">PDF, DOCX or pasted text, up to 50 per role. Scoring runs on the server the moment a CV lands.</p>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                   <button className="ag-btn" onClick={() => setStep("parse")}>Back</button>
                   <button className="ag-btn ag-btn-primary" onClick={() => setStep("screening")} disabled={candidates.length === 0}>Continue to screening</button>
                 </div>
               </div>
-              {matching?.enabled && (
-                <div className="ag-card" style={{ marginBottom: 16 }}>
-                  <div className="ag-card-head">
-                    <span className="ag-card-title">Matched on Tailr</span>
-                    <span className="ag-pill">
-                      {matching.scanQueued ? "Scan queued" : matching.lastScanAt ? `Checked ${new Date(matching.lastScanAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : "Not scanned yet"}
-                    </span>
-                  </div>
-                  <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
-                    <p className="ag-note" style={{ margin: 0 }}>
-                      People whose evidence bank matches this role at or above your minimum score <b>and who chose to be seen by recruiters</b>. A row is what they consented to show: name, headline, band, the matched evidence. Their CV and contact details arrive only when they apply. Bands, never a ranking.
-                    </p>
-                    {matched === null && <p className="ag-quiet">Loading…</p>}
-                    {matched && matched.people.length === 0 && (
-                      <p className="ag-quiet">Nobody who chose to be seen matches yet{matched.bucket !== "none" ? " — people who match but have not chosen to be seen stay in the rounded count on the matching card below." : "."}</p>
-                    )}
-                    {matched?.people.map((p) => (
-                      <div key={p.recommendationId} className="ag-check-row" style={{ alignItems: "flex-start" }}>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
-                            <span style={{ fontWeight: 600 }}>{p.name}</span>
-                            <span className="ag-pill">{p.band} match</span>
-                            {p.state === "invited" && <span className="ag-pill">Invited{p.invitedAt ? ` · ${new Date(p.invitedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</span>}
-                            {p.state === "applied" && <span className="ag-pill">Applied · in your pool</span>}
-                          </div>
-                          {p.headline && <div className="ag-meta" style={{ marginTop: 2 }}>{p.headline}</div>}
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-                            {p.evidence.map((e) => (
-                              <span key={e.requirement_ref} className="ag-pill" title={e.quote ?? "MISSING — no evidence for this requirement"} style={e.strength === "missing" ? { opacity: 0.55 } : undefined}>
-                                {e.requirement_ref} · {e.strength}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        {p.state !== "applied" && p.state !== "invited" && (
-                          <button className="ag-btn ag-btn-primary" disabled={inviting === p.recommendationId || callerRole === "viewer"} onClick={() => void invite(p.recommendationId)}>
-                            {inviting === p.recommendationId ? "Inviting…" : "Invite to apply"}
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    {matched && matched.people.length > 0 && matched.bucket !== "none" && (
-                      <p className="ag-note" style={{ margin: 0 }}>The scan also matched people who have not chosen to be seen; they stay in the rounded count and are never listed.</p>
-                    )}
-                  </div>
+              {/*
+                THE SCAN, WHERE THE WORK IS (10 Sep 2026, Ose).
+                This step is "add candidates", and matching is the other way
+                candidates arrive — so the scan belongs here, not only in the
+                role-level card far below. It shows the PROCESS first, then
+                the people. Before this it rendered only once matching was
+                already live, so on a fresh role the step said nothing at all
+                and publishing was somewhere else entirely.
+
+                Who is listed is unchanged and deliberate: people who match
+                AND turned on the third switch. Everyone else the scan
+                touched stays a rounded count. Nobody is named who did not
+                choose to be seen.
+              */}
+              <div className="ag-card" style={{ marginBottom: 16 }}>
+                <div className="ag-card-head">
+                  <span className="ag-card-title">Matched on Tailr</span>
+                  <span className="ag-pill">
+                    {requirements.length === 0
+                      ? "Needs requirements"
+                      : !matching?.enabled
+                        ? "Not scanning"
+                        : matching.scanQueued
+                          ? "Scan running"
+                          : matching.lastScanAt
+                            ? `Checked ${new Date(matching.lastScanAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
+                            : "Waiting for first scan"}
+                  </span>
                 </div>
-              )}
+                <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
+                  {requirements.length === 0 ? (
+                    <p className="ag-note" style={{ margin: 0 }}>
+                      Tailr scans against this role&apos;s requirements, so parse them first. Once they exist you can publish this role and the scan runs on its own.
+                    </p>
+                  ) : !matching?.enabled ? (
+                    <>
+                      <p className="ag-note" style={{ margin: 0 }}>
+                        Publish this role and Tailr scans every Tailr user who opted into matching, against these {requirements.length} requirements. Nobody is contacted, nothing is shared, and no agency browses anyone: you see only the people who match and who chose to be seen.
+                      </p>
+                      {/* One publish control, and it is in the window. This
+                          was a second threshold input and a second publish
+                          button — two ways to switch on one thing, which is
+                          how the two disagree about what the minimum is. */}
+                      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                        <button
+                          className="ag-btn ag-btn-primary"
+                          disabled={callerRole === "viewer"}
+                          onClick={() => setMatchWindow(true)}
+                        >
+                          Publish and scan
+                        </button>
+                        <span className="ag-meta">opens the matching window</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/*
+                        THE MATCHED PEOPLE MOVED INTO THE WINDOW (19 Sep 2026,
+                        Figma frame 16). They were rendered here AND in the
+                        role-level card, which is two places for one list and
+                        two chances to disagree — the same duplication the
+                        hiring manager's interviews list had.
+
+                        This is now a door. The window shows what the scan is
+                        matching against, how far it has got, and who
+                        consented to be seen, with room to read it.
+                      */}
+                      <p className="ag-note" style={{ margin: 0 }}>
+                        {matching.scanQueued
+                          ? "The scan is running now. Nothing else is needed from you."
+                          : matching.lastScanAt
+                            ? "Scanned against this role's requirements. It re-runs on its own whenever you republish or the requirements change."
+                            : "Published. The first scan is queued and will run shortly."}
+                      </p>
+                      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                        <button className="ag-btn ag-btn-primary" onClick={() => setMatchWindow(true)}>
+                          {matching.scanQueued ? "Watch the scan" : "See who matched"}
+                        </button>
+                        <span className="ag-meta">
+                          {matched === null
+                            ? "Loading…"
+                            : matched.people.length === 0
+                              ? "Nobody who matched has chosen to be seen yet."
+                              : `${matched.people.length} chose to be seen`}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
               <div className="ag-grid-2">
                 <div className="ag-card">
                   <div className="ag-card-head">
@@ -1340,11 +1972,22 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   <div className="ag-card">
                     <div className="ag-card-head"><span className="ag-card-title">Paste a CV</span></div>
                     <div className="ag-card-body">
-                      <textarea className="ag-textarea" style={{ minHeight: 180 }} placeholder="Paste CV text for candidates who sent a document you cannot upload" value={paste} onChange={(e) => setPaste(e.target.value)} />
+                      <textarea
+                        className="ag-textarea"
+                        style={{ minHeight: 180 }}
+                        placeholder="Paste CV text for candidates who sent a document you cannot upload"
+                        defaultValue={pasteRef.current}
+                        onChange={(e) => {
+                          pasteRef.current = e.target.value
+                          // Only the crossing matters, not the length.
+                          const enough = e.target.value.trim().length >= 100
+                          setPasteLen((n) => (enough === n >= 100 ? n : enough ? 100 : 0))
+                        }}
+                      />
                       <button
                         className="ag-btn ag-btn-primary"
                         style={{ marginTop: 12 }}
-                        onClick={() => { if (paste.trim().length < 100) setError("Paste at least a few paragraphs of CV text"); else ingest({ headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cvText: paste }) }) }}
+                        onClick={() => { const v = pasteRef.current; if (v.trim().length < 100) setError("Paste at least a few paragraphs of CV text"); else ingest({ headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cvText: v }) }) }}
                         disabled={busy !== null}
                       >
                         {busy === "ingest" ? <><span className="ag-spin" /> Reading the CV</> : "Add candidate"}
@@ -1580,13 +2223,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         </span>
                       </div>
                       <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
-                        <div className="ag-legend" style={{ marginBottom: 4 }}>
-                          <span className="ag-field-label" style={{ marginBottom: 0, marginRight: 4 }}>Legend</span>
-                          <span><span className="ag-dot strong" /> Strong evidence — 1.0</span>
-                          <span><span className="ag-dot transferable" /> Transferable — 0.7</span>
-                          <span><span className="ag-dot partial" /> Partial — 0.4</span>
-                          <span><span className="ag-dot missing" /> Missing — 0.0</span>
-                        </div>
                         {requirements.map((req) => {
                           const parsed = parsedStrength(active.id, req.id)
                           const current = effectiveStrength(active.id, req.id)
@@ -1594,40 +2230,46 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           const ev = evidenceAt(active.id, req.id)
                           return (
                             <div key={req.id} className="ag-ev-card" data-override={isOverride}>
-                              <div className="ag-ev-main">
-                                <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-                                  <span style={{ display: "flex", gap: 7, alignItems: "baseline" }}>
-                                    <span className="ag-meta">{req.ref}</span>
-                                    <span className="ag-mx-weight" data-must={req.weight === "must"}>{req.weight}</span>
-                                  </span>
-                                  <span style={{ fontSize: 13, fontWeight: 500 }}>{req.text}</span>
-                                  {ev?.quote && (
-                                    <span className="ag-ev-quote">
-                                      {ev.quote}
-                                      {ev.source_cite && <span className="ag-meta" style={{ fontStyle: "normal" }}> — {ev.source_cite}</span>}
-                                    </span>
-                                  )}
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flex: "none" }}>
-                                  <div className="ag-seg" role="group" aria-label={`Strength for ${req.ref}`}>
-                                    {STRENGTHS.map((s) => (
-                                      <button
-                                        key={s}
-                                        title={s}
-                                        aria-label={s}
-                                        aria-pressed={current === s}
-                                        className={current === s ? "on" : ""}
-                                        onClick={() => setOverride(active.id, req.id, current === s ? null : s)}
-                                      >
-                                        <span className={`ag-dot ${s}`} />
-                                      </button>
-                                    ))}
-                                  </div>
-                                  {isOverride && (
-                                    <span className="ag-ev-was">was {parsed} · now {current}</span>
-                                  )}
-                                </div>
+                              <div className="ag-ev-head">
+                                <span className="ag-meta">{req.ref}</span>
+                                <span className="ag-mx-weight" data-must={req.weight === "must"}>{req.weight}</span>
+                                <span className="ag-grow" />
+                                {isOverride && <span className="ag-ev-mine">Your call · attributed</span>}
                               </div>
+                              <p className="ag-ev-req">{req.text}</p>
+                              {/* The quote is the object, not a footnote: it is the
+                                  only thing tying this judgement to a sentence the
+                                  person actually said. */}
+                              {ev?.quote && (
+                                <>
+                                  <blockquote className="ag-ev-quote">{ev.quote}</blockquote>
+                                  <span className="ag-ev-cite">From the {ev.source_cite || "CV"}</span>
+                                </>
+                              )}
+                              {/* Each option carries its own name AND its own weight,
+                                  so there is no legend to scroll away from and meaning
+                                  never rests on telling a filled dot from a hollow one
+                                  (WCAG 1.4.1). Wraps to two rows when narrow; it must
+                                  never fall back to colour alone. */}
+                              <div className="ag-ev-pick" role="group" aria-label={`Strength for ${req.ref}`}>
+                                {STRENGTHS.map((s) => (
+                                  <button
+                                    key={s}
+                                    aria-pressed={current === s}
+                                    className={current === s ? "on" : ""}
+                                    onClick={() => setOverride(active.id, req.id, current === s ? null : s)}
+                                  >
+                                    <span className={`ag-dot ${s}`} />
+                                    <span className="ag-ev-pick-name">{s}</span>
+                                    <span className="ag-ev-pick-weight">{strengthWeightLabel(s)}</span>
+                                  </button>
+                                ))}
+                              </div>
+                              {isOverride && (
+                                <p className="ag-ev-said">
+                                  Tailr read this as {parsed}. You marked it {current}.
+                                </p>
+                              )}
                             </div>
                           )
                         })}
@@ -1734,6 +2376,48 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               .slice()
               .sort((a, b) => WEIGHT_RANK.indexOf(a.weight) - WEIGHT_RANK.indexOf(b.weight))
             const cols = `minmax(240px, 1.4fr) repeat(${Math.max(shownCandidates.length, 1)}, minmax(160px, 1fr))`
+            // The rail: who is in, in score order. Same list step 07 reads.
+            const railEntries: ShortlistEntry[] = submissionShortlisted.map((c) => ({
+              id: c.id,
+              name: c.full_name,
+              initials: initials(c.full_name),
+              overall: scores[c.id]?.overall ?? 0,
+              mustHit: scores[c.id]?.must_have_hit ?? 0,
+              mustTotal: scores[c.id]?.must_have_total ?? 0,
+            }))
+            // "Add in one go": everyone with every must-have who is not in yet,
+            // and the recommendation's first group who are not in yet. Each is
+            // still one decision per person, written on the recruiter's click.
+            const mustHaveReady = rankedCandidates.filter((c) => {
+              const s = scores[c.id]
+              return s && s.must_have_total > 0 && s.must_have_hit === s.must_have_total && decisions[c.id] !== "shortlist"
+            })
+            const recommendedNotIn = (reco.result?.items ?? [])
+              .filter((i) => i.group === "recommended" && decisions[i.candidate_id] !== "shortlist")
+              .map((i) => i.candidate_id)
+            const addRecommended = async () => {
+              if (reco.result) return addMany(recommendedNotIn)
+              const r = await reco.generate()
+              if (!r) {
+                setCompareTab("reco")
+                return setError("The recommendation did not run, so nobody was added.")
+              }
+              addMany(r.items.filter((i) => i.group === "recommended").map((i) => i.candidate_id))
+            }
+            const railProps = {
+              company: role.company || "",
+              // The role's linked hiring manager, by first name (board 29).
+              // Every client-side contact tied to the role sees the names (the
+              // linked contact, brief contacts, recipients, panellists, slot
+              // contacts — lib/agency/client-header.ts), so the rail names the
+              // company, not one person: "Meridian Health sees each name…".
+              clientName: role.company?.trim() || "The client",
+              entries: railEntries,
+              holdCount: decisionCounts.hold,
+              passedCount: decisionCounts.reject,
+              onRemove: (id: string) => decide(id, "shortlist"),
+              onConfirm: () => setStep("submission"),
+            }
             return (
               <>
                 <div className="ag-screen-head">
@@ -1744,13 +2428,89 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </p>
                   </div>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <span className="ag-meta">{shortlisted} shortlisted</span>
-                    <button className="ag-btn" onClick={() => setStep("screening")}>Back</button>
-                    <button className="ag-btn ag-btn-primary" onClick={() => setStep("submission")} disabled={shortlisted === 0}>
-                      Build submission
-                    </button>
+                    <button className="ag-btn ag-btn-secondary" onClick={() => setStep("screening")}>Back</button>
                   </div>
                 </div>
+
+                {/* Board 26: the cards and the recommendation on the left, the
+                    shortlist being built on the right. The rail is the same
+                    component under both tabs, so an add from either lands in
+                    the same visible place. The matrix stays the default tab. */}
+                <div className="ag-cmp-layout">
+                <div className="ag-cmp-main">
+                <div className="ag-cmp-controls">
+                  <div className="ag-cmp-tabs" role="tablist" aria-label="Compare views">
+                    <button
+                      role="tab"
+                      aria-selected={compareTab === "matrix"}
+                      className={compareTab === "matrix" ? "on" : ""}
+                      onClick={() => setCompareTab("matrix")}
+                    >
+                      Matrix
+                    </button>
+                    <button
+                      role="tab"
+                      aria-selected={compareTab === "reco"}
+                      className={compareTab === "reco" ? "on" : ""}
+                      onClick={() => setCompareTab("reco")}
+                    >
+                      Recommendation
+                    </button>
+                  </div>
+                  {compareTab === "matrix" ? (
+                    <div className="ag-cmp-bulk" role="group" aria-label="Add in one go">
+                      <span className="ag-field-label ag-cmp-bulk-label">Add in one go</span>
+                      {mustHaveReady.length > 0 && (
+                        <button
+                          type="button"
+                          className="ag-bulk-chip"
+                          onClick={() => addMany(mustHaveReady.map((c) => c.id))}
+                          title="Adds everyone whose every must-have is evidenced and who is not in yet. One decision per person, yours, with undo."
+                        >
+                          <span className="ag-bulk-long">+ Everyone with every must-have</span>
+                          <span className="ag-bulk-short">+ Every must-have</span>
+                          {" · "}{mustHaveReady.length}
+                        </button>
+                      )}
+                      {reco.result ? (
+                        recommendedNotIn.length > 0 && (
+                          <button
+                            type="button"
+                            className="ag-bulk-chip"
+                            onClick={() => void addRecommended()}
+                            title="Adds the people in the recommendation's first group who are not in yet. One decision per person, yours, with undo."
+                          >
+                            <span className="ag-bulk-long">+ The {countWord(recommendedNotIn.length)} it recommends</span>
+                            <span className="ag-bulk-short">+ Recommended · {recommendedNotIn.length}</span>
+                          </button>
+                        )
+                      ) : (
+                        <button
+                          type="button"
+                          className="ag-bulk-chip"
+                          onClick={() => void addRecommended()}
+                          disabled={reco.busy}
+                          title="No recommendation has been generated yet. This runs it first, then adds its first group — one decision per person, yours, with undo."
+                        >
+                          {reco.busy ? "Reading…" : (
+                            <>
+                              <span className="ag-bulk-long">+ The ones it recommends</span>
+                              <span className="ag-bulk-short">+ Recommended</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    reco.result && (
+                      <button className="ag-btn ag-btn-secondary ag-reco-again" onClick={() => void reco.generate()} disabled={reco.busy}>
+                        {reco.busy ? <><span className="ag-spin" /> Reading {candidates.length} candidates…</> : "Run it again"}
+                      </button>
+                    )
+                  )}
+                </div>
+                {compareTab === "matrix" ? (
+                  <>
 
                 <div className="ag-legend">
                   <span className="ag-field-label" style={{ marginBottom: 0, marginRight: 4 }}>Legend</span>
@@ -1850,11 +2610,11 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                               {topRisk ? `${topRisk.ref} unevidenced: ${topRisk.text}` : "No unmet must or important requirement."}
                             </span>
                           </div>
-                          <div className="ag-seg" style={{ width: "100%" }}>
-                            {["shortlist", "hold", "reject"].map((d) => (
-                              <button key={d} style={{ flex: 1 }} className={decisions[c.id] === d ? "on" : ""} onClick={() => decide(c.id, d)}>{d}</button>
-                            ))}
-                          </div>
+                          <DecisionSlot
+                            decision={decisions[c.id] ?? null}
+                            name={c.full_name}
+                            onDecide={(d) => decide(c.id, d)}
+                          />
                           <button className="ag-btn ag-btn-secondary" style={{ width: "100%", justifyContent: "center" }} onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
                             Open full profile
                           </button>
@@ -1925,76 +2685,80 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   </div>
                 </div>
 
+                  </>
+                ) : (
+                  <RecommendationPanel
+                    candidateCount={candidates.length}
+                    callsLogged={reviewedCount}
+                    result={reco.result}
+                    busy={reco.busy}
+                    error={reco.error}
+                    onGenerate={() => void reco.generate()}
+                    decisions={decisions}
+                    onDecide={(id, d) => decide(id, d)}
+                    onAddMany={addMany}
+                    onOpenCandidate={(id) => router.push(`/agencies/roles/${roleId}/candidates/${id}`)}
+                  />
+                )}
+                </div>
+
+                <aside className="ag-cmp-rail">
+                  <ShortlistRail {...railProps} />
+                </aside>
+                </div>
+
+                {/* The tally under both tabs. Confirm lives on the rail now,
+                    so this bar carries no button: count, and the keys. The
+                    undo a bulk add leaves behind rides here too, because the
+                    bar is where the eye already is (sticky at the bottom on
+                    desktop, fixed above the shortlist bar on a phone) — a
+                    group add three screens down must still be able to reach
+                    its Undo before the eight seconds are up. */}
                 <div className="ag-decisions-bar">
+                  <div className="ag-undo" role="status" data-empty={!undo}>
+                    {undo && (
+                      <>
+                        <span>Added {undo.n} to the shortlist</span>
+                        <span className="ag-undo-dot" aria-hidden>·</span>
+                        <button type="button" className="ag-undo-btn" onClick={undoLast}>Undo</button>
+                      </>
+                    )}
+                  </div>
                   <span className="ag-field-label">Decisions</span>
                   <span className="ag-decisions-tally">
-                    {decisionTotals || "none yet"} · <b>{decisionCounts.undecided} undecided</b>
+                    {decisionTotals} · <b>{decisionCounts.undecided} undecided</b>
                   </span>
                   <span className="ag-grow" />
                   <span className="ag-kbd-hints">
-                    <span className="ag-meta">Keyboard</span>
-                    <span><kbd className="ag-kbd">S</kbd> shortlist</span>
+                    <span><kbd className="ag-kbd">S</kbd> add / remove</span>
                     <span><kbd className="ag-kbd">H</kbd> hold</span>
-                    <span><kbd className="ag-kbd">R</kbd> reject</span>
+                    <span><kbd className="ag-kbd">R</kbd> pass</span>
                   </span>
-                  <button className="ag-btn ag-btn-primary" onClick={() => setStep("submission")} disabled={shortlisted === 0}>
-                    Continue to submission
-                  </button>
                 </div>
+
+                {/* ≤ 900px: the rail as a sticky bottom bar, opening as a sheet. */}
+                <ShortlistBar {...railProps} />
               </>
             )
           })()}
 
           {role && step === "submission" && (() => {
-            const shortlistedList = rankedCandidates.filter((c) => decisions[c.id] === "shortlist")
-            const heldList = rankedCandidates.filter((c) => decisions[c.id] === "hold")
-            const snap = submissionResult?.snapshot ?? null
+            // Every list here is memoised at component level — see
+            // submissionRows. Nothing in this IIFE may derive from `intro`.
+            const shortlistedList = submissionShortlisted
+            const heldList = submissionHeld
+            const snap = submissionSnap
             const recipients = contacts.filter((c) => chosenContacts.includes(c.id))
-            const musts = requirements.filter((r) => r.weight === "must")
-
+            const musts = submissionMusts
+            const rows = submissionRows
             /**
-             * One normalised shape, three containers. Before you send, it is
-             * built from live state; after you send, it is read back out of
-             * the frozen snapshot, so the preview stops being a guess and
-             * becomes the thing the client actually received.
+             * Derived, not from this session alone. `snap` is only populated
+             * by a send in THIS session, so after a reload a role that has
+             * already gone to the client had `snap === null` and the bar
+             * offered a live "Send to client" as though nothing had happened.
+             * The phase survives the reload; both are consulted.
              */
-            type Row = {
-              key: string; ref: string; name: string; title: string; years: number | null; location: string
-              overall: number; confidence: number; reviewed: boolean; narrative: string
-              musts: Array<{ text: string; strength: string; quote: string | null }>
-              gaps: string[]; probes: string[]; comp: string; availability: string
-            }
-            const rows: Row[] = snap
-              ? snap.shortlisted.map((e) => ({
-                  key: e.ref, ref: e.ref, name: e.full_name, title: e.current_title ?? "", years: e.years,
-                  location: e.location ?? "", overall: e.overall, confidence: e.confidence_level,
-                  reviewed: e.reviewed, narrative: e.narrative,
-                  musts: e.strengths.map((s) => ({ text: s.requirement, strength: "strong", quote: s.quote })),
-                  gaps: e.gaps.map((g) => g.requirement),
-                  probes: e.probe_areas ?? [],
-                  comp: e.salary_confirm ?? "", availability: e.availability ?? "",
-                }))
-              : shortlistedList.map((c) => {
-                  const s = scores[c.id]
-                  const rv = reviews[c.id]
-                  return {
-                    key: c.id, ref: c.ref, name: c.full_name, title: c.current_title ?? "", years: c.years,
-                    location: c.location ?? "", overall: s?.overall ?? 0, confidence: s?.confidence_level ?? 2,
-                    reviewed: rv?.status === "reviewed", narrative: rv?.notes ?? "",
-                    musts: musts.map((r) => ({
-                      text: r.text,
-                      strength: effectiveStrength(c.id, r.id),
-                      quote: evidenceAt(c.id, r.id)?.quote ?? null,
-                    })),
-                    gaps: requirements.filter((r) => effectiveStrength(c.id, r.id) === "missing").map((r) => r.text),
-                    probes: Object.keys(reviews[c.id]?.call_answers ?? {}).length > 0
-                      ? resolveProbes(Object.keys(reviews[c.id]!.call_answers!), requirements).map((p) => p.text)
-                      : requirements
-                          .filter((r) => r.weight !== "nice" && ["missing", "partial"].includes(effectiveStrength(c.id, r.id)))
-                          .map((r) => r.text),
-                    comp: c.salary_text ?? "", availability: rv?.availability ?? "",
-                  }
-                })
+            const alreadySent = Boolean(snap) || (phase !== null && phase !== "shortlist")
 
             return (
               <>
@@ -2007,15 +2771,44 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       Choose what the client sees. Your reasoning travels with the shortlist, so the hiring manager can audit every judgement instead of trusting a number.
                     </p>
                   </div>
+                  {/* A COMPLETED STATE MUST NOT BE ARMED (13 Sep 2026).
+                      This was one primary that read "✓ Submission sent" and
+                      stayed enabled — disabled only while busy or on an empty
+                      shortlist — so the moment a send finished it was
+                      clickable again, and a second click minted a second
+                      snapshot, fresh portal links and another email to the
+                      client. The route's only refusal is the right-to-
+                      represent gate; nothing anywhere said "already sent".
+
+                      Once it has gone, the primary stops existing. What
+                      replaces it is a fact, and the only primary left on the
+                      screen is the handoff card's "Go to interviews". */}
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <button className="ag-btn" onClick={() => setStep("compare")}>Back to compare</button>
-                    <button
-                      className="ag-btn ag-btn-primary"
-                      onClick={() => generateSubmission(previewFormat)}
-                      disabled={shortlisted === 0 || busy !== null}
-                    >
-                      {busy === "submission" ? <><span className="ag-spin" /> Sending</> : snap ? "✓ Submission sent" : "Send to client"}
-                    </button>
+                    {alreadySent ? (
+                      <>
+                        <span className="ag-sent-chip" role="status">
+                          {snap
+                            ? `Sent ${new Date(snap.generated_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
+                            : "Sent"}
+                        </span>
+                        <button
+                          className="ag-btn ag-btn-secondary"
+                          disabled={shortlisted === 0 || busy !== null}
+                          onClick={() => setResendAsk(true)}
+                        >
+                          {busy === "submission" ? <><span className="ag-spin" /> Sending</> : "Send again…"}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="ag-btn ag-btn-primary"
+                        onClick={() => generateSubmission(previewFormat)}
+                        disabled={shortlisted === 0 || busy !== null}
+                      >
+                        {busy === "submission" ? <><span className="ag-spin" /> Sending</> : "Send to client"}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -2023,7 +2816,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     the completion survives a reload. A recruiter who comes back
                     tomorrow should still be told phase one is closed rather than
                     seeing a bare "Send to client" as though nothing happened. */}
-                {(snap || (phase !== null && phase !== "shortlist")) && (
+                {alreadySent && (
                   <div className="ag-handoff" role="status">
                     <div className="ag-handoff-body">
                       <p className="ag-handoff-title">
@@ -2042,6 +2835,34 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     >
                       Go to interviews →
                     </button>
+                  </div>
+                )}
+
+                {resendAsk && (
+                  <div className="ag-card" style={{ marginBottom: 16, borderColor: "var(--ag-warn)" }} role="alertdialog" aria-labelledby="resend-title">
+                    <div className="ag-card-body" style={{ padding: 18 }}>
+                      <div id="resend-title" style={{ fontWeight: 600, marginBottom: 6 }}>
+                        This shortlist has already gone to {role.company || "your client"}.
+                      </div>
+                      <p className="ag-note" style={{ margin: "0 0 6px" }}>
+                        Sending again does not replace what they have. It generates a second
+                        snapshot from today&apos;s evidence, mints fresh portal links, and emails
+                        your recipients a second time. The copy they already hold stays exactly as
+                        it was. This is recorded against your name.
+                      </p>
+                      <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+                        <button
+                          className="ag-btn ag-btn-primary"
+                          disabled={busy !== null}
+                          onClick={() => { setResendAsk(false); void generateSubmission(previewFormat) }}
+                        >
+                          Send a second submission
+                        </button>
+                        <button className="ag-btn ag-btn-secondary" disabled={busy !== null} onClick={() => setResendAsk(false)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -2113,8 +2934,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                   className="ag-cfp-intro"
                                   rows={3}
                                   aria-label="Submission introduction"
-                                  value={intro}
-                                  onChange={(e) => setIntro(e.target.value)}
+                                  defaultValue={introRef.current}
+                                  onChange={(e) => onIntroChange(e.target.value)}
                                 />
                               )}
                               <div className="ag-cfp-stats">
@@ -2137,8 +2958,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                   className="ag-textarea"
                                   style={{ minHeight: 68 }}
                                   aria-label="Submission introduction"
-                                  value={intro}
-                                  onChange={(e) => setIntro(e.target.value)}
+                                  defaultValue={introRef.current}
+                                  onChange={(e) => onIntroChange(e.target.value)}
                                 />
                               )}
                             </div>
@@ -2207,6 +3028,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                     </ul>
                                   </div>
                                 )}
+                                {disclosure.cv && (
+                                  <p className="ag-meta">Their CV travels with this submission — as text, with phone, email and links removed. Opening it is recorded.</p>
+                                )}
                                 {disclosure.logistics && (r.comp || r.location || r.availability) && (
                                   <div className="ag-cfp-logistics">
                                     {r.comp && <span><span className="ag-field-label" style={{ marginBottom: 2 }}>Comp</span>{r.comp}</span>}
@@ -2250,7 +3074,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                       </div>
                                     </div>
                                   ))}
-                                  <p>Happy to walk through the ranking, or arrange first conversations directly.</p>
+                                  <p>Happy to walk through the ranking, or arrange next steps directly.</p>
                                   <p style={{ marginBottom: 0 }}>Best,<br />{agencyName}</p>
                                 </div>
                                 <button
@@ -2266,7 +3090,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                         disclosure.probes && r.probes[0] ? `To probe: ${r.probes[0]}` : "",
                                         "",
                                       ]),
-                                      "Happy to walk through the ranking, or arrange first conversations directly.", "",
+                                      "Happy to walk through the ranking, or arrange next steps directly.", "",
                                       "Best,", agencyName,
                                     ].filter(Boolean).join("\n")
                                     navigator.clipboard?.writeText(text)
@@ -2371,7 +3195,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                   <div className="ag-meta">{c.current_title || c.ref}</div>
                                 </div>
                                 {scores[c.id] && <span className={`ag-score ${tier(scores[c.id].overall)}`} style={{ fontSize: 14 }}>{Math.round(scores[c.id].overall)}</span>}
-                                <span className="ag-pill">{decisions[c.id] ?? "undecided"}</span>
+                                <span className="ag-pill">{({ shortlist: "shortlisted", hold: "on hold", reject: "passed" } as Record<string, string>)[decisions[c.id] ?? ""] ?? "undecided"}</span>
                               </div>
                             ))}
                             <p className="ag-meta" style={{ margin: 0 }}>
@@ -2392,6 +3216,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             ["probes", "Probe areas"],
                             ["notes", "Your call notes"],
                             ["logistics", "Comp and logistics"],
+                            // The CV itself (22 Sep 2026): on by default, the
+                            // recruiter's to withhold. The E2E found it
+                            // freezing ON with no switch and no mention.
+                            ["cv", "The CV (contact details removed)"],
                           ] as const).map(([key, label]) => (
                             <button
                               key={key}
@@ -2511,154 +3339,31 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             )
           })()}
 
-          {/*
-            PUBLISH FOR MATCHING — role-level, not step-level.
-
-            Built to Figma 10:2 (the live card) and 118:2 (the states it did
-            not cover), but deliberately NOT in 10:2's intake rail. A role
-            opens on its furthest step — candidates if any exist, else parse
-            if requirements do — and publishing needs requirements, so an
-            intake-only card rendered solely in the one state where it says
-            "not yet" and was invisible in every state where it could be used.
-            There was no button, exactly as reported. Publishing is one
-            sourcing decision about the role, so it sits below the step
-            content on every step.
-
-            The NOT YET state still exists, because requirements can genuinely
-            be absent and the scan refuses to run without them — an enabled
-            button then could only ever produce an error.
-
-            No count anywhere in this card. Scan liveness is shown instead:
-            without it "found nobody", "found people who haven't applied" and
-            "the scan is broken" are indistinguishable.
-          */}
-          {role && (
-          <div className="ag-card" style={{ marginTop: 20 }}>
-            <div className="ag-card-head">
-              <span className="ag-card-title">Publish for Tailr matching</span>
-              <span className="ag-pill">
-                {requirements.length === 0
-                  ? "Not yet"
-                  : matching?.enabled
-                    ? "Matching live"
-                    : matching
-                      ? "Paused"
-                      : "Matching off"}
-              </span>
-              <span className="ag-pill">Audit logged</span>
-            </div>
-            <div className="ag-card-body">
-              {phase !== null && phase !== "shortlist" && !sourcingOpen ? (
-                <>
-                  <p className="ag-note" style={{ marginTop: 0 }}>
-                    Sourcing is done for now — the shortlist is with the client and this role has
-                    moved on to interviews. Anyone already matched keeps what they were shown and
-                    can still apply.
-                  </p>
-                  <button
-                    className="ag-btn ag-btn-secondary"
-                    style={{ marginTop: 12 }}
-                    onClick={() => setSourcingOpen(true)}
-                  >
-                    Show sourcing controls
-                  </button>
-                </>
-              ) : requirements.length === 0 ? (
-                <>
-                  <p className="ag-note" style={{ marginTop: 0 }}>
-                    Matching scores people against this role&apos;s requirements, so it needs
-                    them parsed first. Extract them above and this turns on.
-                  </p>
-                  <button className="ag-btn ag-btn-secondary" style={{ marginTop: 12 }} disabled>
-                    Parse requirements first
-                  </button>
-                  <p className="ag-note" style={{ marginTop: 8 }}>
-                    Nothing has been published and nobody has been scanned.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="ag-note" style={{ marginTop: 0 }}>
-                    There is no job board. Tailr scans each consumer user&apos;s own evidence
-                    — on their side — and quietly nudges the people who fit. Applying is
-                    their consent; until someone applies, you see nobody.
-                  </p>
-
-                  <label className="ag-label" htmlFor="ag-min-score" style={{ marginTop: 14 }}>
-                    Minimum score
-                  </label>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <input
-                      id="ag-min-score"
-                      className="ag-input"
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={1}
-                      style={{ width: 90 }}
-                      value={minScoreDraft}
-                      onChange={(e) => setMinScoreDraft(Number(e.target.value))}
-                      disabled={busy === "matching"}
-                    />
-                    <span className="ag-meta">
-                      as scored on arrival — before review or overrides
-                    </span>
-                  </div>
-
-                  <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                    <button
-                      className={matching?.enabled ? "ag-btn ag-btn-secondary" : "ag-btn ag-btn-coral"}
-                      onClick={() => setMatchingEnabled(!matching?.enabled)}
-                      disabled={busy === "matching"}
-                    >
-                      {busy === "matching" && <span className="ag-spin" />}
-                      {matching?.enabled
-                        ? "Pause matching"
-                        : matching
-                          ? "Resume matching"
-                          : "Publish for matching"}
-                    </button>
-                    {matching?.enabled && (
-                      <button
-                        className="ag-btn ag-btn-secondary"
-                        onClick={() => setMatchingEnabled(true)}
-                        disabled={busy === "matching" || minScoreDraft === matching.minScore}
-                      >
-                        Update score
-                      </button>
-                    )}
-                  </div>
-
-                  <p className="ag-note" style={{ marginTop: 10 }}>
-                    {matching?.enabled ? (
-                      <>
-                        Tailr is scanning on the candidate&apos;s side.{" "}
-                        {matching.scanQueued
-                          ? "A scan is queued now."
-                          : matching.lastScanAt
-                            ? `Last scan ${new Date(matching.lastScanAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`
-                            : "The first scan runs shortly."}
-                        {matching.nextScanAllowedAt && new Date(matching.nextScanAllowedAt) > new Date() && (
-                          <>
-                            {" "}Next scan available{" "}
-                            {new Date(matching.nextScanAllowedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                            . Changing the score applies to that scan — it does not buy an
-                            extra one.
-                          </>
-                        )}
-                      </>
-                    ) : matching ? (
-                      "Paused — the role has stopped being shown to anyone new. People it already reached keep what they were shown, and can still apply."
-                    ) : (
-                      "Or keep it direct-sourced — add candidates yourself in step 03."
-                    )}
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-          )}
+          {/* Nothing sits below the step content. The matching window is
+              reached from step 03, where sourcing lives. */}
         </div>
+
+        {/* The matching window. One instance for the screen: the publish card
+            and step 03 both open THIS, so there is no second place where the
+            matched people are rendered and no chance of the two disagreeing. */}
+        <MatchingWindow
+          open={matchWindow}
+          onClose={() => setMatchWindow(false)}
+          roleRef={role?.ref ?? ""}
+          requirements={requirements}
+          matching={matching}
+          matched={matched}
+          pool={pool}
+          inviting={inviting}
+          onWithdraw={withdrawInvite}
+          onInvite={invite}
+          canInvite={callerRole !== "viewer"}
+          minScore={minScoreDraft}
+          onMinScoreChange={setMinScoreDraft}
+          onPublish={setMatchingEnabled}
+          busy={busy === "matching"}
+          canPublish={callerRole !== "viewer"}
+        />
       </main>
     </>
   )

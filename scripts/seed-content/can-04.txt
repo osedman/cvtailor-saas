@@ -1,0 +1,26 @@
+Tom Vance
+Leeds · o.oifoh+can04@gmail.com · 07700 900004
+
+SUMMARY
+Data engineer, 5 years. Solid generalist, no deep specialism yet. Keen to move
+into healthcare.
+
+EXPERIENCE
+
+Data Engineer — Pollard & Wren (2021–present)
+- Airflow DAGs for finance and operations reporting, about 120GB/day.
+- dbt in production, around 60 models. I maintain them but did not design the
+  project.
+- Snowflake warehouse. Comfortable SQL; I have done some tuning but nothing on
+  billion-row tables.
+- Python, 5 years.
+
+Junior Data Engineer — Pollard & Wren (2019–2021)
+
+NOTES
+No streaming. No Terraform — I have opened pull requests against it but not
+written modules. No regulated-domain work, and no mentoring beyond helping the
+person who joined after me.
+
+SKILLS
+Python · SQL · Airflow · dbt · Snowflake

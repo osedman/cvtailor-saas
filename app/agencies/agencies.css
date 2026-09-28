@@ -295,11 +295,40 @@
 .ag-loop-lane.todo { opacity: 0.55; border-style: dashed; }
 .ag-loop-lane.outcome { border-style: dashed; opacity: 0.55; }
 .ag-loop-lane.outcome.on { border-style: solid; opacity: 1; background: var(--ag-coral); border-color: var(--ag-coral); color: #fff; }
-.ag-loop-note { margin: 0; font-size: var(--t-caption); color: var(--ag-ink-2, var(--ag-ink)); border-left: 2px solid var(--ag-tint-2); padding-left: 10px; }
+.ag-loop-note { margin: 0; font-size: var(--t-caption); color: var(--ag-ink-2); border-left: 2px solid var(--ag-tint-2); padding-left: 10px; }
 .ag-loop-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
 /* Recording folded into the round card: an attachment, not a blocker. */
 .ag-rec-details { border-top: 1px solid var(--ag-border); padding: 10px 16px 12px; }
+
+/* The decision, and the words behind it — added 18 Sep 2026 after Ose walked
+   the loop and found the recruiter's screen could say a write-up EXISTED and
+   not a syllable of what it said.
+
+   Reads as a quotation, not a data field: the write-up is a person's sentence
+   about an hour spent with another person. So it keeps prose type at prose
+   size, sits on tint rather than in a bordered box, and is never truncated —
+   a summary of somebody's judgement is a different claim from their judgement.
+   Body copy is the design system's face; mono stays on the labels and the
+   machine data only (the typography guardrail fails the build otherwise). */
+.ag-round-say { border-top: 1px solid var(--ag-border); padding: 12px 18px 14px; display: flex; flex-direction: column; gap: 10px; }
+.ag-round-say-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0; }
+.ag-round-say-note { margin: 0; color: var(--ag-ink-2); font-size: var(--t-body); line-height: 1.55; }
+
+.ag-round-writeup { background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); border-radius: var(--r-card, 10px); padding: 12px 14px 14px; }
+.ag-round-writeup .ag-field-label { color: var(--ag-ink-3); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ag-round-writeup-body { margin: 2px 0 0; color: var(--ag-ink); font-size: var(--t-body); line-height: 1.62; white-space: pre-wrap; }
+
+.ag-round-answers { margin: 10px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.ag-round-answer { display: flex; flex-direction: column; gap: 2px; }
+.ag-round-answer dt { color: var(--ag-ink-3); font-size: var(--t-caption); }
+.ag-round-answer dd { margin: 0; color: var(--ag-ink); font-size: var(--t-body); line-height: 1.55; white-space: pre-wrap; }
+
+/* 375px: the write-up must not squeeze the card into a column of single words. */
+@media (max-width: 560px) {
+  .ag-round-say { padding: 12px 14px 14px; }
+  .ag-round-writeup { padding: 10px 12px 12px; }
+}
 .ag-rec-summary {
   cursor: pointer; font-family: var(--ag-mono); font-size: var(--t-micro);
   letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3);
@@ -401,11 +430,191 @@
 
 /* An override is a claim you are making over the machine's: it gets a border
  * and a wash, and states plainly what it changed. */
-.ag-ev-card { border: 1px solid var(--ag-border); background: var(--ag-paper); border-radius: var(--r-sm); padding: 12px; transition: border-color 0.14s, background 0.14s; }
+/* ── The evidence card (rebuilt 14 Sep 2026) ──────────────────────────────
+ * This is where a recruiter overrides the machine's read of a person, on the
+ * strength of something that person said. It used to put the quote in the
+ * lightest ink in the system and the control in four unlabelled circles.
+ * The quote is the object now; the control says what it means. */
+.ag-ev-card { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--ag-border); background: var(--ag-paper); border-radius: var(--r-sm); padding: 13px 14px; transition: border-color 0.14s, background 0.14s; }
 .ag-ev-card[data-override="true"] { border-color: var(--ag-coral); background: var(--ag-tint-1); }
-.ag-ev-main { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
-.ag-ev-quote { font-size: var(--t-small); font-style: italic; color: var(--ag-ink-3); border-left: 2px solid var(--ag-line-2); padding-left: 8px; margin-top: 2px; line-height: 1.5; }
-.ag-ev-was { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: normal; color: var(--ag-coral-deep); }
+.ag-ev-head { display: flex; align-items: baseline; gap: 7px; }
+.ag-ev-mine { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); }
+.ag-ev-req { margin: 0; font-size: var(--t-body); font-weight: 500; line-height: 1.45; }
+
+/* Body size, full ink, a real quotation. It was t-small italic ink-3 — the
+ * palest text on a card whose whole purpose is this sentence. */
+.ag-ev-quote { margin: 2px 0 0; font-size: var(--t-body); color: var(--ag-ink); border-left: 2px solid var(--ag-coral); padding-left: 10px; line-height: 1.55; }
+.ag-ev-quote::before { content: "\201C"; }
+.ag-ev-quote::after { content: "\201D"; }
+.ag-ev-cite { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); padding-left: 12px; }
+
+/* Wraps to two rows rather than shrinking to icons: the words are the fix.
+ * Individual chips, not a segmented control, because a segmented control
+ * with a wrapped row has no honest border radius. */
+.ag-ev-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.ag-ev-pick button {
+  flex: 1 1 130px; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 38px; padding: 8px 10px; cursor: pointer;
+  border: 1px solid var(--ag-line-2); border-radius: var(--r-sm); background: var(--ag-paper);
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; color: var(--ag-ink-2);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.ag-ev-pick button:hover { background: var(--ag-bg-2); border-color: var(--ag-ink-3); }
+.ag-ev-pick button.on { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); }
+.ag-ev-pick-weight { color: var(--ag-ink-3); }
+.ag-ev-pick button.on .ag-ev-pick-weight { color: var(--ag-tint-2); }
+.ag-ev-pick button.on .ag-dot.missing { border-color: var(--ag-tint-2); }
+
+/* A person disagreeing with the machine about another person, said in a
+ * sentence rather than in ten pixels of mono. */
+.ag-ev-said { margin: 2px 0 0; font-size: var(--t-small); color: var(--ag-coral-deep); line-height: 1.5; }
+
+/* 38px is comfortable for a mouse and under the 44px floor for a finger.
+ * Raised where the pointer is actually coarse rather than everywhere: ten
+ * requirements times four options is a lot of vertical rhythm to spend on a
+ * device that does not need it. */
+@media (pointer: coarse) {
+  .ag-ev-pick button { min-height: 44px; }
+}
+
+/* ── The intercepted candidate modal (14 Sep 2026) ────────────────────────
+ * position: fixed, so the slot never becomes a third column in .ag-app's
+ * flex row. The scrim is strong enough to isolate the panel — a weak scrim
+ * leaves the pane behind competing with the evidence you opened. */
+.ag-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-start; justify-content: center; padding: 40px 24px; }
+.ag-modal-scrim { position: absolute; inset: 0; background: rgba(30, 24, 19, 0.52); }
+.ag-modal-panel {
+  position: relative; display: flex; flex-direction: column;
+  width: min(1100px, 100%); max-height: calc(100vh - 80px);
+  /* cream, the same ground the screens sit on: the panel holds a page's
+   * content, so it should read as a page and not as a floating card. */
+  background: var(--ag-cream); border: 1px solid var(--ag-border);
+  border-radius: var(--r-md); box-shadow: 0 24px 60px rgba(30, 24, 19, 0.28);
+  overflow: hidden;
+}
+.ag-modal-panel:focus { outline: none; }
+.ag-modal-bar { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--ag-border); background: var(--ag-paper); flex: none; }
+/* The evidence scrolls, the bar does not — Close is always reachable. */
+.ag-modal-body { overflow-y: auto; overscroll-behavior: contain; padding: 20px 24px 28px; }
+
+/* The matching window — Figma frame 16, 19 Sep 2026.
+   Wider than the candidate modal because it holds a card grid rather than one
+   person's evidence. */
+.ag-match-panel { width: min(1180px, 100%); }
+
+/* What the scan is matching against. Must-haves are tinted; everything else
+   is quiet, so the eye reads the shape of the requirement set at a glance. */
+/* The door to matching. One row, not a card: the card described what the
+   window already describes, so what is left is the state and the way in.
+   It wraps rather than clipping its button — .ag-screen-head losing its
+   primary action at 375px is a live defect on five screens and this must not
+   join them. */
+.ag-match-door {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 20px; padding: 14px 18px;
+  background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md);
+}
+
+/* Publishing, inside the window (19 Sep 2026). The switch and the thing it
+   produces were on two different parts of the screen; now you decide at the
+   top of the window and watch the result below it. Tinted once live, so the
+   state is legible before reading a word. */
+.ag-match-publish {
+  padding: 18px 20px 20px; margin-bottom: 24px;
+  background: var(--ag-cream); border: 1px solid var(--ag-border); border-radius: var(--r-md);
+}
+.ag-match-publish[data-live] { background: var(--ag-tint-1); border-color: var(--ag-tint-2); }
+.ag-match-publish-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.ag-match-publish-field { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ag-match-publish-field .ag-label { margin-bottom: 0; }
+
+.ag-match-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.ag-match-chip {
+  font-size: var(--t-caption); line-height: 1.3; color: var(--ag-ink-3);
+  background: var(--ag-cream); border: 1px solid var(--ag-border);
+  border-radius: var(--r-pill); padding: 6px 11px;
+}
+.ag-match-chip[data-must] { background: var(--ag-tint-1); border-color: var(--ag-tint-2); color: var(--ag-coral-text); }
+
+/* Liveness, never a count: "found nobody", "found people who have not
+   applied" and "the scan is broken" must stay distinguishable, so this says
+   what is happening rather than how many. */
+.ag-match-scan {
+  margin-top: 22px; padding: 18px 20px 20px;
+  background: var(--ag-cream); border: 1px solid var(--ag-border); border-radius: var(--r-md);
+}
+.ag-match-scan[data-scanning] { border-color: var(--ag-tint-2); background: var(--ag-tint-1); }
+.ag-match-scan-line { margin: 0; font-size: var(--t-lead); line-height: 1.4; color: var(--ag-ink); }
+
+.ag-match-bar { margin-top: 12px; height: 6px; border-radius: var(--r-pill); background: var(--ag-border); overflow: hidden; }
+.ag-match-bar > span { display: block; height: 100%; width: 38%; border-radius: var(--r-pill); background: var(--ag-coral); animation: ag-match-sweep 1.5s ease-in-out infinite; }
+/* Indeterminate on purpose. A percentage would be a count of people wearing a
+   progress bar, and the number of people is the thing that must not be shown. */
+@keyframes ag-match-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+@media (prefers-reduced-motion: reduce) {
+  .ag-match-bar > span { animation: none; width: 100%; opacity: 0.5; }
+}
+
+/* The pool. A reading surface, not a leaderboard — rows are generous, the
+   person's own words carry the weight, and the number is the quietest thing
+   on the row. Switchers get a left rule rather than a colour fill, so the
+   emphasis reads as "look here" not "ranked higher". */
+.ag-pool { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ag-pool-row {
+  display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;
+  padding: 16px 18px; border: 1px solid var(--ag-border); border-radius: var(--r-md);
+  background: var(--ag-paper); border-left: 3px solid transparent;
+}
+.ag-pool-row[data-switching] { border-left-color: var(--ag-coral); background: var(--ag-tint-1); }
+.ag-pool-who { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ag-pool-name { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ag-pool-tag {
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; color: var(--ag-coral-text);
+  border: 1px solid var(--ag-tint-2); border-radius: var(--r-pill); padding: 2px 8px;
+}
+.ag-pool-headline { font-size: var(--t-caption); color: var(--ag-ink-3); }
+/* Their writing. Clamped rather than truncated mid-thought, and never
+   rewritten — a summarised arc is a claim we made about them. */
+.ag-pool-arc {
+  margin: 6px 0 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink-2);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ag-pool-evidence { margin: 8px 0 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; }
+.ag-pool-evidence li { font-size: var(--t-caption); line-height: 1.5; color: var(--ag-ink-2); }
+.ag-pool-metrics { flex: 0 1 260px; display: flex; flex-direction: column; gap: 6px; }
+.ag-pool-rel { font-size: var(--t-caption); color: var(--ag-ink-2); display: flex; flex-direction: column; gap: 5px; }
+.ag-pool-rel b { font-variant-numeric: tabular-nums; color: var(--ag-ink); }
+.ag-pool-rel-bar { height: 5px; border-radius: var(--r-pill); background: var(--ag-border); overflow: hidden; }
+.ag-pool-rel-bar > span { display: block; height: 100%; background: var(--ag-coral); border-radius: var(--r-pill); }
+.ag-pool-act { flex: 0 0 auto; display: flex; align-items: center; }
+
+@media (max-width: 720px) {
+  .ag-pool-metrics, .ag-pool-act { flex-basis: 100%; }
+}
+
+/* The rounded bucket. Quiet, and never a number. */
+.ag-match-bucket {
+  margin-top: 22px; padding: 16px 20px 18px;
+  background: var(--ag-cream); border: 1px dashed var(--ag-border); border-radius: var(--r-md);
+  color: var(--ag-ink-2); font-size: var(--t-body); line-height: 1.55;
+}
+
+/* Below 900px the sidebar is already gone and a centred dialog would be a
+ * full screen pretending not to be. It becomes a sheet off the bottom
+ * instead, which is what that shape actually is. */
+@media (max-width: 900px) {
+  .ag-modal { align-items: flex-end; padding: 0; }
+  .ag-modal-panel { width: 100%; max-height: 92vh; border-radius: var(--r-md) var(--r-md) 0 0; border-bottom: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ag-modal-panel { animation: ag-modal-in 180ms ease-out; }
+  .ag-modal-scrim { animation: ag-modal-fade 180ms ease-out; }
+}
+@keyframes ag-modal-in { from { opacity: 0; transform: translateY(8px) scale(0.99); } to { opacity: 1; transform: none; } }
+@keyframes ag-modal-fade { from { opacity: 0; } to { opacity: 1; } }
 .ag-unevidenced { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--ag-border); font-size: var(--t-small); }
 .ag-unevidenced:last-child { border-bottom: none; }
 
@@ -563,6 +772,65 @@
 .agd-h1 { font-family: var(--ag-display); font-size: var(--t-display); line-height: 1.12; margin: 8px 0 6px; font-weight: 600; letter-spacing: var(--track-tight); text-wrap: balance; }
 .agd-sub { margin: 0; color: var(--ag-ink-2); font-size: var(--t-lead); max-width: 56ch; }
 .agd-sub b { font-weight: 600; color: var(--ag-ink); }
+
+/* ── The hiring manager's dashboard (rebuilt 15 Sep 2026) ────────────────
+ * A hiring manager is not a user of this product. They are a busy person
+ * with a role open and a recruiter doing the work, and they arrive with
+ * exactly one question: is anything mine? The old screen answered it with
+ * three bands of rows to read. This answers it once, in words, at the top.
+ *
+ * The part that matters is what happens when the answer is NO: the card
+ * keeps its shape, names who holds it and since when, and renders no button
+ * at all. The old "needs you" row stayed a link even while waiting, so a
+ * hiring manager clicked through to discover there was nothing there. */
+.hm-greet { margin-bottom: 22px; }
+.hm-greet-eyebrow { font-family: var(--ag-mono); font-size: var(--t-caption); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-text); margin: 0; }
+.hm-greet-h1 { font-family: var(--ag-display); font-size: var(--t-display); line-height: 1.12; margin: 8px 0 6px; font-weight: 600; letter-spacing: var(--track-tight); text-wrap: balance; }
+.hm-greet-sub { margin: 0; color: var(--ag-ink-2); font-size: var(--t-lead); max-width: 58ch; text-wrap: pretty; }
+.hm-greet-sub b { font-weight: 600; color: var(--ag-ink); }
+
+.hm-one { margin-bottom: 44px; }
+.hm-one-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 9px;
+  border: 1px solid var(--ag-line-2); background: var(--ag-paper);
+  border-radius: var(--r-md); padding: 22px 24px;
+}
+/* Yours to do: the card earns the brand colour and a button. */
+.hm-one-card[data-mode="act"] { border-color: var(--ag-coral); background: var(--ag-tint-1); }
+.hm-one-card[data-mode="act"] .hm-one-eyebrow { color: var(--ag-coral-deep); }
+/* Somebody else's: same shape, calmer ground, and no control. */
+.hm-one-card[data-mode="wait"] .hm-one-eyebrow { color: var(--ag-warn); }
+.hm-one-card[data-mode="load"] { border-style: dashed; }
+.hm-one-eyebrow { margin: 0; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-2); }
+.hm-one-title { margin: 0; font-family: var(--ag-display); font-size: 25px; line-height: 1.2; font-weight: 600; letter-spacing: var(--track-tight); text-wrap: balance; }
+.hm-one-detail { margin: 0; font-size: var(--t-body); line-height: 1.6; color: var(--ag-ink-2); max-width: 62ch; text-wrap: pretty; }
+.hm-one-meta { margin: 0; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+.hm-one-cta {
+  margin-top: 5px; display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 16px; border-radius: var(--r-sm); text-decoration: none;
+  background: var(--ag-coral); color: var(--ag-paper);
+  font-size: var(--t-body); font-weight: 500;
+  transition: background 0.12s, transform 0.12s;
+}
+.hm-one-cta:hover { background: var(--ag-coral-deep); }
+.hm-one-cta:active { transform: translateY(1px); }
+
+/* Anything else that is also theirs, kept quiet rather than competing. */
+.hm-one-rest { margin-top: 14px; display: flex; flex-direction: column; gap: 2px; }
+.hm-one-rest-label { margin: 0 0 6px; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+.hm-one-rest-row {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  padding: 10px 12px; border-radius: var(--r-sm); text-decoration: none; color: inherit;
+  border: 1px solid transparent; transition: background 0.12s, border-color 0.12s;
+}
+.hm-one-rest-row:hover { background: var(--ag-bg-2); border-color: var(--ag-border); }
+.hm-one-rest-title { font-size: var(--t-body); }
+.hm-one-rest-meta { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+
+@media (max-width: 560px) {
+  .hm-one-card { padding: 18px; }
+  .hm-one-cta { width: 100%; justify-content: center; }
+}
 
 /* Attention cards: one thing each, severity as a left rail. */
 .agd-attn { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
@@ -764,6 +1032,14 @@
  * beside the preview they govern. */
 .ag-sub-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
 .ag-sub-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); overflow-y: auto; }
+/* A flex column with a max-height shrinks its ITEMS before it ever overflows,
+ * and .ag-card is overflow:hidden — so a squeezed card slices its own content
+ * and the column never scrolls. Reported 14 Sep 2026 as "the UI is broken":
+ * the disclosure list and the recipients form were cut mid-row. The children
+ * keep their natural height; the COLUMN does the scrolling, which is what
+ * overflow-y was there for. The wrapped-row variants below re-set flex on
+ * purpose and still win, being later. */
+.ag-sub-side > * { flex: none; }
 .ag-frozen-note { font-family: var(--ag-mono); font-size: var(--t-caption); letter-spacing: normal; color: var(--ag-coral-deep); background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); border-radius: var(--r-sm); padding: 8px 12px; }
 .ag-cfp-intro-frozen { margin: 12px 0 0; font-size: var(--t-body); line-height: 1.6; color: var(--ag-paper); opacity: 0.92; }
 .ag-cfp-probes { margin: 0; padding: 0; list-style: none; }
@@ -786,23 +1062,104 @@
 /* ---------- candidate detail (step 06), to the prototype ---------- */
 .ag-det-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
 .ag-det-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); overflow-y: auto; }
+/* A flex column with a max-height shrinks its ITEMS before it ever overflows,
+ * and .ag-card is overflow:hidden — so a squeezed card slices its own content
+ * and the column never scrolls. Reported 14 Sep 2026 as "the UI is broken":
+ * the disclosure list and the recipients form were cut mid-row. The children
+ * keep their natural height; the COLUMN does the scrolling, which is what
+ * overflow-y was there for. The wrapped-row variants below re-set flex on
+ * purpose and still win, being later. */
+.ag-det-side > * { flex: none; }
 .ag-det-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
-/* One line per requirement, opening to its source. Compact so nine of them
- * read as a map rather than nine stacked cards. */
-.ag-evrow { border: none; border-top: 1px solid var(--ag-border); border-radius: 0; background: none; transition: background 0.14s ease; }
+/* ── The evidence row (rebuilt 14 Sep 2026) ───────────────────────────────
+ * One requirement per row, opening to its source. Compact so ten of them
+ * read as a map rather than ten stacked cards — that constraint is the whole
+ * reason this is not the .ag-ev-card from step 04, and it still holds.
+ *
+ * What changed is the LANGUAGE, not the shape. Step 04 and step 06 describe
+ * the same four strengths, and a recruiter moves between them constantly; on
+ * 14 Sep step 04 learned to say "STRONG 1.0" on the control itself and
+ * deleted its legend. This row said the same thing in a bare 8px circle,
+ * with a legend above the list that you had to look back up at for every one
+ * of ten rows. Now the row carries its own words and its own weight.
+ *
+ * The row grew from one line to three: an identity strip, the requirement
+ * (which WRAPS — it is the label you navigate by, and it was the thing being
+ * truncated), and the quote at one clamped line. ~78px against the card's
+ * ~150px, so ten still fit a screen. */
+.ag-evrow {
+  display: flex; flex-direction: column; gap: 5px;
+  border: none; border-top: 1px solid var(--ag-border); border-radius: 0;
+  background: none; padding: 11px 12px; transition: background 0.14s ease;
+  /* Rows are taller than they were, and there can be forty of them on a
+   * role. .ag-mx-row and .ag-ev-card already carry this; this one did not. */
+  content-visibility: auto; contain-intrinsic-size: auto 78px;
+}
 .ag-evrow:first-of-type { border-top: none; }
 .ag-evrow[data-override="true"] { background: var(--ag-tint-1); box-shadow: inset 2px 0 0 var(--ag-coral); }
-.ag-evrow[data-open="true"] { background: var(--ag-bg-2); }
-.ag-evrow-head { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border: none; background: none; cursor: pointer; font-family: var(--ag-sans); color: inherit; }
-.ag-evrow-head:hover { background: var(--ag-bg-2); }
-.ag-evrow[data-override="true"] .ag-evrow-head:hover { background: var(--ag-tint-2); }
-.ag-evrow-text { flex: 1; min-width: 0; font-size: var(--t-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Identity: which requirement, what it is worth, how it reads. */
+.ag-evrow-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ag-evrow-ref { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); color: var(--ag-ink-2); flex: none; }
 .ag-evrow-weight { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); flex: none; }
 .ag-evrow-weight[data-must="true"] { color: var(--ag-coral-deep); }
-.ag-evrow-pts { font-family: var(--ag-mono); font-size: var(--t-micro); color: var(--ag-ink-3); flex: none; min-width: 30px; text-align: right; }
+
+/* The strength, in the words step 04 uses. The dot stays as a redundant
+ * cue — it is no longer the only one, which was the WCAG 1.4.1 fault. */
+.ag-evrow-strength {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  padding: 3px 8px 3px 7px; border-radius: var(--r-xs);
+  background: var(--ag-tint-1); color: var(--ag-coral-deep);
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase;
+}
+.ag-evrow-strength[data-strength="missing"] { background: var(--ag-bg-2); color: var(--ag-ink-2); }
+.ag-evrow-mine { margin-left: auto; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); flex: none; }
+
+.ag-evrow-text { margin: 0; font-size: var(--t-body); line-height: 1.45; }
+
+/* The quote, on the row. It was behind a chevron, one at a time, on the
+ * screen whose whole purpose is this sentence. Collapsed it is one clamped
+ * line — enough to see that evidence EXISTS for all ten without a click. */
+.ag-evrow-quote {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  border: none; background: none; padding: 2px 0; cursor: pointer;
+  font-family: var(--ag-sans); color: inherit; border-radius: var(--r-xs);
+}
+.ag-evrow-quote:hover .ag-evrow-said { color: var(--ag-ink); }
+.ag-evrow-quote:hover .ag-evrow-chev { color: var(--ag-coral-deep); }
+.ag-evrow-rule { width: 2px; align-self: stretch; min-height: 16px; background: var(--ag-coral); flex: none; border-radius: 1px; }
+.ag-evrow-said {
+  flex: 1; min-width: 0; font-size: var(--t-small); line-height: 1.5; color: var(--ag-ink);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden;
+}
+.ag-evrow[data-open="true"] .ag-evrow-said { -webkit-line-clamp: unset; font-size: var(--t-body); }
+.ag-evrow-cite { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); flex: none; }
 .ag-evrow-chev { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-3); flex: none; }
-.ag-evrow-body { padding: 0 12px 12px 32px; }
+.ag-evrow-source { margin: 0 0 0 11px; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+
+/* MISSING is never clipped and never collapsed: it is the one place where an
+ * absence must not read as a negative judgement. */
+.ag-evrow-missing { margin: 0; font-size: var(--t-small); line-height: 1.5; color: var(--ag-ink-3); }
+
+/* A person disagreeing with the machine about another person, in a sentence
+ * rather than in ten pixels of mono. Same words as .ag-ev-said at step 04. */
+.ag-evrow-override { margin: 0; font-size: var(--t-small); line-height: 1.5; color: var(--ag-coral-deep); }
+
+/* The read-the-whole-record pass. Rows still toggle independently. */
+.ag-evrow-all {
+  border: 1px solid var(--ag-line-2); border-radius: var(--r-sm); background: var(--ag-paper);
+  padding: 4px 10px; cursor: pointer; color: var(--ag-ink-2);
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.ag-evrow-all:hover { background: var(--ag-bg-2); border-color: var(--ag-ink-3); color: var(--ag-ink); }
+
+/* The quote line is the hit target and it is only ~20px tall. Where the
+ * pointer is actually coarse, give it a finger. */
+@media (pointer: coarse) {
+  .ag-evrow-quote { padding: 6px 0; min-height: 44px; }
+}
 
 .ag-sr-row { display: flex; gap: 8px; align-items: flex-start; font-size: var(--t-small); line-height: 1.5; }
 .ag-sr-row .ag-dot { margin-top: 5px; flex: none; }
@@ -1656,3 +2013,770 @@ a.ag-rh-next:hover { opacity: 0.86; }
 /* Handover checklist rows (close-out). */
 .ag-check-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px; border: 1px solid var(--ag-border); border-radius: var(--r-sm); background: var(--ag-paper); }
 .ag-pill.warn { border-color: var(--ag-warn-mark); color: var(--ag-warn); }
+
+/* ── Sidebar groups (10 Sep 2026, narrowed 13 Sep 2026) ───────────────────
+ * Two lists used to live in the recruiter sidebar: where you work
+ * (AgencyNav) and where this role is (the seven steps, or the role rail).
+ * They were stacked with identical styling, so the role's rail read as more
+ * global nav bolted to the bottom — reported as "just wrong", and it was.
+ *
+ * The role's list is a named group with a rule above it and its label
+ * carrying the role's accent, so the eye sees two lists, not one long one.
+ *
+ * Inside a role there is now only ONE such group — the seven steps — because
+ * the global list collapses to .ag-nav-up and the role rail is gone (the
+ * header's phase rail carried the same three destinations). */
+.ag-rail-group { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--ag-border); }
+.ag-rail-group > .ag-rail-label { color: var(--ag-coral-text); }
+
+/* ── The way up, inside a role (13 Sep 2026) ──────────────────────────────
+ * One link where eight used to be. It is the only global item on a role
+ * screen, so it carries the full ink weight rather than .ag-step's quieter
+ * ink-2 — it is a destination, not one option among a list. The arrow takes
+ * the accent because it is the part that says "out of here", and it is
+ * aria-hidden: the label already reads as a place. */
+.ag-nav-up { color: var(--ag-ink); font-weight: 500; }
+.ag-nav-up-arrow { color: var(--ag-coral-text); }
+
+/* The step bar: the eyebrow and Back / Next on one line (13 Sep 2026). The
+ * eyebrow keeps its own bottom margin for the screens where it stands alone;
+ * in here the bar's own padding does that job. */
+.ag-stepbar .ag-step-eyebrow { margin: 0; }
+
+/* ── The sent state on step 07 (13 Sep 2026) ──────────────────────────────
+ * A fact, not a control. It replaces the primary that used to read
+ * "✓ Submission sent" while still being wired to the send — so the shape
+ * must not read as a button: no pointer, no hover, no press. It sits at the
+ * same optical weight as the secondary beside it. */
+.ag-sent-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--ag-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--ag-ink-2); background: var(--ag-cream);
+  border: 1px solid var(--ag-line-2); border-radius: var(--r-pill);
+  padding: 7px 12px; cursor: default; user-select: none;
+}
+.ag-sent-chip::before {
+  content: "✓"; color: var(--ag-coral-text); font-family: var(--ag-sans);
+}
+
+/* ── The matched list, as cards (13 Sep 2026) ─────────────────────────────
+ * The one screen where a person arrives from the consumer app. It used to be
+ * a stack of .ag-check-row — the handover checklist's row — where the band,
+ * the state and every piece of evidence were the same neutral .ag-pill, and
+ * the only thing separating evidence from its absence was opacity: 0.55 set
+ * inline. "Strong match" and "R3 · missing" were the same object.
+ *
+ * One person, one card, one state. Three parts that say three different
+ * things: who they are and how well they matched; what they were matched
+ * against; and what you can do about it. */
+/* auto-FILL, not auto-fit (19 Sep 2026). With auto-fit an empty track
+   collapses, so ONE matched person stretched edge to edge and stopped reading
+   as a card at all — which is what it looked like in the window. auto-fill
+   keeps the 280px track, so one card is a card and three are a row. */
+/* Compressed cards, side by side — Figma frame 18.
+   FLEX WRAP, not a grid: a grid stretches its tracks so four people become
+   four quarter-width cards on a wide window and the card stops having a
+   shape. A fixed basis that wraps keeps every card identical whether there
+   are two or twelve — which is what makes them comparable, the only reason
+   to use cards here at all.
+   NOT a horizontal scroller: a scroller hides people, and somebody you never
+   saw is somebody you never considered. */
+.ag-matched-grid { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; }
+.ag-matched-card {
+  /* 256 + 12 gap × 4 fits the 1168px panel with its own padding; at 268 the
+     fourth card wrapped onto a line of its own, which is the one layout a row
+     of comparable cards must not produce. */
+  flex: 0 1 256px; min-width: 232px;
+  display: flex; flex-direction: column; gap: 10px;
+  /* These arrive live and a long row is cheap to skip: the browser does not
+     lay out a card until it is near the viewport. The intrinsic size reserves
+     its space so nothing jumps as they stream in. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 250px;
+}
+/* The footer holds its height across states. A card that grows when somebody
+   is invited reflows the whole row, and reflow during a live update is what
+   makes a list feel like it is fighting you. */
+.ag-matched-foot { margin-top: auto; min-height: 38px; display: flex; align-items: center; }
+.ag-matched-foot .ag-btn { width: 100%; justify-content: center; }
+/* Interaction feedback is transform and opacity only — the performance
+   invariant this product keeps everywhere. */
+.ag-matched-card:hover { transform: translateY(-1px); }
+.ag-matched-card { transition: transform 150ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .ag-matched-card { transition: none; }
+  .ag-matched-card:hover { transform: none; }
+}
+.ag-matched-card { display: flex; flex-direction: column; background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); overflow: hidden; }
+/* Top-aligned, not centred: "very strong" is the widest band and squeezes
+ * the headline onto two lines in a narrow column, and a centred chip then
+ * floats against the middle of that block instead of sitting with the
+ * name it qualifies. */
+.ag-matched-head { display: flex; align-items: flex-start; gap: 12px; padding: 14px 14px 12px; border-bottom: 1px solid var(--ag-border); }
+.ag-matched-who { min-width: 0; flex: 1; }
+.ag-matched-name { font-size: var(--t-lead); font-weight: 600; color: var(--ag-ink); overflow-wrap: anywhere; }
+.ag-matched-headline { font-size: var(--t-small); color: var(--ag-ink-2); overflow-wrap: anywhere; }
+/* flex:1 here is what pins the footer to the bottom edge, so the actions on
+ * cards in a row line up however much evidence a person has. */
+.ag-matched-body { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; flex: 1; }
+.ag-matched-evidence { display: flex; flex-wrap: wrap; gap: 6px; }
+.ag-matched-foot { display: flex; align-items: center; gap: 10px; padding: 11px 14px 13px; background: var(--ag-cream); border-top: 1px solid var(--ag-border); margin-top: auto; }
+
+/* The band, never a number. matched_people does not send the score to the
+ * browser at all — "#1, #2, #3" implies a precision the score does not have,
+ * so the three tiers carry the same weights .ag-score uses and no digits. */
+.ag-band { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; border-radius: var(--r-sm); padding: 5px 9px; flex: none; white-space: nowrap; }
+.ag-band.hi { background: var(--ag-ink); color: var(--ag-paper); }
+.ag-band.med { background: var(--ag-cream); border: 1px solid var(--ag-line-2); color: var(--ag-ink); }
+.ag-band.lo { background: var(--ag-paper); border: 1px solid var(--ag-line-2); color: var(--ag-ink-3); }
+
+/* An evidence chip carries the strength mark the rest of the product uses.
+ * MISSING is drawn as an absence — a dashed chip around .ag-dot.missing's
+ * dashed empty ring — never as evidence turned down to 55% opacity. */
+.ag-ev { display: inline-flex; align-items: center; gap: 6px; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; border: 1px solid var(--ag-line-2); border-radius: var(--r-pill); padding: 3px 8px; color: var(--ag-ink); }
+.ag-ev.partial { color: var(--ag-warn); }
+.ag-ev.missing { border-style: dashed; color: var(--ag-ink-3); }
+
+/* The off-process ask on the placement card (14 Sep 2026). Tinted because it
+ * is asking for something, not warning about someone: a client hiring
+ * off-process is ordinary, and the copy must not read as an accusation. */
+.ag-outside-ask { border: 1px solid var(--ag-tint-2); background: var(--ag-tint-1); border-radius: var(--r-sm); padding: 12px 14px; }
+
+/* The status rail on a dashboard role row (restored 10 Sep 2026). The row
+ * keeps its three columns; the rail is a fourth child spanning all of them,
+ * so it reads as the role's progress rather than a fourth column of text. */
+.agd-today-row.with-rail { row-gap: 10px; }
+.agd-today-rail { grid-column: 1 / -1; }
+.agd-today-row[data-flag="blocked"] { background: var(--ag-tint-1); }
+.agd-today-row[data-flag="blocked"]:hover { background: var(--ag-tint-2); }
+
+/* ── The interview cohort's scheduling board (11 Sep 2026) ────────────────
+ * One component, both hats: the client watches their cohort fill and the
+ * recruiter watches the same board, because candidates book themselves and
+ * visibility is what the recruiter gets. */
+.ag-cohort { display: flex; flex-direction: column; gap: 10px; }
+.ag-cohort-summary { margin: 0; font-weight: 600; }
+.ag-cohort-capacity { margin: 0; font-size: var(--t-small); color: var(--ag-ink-2); }
+.ag-cohort-capacity.short { color: var(--ag-coral-text); font-weight: 600; }
+.ag-cohort-rows { display: flex; flex-direction: column; gap: 6px; }
+.ag-cohort-row { display: grid; grid-template-columns: minmax(0, 1.3fr) auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 10px 12px; border: 1px solid var(--ag-border); border-radius: var(--r-sm); background: var(--ag-paper); }
+.ag-cohort-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ag-cohort-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-cohort-when { font-family: var(--ag-mono); font-size: var(--t-caption); color: var(--ag-ink-2); }
+.ag-cohort-act { display: flex; justify-content: flex-end; }
+.ag-cohort-status.good { border-color: var(--ag-calm); color: var(--ag-calm); }
+.ag-cohort-status.attention { border-color: var(--ag-warn-mark); color: var(--ag-warn); }
+@media (max-width: 760px) {
+  .ag-cohort-row { grid-template-columns: 1fr auto; row-gap: 8px; }
+  .ag-cohort-act { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
+/* The reserve waiting on the next wave. */
+.ag-cohort-wave { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px dashed var(--ag-line-2); border-radius: var(--r-sm); background: var(--ag-bg-2); }
+
+/* A capability that is real but is no longer the flow — folded away so it
+ * is not mistaken for one. */
+.ag-fallback { border: 1px solid var(--ag-border); border-radius: var(--r-sm); padding: 12px 14px; background: var(--ag-bg-2); }
+.ag-fallback > summary { cursor: pointer; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); }
+.ag-fallback[open] > summary { margin-bottom: 4px; color: var(--ag-ink-2); }
+
+/* The second nav group: the desk around the work, set apart so eight items
+ * read as two short lists rather than one long one. */
+.ag-nav-group { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ag-border); }
+
+/* ── The archive (16 September 2026) ────────────────────────────────────────
+ * A role leaves the live table when it is finished — closed by the recruiter,
+ * or its handover pack actually delivered to the employer. ROL-2408 and
+ * ROL-2410 were delivered on 24 August and were still in the live queue three
+ * weeks later, because only `closed` was being filtered on.
+ *
+ * DELIVERED IS NOT CLOSED, and this band refuses to tidy that away: closing
+ * starts the retention clock on every candidate attached to the role, so it
+ * stays a deliberate act and the row says it is still owed. Nothing here is
+ * deleted — erasure is the clock's job. */
+.ag-archive-toggle {
+  border: 1px solid var(--ag-line-2); background: var(--ag-paper); color: var(--ag-ink-2);
+  border-radius: var(--r-sm); padding: 4px 10px; cursor: pointer;
+  font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.ag-archive-toggle:hover { background: var(--ag-bg-2); border-color: var(--ag-ink-3); color: var(--ag-ink); }
+
+.ag-archive { display: flex; flex-direction: column; gap: 2px; }
+.ag-archive-row {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 11px 12px; border-radius: var(--r-sm); text-decoration: none; color: inherit;
+  border: 1px solid transparent; transition: background 0.12s, border-color 0.12s;
+}
+.ag-archive-row:hover { background: var(--ag-bg-2); border-color: var(--ag-border); }
+/* Still open: it reads a shade louder than a closed one, because it carries
+ * an outstanding act rather than being history. */
+.ag-archive-row[data-open="true"] { background: var(--ag-tint-1); }
+.ag-archive-row[data-open="true"]:hover { background: var(--ag-tint-2); }
+
+.ag-archive-ref { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); color: var(--ag-ink-3); flex: none; }
+.ag-archive-title { font-size: var(--t-body); font-weight: 500; }
+.ag-archive-company { font-size: var(--t-small); color: var(--ag-ink-3); }
+.ag-archive-state { font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-3); flex: none; }
+.ag-archive-state[data-owed="true"] { color: var(--ag-warn); }
+
+@media (max-width: 640px) {
+  .ag-archive-row { gap: 4px 10px; }
+  .ag-archive-state { width: 100%; }
+}
+
+/* ============================================================
+   STEP 05 · THE RECOMMENDATION TAB
+   ------------------------------------------------------------
+   The matrix is the default tab; this is the second reading of the
+   same material. One deliberate absence: there is no filter control
+   anywhere in here. Since board 26 (24 Sep 2026) it carries the SAME
+   decision control as the cards (.ag-decision, further down) — the
+   recommendation still writes nothing; every add is the recruiter's
+   click. Interaction feedback is transform and opacity only, per the
+   performance invariants.
+   ============================================================ */
+
+.ag-cmp-tabs { display: inline-flex; gap: 8px; padding: 2px 0 14px; }
+.ag-cmp-tabs button {
+  padding: 9px 16px; border-radius: var(--r-sm); border: 1px solid var(--ag-border);
+  background: var(--ag-cream); color: var(--ag-ink-3); font-size: var(--t-body);
+  font-weight: 500; cursor: pointer; transition: transform .12s ease, opacity .12s ease;
+}
+.ag-cmp-tabs button:hover { transform: translateY(-1px); }
+.ag-cmp-tabs button.on { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); font-weight: 600; }
+
+.ag-reco { display: flex; flex-direction: column; gap: 16px; }
+
+.ag-reco-bar { display: flex; align-items: center; gap: 20px; padding: 22px 24px; flex-wrap: wrap; }
+.ag-reco-bar-text { flex: 1 1 380px; min-width: 0; }
+.ag-reco-h { font-family: var(--ag-display); font-weight: 600; letter-spacing: var(--track-tight); font-size: 24px; line-height: 1.25; color: var(--ag-ink); margin: 0; }
+.ag-reco-go { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.ag-spin { animation: ag-spin 1s linear infinite; }
+@keyframes ag-spin { to { transform: rotate(360deg); } }
+
+.ag-reco-reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.ag-reco-read {
+  padding: 15px 16px; border-radius: var(--r-md); border: 1px solid var(--ag-border);
+  background: var(--ag-paper);
+}
+/* The line it does not cross gets the tint, so it reads as a commitment
+   rather than a third column of feature copy. */
+.ag-reco-read-line { background: var(--ag-tint-1); border-color: var(--ag-tint-2); }
+.ag-reco-read p { margin: 8px 0 0; font-size: var(--t-caption); line-height: 1.55; color: var(--ag-ink-3); }
+
+.ag-reco-error {
+  padding: 16px 18px; border-radius: var(--r-md);
+  background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2);
+}
+.ag-reco-error p { margin: 6px 0 0; font-size: var(--t-body); color: var(--ag-ink); }
+
+.ag-reco-stamp { line-height: 1.55; }
+
+.ag-reco-group { padding: 18px 20px; display: flex; flex-direction: column; gap: 11px; content-visibility: auto; }
+.ag-reco-group[data-group="recommended"] { background: var(--ag-tint-1); border-color: var(--ag-tint-2); }
+.ag-reco-group-head .ag-field-label { color: var(--ag-ink-3); }
+.ag-reco-group[data-group="recommended"] .ag-field-label { color: var(--ag-coral-deep); }
+.ag-reco-blurb { margin: 0; font-size: var(--t-caption); line-height: 1.55; color: var(--ag-ink-3); }
+
+.ag-reco-person {
+  padding: 14px 15px; border-radius: var(--r-md); border: 1px solid var(--ag-border);
+  background: var(--ag-paper); display: flex; flex-direction: column; gap: 8px;
+}
+.ag-reco-person-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.ag-reco-name {
+  background: none; border: 0; padding: 0; font: inherit; font-weight: 600;
+  font-size: var(--t-body); color: var(--ag-ink); cursor: pointer; text-decoration: underline;
+  text-decoration-color: var(--ag-border); text-underline-offset: 3px;
+}
+.ag-reco-name:hover { text-decoration-color: var(--ag-coral); }
+.ag-reco-name-plain { font-weight: 600; font-size: var(--t-body); color: var(--ag-ink); }
+.ag-reco-title { flex: 1 1 auto; }
+.ag-reco-chip {
+  padding: 4px 9px; border-radius: var(--r-sm); border: 1px solid var(--ag-border);
+  background: var(--ag-cream); font-size: var(--t-caption); color: var(--ag-ink-3); white-space: nowrap;
+}
+.ag-reco-reason { margin: 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink-2); }
+.ag-reco-traces { display: flex; flex-wrap: wrap; gap: 6px; }
+.ag-reco-trace {
+  padding: 4px 9px; border-radius: var(--r-sm); border: 1px solid var(--ag-border);
+  background: var(--ag-cream); font-size: var(--t-caption); color: var(--ag-ink-3);
+}
+.ag-reco-trace-computed { background: var(--ag-tint-1); border-color: var(--ag-tint-2); color: var(--ag-coral-deep); }
+
+.ag-reco-change {
+  padding: 18px 20px; border-radius: var(--r-md);
+  background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2);
+}
+.ag-reco-change-line { margin: 8px 0 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink); }
+.ag-reco-foot { line-height: 1.55; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-cmp-tabs button { transition: none; }
+  .ag-cmp-tabs button:hover { transform: none; }
+  .ag-spin { animation: none; }
+}
+
+@media (max-width: 720px) {
+  .ag-reco-bar { align-items: stretch; }
+  .ag-reco-go { width: 100%; justify-content: center; }
+}
+
+/* ============================================================
+   The client's decisions, beside the recruiter's call — Figma frame 21
+   (21 Sep 2026). A round trail: tick = advanced, cross = not advanced,
+   hollow ring = no decision yet, dashed ring = cancelled. Shape carries the
+   meaning as well as colour. Never used to grey, hide or reorder anyone.
+   ============================================================ */
+.ag-trail { display: inline-flex; align-items: center; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.ag-trail-step { display: inline-flex; align-items: center; gap: 4px; font-family: var(--ag-sans); font-size: var(--t-small); font-weight: 500; color: var(--ag-ink); }
+.ag-trail-step + .ag-trail-step::before { content: ""; width: 12px; height: 1.5px; background: var(--ag-line-2); margin-right: 2px; }
+.ag-trail-dot { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: var(--r-pill); flex: none; }
+.ag-trail-step.advance .ag-trail-dot { background: var(--ag-coral-deep); color: #fff; }
+.ag-trail-step.decline .ag-trail-dot { background: var(--ag-paper); border: 1.5px solid var(--ag-ink); color: var(--ag-ink); }
+.ag-trail-step.hold .ag-trail-dot,
+.ag-trail-step.open .ag-trail-dot { background: var(--ag-paper); border: 1.5px solid var(--ag-ink-3); }
+.ag-trail-step.hold .ag-trail-dot::after { content: ""; width: 6px; height: 1.5px; background: var(--ag-ink-3); }
+.ag-trail-step.cancelled .ag-trail-dot { background: var(--ag-paper); border: 1.5px dashed var(--ag-line-2); }
+.ag-trail-step.cancelled { color: var(--ag-ink-3); }
+
+.ag-stage { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ag-stage-label { font-family: var(--ag-sans); font-size: var(--t-body); font-weight: 500; color: var(--ag-ink); }
+.ag-stage-label.fwd { color: var(--ag-coral-deep); }
+.ag-stage-none { font-family: var(--ag-sans); font-size: var(--t-small); color: var(--ag-ink-3); }
+
+/* Candidates: the summary strip above the table. */
+.ag-cand-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--ag-border); border-radius: var(--r-md); background: var(--ag-paper); margin-bottom: 14px; }
+.ag-cand-summary > div { padding: 14px 18px; border-left: 1px solid var(--ag-border); }
+.ag-cand-summary > div:first-child { border-left: none; }
+.ag-cand-summary-n { display: block; font-family: var(--ag-display); font-size: 24px; font-weight: 600; color: var(--ag-ink); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.ag-cand-summary-n.fwd { color: var(--ag-coral-deep); }
+.ag-cand-summary-l { display: block; font-size: var(--t-body); font-weight: 500; color: var(--ag-ink); }
+.ag-cand-summary-s { display: block; font-size: var(--t-small); color: var(--ag-ink-3); }
+@media (max-width: 720px) {
+  .ag-cand-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ag-cand-summary > div:nth-child(3) { border-left: none; }
+  .ag-cand-summary > div:nth-child(n + 3) { border-top: 1px solid var(--ag-border); }
+}
+
+/* On a phone the table becomes one card per person rather than scrolling
+   sideways. Every cell stays; the header row's words move onto the cells. */
+@media (max-width: 720px) {
+  table.ag-cand thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  table.ag-cand, table.ag-cand tbody, table.ag-cand tr, table.ag-cand td { display: block; width: 100%; }
+  table.ag-cand tbody tr { padding: 12px 16px; border-bottom: 1px solid var(--ag-border); }
+  table.ag-cand td { padding: 3px 0; border: none; white-space: normal; }
+  table.ag-cand td[data-label]::before { content: attr(data-label) " · "; color: var(--ag-ink-3); font-size: var(--t-small); }
+  table.ag-cand td.num { text-align: left; }
+  /* The ref already leads the name cell on a phone. */
+  table.ag-cand td.ag-cand-ref { display: none; }
+}
+
+/* Close-out: the hire, as a real radio group. */
+.ag-hire { border: none; margin: 8px 0 0; padding: 0; min-width: 0; }
+.ag-hire-legend { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 0; margin-bottom: 10px; }
+.ag-hire-legend b { font-family: var(--ag-sans); font-size: 15px; font-weight: 600; color: var(--ag-ink); }
+.ag-hire-legend span { font-size: var(--t-small); color: var(--ag-ink-3); }
+.ag-hire-list { display: flex; flex-direction: column; gap: 10px; }
+.ag-hire-card {
+  display: flex; align-items: center; gap: 16px; min-height: 72px; padding: 14px 18px;
+  background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: 12px; cursor: pointer;
+  touch-action: manipulation;
+}
+.ag-hire-card:hover { border-color: var(--ag-line-2); }
+.ag-hire-card.on { background: var(--ag-tint-1); border: 2px solid var(--ag-coral); padding: 13px 17px; }
+.ag-hire-card:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--ag-tint-2); }
+.ag-hire-card input[type="radio"] { width: 20px; height: 20px; margin: 0; accent-color: var(--ag-coral); flex: none; cursor: pointer; }
+.ag-hire-who { flex: 1; min-width: 0; }
+.ag-hire-name { display: block; font-size: 15px; font-weight: 600; color: var(--ag-ink); overflow-wrap: anywhere; }
+.ag-hire-ref { display: block; font-size: var(--t-small); color: var(--ag-ink-3); }
+.ag-hire-decided { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.ag-hire-tag { flex: none; font-size: var(--t-small); font-weight: 500; color: var(--ag-coral-deep); background: var(--ag-tint-2); border-radius: var(--r-pill); padding: 4px 10px; }
+.ag-hire-prov { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; margin: 4px 0 6px; background: var(--ag-tint-1); border-radius: var(--r-md); font-size: var(--t-body); color: var(--ag-ink); line-height: 1.5; }
+.ag-hire-prov svg { color: var(--ag-coral-deep); flex: none; margin-top: 2px; }
+.ag-hire-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
+.ag-hire-actions .ag-btn { min-height: 44px; padding: 10px 18px; }
+.ag-hire-actions p { margin: 0; font-size: var(--t-small); color: var(--ag-ink-3); flex: 1 1 260px; }
+.ag-hire-done { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+@media (max-width: 720px) {
+  .ag-hire-card { flex-wrap: wrap; align-items: flex-start; }
+  .ag-hire-decided { align-items: flex-start; flex-basis: 100%; padding-left: 36px; }
+  .ag-hire-actions .ag-btn { width: 100%; justify-content: center; }
+}
+
+/* ============================================================
+   Settings → Team — Figma frame 22 (21 Sep 2026). Suspend, never delete.
+   ============================================================ */
+.ag-team-list { list-style: none; margin: 14px 0 0; padding: 0; border: 1px solid var(--ag-border); border-radius: var(--r-md); overflow: hidden; }
+.ag-team-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; min-height: 60px; padding: 10px 16px; background: var(--ag-paper); border-top: 1px solid var(--ag-border); }
+.ag-team-row:first-child { border-top: none; }
+.ag-team-row.suspended .ag-team-name { color: var(--ag-ink-3); }
+.ag-team-who { flex: 1 1 220px; min-width: 0; }
+.ag-team-name { display: block; font-size: var(--t-body); font-weight: 600; color: var(--ag-ink); overflow-wrap: anywhere; }
+.ag-team-you { font-weight: 400; color: var(--ag-ink-3); }
+.ag-team-meta { display: block; font-size: var(--t-small); color: var(--ag-ink-3); overflow-wrap: anywhere; }
+.ag-team-role { font-size: var(--t-body); font-weight: 500; color: var(--ag-ink); }
+.ag-team-controls { display: flex; align-items: center; gap: 8px; }
+.ag-team-select { width: auto; min-width: 130px; min-height: 40px; background-color: var(--ag-paper); color: var(--ag-ink); }
+.ag-team-controls .ag-btn, .ag-team-submit { min-height: 40px; }
+.ag-team-add { margin-top: 20px; }
+.ag-team-add-title { margin: 0 0 10px; font-size: var(--t-body); font-weight: 600; color: var(--ag-ink); }
+.ag-team-form { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.ag-team-field { display: flex; flex-direction: column; gap: 6px; }
+.ag-team-field.grow { flex: 1 1 260px; min-width: 0; }
+.ag-team-field label { font-size: var(--t-small); font-weight: 500; color: var(--ag-ink); }
+.ag-team-outcome { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0 0; padding: 12px 14px; border-radius: var(--r-md); border: 1px solid var(--ag-border); background: var(--ag-paper); font-size: var(--t-body); line-height: 1.5; color: var(--ag-ink-2); }
+.ag-team-outcome svg { flex: none; margin-top: 2px; color: var(--ag-ink-3); }
+.ag-team-outcome b { color: var(--ag-ink); font-weight: 600; }
+.ag-team-outcome.ok svg { color: #3d6b45; }
+.ag-team-outcome.warn { background: var(--ag-tint-1); border-color: var(--ag-tint-2); }
+.ag-team-outcome.warn svg { color: var(--ag-coral-deep); }
+@media (max-width: 720px) {
+  .ag-team-controls { flex-basis: 100%; }
+  .ag-team-form .ag-team-field, .ag-team-submit { flex-basis: 100%; }
+  .ag-team-select { width: 100%; }
+  .ag-team-submit { justify-content: center; }
+}
+
+/* ── Which kind of reference (23 Sep 2026, Figma frame 24 band C) ─────────
+ * Two options that must both be read before one is picked, so radios with
+ * their reasons beside them rather than a select. The row is the target: a
+ * 13px radio is not one on a touch screen. */
+.ag-kind-pick {
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ag-kind-opt {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--ag-border);
+  border-radius: 8px;
+  background: var(--ag-bg-2);
+  font-size: var(--t-caption);
+  line-height: 1.5;
+  color: var(--ag-ink);
+  cursor: pointer;
+}
+.ag-kind-opt:has(input:checked) {
+  background: var(--ag-tint-1);
+  border-color: var(--ag-tint-2);
+}
+.ag-kind-opt input {
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ag-coral);
+  cursor: pointer;
+}
+
+/* ── The client brief (23 Sep 2026, Figma frame 25) ───────────────────────
+ * Two tiers, one pill; selects, steppers and chips over fixed sets; a review
+ * that both sides render. Tokens only, so the dark toggle needs nothing. */
+.ag-brief-tier { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: var(--r-pill); font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; white-space: nowrap; }
+.ag-brief-tier-1 { background: var(--ag-tint-2); color: var(--ag-coral-deep); }
+.ag-brief-tier-2 { background: var(--ag-bg-2); color: var(--ag-ink-3); border: 1px solid var(--ag-border); }
+
+.ag-brief-form { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.ag-brief-form:disabled { opacity: 0.6; }
+.ag-brief-section { padding: 18px 22px 20px; background: var(--ag-bg-2); border: 1px solid var(--ag-border); border-radius: 12px; display: flex; flex-direction: column; gap: 12px; }
+.ag-brief-section-head { display: flex; align-items: center; gap: 10px; }
+.ag-brief-section-title { margin: 0; flex: 1; font-size: var(--t-lead); font-weight: 600; color: var(--ag-ink); }
+.ag-brief-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: start; }
+.ag-brief-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ag-brief-hint { margin: 0; font-size: var(--t-micro); line-height: 1.5; color: var(--ag-ink-3); }
+
+.ag-brief-round { display: grid; grid-template-columns: 80px repeat(3, minmax(120px, 1fr)) minmax(200px, 1.4fr) auto; gap: 12px; align-items: start; padding: 12px 0; border-top: 1px solid var(--ag-border); }
+.ag-brief-round:first-of-type { border-top: 0; padding-top: 0; }
+.ag-brief-round-n { padding-top: 26px; font-weight: 600; color: var(--ag-ink); font-size: var(--t-small); }
+.ag-brief-round-remove { align-self: end; }
+@media (max-width: 900px) { .ag-brief-round { grid-template-columns: 1fr 1fr; } .ag-brief-round-n { padding-top: 0; grid-column: 1 / -1; } }
+
+/* Stepper: 44px targets, tabular figures so the value does not shuffle. */
+.ag-brief-stepper { display: grid; grid-template-columns: 44px 1fr 44px; align-items: stretch; min-height: 44px; border: 1px solid var(--ag-border); border-radius: 8px; background: var(--ag-paper); overflow: hidden; }
+.ag-brief-stepper button { border: 0; background: transparent; color: var(--ag-ink); font-size: 18px; font-weight: 600; cursor: pointer; }
+.ag-brief-stepper button:hover:not(:disabled) { background: var(--ag-bg-2); }
+.ag-brief-stepper button:disabled { color: var(--ag-ink-4); cursor: not-allowed; }
+.ag-brief-stepper output { display: flex; align-items: center; justify-content: center; font-size: var(--t-body); color: var(--ag-ink); font-variant-numeric: tabular-nums; }
+
+/* Chips: pressed state in fill AND border AND weight — never colour alone. */
+.ag-brief-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ag-brief-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; border-radius: var(--r-pill); border: 1px solid var(--ag-border); background: var(--ag-paper); color: var(--ag-ink-2); font-size: var(--t-small); font-weight: 500; cursor: pointer; transition: background 160ms ease, border-color 160ms ease; }
+.ag-brief-chip[aria-pressed="true"] { background: var(--ag-tint-1); border-color: var(--ag-coral); color: var(--ag-coral-deep); font-weight: 600; }
+.ag-brief-chip-tag { font-family: var(--ag-mono); font-size: 9px; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); }
+@media (pointer: coarse) { .ag-brief-chip { min-height: 44px; } }
+
+.ag-brief-title { font-size: var(--t-h1, 28px); font-weight: 600; margin: 6px 0 8px; }
+.ag-brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
+.ag-brief-start { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 12px; align-items: end; }
+.ag-brief-start .ag-label { grid-column: 1 / -1; }
+.ag-brief-start .ag-note { grid-column: 1 / -1; }
+@media (max-width: 640px) { .ag-brief-start { grid-template-columns: 1fr; } }
+
+/* Signatures, in words. */
+.ag-brief-sigs { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 12px 16px; margin: 0 0 14px; border: 1px solid var(--ag-border); border-radius: 10px; background: var(--ag-bg-2); font-size: var(--t-small); color: var(--ag-ink-2); }
+.ag-brief-sigs span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; border: 2px solid var(--ag-coral); vertical-align: -1px; }
+.ag-brief-sigs span[data-on]::before { background: var(--ag-ink); border-color: var(--ag-ink); }
+
+/* The one-page review. */
+.ag-brief-review { display: flex; flex-direction: column; gap: 4px; }
+.ag-brief-tier-head { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--ag-border); }
+.ag-brief-tier-head:first-child { margin-top: 0; }
+.ag-brief-tier-head h3 { margin: 0; flex: 1; font-size: var(--t-lead); font-weight: 600; color: var(--ag-ink); }
+.ag-brief-line { display: grid; grid-template-columns: 220px minmax(0, 1fr) auto auto; gap: 8px 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--ag-border); }
+.ag-brief-line[data-changed] { background: var(--ag-tint-1); margin: 0 -10px; padding-left: 10px; padding-right: 10px; border-radius: 8px; }
+.ag-brief-line-k { font-size: var(--t-small); color: var(--ag-ink-3); }
+.ag-brief-line-v { font-size: var(--t-body); font-weight: 500; color: var(--ag-ink); line-height: 1.5; }
+.ag-brief-line-prev { display: block; font-size: var(--t-small); font-weight: 400; color: var(--ag-ink-3); text-decoration: line-through; }
+.ag-brief-changed { font-family: var(--ag-mono); font-size: 9px; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); background: var(--ag-tint-2); padding: 4px 8px; border-radius: var(--r-pill); }
+.ag-brief-change { min-height: 40px; }
+@media (max-width: 720px) { .ag-brief-line { grid-template-columns: 1fr auto; } .ag-brief-line-k { grid-column: 1 / -1; } }
+
+/* ── The job description on the brief (28 Sep 2026, board 28) ─────────────
+ * The first section of the form, the first line of the review, and a chip
+ * above the role's intake box. Tokens only; the mono bits reuse ag-meta and
+ * ag-field-label rather than declaring the face again. */
+.ag-brief-jd-input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.ag-brief-jd-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; padding: 22px 16px; border: 1px dashed var(--ag-line-2); border-radius: 10px; background: var(--ag-paper); color: var(--ag-ink); font-family: var(--ag-sans); text-align: center; cursor: pointer; transition: border-color 160ms ease, background 160ms ease; }
+.ag-brief-jd-drop:hover:not([aria-disabled="true"]), .ag-brief-jd-drop[data-over] { border-color: var(--ag-coral); background: var(--ag-tint-1); }
+.ag-brief-jd-drop:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; }
+.ag-brief-jd-drop[aria-disabled="true"], .ag-brief-jd-quiet[aria-disabled="true"], .ag-brief-jd-link[aria-disabled="true"] { cursor: progress; }
+.ag-brief-jd-drop .ag-btn { margin-top: 6px; pointer-events: none; }
+.ag-brief-jd-drop-title { font-size: var(--t-body); font-weight: 600; color: var(--ag-ink); }
+.ag-brief-jd-drop-sub { font-size: var(--t-small); color: var(--ag-ink-3); }
+.ag-brief-jd-file { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--ag-border); border-radius: 10px; background: var(--ag-paper); }
+.ag-brief-jd-ext { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--ag-ink); color: var(--ag-paper); font-size: 8px; letter-spacing: normal; }
+.ag-brief-jd-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ag-brief-jd-name { font-size: var(--t-body); font-weight: 600; color: var(--ag-ink); overflow-wrap: anywhere; }
+.ag-brief-jd-name:focus { outline: none; }
+.ag-brief-jd-name:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; border-radius: 2px; }
+.ag-brief-jd-meta { text-transform: uppercase; }
+.ag-brief-jd-actions { flex: none; display: flex; align-items: center; gap: 14px; }
+.ag-brief-jd-link, .ag-brief-jd-quiet { display: inline-flex; align-items: center; border: 0; background: none; padding: 4px 0; font-family: var(--ag-sans); font-size: var(--t-small); font-weight: 500; cursor: pointer; text-decoration: none; }
+.ag-brief-jd-link { color: var(--ag-coral-text); }
+.ag-brief-jd-quiet { color: var(--ag-ink-2); }
+.ag-brief-jd-link:hover, .ag-brief-jd-quiet:hover { text-decoration: underline; }
+.ag-brief-jd-link:focus-visible, .ag-brief-jd-quiet:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; border-radius: 2px; }
+.ag-brief-jd-was { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.ag-brief-jd-from-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 10px; }
+.ag-brief-jd-from { display: inline-flex; align-items: center; margin: 0; padding: 4px 10px; border-radius: var(--r-pill); background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .ag-brief-jd-file { flex-wrap: wrap; }
+  .ag-brief-jd-actions { width: 100%; padding-left: 40px; }
+}
+/* 44px targets on touch AND at phone width (a touch device can report a
+ * fine pointer). inline-flex above is what lets min-height reach the <a>. */
+@media (pointer: coarse), (max-width: 640px) { .ag-brief-jd-link, .ag-brief-jd-quiet { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .ag-brief-jd-drop { transition: none; } }
+
+/* The list. */
+.ag-brief-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ag-brief-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border: 1px solid var(--ag-border); border-radius: 12px; background: var(--ag-paper); }
+.ag-brief-row[data-waiting] { border-color: var(--ag-tint-2); background: var(--ag-tint-1); }
+.ag-brief-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; color: inherit; text-decoration: none; }
+.ag-brief-row-title { font-size: var(--t-lead); font-weight: 600; color: var(--ag-ink); }
+
+/* ON BRIEF V2 · 1 DIFFERENCE — the same chip both sides. */
+.ag-brief-chips-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 4px; }
+.ag-brief-chip-on { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 10px; border-radius: var(--r-pill); border: 1px solid var(--ag-border); background: var(--ag-bg-2); font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-ink-2); text-decoration: none; }
+.ag-brief-chip-warn { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 10px; border-radius: var(--r-pill); background: var(--ag-tint-2); font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ag-coral-deep); cursor: pointer; }
+.ag-brief-diff { position: relative; }
+.ag-brief-diff summary { list-style: none; }
+.ag-brief-diff summary::-webkit-details-marker { display: none; }
+.ag-brief-diff ul { margin: 8px 0 4px; padding: 10px 14px 10px 28px; border: 1px solid var(--ag-tint-2); border-radius: 10px; background: var(--ag-tint-1); font-size: var(--t-small); line-height: 1.55; color: var(--ag-ink-2); }
+.ag-brief-diff .ag-meta { margin: 0 0 6px; }
+
+@media (prefers-reduced-motion: reduce) { .ag-brief-chip { transition: none; } }
+
+/* ============================================================
+   STEP 05 · THE SHORTLIST RAIL AND THE ONE VERB — Figma board 26,
+   node 528:2, signed off 24 Sep 2026.
+   ------------------------------------------------------------
+   Cards and the recommendation on the left; the shortlist being built
+   on the right, sticky, the same component under both tabs. The
+   three-way segmented control is gone: one primary verb per person
+   ("Add to shortlist"), a quiet Hold · Pass row beneath it. Every mono
+   string in here is an existing label class (.ag-field-label / .ag-meta);
+   nothing new pins a face. Confirm on the rail opens step 07 and sends
+   nothing. Below 900px the rail becomes a fixed bottom bar and a sheet.
+   ============================================================ */
+
+/* Layout */
+.ag-cmp-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.ag-cmp-main { min-width: 0; }
+.ag-cmp-rail { position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); overflow-y: auto; }
+
+/* Controls row: the tabs on the left, "Add in one go" (or Run it again) on the right. */
+.ag-cmp-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; padding: 2px 0 14px; }
+.ag-cmp-controls .ag-cmp-tabs { padding: 0; }
+.ag-cmp-bulk { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ag-cmp-bulk-label { margin-bottom: 0; color: var(--ag-ink-3); }
+.ag-bulk-chip {
+  border: 1px solid var(--ag-line-2); background: var(--ag-paper); color: var(--ag-ink-2);
+  border-radius: var(--r-pill); padding: 5px 12px; font-family: var(--ag-sans); font-size: var(--t-small);
+  font-weight: 500; cursor: pointer; white-space: nowrap;
+  transition: border-color 0.12s ease, color 0.12s ease, transform 0.08s ease;
+}
+.ag-bulk-chip:hover { border-color: var(--ag-coral); color: var(--ag-ink); }
+.ag-bulk-chip:active { transform: translateY(0.5px); }
+.ag-bulk-chip:disabled { opacity: 0.5; cursor: default; }
+/* Board D writes the chips short at 375 ("+ Every must-have · 5",
+   "+ Recommended · 4") so they sit on one line under the tabs. Both labels
+   are in the markup; the width picks one. */
+.ag-bulk-short { display: none; }
+.ag-reco-again { flex: none; }
+
+/* The undo notice a bulk add leaves behind for eight seconds. It rides in
+   the decisions bar (sticky at the bottom on desktop), so a group add three
+   screens down can still reach it. */
+.ag-undo {
+  display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 12px;
+  background: var(--ag-tint-1); border: 1px solid var(--ag-tint-2); border-radius: var(--r-sm);
+  font-size: var(--t-small); color: var(--ag-ink);
+}
+.ag-decisions-bar .ag-undo { margin-right: 6px; }
+.ag-undo-dot { color: var(--ag-ink-4); }
+.ag-undo-btn {
+  border: none; background: none; padding: 0; font-family: var(--ag-sans); font-size: var(--t-small);
+  font-weight: 600; color: var(--ag-coral-text); cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* The decision slot: one primary verb, three shapes. */
+.ag-decision { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.ag-decision-add { width: 100%; justify-content: center; min-height: 40px; touch-action: manipulation; }
+.ag-decision-in {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 40px;
+  padding: 7px 12px; border: 1px solid var(--ag-coral); background: var(--ag-tint-1); border-radius: var(--r-sm);
+}
+.ag-decision-in-label { font-size: var(--t-body); font-weight: 600; color: var(--ag-coral-text); }
+.ag-decision-quiet { display: flex; justify-content: center; align-items: center; gap: 18px; }
+.ag-decision-quiet-btn {
+  border: none; background: none; padding: 4px 6px; min-height: 28px; border-radius: var(--r-xs);
+  font-family: var(--ag-sans); font-size: var(--t-small); color: var(--ag-ink-3); cursor: pointer;
+  touch-action: manipulation; transition: color 0.12s ease;
+}
+.ag-decision-quiet-btn:hover { color: var(--ag-ink); }
+.ag-decision-quiet-btn:disabled { opacity: 0.5; cursor: default; }
+.ag-decision-quiet-btn[data-on="true"] { color: var(--ag-coral-text); font-weight: 500; }
+.ag-decision-in .ag-decision-quiet-btn { padding: 2px 4px; min-height: 0; color: var(--ag-coral-text); }
+
+/* The recommendation tab carrying decisions. */
+.ag-reco-reading { padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; }
+.ag-reco-reading .ag-reco-h { font-size: var(--t-title); }
+.ag-reco-reading .ag-reco-stamp { margin-bottom: 2px; }
+.ag-reco-reading-sub { margin-top: 2px; max-width: none; font-size: var(--t-body); line-height: 1.55; }
+.ag-reco-group-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; }
+.ag-reco-group-text { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ag-reco-group-add { flex: none; }
+.ag-reco-group-actions { display: inline-flex; align-items: center; gap: 14px; flex: none; }
+.ag-reco-text-btn {
+  border: none; background: none; padding: 4px 0; font-family: var(--ag-sans); font-size: var(--t-small);
+  font-weight: 500; color: var(--ag-ink-3); cursor: pointer; transition: color 0.12s ease;
+}
+.ag-reco-text-btn:hover { color: var(--ag-ink); }
+.ag-reco-show { color: var(--ag-coral-text); }
+.ag-reco-group[data-collapsed="true"] { gap: 0; }
+.ag-reco-person { flex-direction: row; align-items: flex-start; gap: 16px; }
+.ag-reco-person-main { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.ag-reco-decide { flex: 0 0 176px; }
+.ag-reco-decide .ag-decision-add { min-height: 36px; }
+.ag-reco-decide .ag-decision-in { min-height: 36px; padding: 5px 10px; }
+.ag-reco-foot { display: block; color: var(--ag-ink-3); line-height: 1.7; margin: 4px 0 0; }
+
+/* The rail. */
+.ag-sl-card { border-top: 3px solid var(--ag-coral); }
+.ag-sl-head { padding: 16px 18px 14px; border-bottom: 1px solid var(--ag-border); }
+.ag-sl-eyebrow { margin-bottom: 6px; }
+.ag-sl-title { font-family: var(--ag-display); font-size: var(--t-title); font-weight: 600; letter-spacing: var(--track-tight); line-height: 1.2; color: var(--ag-ink); margin: 0; text-wrap: balance; }
+.ag-sl-sub { margin: 6px 0 0; font-size: var(--t-small); line-height: 1.5; color: var(--ag-ink-3); }
+/* Board 29: the client sees names as they are added — said where the adding happens. */
+.ag-sl-visible { margin: 6px 0 0; font-size: var(--t-caption); line-height: 1.4; color: var(--ag-coral-text); font-weight: 500; }
+.ag-sl-list { list-style: none; margin: 0; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid var(--ag-border); }
+.ag-sl-row { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-radius: var(--r-sm); }
+.ag-sl-row:hover { background: var(--ag-cream); }
+.ag-sl-avatar { width: 26px; height: 26px; font-size: var(--t-micro); }
+.ag-sl-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ag-sl-name { font-size: var(--t-body); font-weight: 600; color: var(--ag-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-sl-fit { font-size: var(--t-micro); }
+.ag-sl-x { font-size: var(--t-body); min-width: 28px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; }
+.ag-sl-sheet-body .ag-sl-x { min-width: 44px; min-height: 44px; }
+.ag-sl-slot { margin: 6px 6px 4px; padding: 10px; border: 1px dashed var(--ag-line-2); border-radius: var(--r-sm); text-align: center; font-size: var(--t-small); color: var(--ag-ink-3); }
+.ag-sl-quiet { padding: 12px 18px; border-bottom: 1px solid var(--ag-border); display: flex; flex-direction: column; gap: 10px; }
+.ag-sl-quiet-label { color: var(--ag-ink-3); margin-bottom: 2px; }
+.ag-sl-quiet-note { display: block; font-size: var(--t-small); color: var(--ag-ink-3); }
+.ag-sl-foot { padding: 14px 18px 16px; }
+.ag-sl-confirm { width: 100%; justify-content: center; min-height: 42px; }
+.ag-sl-caption { margin: 8px 0 0; font-size: var(--t-caption); line-height: 1.5; color: var(--ag-ink-3); }
+
+/* The bar and the sheet exist only on a phone. */
+.ag-sl-bar, .ag-sl-scrim, .ag-sl-sheet { display: none; }
+
+@media (max-width: 900px) {
+  .ag-cmp-layout { grid-template-columns: 1fr; }
+  .ag-cmp-rail { display: none; }
+  /* The fixed bar owns the bottom edge; the tally sits in flow above it. */
+  .ag-decisions-bar { position: static; box-shadow: none; flex-wrap: wrap; }
+  /* The undo must stay reachable while the tally is scrolled away: it sits
+     just above the fixed shortlist bar, under the sheet's scrim. */
+  .ag-decisions-bar .ag-undo {
+    position: fixed; left: 16px; right: 16px; z-index: 30; margin: 0;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    box-shadow: 0 8px 24px -14px rgba(0, 0, 0, 0.35);
+  }
+  .ag-decision-add { min-height: 44px; }
+  .ag-decision-in { min-height: 44px; }
+  .ag-reco-person { flex-direction: column; }
+  .ag-reco-decide { flex: none; width: 100%; }
+
+  .ag-sl-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: var(--ag-paper); border-top: 1px solid var(--ag-border);
+    box-shadow: 0 -8px 24px -14px rgba(0, 0, 0, 0.35);
+  }
+  .ag-sl-bar-open { flex: 1; min-width: 0; border: none; background: none; text-align: left; padding: 0; font-family: var(--ag-sans); cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-height: 44px; justify-content: center; touch-action: manipulation; }
+  .ag-sl-bar-open:disabled { cursor: default; }
+  .ag-sl-bar-label { margin-bottom: 0; }
+  .ag-sl-bar-names { font-size: var(--t-small); color: var(--ag-ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ag-sl-bar-chev { color: var(--ag-ink-4); flex: none; transition: transform 0.15s ease; }
+  .ag-sl-bar[data-open="true"] .ag-sl-bar-chev { transform: rotate(180deg); }
+  .ag-sl-bar-confirm { flex: none; min-height: 40px; padding: 8px 14px; touch-action: manipulation; }
+
+  .ag-sl-scrim { display: block; position: fixed; inset: 0; z-index: 31; background: rgba(0, 0, 0, 0.35); }
+  .ag-sl-sheet {
+    display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 32;
+    background: var(--ag-paper); border-radius: 16px 16px 0 0;
+    box-shadow: 0 -16px 40px -20px rgba(0, 0, 0, 0.4);
+    max-height: 86vh; overflow-y: auto; overscroll-behavior: contain; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .ag-sl-sheet:focus { outline: none; }
+  .ag-sl-grab { display: flex; justify-content: center; width: 100%; padding: 10px 0 4px; border: none; background: none; cursor: pointer; touch-action: manipulation; }
+  .ag-sl-grab span { display: block; width: 40px; height: 4px; border-radius: var(--r-pill); background: var(--ag-line-2); }
+}
+
+@media (max-width: 600px) {
+  .ag-cmp-grid { grid-template-columns: 1fr; }
+  .ag-bulk-long { display: none; }
+  .ag-bulk-short { display: inline; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-sl-bar-chev, .ag-bulk-chip, .ag-decision-quiet-btn, .ag-reco-text-btn { transition: none; }
+}
+
+/* Step 05 follow-ups after review: the "add in one go" group has nothing to
+   say when both chips are hidden; the undo live region is mounted before it
+   speaks (screen readers announce a change, not an arrival), so empty it is
+   clipped rather than removed; the bar's chevron now sits inside the opener. */
+.ag-cmp-bulk:not(:has(.ag-bulk-chip)) { display: none; }
+.ag-undo[data-empty="true"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); padding: 0; margin: 0; border: 0; }
+.ag-sl-bar-open { display: flex; align-items: center; gap: 10px; }
+.ag-sl-bar-open .ag-sl-bar-chev { margin-left: auto; }

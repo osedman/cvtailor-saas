@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
+import Link from "next/link"
 import { toast } from "sonner"
 import { ChevronDown } from "lucide-react"
 import { Header } from "@/components/cv-tailor/header"
@@ -19,6 +20,7 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { ProgressSteps } from "@/components/cv-tailor/progress-steps"
 import { HistoryDrawer, type HistoryItem } from "@/components/cv-tailor/history-drawer"
 import type { TailorResult, CoverLetterResult, PitchesResult, InterviewPrepResult, CareerRoadmapItem, CareerItemStatus } from "@/lib/anthropic"
+import type { RoleMatch } from "@/lib/matching/role-match"
 import { markOnboardingStep, isOnboardingDismissed } from "@/lib/onboarding"
 import { Lightbulb, X, ListChecks, FileText, Mail } from "lucide-react"
 
@@ -74,7 +76,7 @@ function RoleModeLoader({
       try {
         const res = await fetch(`/api/found/${rec}/tailor-brief`)
         const data = await readJson<{
-          brief: { recommendationId: string; jd: string; roleTitle: string; company: string; agencyName: string; roleRef: string }
+          brief: { recommendationId: string; jd: string; roleTitle: string; company: string; agencyName: string; roleRef: string; score?: number }
         }>(res)
         const b = data.brief
         onBrief(
@@ -84,6 +86,7 @@ function RoleModeLoader({
             company: b.company,
             agencyName: b.agencyName,
             roleRef: b.roleRef,
+            beforeScore: typeof b.score === "number" ? b.score : null,
           },
           b.jd
         )
@@ -148,6 +151,11 @@ export default function CVTailorPage() {
   /** Role mode: set when entered via /tailor?rec=… — locks the JD panel and
    *  rides the recommendation id into the tailor request. */
   const [roleMode, setRoleMode] = useState<RoleModeInfo | null>(null)
+  /** Role mode's after-tailoring number, on /found's scale (lib/matching/role-match.ts). */
+  const [roleMatch, setRoleMatch] = useState<RoleMatch | null>(null)
+  /** The person hand-edited the tailored CV after it was scored: the after
+   *  number no longer describes the document, and the fallback says so. */
+  const [roleMatchStale, setRoleMatchStale] = useState(false)
   const router = useRouter()
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
   const [resultsTab, setResultsTab] = useState<ResultTabName>("Tailored CV")
@@ -196,6 +204,8 @@ export default function CVTailorPage() {
     setCompanyAnalysis(null)
     setHistoryId(null)
     setScoreDelta(null)
+    setRoleMatch(null)
+    setRoleMatchStale(false)
     setProgressStep(0)
     setLoadingStatus("Analysing job requirements…")
 
@@ -215,7 +225,7 @@ export default function CVTailorPage() {
       const ac = new AbortController()
       const timer = setTimeout(() => ac.abort(), 290_000)
 
-      let data: { result?: TailorResult; historyId?: string | null; compressed?: boolean; cached?: boolean; scoreDelta?: { from: number; to: number; skills: string[] } | null; error?: string }
+      let data: { result?: TailorResult; historyId?: string | null; compressed?: boolean; cached?: boolean; scoreDelta?: { from: number; to: number; skills: string[] } | null; roleMatch?: RoleMatch | null; linked?: boolean; error?: string }
       try {
         const res = await fetch("/api/tailor", {
           method: "POST",
@@ -243,8 +253,11 @@ export default function CVTailorPage() {
       setResults(data.result)
       setHistoryId(data.historyId ?? null)
       setScoreDelta(data.scoreDelta ?? null)
+      setRoleMatch(data.roleMatch ?? data.result.roleMatch ?? null)
       setTailoredFromCv(cvText)
-      setResultsTab(defaultResultsTab(data.result.matchScore))
+      // Role mode: the tab opens on the role-scale after number when there is
+      // one, not on the free pipeline's figure the strip has just replaced.
+      setResultsTab(defaultResultsTab(data.roleMatch?.after ?? data.result.matchScore))
       setFocusResults(true)
       setInputsCollapsed(true)
       markOnboardingStep("tailor")
@@ -254,11 +267,15 @@ export default function CVTailorPage() {
       }
 
       if (roleMode) {
+        const backTo = `/found?rec=${roleMode.recommendationId}`
         toast.success(
-          (data as { linked?: boolean }).linked
-            ? `Tailored against ${roleMode.roleRef}. When you're ready, apply from your recommendations — it will send this version.`
+          data.linked
+            ? `Tailored against ${roleMode.roleRef}. When you're ready, apply from the role — it will send this version.`
             : "Tailored — but linking it to your recommendation failed. Run tailor once more (it's a free re-run) to retry.",
-          { duration: 8000 }
+          {
+            duration: 8000,
+            action: data.linked ? { label: "Back to the role", onClick: () => router.push(backTo) } : undefined,
+          }
         )
       }
 
@@ -277,7 +294,7 @@ export default function CVTailorPage() {
       setLoadingStatus("Tailoring…")
       setProgressStep(0)
     }
-  }, [canTailor, user, cvText, jobDescription, scrapedJobUrl, roleMode])
+  }, [canTailor, user, cvText, jobDescription, scrapedJobUrl, roleMode, router])
 
   const handleGenerateCoverLetter = useCallback(async () => {
     setLoadingCoverLetter(true)
@@ -344,7 +361,15 @@ export default function CVTailorPage() {
       tailoredCVOriginal: prev.tailoredCVOriginal ?? prev.tailoredCV,
       tailoredCV: text,
     } : prev)
-  }, [patchRun])
+    // The server just dropped result.roleMatch (lib/tailor-history-edit.ts):
+    // the after number described the bytes that were replaced. Mirror that
+    // here so the strip cannot keep promising a score for text that no
+    // longer exists, and tell the person how to get it back.
+    if (roleMode) {
+      setRoleMatch(null)
+      setRoleMatchStale(true)
+    }
+  }, [patchRun, roleMode])
 
   const handleSaveCoverLetter = useCallback(async (text: string) => {
     await patchRun({ coverLetter: text, edited: true })
@@ -493,15 +518,22 @@ export default function CVTailorPage() {
               </button>
             )}
             {roleMode && (
-              <RoleModeBanner
-                role={roleMode}
-                onExit={() => {
-                  // Exit keeps the JD text as a starting point but unlocks it
-                  // and drops the link — the next run is ordinary tailoring.
-                  setRoleMode(null)
-                  router.replace("/tailor")
-                }}
-              />
+              /* The banner speaks in --ns-* tokens, which only exist under
+                 .ns; /tailor sits outside it. The wrapper declares them
+                 (transparent, so the page background shows through). */
+              <div className="ns" style={{ background: "transparent" }}>
+                <RoleModeBanner
+                  role={roleMode}
+                  onExit={() => {
+                    // Exit keeps the JD text as a starting point but unlocks it
+                    // and drops the link — the next run is ordinary tailoring.
+                    setRoleMode(null)
+                    setRoleMatch(null)
+                    setRoleMatchStale(false)
+                    router.replace("/tailor")
+                  }}
+                />
+              </div>
             )}
             <ResizablePanels
               enhanced={enhanced}
@@ -516,12 +548,26 @@ export default function CVTailorPage() {
           </div>
         )}
 
-        {/* Match score (shown once results are ready) */}
-        {results && (
+        {/* Match score (shown once results are ready). In role mode the
+            number is the ROLE's — the tailored CV scored exactly as /found
+            scored the person, so before and after are one scale — and the
+            primary act is going back to the role to apply. The free
+            pipeline's own bar (a different scale) is not shown beside it. */}
+        {results && roleMode && roleMatch && (
+          <div className="pt-2 pb-4">
+            <RoleResultStrip role={roleMode} match={roleMatch} onNavigate={openResultsTab} />
+          </div>
+        )}
+        {results && !(roleMode && roleMatch) && (
           enhanced
             ? <div className="pt-2 pb-4">
                 {scoreDelta && <ScoreDeltaBanner delta={scoreDelta} />}
                 <MatchScoreBar score={results.matchScore} onNavigate={openResultsTab} />
+                {roleMode && (
+                  <div className="ns mt-3" style={{ background: "transparent" }}>
+                    <RoleBackLink role={roleMode} stale={roleMatchStale} />
+                  </div>
+                )}
               </div>
             : <div className="py-4 flex justify-center"><MatchScoreBadge score={results.matchScore} /></div>
         )}
@@ -600,6 +646,93 @@ export default function CVTailorPage() {
         onClose={() => setHistoryOpen(false)}
         onRestore={handleRestoreHistory}
       />
+    </div>
+  )
+}
+
+/**
+ * Role mode, after a run: the before → after line and the way back.
+ *
+ * Both numbers come from the same engine over the same requirement list
+ * (lib/matching/role-match.ts), which is the whole point — the person left
+ * /found with one number and must come back with a comparable one. The CTA
+ * deep-links to the recommendation so /found opens on this card.
+ *
+ * Rendered inside an .ns wrapper so the design system's tokens and type
+ * classes resolve on /tailor; no monospace anywhere here.
+ */
+function RoleResultStrip({
+  role,
+  match,
+  onNavigate,
+}: {
+  role: RoleModeInfo
+  match: RoleMatch
+  onNavigate: (tab: ResultTabName) => void
+}) {
+  const before = Math.round(match.before)
+  const after = Math.round(match.after)
+  const delta = after - before
+  const deltaLabel = delta > 0 ? `+${delta}` : `${delta}`
+  return (
+    <div className="ns" style={{ background: "transparent" }}>
+      <div
+        className="flex flex-col gap-4 rounded-2xl border px-5 py-4 sm:flex-row sm:items-center"
+        style={{ background: "var(--ns-tint-1)", borderColor: "var(--ns-tint-2)" }}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="t-eyebrow">Tailored against {role.roleRef}</p>
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="t-display text-2xl" style={{ color: "var(--ns-ink-55)" }}>{before}%</span>
+            <span className="t-small">before tailoring</span>
+            <span aria-hidden="true" className="t-small">→</span>
+            <span className="t-display text-3xl" style={{ color: "var(--ns-coral-deep)" }}>{after}%</span>
+            <span className="t-small">after tailoring{delta !== 0 ? ` (${deltaLabel})` : ""}</span>
+          </div>
+          <p className="t-small mt-1.5 max-w-[60ch]">
+            Both numbers score the same requirement list the same way — this one reads the CV you
+            just tailored. Nothing has been shared; applying happens back on the role.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <Link className="ns-btn ns-btn-primary" href={`/found?rec=${role.recommendationId}`}>
+            Back to this role — apply when you&apos;re ready →
+          </Link>
+          <button type="button" className="ns-btn ns-btn-secondary" onClick={() => onNavigate("Tailored CV")}>
+            Open tailored CV
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Role mode without an after number — the assessment did not run, or the
+ * person hand-edited the CV after it was scored (`stale`): still a way back,
+ * and in the stale case the repair is named rather than left to be guessed.
+ */
+function RoleBackLink({ role, stale = false }: { role: RoleModeInfo; stale?: boolean }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="t-small max-w-[60ch]">
+        {stale ? (
+          <>
+            You edited this CV after it was scored against {role.roleRef} — run Tailor again (it&apos;s
+            a free re-run) to re-score the edited version. The score above is Tailr&apos;s own read of
+            the job text, not the role&apos;s match number.
+          </>
+        ) : (
+          <>
+            Tailored against {role.roleRef}. The score above is Tailr&apos;s own read of the job text, not
+            the role&apos;s {role.beforeScore != null ? `${Math.round(role.beforeScore)}% ` : ""}match number —
+            apply from the role to send this version.
+          </>
+        )}
+      </p>
+      <Link className="ns-btn ns-btn-primary" href={`/found?rec=${role.recommendationId}`}>
+        Back to this role →
+      </Link>
     </div>
   )
 }

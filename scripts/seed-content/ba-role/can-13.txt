@@ -1,0 +1,22 @@
+Elena Petrova
+Cambridge · o.oifoh+ba13@gmail.com · 07700 900913
+
+SUMMARY
+Analyst with six years in a research organisation, split between business analysis and data analysis, including building NLP tooling requirements for a text-mining platform.
+
+EXPERIENCE
+
+Business and Data Analyst — Cam Research Institute (2019–present)
+- Business Analyst on change projects for grant management and publication workflows; requirements documentation and process mapping.
+- Strong data analysis in SQL, Python and R; built the reporting layer for the institute.
+- Strong understanding of AI concepts including NLP and machine learning from writing the requirements for a text-mining and classification platform, and recent work with generative AI summarisation.
+- Agile in a small Kanban team; wrote user stories and helped with prioritisation.
+- Stakeholder engagement with researchers, IT and administrators.
+- Translate complex technical concepts into clear language for non-technical research staff.
+- Awareness of data privacy and research ethics in AI use.
+
+Data Analyst — Cam Research Institute (2017–2019)
+- Reporting and dataset curation.
+
+SKILLS
+Business analysis · Requirements · Process mapping · SQL · Python · R · NLP and ML concepts · Kanban · Data privacy · Research ethics

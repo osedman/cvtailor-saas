@@ -46,6 +46,24 @@ export interface JobRole {
   recruiter_notes: string
   status: RoleStatus
   closed_at: string | null
+  /**
+   * Discarded, which is NOT closed (22 Sep 2026). Closing is an outcome that
+   * starts retention and tells candidates; discarding is the way out of a
+   * typo, allowed only while nobody is on the role. Discarded roles leave
+   * every list — see discardJobRole() in db.ts.
+   */
+  discarded_at: string | null
+  discarded_by: string | null
+  discard_reason: string | null
+  /**
+   * The brief this role runs on (23 Sep 2026, frame 25): a COPY of the
+   * approved config, stamped with the version. Never read live — see
+   * lib/agency/search-briefs.ts. All four are set together or not at all.
+   */
+  brief_id: string | null
+  brief_version: number | null
+  brief_config: unknown | null
+  brief_connected_at: string | null
   created_at: string
   updated_at: string
 }
@@ -81,7 +99,17 @@ export interface Candidate {
   years: number | null
   location: string
   salary_text: string
-  source: "upload" | "paste" | "ats" | "referral" | "tailr_profile"
+  /**
+   * Mirrors candidates_source_check in 20260815090000_quiet_matching.sql.
+   *
+   * "matched" is the one the apply path actually writes — a person who
+   * found the role through consumer matching and applied themselves
+   * (20260816120000_apply_matched.sql). It was missing from this union
+   * while five rows on staging already carried it, so the declared type
+   * disagreed with both Postgres and reality; nothing switched on it
+   * exhaustively, which is the only reason it never bit.
+   */
+  source: "upload" | "paste" | "ats" | "referral" | "tailr_profile" | "matched"
   source_detail: string
   ingested_at: string
   retention_expires_at: string | null
@@ -154,6 +182,12 @@ export interface AuditEntry {
     // Cross-wall notifications (lib/agency/notify.ts). Widened by
     // 20260822110000_notification_audit.sql.
     | "notification"
+    // Interview rules for a role (20260910090000): duration, buffer, notice,
+    // daily cap. About the process, never about a person.
+    | "interview"
+    // The step 05 shortlist recommendation (20260919120000). action is always
+    // 'generated'; the payload is counts, never a name, a reason or a group.
+    | "recommendation"
   entityRef: string
   action: string
   fromValue?: unknown
@@ -211,6 +245,13 @@ export interface ClientAccessRow {
   /** The invite the state refers to — null when linked or never invited. */
   inviteId: string | null
   expiresAt: string | null
+  /**
+   * The linked person is ALSO an active member of this agency (23 Sep 2026).
+   * Removing their client access leaves their recruiter login untouched, and
+   * the screen has to say so — otherwise "they're still in" reads as a
+   * removal that failed.
+   */
+  alsoMember: boolean
 }
 
 /** A brief as its own author sees it. List shape: the body fields
@@ -257,6 +298,8 @@ export interface HiringRound {
   contact_id: string
   role_id: string
   role_title: string
+  /** The role's own plan. Never a literal — see client-auth.ts. */
+  planned_rounds: number
   candidate_ref: string
   round_number: number
   scheduled_at: string | null

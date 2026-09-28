@@ -1,15 +1,17 @@
 /**
  * References for one candidate — the recruiter's side.
  *
- * GET   → who has been asked and where each stands
- * POST  { refereeName, refereeEmail, relationship? } → record a referee
+ * GET   → who has been asked, of which kind, and where each stands
+ * POST  { refereeName, refereeEmail, relationship?, kind? } → record a referee.
+ *         kind is 'character' (default) or 'hr', and decides which form their
+ *         link opens and what the request email says they are being asked for.
  * PATCH { referenceId } → send (or chase) the request, WITH the fair-processing
  *         notice in the same email, because a referee never asked to be here.
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
-import { addReferee, listReferences, requestReference } from "@/lib/agency/references"
+import { addReferee, listReferences, requestReference, markReferenceNoticeSent, removeReferee } from "@/lib/agency/references"
 import { sendEmail } from "@/lib/email"
 import { getAppOrigin } from "@/lib/site-url"
 
@@ -30,12 +32,17 @@ function refereeEmailHtml(o: {
   agencyName: string
   url: string
   isChase: boolean
+  /** Character or HR — the email says which, because the two ask for
+   *  different things and an HR team should know before they click that
+   *  they are not being asked for an opinion (23 Sep 2026). */
+  kind: "character" | "hr"
 }): string {
+  const isHr = o.kind === "hr"
   return `
 <div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fffdfa;color:#1e1813;padding:32px 28px;">
   <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#dc4f33;font-weight:700;">${o.isChase ? "A gentle reminder" : "A reference request"}</p>
   <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;">${esc(o.candidateName)} gave your name${o.refereeName ? `, ${esc(o.refereeName)}` : ""}</h1>
-  <p style="margin:0 0 16px;line-height:1.6;">${esc(o.agencyName)} is supporting ${esc(o.candidateName)} with a job application, and they named you as someone who has worked with them. If you have a few minutes, your answers go to the recruiter exactly as you write them.</p>
+  <p style="margin:0 0 16px;line-height:1.6;">${esc(o.agencyName)} is supporting ${esc(o.candidateName)} with a job application, and they named you as someone who has worked with them. ${isHr ? "This is an <b>HR reference</b>: we are asking you to confirm their dates and job title. We are not asking for an opinion, and you do not have to give one." : "This is a <b>character reference</b>: when you worked together, and two questions about what they were like to work with. Your answers go to the recruiter exactly as you write them."}</p>
   <p style="margin:0 0 20px;"><a href="${o.url}" style="display:inline-block;background:#1e1813;color:#fffdfa;border-radius:8px;padding:12px 20px;font-weight:600;text-decoration:none;">Give a reference</a></p>
   <p style="margin:0 0 16px;line-height:1.6;">You are under no obligation. There is a "prefer not to" option on that page, and choosing it tells us to stop asking.</p>
   <p style="margin:0 0 16px;line-height:1.6;font-size:13px;color:#4e463d;"><strong>What we hold about you.</strong> Your name, your email address and your relationship to ${esc(o.candidateName)} — given to us by them — plus whatever you choose to write. ${esc(o.agencyName)} is responsible for it and Tailr processes it on their behalf. It is kept with this application and deleted on the same schedule. You can ask to see it, correct it or have it deleted by replying to this email.</p>
@@ -70,6 +77,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ can
       refereeName: String(body.refereeName ?? ""),
       refereeEmail: String(body.refereeEmail ?? ""),
       relationship: typeof body.relationship === "string" ? body.relationship : undefined,
+      // Character or HR. Unrecognised reads as character, in asReferenceKind.
+      kind: typeof body.kind === "string" ? body.kind : "character",
     })
     return NextResponse.json(result, { status: 201 })
   } catch (e) {
@@ -93,20 +102,55 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
     const url = `${getAppOrigin()}/reference/${request.rawToken}`
     const sent = await sendEmail({
       to: request.refereeEmail,
-      subject: `${request.candidateName} gave your name as a reference`,
+      subject:
+        request.kind === "hr"
+          ? `Confirming ${request.candidateName}'s employment`
+          : `${request.candidateName} gave your name as a reference`,
       html: refereeEmailHtml({
         refereeName: request.refereeName,
         candidateName: request.candidateName,
         agencyName: request.agencyName,
         url,
         isChase: request.isChase,
+        kind: request.kind,
       }),
     })
+    // The notice is the email: stamped only when it actually went.
+    if (sent.sent) await markReferenceNoticeSent(auth.ctx, referenceId)
     // Never log the referee's address; return the link once so a failed send
     // does not strand the request.
     return NextResponse.json({ ok: true, emailed: sent.sent, url })
   } catch (e) {
     if (e instanceof AgencyAccessError) return NextResponse.json({ error: e.message }, { status: 403 })
     return NextResponse.json({ error: e instanceof Error ? e.message : "Could not send that request" }, { status: 500 })
+  }
+}
+
+/**
+ * DELETE { referenceId } → take a referee off this candidate.
+ *
+ * Deleted outright if nothing has been sent; withdrawn (status `declined`)
+ * if the request has already gone, because an email cannot be unsent. The
+ * response says which happened, so the screen can tell the truth about it
+ * rather than claim a deletion that did not occur. See removeReferee().
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const auth = await requireAgencyContext()
+    if (!auth.ok) {
+      return NextResponse.json(
+        { error: auth.failure === "unauthenticated" ? "Unauthorised" : "No agency membership" },
+        { status: auth.failure === "unauthenticated" ? 401 : 403 }
+      )
+    }
+    const body = await req.json().catch(() => ({}))
+    const referenceId = typeof body?.referenceId === "string" ? body.referenceId : ""
+    if (!referenceId) return NextResponse.json({ error: "referenceId is required" }, { status: 400 })
+
+    const { outcome } = await removeReferee(auth.ctx, referenceId)
+    return NextResponse.json({ ok: true, outcome })
+  } catch (e) {
+    if (e instanceof AgencyAccessError) return NextResponse.json({ error: e.message }, { status: 403 })
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Could not remove that referee" }, { status: 500 })
   }
 }

@@ -29,6 +29,8 @@ vi.mock("@/lib/agency/db", async () => {
 })
 
 import { requestReference, recordReference } from "../agency/references"
+import { readFileSync } from "fs"
+import { join } from "path"
 import { generateHandoverPack, HANDOVER_FOOTER } from "../agency/handover"
 import { AgencyAccessError } from "../agency/db"
 import type { AgencyContext } from "../agency/types"
@@ -66,7 +68,7 @@ describe("requestReference", () => {
     notice_sent_at: null,
   }
 
-  it("stamps notice_sent_at with the first request — the notice is the email", async () => {
+  it("does NOT stamp notice_sent_at before the email is attempted — the notice is the email", async () => {
     let patch: Record<string, unknown> = {}
     admin.from.mockImplementation((t: string) => {
       if (t === "candidate_references")
@@ -76,7 +78,8 @@ describe("requestReference", () => {
       return table({ data: null, error: null })
     })
     await requestReference(CTX, "ref-1")
-    expect(patch.notice_sent_at).toBeTruthy()
+    // 21 Sep 2026: stamping here recorded "notice sent" for failed sends.
+    expect("notice_sent_at" in patch).toBe(false)
     expect(patch.status).toBe("requested")
   })
 
@@ -94,7 +97,7 @@ describe("requestReference", () => {
     })
     const res = await requestReference(CTX, "ref-1")
     expect(res.isChase).toBe(true)
-    expect(patch.notice_sent_at).toBe(already)
+    expect("notice_sent_at" in patch).toBe(false)
     expect(patch.status).toBe("chasing")
   })
 
@@ -281,5 +284,12 @@ describe("generateHandoverPack", () => {
       generateHandoverPack({ ...CTX, role: "viewer" }, { roleId: "r", candidateId: "c" })
     ).rejects.toBeInstanceOf(AgencyAccessError)
     expect(admin.from).not.toHaveBeenCalled()
+  })
+})
+
+describe("the referee notice is stamped only when the email went", () => {
+  it("the route marks it sent only on a successful send", () => {
+    const route = readFileSync(join(process.cwd(), "app/api/agency/candidates/[candidateId]/references/route.ts"), "utf8")
+    expect(route).toMatch(/if \(sent\.sent\) await markReferenceNoticeSent\(/)
   })
 })

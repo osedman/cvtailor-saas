@@ -90,3 +90,56 @@ export async function inviteMatchedPerson(ctx: AgencyContext, roleId: string, re
   })
   return { ...person, state: "invited", invitedAt: new Date().toISOString() }
 }
+
+/**
+ * Take an invitation back (22 Sep 2026).
+ *
+ * Inviting the wrong person put a "a recruiter asked about you" card on a
+ * stranger's /found page with no way to remove it. The state goes back to
+ * `seen`, which is where it came from, and the card goes with it.
+ *
+ * NOT a deletion of the recommendation: the person still matches the role
+ * and still chose to be discoverable, and dropping the row would only mean
+ * the next scan re-creates it. What is withdrawn is the ASKING.
+ *
+ * Refused once they have applied. By then they have handed over a CV on the
+ * strength of being asked, and a product that could quietly un-ask them
+ * would be rewriting why their file exists.
+ */
+export async function withdrawMatchedInvite(
+  ctx: AgencyContext,
+  roleId: string,
+  recommendationId: string
+): Promise<MatchedPerson> {
+  assertWriter(ctx)
+  const list = await listMatchedPeople(ctx, roleId)
+  const person = list.people.find((p) => p.recommendationId === recommendationId)
+  if (!person) throw new AgencyAccessError("that person is not on this role's list")
+  if (person.state === "applied") {
+    throw new AgencyAccessError("they have already applied — an invitation cannot be taken back after that")
+  }
+  // Nothing to withdraw, and saying so beats a silent success.
+  if (person.state !== "invited") return person
+
+  const pub = createAdminClient()
+  const { error } = await pub
+    .from("role_recommendations")
+    .update({ state: "seen", invited_at: null })
+    .eq("id", recommendationId)
+    // Guarded: if they applied between the read and the write, this matches
+    // nothing and their application stands.
+    .eq("state", "invited")
+  if (error) throw error
+
+  await writeAudit(agencyAdmin(), {
+    agencyId: ctx.agencyId,
+    roleId,
+    actorId: ctx.userId,
+    entityType: "matching",
+    entityRef: "recommendation",
+    action: "invite_withdrawn",
+    fromValue: { state: "invited" },
+    toValue: { recommendation_id: recommendationId, state: "seen" },
+  })
+  return { ...person, state: "seen", invitedAt: null }
+}

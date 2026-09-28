@@ -17,6 +17,12 @@
  * a rank: the default order is when somebody was added, and the filters
  * narrow what you are looking at rather than scoring anyone.
  *
+ * TWO LAYERS, SIDE BY SIDE (21 Sep 2026, Figma frame 21). "Your call" is
+ * the recruiter's own decision and stays exactly that; "What the client
+ * decided" is read from the interview loop beside it and never written into
+ * it. The filters narrow on the recruiter's call only — the client's column
+ * is information, never a way to make people disappear.
+ *
  * Right to work, sponsorship and represent answers are deliberately absent.
  * They belong on the person, not in a list somebody scans — a compliance
  * column in a table is one sort away from being a filter on people.
@@ -27,6 +33,8 @@ import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
 import { SignOut } from "@/components/agency/sign-out"
+import { StageCell } from "@/components/agency/round-trail"
+import type { Stage } from "@/lib/agency/stage"
 
 interface Row {
   id: string
@@ -40,6 +48,7 @@ interface Row {
   roleCompany: string
   roleClosed: boolean
   decision: "shortlist" | "hold" | "reject" | null
+  stage: Stage | null
   score: number | null
   source: string
   addedAt: string
@@ -109,6 +118,18 @@ export default function CandidatesPage() {
     }
   }, [rows])
 
+  // Across everyone shown by the current search and filter, so the strip
+  // always describes the table under it.
+  const summary = useMemo(
+    () => ({
+      shortlisted: shown.filter((r) => r.decision === "shortlist").length,
+      forward: shown.filter((r) => r.stage?.kind === "taken-forward").length,
+      notAdvanced: shown.filter((r) => r.stage?.kind === "not-advanced").length,
+      awaiting: shown.filter((r) => r.stage?.kind === "awaiting-client").length,
+    }),
+    [shown]
+  )
+
   return (
     <>
       <aside className="ag-sidebar">
@@ -163,6 +184,29 @@ export default function CandidatesPage() {
               </div>
             </div>
           ) : (
+            <>
+            <div className="ag-cand-summary" role="group" aria-label="Across the candidates shown">
+              <div>
+                <span className="ag-cand-summary-n">{summary.shortlisted}</span>
+                <span className="ag-cand-summary-l">shortlisted</span>
+                <span className="ag-cand-summary-s">your call</span>
+              </div>
+              <div>
+                <span className="ag-cand-summary-n fwd">{summary.forward}</span>
+                <span className="ag-cand-summary-l">taken forward</span>
+                <span className="ag-cand-summary-s">the client</span>
+              </div>
+              <div>
+                <span className="ag-cand-summary-n">{summary.notAdvanced}</span>
+                <span className="ag-cand-summary-l">not advanced</span>
+                <span className="ag-cand-summary-s">the client</span>
+              </div>
+              <div>
+                <span className="ag-cand-summary-n">{summary.awaiting}</span>
+                <span className="ag-cand-summary-l">awaiting a decision</span>
+                <span className="ag-cand-summary-s">the client</span>
+              </div>
+            </div>
             <div className="ag-card ag-cand-table">
               <div className="ag-cand-filters">
                 <input
@@ -173,7 +217,7 @@ export default function CandidatesPage() {
                   placeholder="Search name, ref or current title…"
                   aria-label="Search candidates"
                 />
-                <div className="ag-cand-chips" role="group" aria-label="Filter by decision">
+                <div className="ag-cand-chips" role="group" aria-label="Filter by your call">
                   {FILTERS.map((f) => (
                     <button
                       key={f.key}
@@ -196,7 +240,8 @@ export default function CandidatesPage() {
                       <th>Name</th>
                       <th>Current title</th>
                       <th>Role</th>
-                      <th>Decision</th>
+                      <th>Your call</th>
+                      <th>What the client decided</th>
                       <th className="num">Score</th>
                       <th>Added</th>
                     </tr>
@@ -219,16 +264,16 @@ export default function CandidatesPage() {
                         }}
                       >
                         <td className="ag-cand-ref">{r.ref}</td>
-                        <td className="ag-cand-name">
+                        <td className="ag-cand-name" data-label={r.ref}>
                           {r.fullName}
                           {r.redacted && <span className="ag-cand-erased">erased</span>}
                         </td>
-                        <td>{r.currentTitle || "—"}</td>
-                        <td className="ag-cand-role">
+                        <td data-label="Current title">{r.currentTitle || "—"}</td>
+                        <td className="ag-cand-role" data-label="Role">
                           {r.roleRef ? `${r.roleRef} · ${r.roleCompany || r.roleTitle}` : "—"}
                           {r.roleClosed && <span className="ag-cand-closed">closed</span>}
                         </td>
-                        <td>
+                        <td data-label="Your call">
                           {r.decision ? (
                             <span className={`ag-cand-pill ${r.decision}`}>
                               {DECISION_LABEL[r.decision]}
@@ -237,10 +282,13 @@ export default function CandidatesPage() {
                             <span className="ag-cand-none">—</span>
                           )}
                         </td>
-                        <td className="num">
+                        <td data-label="The client">
+                          <StageCell stage={r.stage} emptyLabel="—" />
+                        </td>
+                        <td className="num" data-label="Score">
                           {r.score === null ? <span className="ag-cand-none">Not scored</span> : r.score}
                         </td>
-                        <td className="ag-cand-date">
+                        <td className="ag-cand-date" data-label="Added">
                           {new Date(r.addedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                         </td>
                       </tr>
@@ -258,6 +306,7 @@ export default function CandidatesPage() {
                 )}
               </div>
             </div>
+            </>
           )}
 
           {rows !== null && rows.length > 0 && (

@@ -19,6 +19,8 @@ import { agencyAdmin } from "@/lib/agency/db"
 import { sendOneNotice } from "@/lib/agency/notices"
 import { runQueuedMatchScans } from "@/lib/matching/scan"
 import { runQueuedTranscriptions } from "@/lib/agency/transcription"
+import { runInterviewReminders } from "@/lib/agency/interview-reminders"
+import { releaseDueWaves } from "@/lib/agency/waves"
 import {
   RECORDING_BUCKET,
   listRecordingsDueForDeletion,
@@ -57,6 +59,9 @@ async function run(req: NextRequest) {
     notices_failed: 0,
     match_scans_run: 0,
     transcriptions_run: 0,
+    interview_nudges: 0,
+    interview_reminders: 0,
+    waves_released: 0,
   }
 
   // ---- 1. Retention purge -----------------------------------
@@ -147,7 +152,15 @@ async function run(req: NextRequest) {
   }
 
   for (const notice of due ?? []) {
-    const outcome = await sendOneNotice(admin, notice.id)
+    // One row that throws must not stop the rest of the day's notices, nor
+    // the scans, reminders and wave releases below (23 Sep E2E).
+    let outcome: Awaited<ReturnType<typeof sendOneNotice>>
+    try {
+      outcome = await sendOneNotice(admin, notice.id)
+    } catch {
+      summary.notices_failed++
+      continue
+    }
     if (outcome === "sent") summary.notices_sent++
     else if (outcome === "suppressed_list" || outcome === "suppressed_no_contact")
       summary.notices_suppressed++
@@ -175,10 +188,32 @@ async function run(req: NextRequest) {
   // and names the candidate's speaker, and that is the event that releases
   // the audio for deletion. The gap between these two steps is a person, on
   // purpose.
+  // Each sweep has its own try (21 Sep 2026): they shared one, so a single
+  // transcription error skipped the day's interview reminders AND wave
+  // releases — and this cron runs once a day.
   try {
     summary.transcriptions_run = await runQueuedTranscriptions()
   } catch (e) {
     console.error("[agency-cron] transcription sweep threw:", e instanceof Error ? e.message : e)
+  }
+
+  // Interview reminders: nudges to people who have not booked, and the
+  // reminder before an interview they did. Each is stamped on the round so
+  // running this often cannot mail the same person twice.
+  try {
+    const reminders = await runInterviewReminders()
+    summary.interview_nudges = reminders.nudged
+    summary.interview_reminders = reminders.reminded
+  } catch (e) {
+    console.error("[agency-cron] reminder sweep threw:", e instanceof Error ? e.message : e)
+  }
+
+  // Waves due out: a reserve whose wave has had its time, or where a
+  // window has freed up. releaseWave does nothing when nothing is due.
+  try {
+    summary.waves_released = await releaseDueWaves()
+  } catch (e) {
+    console.error("[agency-cron] wave sweep threw:", e instanceof Error ? e.message : e)
   }
 
   return NextResponse.json(summary)

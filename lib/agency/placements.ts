@@ -20,6 +20,15 @@
  *   recruiter's deliberate act because it starts the retention clock. A
  *   role can also place more than one person, so an automatic close would
  *   be wrong as often as it was right.
+ *
+ * - A HIRE THAT SKIPPED THE LOOP SAYS SO (14 Sep 2026). Until now this
+ *   module read no decisions at all, so a placement — the fee, the rebate
+ *   window, the start date — could be recorded against a candidate nobody
+ *   ever advanced, silently. That happens legitimately: the client hires
+ *   someone you introduced, off-process. It is not an error to record, it
+ *   is an error not to say so. Whether an advance decision exists is
+ *   DERIVED here at write time, never typed by the recruiter; the reason is
+ *   asked for only when the trail is actually missing.
  */
 
 import { agencyAdmin, writeAudit, assertWriter, AgencyAccessError } from "./db"
@@ -47,6 +56,8 @@ export interface PlacementInput {
   rebateWeeks?: number | null
   fellThroughReason?: string
   notes?: string
+  /** Required only when the candidate has no advance decision on this role. */
+  outsideProcessReason?: string
 }
 
 export interface PlacementView {
@@ -65,6 +76,11 @@ export interface PlacementView {
   feeValue: number | null
   currency: string
   rebateWeeks: number | null
+  /** This hire did not come through the interview loop. A fact about how it
+   *  happened, never a judgement about the person: it must not filter, rank
+   *  or sort anyone, exactly as 'declined' must not. */
+  outsideProcess: boolean
+  outsideProcessReason: string
   /** Derived, never stored: start_date + rebate_weeks. Null when either is. */
   rebateUntil: string | null
   /** Whether that window is still open as of now. */
@@ -73,6 +89,74 @@ export interface PlacementView {
 }
 
 const cap = (v: string | null | undefined, n: number) => (v ?? "").trim().slice(0, n)
+
+/**
+ * The client's latest word on this candidate: the latest decision on their
+ * most recent decided round, or null.
+ *
+ * 21 Sep 2026: this used to be "was there EVER an advance row", so CAN-12 —
+ * advanced at round 1, declined at round 2 — counted as having come through
+ * the process, and a placement for them would not have asked how the hire
+ * happened. round_decisions is append-only and the latest row wins, per
+ * round; across rounds, the most recent decided round is the client's
+ * current position. Cancelled rounds carry no decision that counts.
+ *
+ * Pure, and exported for the test.
+ */
+export function latestLoopDecision(
+  rounds: Array<{ id: string; round_number: number; status: string }>,
+  decisions: Array<{ round_id: string; decision: string; created_at: string }>
+): string | null {
+  const latestByRound = new Map<string, { decision: string; at: string }>()
+  for (const d of decisions) {
+    const seen = latestByRound.get(d.round_id)
+    if (!seen || d.created_at > seen.at) latestByRound.set(d.round_id, { decision: d.decision, at: d.created_at })
+  }
+  const decided = rounds
+    .filter((r) => r.status !== "cancelled" && latestByRound.has(r.id))
+    .sort((a, b) => b.round_number - a.round_number)
+  return decided.length ? latestByRound.get(decided[0].id)!.decision : null
+}
+
+/**
+ * Did the client take this candidate forward on this role?
+ *
+ * True only when their latest decision (see latestLoopDecision) is
+ * 'advance'. Hold and decline do not count, and a candidate with no rounds
+ * at all has no advance decision either.
+ *
+ * Exported so the screen can ask the same question BEFORE the recruiter
+ * starts filling the form, rather than being refused after it.
+ */
+export async function hasAdvanceDecision(
+  admin: ReturnType<typeof agencyAdmin>,
+  agencyId: string,
+  roleId: string,
+  candidateId: string
+): Promise<boolean> {
+  const { data: rounds, error: roundErr } = await admin
+    .from("interview_rounds")
+    .select("id, round_number, status")
+    .eq("agency_id", agencyId)
+    .eq("role_id", roleId)
+    .eq("candidate_id", candidateId)
+  if (roundErr) throw roundErr
+  const roundIds = (rounds ?? []).map((r) => r.id as string)
+  if (roundIds.length === 0) return false
+
+  const { data: decisions, error: decisionErr } = await admin
+    .from("round_decisions")
+    .select("round_id, decision, created_at")
+    .eq("agency_id", agencyId)
+    .in("round_id", roundIds)
+  if (decisionErr) throw decisionErr
+  return (
+    latestLoopDecision(
+      (rounds ?? []).map((r) => ({ id: r.id as string, round_number: r.round_number as number, status: r.status as string })),
+      (decisions ?? []).map((d) => ({ round_id: d.round_id as string, decision: d.decision as string, created_at: d.created_at as string }))
+    ) === "advance"
+  )
+}
 
 /** start_date + rebate_weeks, computed rather than stored so a corrected
  *  start date cannot leave a stale window behind. */
@@ -108,6 +192,8 @@ function shape(row: Record<string, unknown>, candidate: { ref?: string; name?: s
     feeValue: row.fee_value == null ? null : Number(row.fee_value),
     currency: (row.currency as string) ?? "GBP",
     rebateWeeks,
+    outsideProcess: Boolean(row.outside_process),
+    outsideProcessReason: (row.outside_process_reason as string | null) ?? "",
     rebateUntil: win.until,
     inRebateWindow: win.open && row.status === "started",
     notes: (row.notes as string) ?? "",
@@ -154,7 +240,30 @@ export async function setPlacement(
     .select("id, status, fee_value, start_date")
     .eq("role_id", candidate.role_id as string)
     .eq("candidate_id", candidateId)
+    // A voided placement is not a placement. The unique key still holds the
+    // row, so the upsert below lands ON it — and revives it: voided_at
+    // cleared, offered_at re-stamped, as a fresh record (23 Sep E2E found
+    // the save returning 200 while every read filtered the row out).
+    .is("voided_at", null)
     .maybeSingle()
+
+  /**
+   * Derived, never typed. The recruiter does not tick a box saying "this was
+   * off-process" — the route works out whether the client ever advanced this
+   * person and asks for a reason only when it did not.
+   */
+  const advanced = await hasAdvanceDecision(
+    admin,
+    ctx.agencyId,
+    candidate.role_id as string,
+    candidateId
+  )
+  const outsideReason = cap(input.outsideProcessReason, MAX_REASON)
+  if (!advanced && !outsideReason) {
+    throw new AgencyAccessError(
+      "this candidate has no advance decision on this role — say how the hire happened, and it travels with the record"
+    )
+  }
 
   const now = new Date().toISOString()
   const stamped: Record<string, unknown> = {
@@ -168,8 +277,15 @@ export async function setPlacement(
     currency: cap(input.currency, 8) || "GBP",
     rebate_weeks: input.rebateWeeks ?? null,
     fell_through_reason: input.status === "fell_through" ? cap(input.fellThroughReason, MAX_REASON) : "",
+    // placement_reason_iff_outside is enforced in both directions, so the
+    // reason must be NULL — not "" — whenever the flag is false.
+    outside_process: !advanced,
+    outside_process_reason: advanced ? null : outsideReason,
     notes: cap(input.notes, MAX_NOTES),
     updated_at: now,
+    voided_at: null,
+    voided_by: null,
+    void_reason: null,
   }
   // Each status stamps its own moment, and only on arrival — re-saving an
   // accepted placement must not move the day it was accepted.
@@ -196,7 +312,11 @@ export async function setPlacement(
     actorId: ctx.userId,
     entityType: "candidate",
     entityRef: (candidate.ref as string) ?? "",
-    action: existing ? "placement_updated" : "placement_recorded",
+    action: existing
+      ? "placement_updated"
+      : !advanced
+        ? "placement_recorded_outside_process"
+        : "placement_recorded",
     fromValue: existing ? { status: existing.status, fee_value: existing.fee_value } : null,
     // Money and dates are the point of this record, so they are IN the audit
     // trail deliberately — unlike a compliance note, a fee is the agency's
@@ -230,6 +350,9 @@ export async function getPlacementForCandidate(
     .select("*")
     .eq("role_id", candidate.role_id as string)
     .eq("candidate_id", candidateId)
+    // A voided placement is out of every read and every number (22 Sep
+    // 2026). The row survives for the audit; it is no longer a placement.
+    .is("voided_at", null)
     .maybeSingle()
   if (!data) return null
   return shape(data, { ref: candidate.ref as string, name: candidate.full_name as string })
@@ -252,6 +375,7 @@ export async function listPlacementsForRole(
     .from("placements")
     .select("*")
     .eq("role_id", roleId)
+    .is("voided_at", null)
     .order("offered_at", { ascending: false })
   if (!rows?.length) return []
 
@@ -264,4 +388,71 @@ export async function listPlacementsForRole(
   )
 
   return rows.map((r) => shape(r, byId.get(r.candidate_id as string) ?? {}))
+}
+
+/**
+ * Void a placement — the correction that `declined` and `fell_through` are
+ * not (22 Sep 2026).
+ *
+ * Those two are OUTCOMES, and outcomes are about a person: "they turned it
+ * down", "they left inside the rebate window". Recording a placement against
+ * the wrong candidate, or at the wrong fee, is neither — it is a mistake
+ * about the record, and using an outcome to fix it writes a false fact about
+ * somebody's career into an audited table.
+ *
+ * Soft, and with a reason in writing, because a placement is money: it
+ * carries the fee, the rebate window and the invoice date, and a hard delete
+ * would take the trail of what was claimed with it. A voided row leaves fill
+ * rate, fee value and rebate exposure; it does not leave the audit.
+ */
+export async function voidPlacement(
+  ctx: AgencyContext,
+  placementId: string,
+  reason: string
+): Promise<void> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  const trimmed = (reason ?? "").trim().slice(0, 500)
+  if (!trimmed) throw new AgencyAccessError("say why this placement is being voided")
+
+  const { data: row, error: readError } = await admin
+    .from("placements")
+    .select("id, agency_id, role_id, candidate_id, status, voided_at")
+    .eq("id", placementId)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!row || row.agency_id !== ctx.agencyId) {
+    throw new AgencyAccessError("that placement is not on this agency")
+  }
+  if (row.voided_at) return
+
+  // The audit row is keyed to the CANDIDATE, exactly as setPlacement's is:
+  // 'placement' is not a value of the audit_log entity_type constraint, and
+  // the pair of them have to stay in step (audit-entity-types.test.ts).
+  // Reading the ref here also keeps the trail human — 'CAN-04', not a uuid.
+  const { data: candidate } = await admin
+    .from("candidates")
+    .select("ref")
+    .eq("id", row.candidate_id as string)
+    .maybeSingle()
+
+  const { error } = await admin
+    .from("placements")
+    .update({ voided_at: new Date().toISOString(), voided_by: ctx.userId, void_reason: trimmed })
+    .eq("id", placementId)
+    .eq("agency_id", ctx.agencyId)
+    .is("voided_at", null)
+  if (error) throw error
+
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    roleId: row.role_id as string,
+    candidateId: row.candidate_id as string,
+    actorId: ctx.userId,
+    entityType: "candidate",
+    entityRef: (candidate?.ref as string) ?? "",
+    action: "placement_voided",
+    fromValue: { status: row.status as string },
+    reason: trimmed,
+  })
 }

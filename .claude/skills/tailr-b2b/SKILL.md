@@ -94,7 +94,14 @@ environment.
   walk-through" sat open from 14 Aug because `SUPABASE_SERVICE_ROLE_KEY` was
   the literal string `SET_ME_…`, so nobody could sign in at all.
 - Verify grants by attempting the write AS THE ROLE, service_role included.
-  Two shipped tables could never be written by the role that writes them.
+  **THREE shipped tables could never be written by the role that writes
+  them** (the third: `agency.role_decision_completions`, 14 Sep 2026). The
+  trap is that `grant select ... to authenticated` looks complete and reads
+  as correct; service_role picks up nothing implicitly here. Compare against
+  `placements` / `round_decisions` / `candidate_compliance`, which all carry
+  an explicit `grant select, insert, update, delete ... to service_role`.
+  Reading the grant table is not the check — `set local role service_role`
+  and attempt the insert inside a block that aborts.
 - **Probe-mutate every guardrail before trusting it.** Three shipped with
   blind spots: a filename-pinned constraint test, a `[^)]*` regex an arrow
   parameter's paren defeats, and a scan that matched its own documentation.
@@ -279,20 +286,28 @@ eighth step.
 3. Figma **"Tailr — Hiring Manager Concept"** (`AWRRbEOX6rLsltutFDL3zs`) —
    everything from 12 Aug onward. **Re-read 28 Sep: the file has SIX pages,
    and `00 · Concept map` alone holds 30 top-level frames numbered `00 ·`
-   to `30 ·`**, the latest tracking work as recent as 24 Sep. The previous
-   note here ("ONE page, three frames, as of 4 Sep") was months stale and
-   told you not to trust the file — it was the note that could not be
-   trusted. Frames are `NN · Title · subtitle`, 1840 wide, laid left to
-   right at y=0 on a ~1940 pitch; the next one goes at the right edge.
-   Pages: `00 · Concept map`, `01 · Hiring manager`, `02 · Recruiter
-   additions`, `03 · Consumer job board`, `04 · Enriched candidate view`,
-   `05 · Candidate doorways`.
+   to `30 ·`**, tracking work as recent as 24 Sep. Two earlier notes here
+   ("ONE page, three frames, as of 4 Sep"; "ONE page, FOUR frames, as of
+   13 Sep") were stale within days and both told you not to trust the file —
+   the notes were the part that could not be trusted. Pages: `00 · Concept
+   map`, `01 · Hiring manager`, `02 · Recruiter additions`, `03 · Consumer
+   job board`, `04 · Enriched candidate view`, `05 · Candidate doorways`.
+   Frames are `NN · Title · subtitle`, 1840 wide, laid left to right at y=0
+   on a ~1940 pitch; the next one goes at the right edge.
+   Approved: `01 · Three phases` (222:2), `03 · Navigation` (334:2, 13 Sep —
+   the two nav scopes, the death of RoleRail, the folded step bar).
    Awaiting Ose: `02 · Role header` (300:2 — the ownership strip, sub-state
    chips and next action of `docs/B2B-SMOOTH-FLOW-PLAN.md` Wave 1) and
-   `30 · Type specimen` (592:2 — the Noto Sans change on
-   `claude/b2b-noto-sans`: before/after on display, the ramp at true sizes,
-   what stays mono, and what approving costs).
+   `30 · Type specimen` (592:2 — the Noto Sans change: before/after on
+   display, the ramp at true sizes, what stays mono, what approving costs).
    **Count the frames before quoting this list again.**
+   **Match the house style when adding one:** 1840 wide, VERTICAL auto-layout,
+   64 padding, 36 gap, fill `#f9f6f0`; bands are FILL-width, `#fdfcf9`, 1px
+   `#eee6da`, radius 16. Eyebrow Geist Mono Medium 11 `#dc4f33` +6% tracking;
+   headline Fraunces SemiBold 42 `#1e1813`; body Geist 15/150% `#6b615a`.
+   (Board chrome, not product type — the board keeps Fraunces even though
+   the product no longer does. Frame 30 does not yet match this; it was
+   built before this note reached the branch.)
 
 **Theme:** recruiter dashboard + all `/hiring` = **dark**, scoped by
 `.ag-app:has(.agd-main)`. The seven workflow screens and the adjunct recruiter
@@ -337,6 +352,17 @@ role rows. Interaction feedback is transform/opacity only.
   status, or the unit the seven steps run on — the verb you press on a person
   and the box they sit in must not be the same word. Same trap as `placement`,
   which is the outcome.
+
+- **A CHECK constraint refuses only on FALSE, and NULL is not FALSE.**
+  14 Sep 2026, `placement_reason_iff_outside`: the branch meant to force a
+  reason was `(flag = true and length(trim(reason)) > 0)`. With the reason
+  NULL that is NULL, not false, so `false or NULL` is NULL and the row was
+  ACCEPTED — the one thing the constraint existed to prevent. The opposite
+  direction refused correctly, which is exactly why it looked like it
+  worked. Wrap every nullable column in an iff-constraint with `coalesce`,
+  and probe BOTH directions plus a whitespace-only value before believing
+  it. `evidence_quote_iff_present` is safe because `is null` / `is not null`
+  can never evaluate to NULL; anything using a function on the column can.
 
 - **Mocked tests agree with wrong code.** Two real bugs this session were found
   by reading the deployed schema and by seeding real data, both while the unit

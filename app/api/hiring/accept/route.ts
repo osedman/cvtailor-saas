@@ -12,14 +12,14 @@
  * recruiter should be able to see afterwards.
  *
  * This route therefore does four things and no more: read the body, prove the
- * session, charge the rate limiter, hand the token to the server layer. The
+ * session, charge the rate limiters, hand the token to the server layer. The
  * binding itself — claim-then-bind, so two tabs cannot both win — lives in
  * lib/agency/client-auth.ts.
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { acceptInvite } from "@/lib/agency/client-auth"
-import { anonRateLimitId, checkRateLimit } from "@/lib/rate-limit"
+import { checkDoorwayLimit, checkRateLimit } from "@/lib/rate-limit"
 import { createClient } from "@/lib/supabase/server"
 
 export const maxDuration = 15
@@ -47,13 +47,17 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Per signed-in user AND per caller IP. Accepting is already gated by an
-    // account, but a hijacked or throwaway account must not be able to grind
-    // tokens, and one IP must not be able to grind them across many accounts.
+    // Per signed-in user at the strict tier: a hijacked or throwaway account
+    // must not be able to grind links. Then the doorway limit — a loose flood
+    // ceiling per network plus a per-link limit (sha256 of the token) — which
+    // replaces the old per-IP "auth" charge. That one allowed three accepts a
+    // minute per network, so the fourth colleague in one office was refused
+    // (28 Sep 2026) while guarding nothing: the token is 192 random bits, and
+    // anyone cycling accounts to fish still meets the network ceiling.
     const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown"
     const limited =
       (await checkRateLimit(user.id, "auth")) ??
-      (await checkRateLimit(anonRateLimitId(`hiring-accept-ip:${ip}`), "auth"))
+      (await checkDoorwayLimit("hiring-accept", ip, token))
     if (limited) return limited
 
     if (!token) {

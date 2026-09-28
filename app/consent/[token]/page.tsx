@@ -27,6 +27,13 @@
  */
 
 import { use, useCallback, useEffect, useRef, useState } from "react"
+import {
+  doorwayLoadState,
+  retryAfterSeconds,
+  tooManyAnswersMessage,
+  type DoorwayLoadState,
+} from "@/lib/agency/doorway-messages"
+import { DoorwayLoadIssue } from "@/components/agency/doorway-load-issue"
 import { intentPhrase, parseIntent, type Intent } from "@/lib/agency/consent-intent"
 
 interface ConsentView {
@@ -51,6 +58,10 @@ export default function ConsentPage({ params }: { params: Promise<{ token: strin
   const [choice, setChoice] = useState<"granted" | "declined" | "">("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /* A refusal that is NOT a dead link: busy (429) or our own failure. These
+   * used to fall into "invalid", so a rate-limited visitor was told their
+   * good link had expired (28 Sep 2026). Only a 404 is invalid now. */
+  const [loadIssue, setLoadIssue] = useState<DoorwayLoadState | null>(null)
   const [intent, setIntent] = useState<Intent>(null)
   const choiceRef = useRef<HTMLFieldSetElement>(null)
   const savedTitleRef = useRef<HTMLHeadingElement>(null)
@@ -79,15 +90,26 @@ export default function ConsentPage({ params }: { params: Promise<{ token: strin
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/consent/${encodeURIComponent(token)}`)
-      if (!res.ok) return setScreen("invalid")
+      const issue = doorwayLoadState({
+        status: res.status,
+        retryAfter: retryAfterSeconds(res.headers.get("Retry-After")),
+      })
+      if (issue?.kind === "dead") return setScreen("invalid")
+      if (issue) return setLoadIssue(issue)
+      setLoadIssue(null)
       const body = (await res.json()) as { consent?: ConsentView }
       if (!body.consent) return setScreen("invalid")
       setView(body.consent)
       setScreen(body.consent.status === "pending" ? "ready" : "saved")
     } catch {
-      setScreen("invalid")
+      setLoadIssue(doorwayLoadState({ status: null, retryAfter: null }))
     }
   }, [token])
+
+  const reload = useCallback(() => {
+    setLoadIssue(null)
+    void load()
+  }, [load])
 
   useEffect(() => {
     void load()
@@ -126,6 +148,10 @@ export default function ConsentPage({ params }: { params: Promise<{ token: strin
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision }),
       })
+      if (res.status === 429) {
+        setError(tooManyAnswersMessage(retryAfterSeconds(res.headers.get("Retry-After"))))
+        return
+      }
       if (!res.ok) {
         setError("That did not save. Please try again.")
         return
@@ -137,6 +163,10 @@ export default function ConsentPage({ params }: { params: Promise<{ token: strin
     } finally {
       setSaving(false)
     }
+  }
+
+  if (loadIssue && loadIssue.kind !== "dead") {
+    return <DoorwayLoadIssue issue={loadIssue} onRetry={reload} />
   }
 
   if (screen === "loading") {

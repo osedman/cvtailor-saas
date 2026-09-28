@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireHiringContext } from "@/lib/agency/client-auth"
 import type { HiringFailure } from "@/lib/agency/client-auth"
-import { recordClientDecisions, type ClientDecisionAction } from "@/lib/agency/client-shortlist"
+import { CLIENT_DECISIONS, recordClientDecisions, type ClientDecisionAction } from "@/lib/agency/client-shortlist"
 import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
     const body = await req.json().catch(() => ({}))
     const raw = Array.isArray(body?.decisions) ? (body.decisions as Array<{ ref?: unknown; action?: unknown }>) : []
     const decisions = raw
-      .filter((d) => typeof d.ref === "string" && (d.action === "interview" || d.action === "decline"))
+      .filter((d) => typeof d.ref === "string" && CLIENT_DECISIONS.includes(d.action as ClientDecisionAction))
       .slice(0, 50)
       .map((d) => ({ ref: String(d.ref).slice(0, 20), action: d.action as ClientDecisionAction }))
     if (decisions.length === 0) return NextResponse.json({ error: "decisions are required" }, { status: 400 })

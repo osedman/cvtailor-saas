@@ -51,6 +51,9 @@ export async function GET(
       .from("submissions")
       .select("id, format, engine_version, generated_at, snapshot")
       .eq("role_id", roleId)
+      // RLS admits every agency the caller belongs to; the ACTING agency is
+      // the boundary, as on every sibling read (23 Sep E2E).
+      .eq("agency_id", auth.ctx.agencyId)
       .order("generated_at", { ascending: false })
     if (error) throw error
     return NextResponse.json({ submissions: data ?? [] })
@@ -130,16 +133,29 @@ export async function POST(
       .order("sort_order")
     const requirementById = new Map((requirements ?? []).map((r) => [r.id, r]))
 
-    // Build one snapshot entry per shortlisted candidate, on fresh scores.
-    const entries = []
-    for (const decision of shortlisted) {
+    /**
+     * Build one snapshot entry per shortlisted candidate, on fresh scores.
+     *
+     * This ran one candidate after another until 13 Sep 2026 — roughly four
+     * sequential round-trip waves each, so ten candidates meant forty waves
+     * in series against maxDuration 60. It runs through a bounded pool now:
+     * still every candidate, still the same work, just not one at a time —
+     * which is what let MAX_CANDIDATES_PER_ROLE go to fifty on 14 Sep 2026.
+     *
+     * Results are written back at their own index rather than pushed, so the
+     * pre-sort ordering is identical to the sequential version — entries is
+     * sorted by score below, and this keeps ties in the same order too.
+     */
+    const buildEntry = async (decision: (typeof shortlisted)[number]) => {
       // Purge race: a candidate erased after being shortlisted throws inside
       // the rescore; omit them rather than rendering from stale data.
       let score
       try {
-        score = await recomputeAndStore(admin, auth.ctx.agencyId, decision.candidate_id)
+        // requirements are role-level and already loaded above; passing them
+        // in stops the rescore re-reading the same rows once per candidate.
+        score = await recomputeAndStore(admin, auth.ctx.agencyId, decision.candidate_id, requirements ?? [])
       } catch (raceError) {
-        if (raceError instanceof AgencyAccessError) continue
+        if (raceError instanceof AgencyAccessError) return null
         throw raceError
       }
 
@@ -160,7 +176,7 @@ export async function POST(
           .maybeSingle(),
       ])
 
-      if (!candidate) continue
+      if (!candidate) return null
 
       const strengths = (evidence ?? [])
         .filter((e) => (score.effective[e.requirement_id] ?? e.strength) === "strong" && e.quote)
@@ -173,7 +189,7 @@ export async function POST(
         .filter((r) => (score.effective[r.id] ?? "missing") === "missing")
         .map((r) => ({ requirement: r.text, weight: r.weight }))
 
-      entries.push({
+      return {
         ref: candidate.ref,
         full_name: candidate.full_name,
         current_title: candidate.current_title,
@@ -208,8 +224,22 @@ export async function POST(
           review?.call_answers as Record<string, string> | null,
           (requirements ?? []).map((r) => ({ ref: r.ref, text: r.text }))
         ),
-      })
+      }
     }
+
+    // Five at a time: enough to collapse the wall-clock, few enough that a
+    // fifty-candidate shortlist cannot open fifty connections at once.
+    const CONCURRENCY = 5
+    const built = new Array<Awaited<ReturnType<typeof buildEntry>>>(shortlisted.length).fill(null)
+    let cursor = 0
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, shortlisted.length) }, async () => {
+        for (let i = cursor++; i < shortlisted.length; i = cursor++) {
+          built[i] = await buildEntry(shortlisted[i])
+        }
+      })
+    )
+    const entries = built.filter((e): e is NonNullable<typeof e> => e !== null)
 
     entries.sort((a, b) => b.overall - a.overall)
 
@@ -229,6 +259,17 @@ export async function POST(
       probes: d.probes !== false,
       notes: d.notes === true,
       logistics: d.logistics !== false,
+      /**
+       * The CV itself (22 Sep 2026). On by default, because showing the
+       * client the CV is how the process works and a default of OFF would
+       * make the normal case the one you have to remember. The switch still
+       * exists so a recruiter can withhold it deliberately, and — like the
+       * other five — it freezes here rather than being read at render time.
+       *
+       * The DOCUMENT is not frozen with it: see lib/agency/cv-disclosure.ts
+       * for why purge would otherwise never reach it.
+       */
+      cv: d.cv !== false,
     }
 
     const snapshot = {

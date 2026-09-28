@@ -11,13 +11,31 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { AgencyAccessError, agencyAdmin, requireAgencyContext } from "@/lib/agency/db"
+import { getStagesForRoles } from "@/lib/agency/stages"
 import { CV_TEXT_LIMIT, extractFileText, ingestCandidate } from "@/lib/agency/ingest"
 import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 300
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024
-const MAX_CANDIDATES_PER_ROLE = 10
+/**
+ * Raised from 10 to 50 on 14 Sep 2026.
+ *
+ * It was held at 10 by ONE thing: the submission route rescored the
+ * shortlist one candidate at a time — roughly four sequential round-trip
+ * waves each — so fifty candidates would have meant about two hundred waves
+ * in series against that route's maxDuration of 60. That loop is a bounded
+ * pool of five now, so fifty is ~40 waves rather than ~200.
+ *
+ * The mail side was already clear: closure mail batches at 50 and paces.
+ *
+ * This caps what a RECRUITER may upload to a role. It deliberately does not
+ * cap people who apply to themselves through consumer matching — applying is
+ * the candidate's own act and a recruiter's upload budget must never silence
+ * it. lib/matching/apply.ts does not import this, and a test keeps it that
+ * way.
+ */
+const MAX_CANDIDATES_PER_ROLE = 50
 
 export async function GET(
   _req: NextRequest,
@@ -33,7 +51,7 @@ export async function GET(
       )
     }
 
-    const [candidates, scores, evidence, reviews, decisions] = await Promise.all([
+    const [candidates, scores, evidence, reviews, decisions, stageMap] = await Promise.all([
       auth.db
         .from("candidates")
         .select(
@@ -53,6 +71,9 @@ export async function GET(
         .from("recruiter_reviews")
         .select("candidate_id, decision, decision_note")
         .eq("role_id", roleId),
+      // The client's round decisions, read beside the recruiter's call —
+      // never written into it (decided 21 Sep 2026, Figma frame 21).
+      getStagesForRoles(auth.ctx, [roleId]),
     ])
     if (candidates.error) throw candidates.error
 
@@ -63,6 +84,9 @@ export async function GET(
       evidence: (evidence.data ?? []).filter((e) => candidateIds.has(e.candidate_id)),
       reviews: reviews.data ?? [],
       decisions: decisions.data ?? [],
+      stages: Object.fromEntries(stageMap.get(roleId)?.byCandidate ?? []),
+      suggestedHireId: stageMap.get(roleId)?.suggestedId ?? null,
+      pickedHireId: stageMap.get(roleId)?.pickedId ?? null,
     })
   } catch (error) {
     return NextResponse.json(

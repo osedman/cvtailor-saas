@@ -15,7 +15,7 @@
  */
 
 import { agencyAdmin } from "./db"
-import { getRoleFacts } from "./role-facts"
+import { getRoleFacts, getRoleFactsBatch, type RoleHeaderFacts } from "./role-facts"
 import { deriveSubState, handoffFor, nextAction, type Handoff, type NextAction } from "./next-action"
 import type { HiringContext } from "./types"
 import type { PhaseKey } from "./phases"
@@ -32,12 +32,18 @@ export async function listClientRoles(ctx: HiringContext): Promise<ClientRoleTie
   if (contactIds.length === 0) return []
   const admin = agencyAdmin()
   const [roles, briefs, recipients, rounds, slots] = await Promise.all([
-    admin.from("job_roles").select("id, agency_id, contact_id").in("contact_id", contactIds),
+    // A discarded role is not a role; a revoked recipient link is not a tie
+    // (23 Sep 2026 E2E — a revoked contact still saw the role and could
+    // release a wave through /cohort).
+    admin.from("job_roles").select("id, agency_id, contact_id").in("contact_id", contactIds).is("discarded_at", null),
     admin.from("role_briefs").select("role_id, agency_id, contact_id").in("contact_id", contactIds).not("role_id", "is", null),
-    admin.from("submission_recipients").select("agency_id, contact_id, submissions!inner(role_id)").in("contact_id", contactIds),
+    admin.from("submission_recipients").select("agency_id, contact_id, submissions!inner(role_id)").in("contact_id", contactIds).is("revoked_at", null),
     admin.from("interview_rounds").select("role_id, agency_id, contact_id").in("contact_id", contactIds),
     admin.from("availability_slots").select("role_id, agency_id, contact_id").in("contact_id", contactIds).not("role_id", "is", null),
   ])
+  // A failed read must not become "no roles" — To do would say "Nothing
+  // needs you" over a database error.
+  for (const r of [roles, briefs, recipients, rounds, slots]) if (r.error) throw r.error
   const ties = new Map<string, ClientRoleTie>()
   const add = (roleId: unknown, agencyId: unknown, contactId: unknown) => {
     if (typeof roleId !== "string" || typeof agencyId !== "string" || typeof contactId !== "string") return
@@ -66,10 +72,44 @@ export interface ClientRoleHeader {
   now: string
 }
 
+/**
+ * Headers for many ties at once. Ties can span agencies, so the facts are
+ * batched per agency — same reason as the recruiter's queue: a per-role loop
+ * is a dozen queries each.
+ */
+export async function getClientRoleHeaders(
+  ctx: HiringContext,
+  ties: ClientRoleTie[]
+): Promise<ClientRoleHeader[]> {
+  const byAgency = new Map<string, ClientRoleTie[]>()
+  for (const tie of ties) {
+    const list = byAgency.get(tie.agencyId)
+    if (list) list.push(tie)
+    else byAgency.set(tie.agencyId, [tie])
+  }
+  const out: ClientRoleHeader[] = []
+  for (const [agencyId, group] of byAgency) {
+    const facts = await getRoleFactsBatch(
+      { agencyId, userId: ctx.userId, role: "viewer" },
+      group.map((t) => t.roleId)
+    )
+    for (const tie of group) {
+      const f = facts.get(tie.roleId)
+      if (f) out.push(projectForClient(f, tie))
+    }
+  }
+  return out
+}
+
 /** The header for one role the caller is tied to, or null when it is not theirs. */
 export async function getClientRoleHeader(ctx: HiringContext, tie: ClientRoleTie): Promise<ClientRoleHeader | null> {
   const facts = await getRoleFacts({ agencyId: tie.agencyId, userId: ctx.userId, role: "viewer" }, tie.roleId)
   if (!facts) return null
+  return projectForClient(facts, tie)
+}
+
+/** The one projection, shared by the single read and the batch. */
+function projectForClient(facts: RoleHeaderFacts, tie: ClientRoleTie): ClientRoleHeader {
   const sub = deriveSubState(facts)
   const next = nextAction(facts, "client", tie.roleId)
   const inShortlist = facts.phase === "shortlist"

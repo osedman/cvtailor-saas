@@ -28,8 +28,10 @@ describe("the client's shortlist", () => {
     expect(src).toMatch(/if \(entry\.action\) \{\s*skipped\.push\(d\.ref\)/)
   })
 
-  it("only interview and decline reach the table — a decline is a signal, never a removal", () => {
-    expect(src).toMatch(/d\.action !== "interview" && d\.action !== "decline"/)
+  it("only the three decisions reach the table, and none of them removes anyone", () => {
+    // 'hold' joined on 11 Sep 2026; the list is validated in one place so a
+    // fourth cannot arrive by being typed into a route.
+    expect(src).toMatch(/!CLIENT_DECISIONS\.includes\(d\.action\)/)
     expect(src).not.toMatch(/\.delete\(\)/)
     expect(src).not.toMatch(/from\("candidates"\)\.update/)
   })
@@ -46,9 +48,9 @@ describe("the routes", () => {
     expect(src).toMatch(/const \{ agencyId, contactId, recipientId, submissionId, \.\.\.rest \} = shortlist/)
     expect(src).toMatch(/NextResponse\.json\(\{ shortlist: rest \}\)/)
   })
-  it("the decisions route accepts only interview and decline, capped", () => {
+  it("the decisions route accepts only the three, capped", () => {
     const src = read("app/api/hiring/roles/[roleId]/decisions/route.ts")
-    expect(src).toMatch(/d\.action === "interview" \|\| d\.action === "decline"/)
+    expect(src).toMatch(/CLIENT_DECISIONS\.includes\(d\.action as ClientDecisionAction\)/)
     expect(src).toMatch(/\.slice\(0, 50\)/)
   })
   it("the windows route goes through the batch, not the table", () => {

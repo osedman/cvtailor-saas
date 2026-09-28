@@ -2,6 +2,9 @@
   "framework": "nextjs",
   "buildCommand": "pnpm build",
   "installCommand": "pnpm install",
+  "regions": [
+    "dub1"
+  ],
   "functions": {
     "app/api/tailor/route.ts": {
       "maxDuration": 60

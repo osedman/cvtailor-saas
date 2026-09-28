@@ -20,7 +20,15 @@ export interface ReferenceListRow {
   refereeName: string
   relationship: string
   status: "drafted" | "requested" | "chasing" | "received" | "declined"
+  /** Character or HR (23 Sep 2026). Decides which form their link opens and
+   *  what the request email says they are being asked for. */
+  kind: "character" | "hr"
   noticeSentAt: string | null
+}
+
+const KIND_LABEL: Record<ReferenceListRow["kind"], string> = {
+  character: "Character",
+  hr: "HR",
 }
 
 const STATUS_TONE: Record<ReferenceListRow["status"], string> = {
@@ -44,10 +52,15 @@ export function CandidateReferences({
   onRefsChange,
 }: {
   candidateId: string
-  onRefsChange?: (refs: ReferenceListRow[]) => void
+  onRefsChange?: (refs: ReferenceListRow[] | null) => void
 }) {
   const [refs, setRefs] = useState<ReferenceListRow[] | null>(null)
-  const [newRef, setNewRef] = useState({ refereeName: "", refereeEmail: "", relationship: "" })
+  const [newRef, setNewRef] = useState<{
+    refereeName: string
+    refereeEmail: string
+    relationship: string
+    kind: ReferenceListRow["kind"]
+  }>({ refereeName: "", refereeEmail: "", relationship: "", kind: "character" })
   const [askedLink, setAskedLink] = useState<{ id: string; url: string; emailed: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -56,13 +69,22 @@ export function CandidateReferences({
     if (!candidateId) return setRefs(null)
     try {
       const res = await fetch(`/api/agency/candidates/${candidateId}/references`)
-      if (!res.ok) return setRefs([])
+      // A failed load must not read as "No referees named yet" — and the
+      // parent's outstanding-references warning must not silently vanish.
+      if (!res.ok) {
+        setRefs(null)
+        onRefsChange?.(null)
+        return setError("Could not load references. Reload the page before handing anything over.")
+      }
       const body = await res.json()
       const rows = Array.isArray(body?.references) ? (body.references as ReferenceListRow[]) : []
+      setError(null)
       setRefs(rows)
       onRefsChange?.(rows)
     } catch {
-      setRefs([])
+      setRefs(null)
+      onRefsChange?.(null)
+      setError("Could not load references. Reload the page before handing anything over.")
     }
     // onRefsChange is a notification, not an input; re-running on its identity
     // would refetch every parent render.
@@ -88,7 +110,9 @@ export function CandidateReferences({
         setError(typeof body?.error === "string" ? body.error : "Could not add that referee.")
         return
       }
-      setNewRef({ refereeName: "", refereeEmail: "", relationship: "" })
+      // The kind persists between adds: naming two character referees in a
+      // row is the common case, and resetting it invites the wrong form.
+      setNewRef((prev) => ({ refereeName: "", refereeEmail: "", relationship: "", kind: prev.kind }))
       await load()
     } finally {
       setBusy(false)
@@ -111,6 +135,46 @@ export function CandidateReferences({
       }
       setAskedLink({ id: referenceId, url: String(body.url ?? ""), emailed: Boolean(body.emailed) })
       await load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * Take a referee off (22 Sep 2026). A wrong address or the wrong person
+   * used to be permanent, and the only move left was to email a stranger.
+   *
+   * Two different acts, and the server decides which: deleted outright while
+   * nothing has been sent, withdrawn once the request has gone. The confirm
+   * says which one is about to happen, because "remove" meaning two things
+   * without saying so is how people delete what they meant to keep.
+   */
+  async function remove(r: ReferenceListRow) {
+    const contacted = Boolean(r.noticeSentAt)
+    const ok = window.confirm(
+      contacted
+        ? `${r.refereeName} has already been asked. We cannot unsend that, so they will be marked as not answering and no more chasers will go. Their record stays. Continue?`
+        : `Remove ${r.refereeName}? Nothing has been sent to them, so there is nothing to undo — the row goes entirely.`
+    )
+    if (!ok) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/candidates/${candidateId}/references`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referenceId: r.id }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not remove that referee.")
+        return
+      }
+      // The link panel belongs to a referee who may no longer be here.
+      setAskedLink((prev) => (prev?.id === r.id ? null : prev))
+      await load()
+    } catch {
+      setError("Could not remove that referee. Nothing has changed.")
     } finally {
       setBusy(false)
     }
@@ -139,7 +203,7 @@ export function CandidateReferences({
             <span className="ag-grow" style={{ minWidth: 0 }}>
               <span style={{ fontSize: 13 }}>{r.refereeName}</span>
               <span className="ag-meta" style={{ display: "block" }}>
-                {r.relationship || "Referee"}
+                {KIND_LABEL[r.kind]} · {r.relationship || "Referee"}
                 {r.noticeSentAt ? " · notice sent" : " · no notice yet"}
               </span>
             </span>
@@ -147,6 +211,18 @@ export function CandidateReferences({
             {r.status !== "received" && r.status !== "declined" && (
               <button className="ag-btn ag-btn-secondary" onClick={() => ask(r.id)} disabled={busy}>
                 {r.status === "drafted" ? "Ask" : "Chase"}
+              </button>
+            )}
+            {/* A reference already given stays: those are the referee's own
+                words, and removing them would be editing the evidence. */}
+            {r.status !== "received" && (
+              <button
+                className="ag-btn ag-btn-secondary"
+                onClick={() => remove(r)}
+                disabled={busy}
+                aria-label={`Remove ${r.refereeName}`}
+              >
+                Remove
               </button>
             )}
             {askedLink?.id === r.id && !askedLink.emailed && (
@@ -164,6 +240,37 @@ export function CandidateReferences({
         className="ag-stack"
         style={{ gap: 8, marginTop: 14, borderTop: "1px solid var(--ag-border)", paddingTop: 12 }}
       >
+        {/*
+          Which kind, chosen BEFORE the name (23 Sep 2026, Figma frame 24
+          band C). It decides which form their link opens and what the
+          request email says they are being asked for, so it is part of who
+          this referee is — not a setting applied afterwards. Radios rather
+          than a select: two options that must be read, and neither is a
+          default the recruiter should sleepwalk past.
+        */}
+        <fieldset className="ag-kind-pick">
+          <legend className="ag-field-label">What are you asking them for?</legend>
+          {([
+            ["character", "Character reference", "Someone who worked with them — when, and what they were like to work with."],
+            ["hr", "HR reference", "The employer's HR team, confirming dates and job title. Facts only."],
+          ] as const).map(([value, label, hint]) => (
+            <label key={value} className="ag-kind-opt" htmlFor={`ref-kind-${value}`}>
+              <input
+                id={`ref-kind-${value}`}
+                type="radio"
+                name="referee-kind"
+                value={value}
+                checked={newRef.kind === value}
+                onChange={() => setNewRef({ ...newRef, kind: value })}
+              />
+              <span>
+                <b>{label}</b>
+                <span className="ag-meta" style={{ display: "block" }}>{hint}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+
         <label className="ag-field-label" htmlFor="ref-name">
           Referee name
         </label>

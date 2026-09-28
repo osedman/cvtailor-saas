@@ -1,7 +1,7 @@
 /**
  * The candidate's side of an interview booking.
  *
- * The recruiter still picks the time — booking takes the slot off the client's
+ * The candidate picks the time (11 Sep 2026) — booking takes the slot off the client's
  * diary, and offering the candidate a menu would hold three of the client's
  * windows hostage while somebody thinks about it. What the candidate gets is
  * the right to confirm it, decline it, and put it in their calendar.
@@ -24,9 +24,20 @@ import { sendEmail } from "@/lib/email"
 import { getAppOrigin } from "@/lib/site-url"
 import { buildIcs } from "@/lib/ics"
 import { agencyAdmin, writeAudit, type AgencyClient } from "./db"
+import { getInterviewSettings } from "./interview-settings"
 import { notify } from "./notify"
 
 export type BookingState = "invited" | "confirmed" | "declined" | "cancelled" | "unknown"
+
+/**
+ * Why a candidate was shown no times.
+ *
+ * `unbookable` folds "too soon" and "too short" together deliberately: both
+ * mean the window exists but cannot be taken online, both are the desk's
+ * settings rather than anything the candidate did, and splitting them would
+ * describe the client's diary more precisely than a candidate needs.
+ */
+export type NoWindowsReason = "none_offered" | "all_taken" | "unbookable"
 
 export interface BookingView {
   state: BookingState
@@ -41,6 +52,31 @@ export interface BookingView {
   /** Present only once confirmed. A live meeting URL sitting in an
    * unconfirmed inbox is a call somebody can walk into unannounced. */
   meetingUrl: string | null
+  /**
+   * SELF-BOOKING (11 Sep 2026, Ose: "candidates self-book, the recruiter
+   * just has visibility"). A round invited with no slot yet is an invitation
+   * to CHOOSE — these are the windows still open on the role, in ISO, for
+   * the doorway to render in the candidate's own timezone. Empty once a
+   * time is held, because there is then nothing to choose.
+   */
+  openWindows: Array<{ slotId: string; start: string; end: string }>
+  /**
+   * WHY there are no windows, when there are none.
+   *
+   * The doorway had exactly one empty-state sentence — "Every time has been
+   * taken" — but listOpenWindows excludes a window for three different
+   * reasons, and only one of them is "taken". On 15 Sep 2026 every remaining
+   * window on staging was merely inside the minimum-notice cutoff, so three
+   * candidates holding a live invitation were told a thing that was not
+   * true. An absence must not be explained by guessing at its cause.
+   *
+   * `null` whenever windows were not asked for, or some were found.
+   */
+  noWindowsBecause: NoWindowsReason | null
+  /** True when this candidate still has to pick a time. */
+  needsChoice: boolean
+  /** Whether they may move a time they already hold, and the reason if not. */
+  reschedule: { allowed: boolean; because: string }
 }
 
 function hashToken(raw: string): string {
@@ -69,7 +105,7 @@ async function loadByToken(admin: AgencyClient, rawToken: string) {
   const { data } = await admin
     .from("interview_rounds")
     .select(
-      "id, agency_id, role_id, candidate_id, contact_id, round_number, slot_id, scheduled_at, duration_minutes, meeting_url, status, candidate_response"
+      "id, agency_id, role_id, candidate_id, contact_id, round_number, slot_id, scheduled_at, duration_minutes, meeting_url, status, candidate_response, rescheduled_count"
     )
     .eq("booking_token_hash", hashToken(rawToken))
     .maybeSingle()
@@ -81,7 +117,12 @@ export async function peekBooking(rawToken: string): Promise<BookingView> {
   const admin = agencyAdmin()
   const round = await loadByToken(admin, rawToken)
   if (!round) {
-    return { state: "unknown", company: "", agencyName: "", roundNumber: 0, scheduledAt: null, durationMinutes: 0, meetingUrl: null }
+      return {
+      state: "unknown", company: "", agencyName: "", roundNumber: 0,
+      scheduledAt: null, durationMinutes: 0, meetingUrl: null,
+      openWindows: [], noWindowsBecause: null, needsChoice: false,
+      reschedule: { allowed: false, because: "" },
+    }
   }
 
   const [{ data: agency }, { data: contact }] = await Promise.all([
@@ -97,6 +138,17 @@ export async function peekBooking(rawToken: string): Promise<BookingView> {
         ? "confirmed"
         : "invited"
 
+  // Nothing to choose once a time is held, declined or cancelled — unless
+  // they are allowed to move it, in which case the alternatives are exactly
+  // the same list.
+  const reschedule = await mayReschedule(admin, round, new Date())
+  const needsChoice = state === "invited" && !round.slot_id
+  const showWindows = needsChoice || (state === "confirmed" && reschedule.allowed)
+  const open = showWindows
+    ? await listOpenWindows(admin, round.agency_id as string, round.role_id as string)
+    : { windows: [], reason: null as NoWindowsReason | null }
+  const openWindows = open.windows
+
   return {
     state,
     company: (contact?.company as string) ?? "",
@@ -106,7 +158,284 @@ export async function peekBooking(rawToken: string): Promise<BookingView> {
     durationMinutes: (round.duration_minutes as number) ?? 45,
     // Withheld until confirmed, on purpose.
     meetingUrl: confirmed ? ((round.meeting_url as string) || null) : null,
+    openWindows,
+    noWindowsBecause: showWindows && openWindows.length === 0 ? open.reason : null,
+    needsChoice,
+    reschedule,
   }
+}
+
+/**
+ * May this candidate move their own interview?
+ *
+ * The policy is the client's (`reschedule_policy`), the allowance is a count
+ * (`reschedule_limit`), and `until_notice` means what the candidate was
+ * promised: up to the same notice period they were owed before it. Every
+ * refusal carries its reason, because "you cannot" with no explanation is
+ * the thing that makes somebody email a recruiter.
+ */
+async function mayReschedule(
+  admin: AgencyClient,
+  round: Record<string, unknown>,
+  now: Date
+): Promise<{ allowed: boolean; because: string }> {
+  if (round.status === "cancelled" || round.candidate_response !== "confirmed" || !round.scheduled_at) {
+    return { allowed: false, because: "" }
+  }
+  // A held interview, or one whose time has passed, cannot be moved: under
+  // the "anytime" policy an old link could rewrite a written-up round's time
+  // and take a new window (21 Sep 2026).
+  if (round.status === "completed" || Date.parse(round.scheduled_at as string) <= now.getTime()) {
+    return { allowed: false, because: "This interview has already happened." }
+  }
+  const { settings } = await getInterviewSettings(round.agency_id as string, round.role_id as string)
+  if (settings.reschedulePolicy === "none") {
+    return { allowed: false, because: "This interview cannot be moved online — reply to your recruiter if you need to." }
+  }
+  const used = (round.rescheduled_count as number) ?? 0
+  if (used >= settings.rescheduleLimit) {
+    return {
+      allowed: false,
+      because:
+        settings.rescheduleLimit === 0
+          ? "This interview cannot be moved online — reply to your recruiter if you need to."
+          : "You have already moved this interview. Your recruiter can help if something has changed.",
+    }
+  }
+  if (settings.reschedulePolicy === "until_notice") {
+    const cutoff = Date.parse(round.scheduled_at as string) - settings.minNoticeHours * 3_600_000
+    if (now.getTime() > cutoff) {
+      return { allowed: false, because: "It is too close to the interview to move it here — please reply to your recruiter." }
+    }
+  }
+  return { allowed: true, because: "" }
+}
+
+export type RescheduleOutcome = ClaimOutcome | "not_allowed"
+
+/**
+ * Move a confirmed interview to another window.
+ *
+ * Releasing and claiming are one operation on purpose. Releasing first would
+ * hand the old window to somebody else while this candidate is still mid-
+ * click, and a failed claim would leave them with nothing at all — so the
+ * new window is taken first, and only then is the old one let go.
+ */
+export async function rescheduleBooking(rawToken: string, slotId: string): Promise<RescheduleOutcome> {
+  const admin = agencyAdmin()
+  const round = await loadByToken(admin, rawToken)
+  if (!round) return "not_found"
+
+  const allowed = await mayReschedule(admin, round, new Date())
+  if (!allowed.allowed) return "not_allowed"
+
+  const { windows: open } = await listOpenWindows(admin, round.agency_id as string, round.role_id as string)
+  const window = open.find((w) => w.slotId === slotId)
+  if (!window) return "not_open"
+
+  const previousSlot = round.slot_id as string
+  if (previousSlot === slotId) return "already_booked"
+
+  // Take the new window before letting the old one go: the other order can
+  // leave somebody with neither.
+  const { data: moved, error } = await admin
+    .from("interview_rounds")
+    .update({
+      slot_id: slotId,
+      scheduled_at: window.start,
+      // A new time is owed a fresh reminder.
+      pre_reminded_at: null,
+      rescheduled_count: ((round.rescheduled_count as number) ?? 0) + 1,
+    })
+    .eq("id", round.id as string)
+    .eq("slot_id", previousSlot)
+    .select("id")
+  if (error) {
+    if ((error as { code?: string }).code === "23505") return "taken"
+    throw error
+  }
+  // Zero rows is not success: another tab moved it first (21 Sep 2026).
+  if (!moved || moved.length === 0) return "already_booked"
+
+  const { data: candidate } = await admin
+    .from("candidates")
+    .select("ref")
+    .eq("id", round.candidate_id as string)
+    .maybeSingle()
+  const ref = (candidate?.ref as string) ?? ""
+
+  await writeAudit(admin, {
+    agencyId: round.agency_id as string,
+    roleId: round.role_id as string,
+    candidateId: round.candidate_id as string,
+    actorId: null,
+    entityType: "round",
+    entityRef: ref,
+    action: "booking_rescheduled",
+    reason: "candidate moved their own interview",
+    toValue: { round_id: round.id, from_slot: previousSlot, to_slot: slotId },
+  })
+
+  await notify(admin, {
+    kind: "booking_answered",
+    agencyId: round.agency_id as string,
+    actorId: null,
+    roleId: round.role_id as string,
+    candidateRef: ref,
+  })
+
+  return "claimed"
+}
+
+/**
+ * The windows still open on a role: offered, not revoked, not already held
+ * by a round, far enough ahead to respect the notice the rules promise, and
+ * long enough for the interview.
+ *
+ * A window offered against another role is not on offer here; one offered
+ * against no role is on offer for all, which is how the hiring manager's
+ * general diary works.
+ */
+async function listOpenWindows(
+  admin: AgencyClient,
+  agencyId: string,
+  roleId: string
+): Promise<{ windows: Array<{ slotId: string; start: string; end: string }>; reason: NoWindowsReason | null }> {
+  const { settings } = await getInterviewSettings(agencyId, roleId)
+  const notFor = new Date(Date.now() + settings.minNoticeHours * 3_600_000).toISOString()
+  const duration = settings.durationMinutes * 60_000
+
+  const [{ data: slots }, { data: taken }] = await Promise.all([
+    admin
+      .from("availability_slots")
+      .select("id, role_id, starts_at, ends_at")
+      .eq("agency_id", agencyId)
+      .is("revoked_at", null)
+      .gt("starts_at", notFor)
+      .order("starts_at", { ascending: true }),
+    admin
+      .from("interview_rounds")
+      .select("slot_id")
+      .eq("agency_id", agencyId)
+      .neq("status", "cancelled")
+      .not("slot_id", "is", null),
+  ])
+  const held = new Set((taken ?? []).map((r) => r.slot_id as string))
+  const mine = (slots ?? []).filter((s) => !s.role_id || s.role_id === roleId)
+  const free = mine.filter((s) => !held.has(s.id as string))
+  const windows = free
+    .filter((s) => Date.parse(s.ends_at as string) - Date.parse(s.starts_at as string) >= duration)
+    .map((s) => ({ slotId: s.id as string, start: s.starts_at as string, end: s.ends_at as string }))
+
+  /* The reason, narrowed from the widest fact to the narrowest, so the
+   * candidate is told the truest thing rather than the first thing:
+   *   nothing on this role at all        -> none_offered
+   *   everything on it is held           -> all_taken
+   *   some remain but none can be taken  -> unbookable (too soon / too short)
+   *
+   * `mine` is filtered ONLY by role, so it still counts the windows this
+   * query's `.gt(starts_at, notFor)` already dropped for being too soon —
+   * which is exactly the case that produced the false "taken" message. */
+  const anyOnRole = await countWindowsOnRole(admin, agencyId, roleId)
+  const reason: NoWindowsReason | null =
+    windows.length > 0 ? null
+      : anyOnRole === 0 ? "none_offered"
+        : free.length === 0 ? "all_taken"
+          : "unbookable"
+  return { windows, reason }
+}
+
+/** Every unrevoked window on this role, whatever its time — the denominator
+ *  that tells "none were ever offered" apart from "none can be taken". */
+async function countWindowsOnRole(admin: AgencyClient, agencyId: string, roleId: string): Promise<number> {
+  const { data } = await admin
+    .from("availability_slots")
+    .select("id, role_id")
+    .eq("agency_id", agencyId)
+    .is("revoked_at", null)
+  return (data ?? []).filter((s) => !s.role_id || s.role_id === roleId).length
+}
+
+export type ClaimOutcome = "claimed" | "taken" | "gone" | "not_found" | "not_open" | "already_booked"
+
+/**
+ * The candidate takes a time.
+ *
+ * The race is settled by the database, not by checking first: the partial
+ * unique index on (slot_id) where slot_id is not null means exactly one
+ * round can hold a window, so two candidates clicking the same slot at the
+ * same moment end with one claim and one honest "someone just took that".
+ * Checking availability before writing would only narrow the window for the
+ * race, never close it.
+ */
+export async function claimBookingSlot(rawToken: string, slotId: string): Promise<ClaimOutcome> {
+  const admin = agencyAdmin()
+  const round = await loadByToken(admin, rawToken)
+  if (!round) return "not_found"
+  if (round.status === "cancelled") return "gone"
+  if (round.slot_id) return "already_booked"
+
+  const { windows: open } = await listOpenWindows(admin, round.agency_id as string, round.role_id as string)
+  const window = open.find((w) => w.slotId === slotId)
+  if (!window) return "not_open"
+
+  const { settings } = await getInterviewSettings(round.agency_id as string, round.role_id as string)
+  const { data: claimedRows, error } = await admin
+    .from("interview_rounds")
+    .update({
+      slot_id: slotId,
+      scheduled_at: window.start,
+      duration_minutes: settings.durationMinutes,
+      candidate_response: "confirmed",
+      candidate_responded_at: new Date().toISOString(),
+      // The client's standing joining link, if they gave one. Withheld from
+      // the doorway until confirmed either way — this only stores it.
+      ...(joiningLink(settings.locationKind, settings.locationDetail)
+        ? { meeting_url: joiningLink(settings.locationKind, settings.locationDetail) }
+        : {}),
+    })
+    .eq("id", round.id as string)
+    .is("slot_id", null)
+    .select("id")
+  if (error) {
+    // 23505: the index did its job and somebody else holds this window.
+    if ((error as { code?: string }).code === "23505") return "taken"
+    throw error
+  }
+  // Zero rows is not success. Two tabs, both clicked: the first took a slot,
+  // this update matched nothing — and used to return "claimed" for the
+  // window the candidate does NOT hold (21 Sep 2026).
+  if (!claimedRows || claimedRows.length === 0) return "already_booked"
+
+  const { data: candidate } = await admin
+    .from("candidates")
+    .select("ref")
+    .eq("id", round.candidate_id as string)
+    .maybeSingle()
+  const ref = (candidate?.ref as string) ?? ""
+
+  await writeAudit(admin, {
+    agencyId: round.agency_id as string,
+    roleId: round.role_id as string,
+    candidateId: round.candidate_id as string,
+    // The candidate is not an auth user; the action names who acted.
+    actorId: null,
+    entityType: "round",
+    entityRef: ref,
+    action: "booking_self_booked",
+    reason: "candidate chose their time",
+    toValue: { round_id: round.id, round_number: round.round_number, slot_id: slotId },
+  })
+
+  await notify(admin, {
+    kind: "booking_answered",
+    agencyId: round.agency_id as string,
+    actorId: null,
+    roleId: round.role_id as string,
+    candidateRef: ref,
+  })
+
+  return "claimed"
 }
 
 export type BookingOutcome = "confirmed" | "declined" | "already_answered" | "not_found" | "gone"
@@ -125,6 +454,10 @@ export async function respondToBooking(
 
   if (round.candidate_response === answer) return answer
   if (round.status === "cancelled") return "gone"
+  // An interview that has been HELD is not the candidate's to decline: a
+  // hand-booked round left "pending" could be cancelled after its write-up,
+  // sending the loop back to "to book" (21 Sep 2026).
+  if (round.status === "completed") return "already_answered"
   if (round.candidate_response !== "pending") return "already_answered"
 
   const nowIso = new Date().toISOString()
@@ -194,6 +527,9 @@ export async function sendBookingInvite(
     .select("id, agency_id, contact_id, candidate_id, round_number, scheduled_at, duration_minutes")
     .eq("id", roundId)
     .maybeSingle()
+  // This path states a time and attaches an .ics, so it genuinely needs one.
+  // A round with no time is a SELF-BOOKING invitation and goes out through
+  // sendSelfBookingInvite instead.
   if (!round?.scheduled_at) return { sent: false, reason: "no_time" }
 
   const [{ data: candidate }, { data: agency }, { data: contact }] = await Promise.all([
@@ -239,11 +575,15 @@ export async function sendBookingInvite(
   return { sent: result.sent, reason: result.error ?? result.skipped }
 }
 
+// UK time, labelled. Formatted on the server with no zone, times came out in
+// UTC — an hour early all summer (21 Sep 2026). The booking PAGE still shows
+// the candidate's own zone; an email cannot know it, so it says which it is.
+const EMAIL_TZ = "Europe/London"
 function fmt(d: Date, minutes: number): string {
-  const day = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })
-  const from = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
-  const to = new Date(d.getTime() + minutes * 60_000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
-  return `${day}, ${from} – ${to}`
+  const day = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: EMAIL_TZ })
+  const from = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: EMAIL_TZ })
+  const to = new Date(d.getTime() + minutes * 60_000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: EMAIL_TZ })
+  return `${day}, ${from} – ${to} (UK time)`
 }
 
 export function bookingHtml(o: {
@@ -276,4 +616,86 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;")
+}
+
+
+/**
+ * The self-booking invitation: no time stated, because there is not one yet.
+ *
+ * No calendar attachment either — an .ics for an unchosen hour is a lie a
+ * phone will happily put in someone's week. The link is the whole message.
+ */
+export async function sendSelfBookingInvite(
+  admin: AgencyClient,
+  roundId: string,
+  rawToken: string
+): Promise<{ sent: boolean; reason?: string }> {
+  const { data: round } = await admin
+    .from("interview_rounds")
+    .select("id, agency_id, contact_id, candidate_id")
+    .eq("id", roundId)
+    .maybeSingle()
+  if (!round) return { sent: false, reason: "no_round" }
+
+  const [{ data: candidate }, { data: agency }, { data: contact }] = await Promise.all([
+    admin.from("candidates").select("full_name, email").eq("id", round.candidate_id as string).maybeSingle(),
+    admin.from("agencies").select("name, notice_from_name, notice_reply_to").eq("id", round.agency_id as string).maybeSingle(),
+    admin.from("client_contacts").select("company").eq("id", round.contact_id as string).maybeSingle(),
+  ])
+  if (!candidate?.email) return { sent: false, reason: "no_contact_details" }
+
+  const agencyName = (agency?.notice_from_name as string) || (agency?.name as string) || "your recruiter"
+  const company = (contact?.company as string) ?? ""
+  const url = bookingUrl(rawToken)
+  const first = ((candidate.full_name as string) ?? "").trim().split(/\s+/)[0] || "there"
+
+  const result = await sendEmail({
+    to: candidate.email as string,
+    subject: company ? `Choose your interview time with ${company}` : "Choose your interview time",
+    html: selfBookingHtml({ candidateName: first, agencyName, company, url }),
+    from: `${agencyName} via Tailr <notices@gettailr.com>`,
+    replyTo: (agency?.notice_reply_to as string) || undefined,
+  })
+  return { sent: result.sent, reason: result.error ?? result.skipped }
+}
+
+export function selfBookingHtml(o: {
+  candidateName: string
+  agencyName: string
+  company: string
+  url: string
+}): string {
+  const who = o.company ? `an interview with ${escapeHtml(o.company)}` : "an interview"
+  return `<!doctype html><html><body style="margin:0;background:#f9f6f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1e1813">
+  <div style="max-width:560px;margin:0 auto;padding:32px 24px">
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(o.candidateName)},</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px">
+      ${escapeHtml(o.agencyName)} has arranged ${who}. Pick whichever time suits you — the page shows
+      what is still free, in your own timezone.
+    </p>
+    <p style="margin:24px 0">
+      <a href="${o.url}" style="display:inline-block;background:#dc4f33;color:#fdfcf9;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;font-size:15px">Choose your time</a>
+    </p>
+    <p style="font-size:13px;line-height:1.6;color:#6b615a;margin:0">
+      No account needed. If none of the times work, say so on the same page and ${escapeHtml(o.agencyName)}
+      will arrange more — it is not a comment on your application.
+    </p>
+  </div>
+</body></html>`
+}
+
+
+/**
+ * The joining link, when the client gave one.
+ *
+ * Tailr does not mint Meet or Teams links: the calendar consent it asks for
+ * is read-only, and widening it to write events is a bigger question than a
+ * convenience. So a standing link the client pasted into their rules is
+ * carried through to the people they are meeting, and anything that is not a
+ * link stays a description.
+ */
+export function joiningLink(kind: string, detail: string): string {
+  if (kind !== "video") return ""
+  const trimmed = detail.trim()
+  return /^https:\/\/\S+$/i.test(trimmed) ? trimmed.slice(0, 500) : ""
 }

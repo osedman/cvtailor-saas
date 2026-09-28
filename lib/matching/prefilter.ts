@@ -26,6 +26,7 @@ import { scoreCardAgainstRequirement } from "@/lib/career-arc-tailor-match"
 import type { EvidenceRow } from "@/lib/career-arc-ledger"
 import type { RequirementMapping } from "@/lib/anthropic"
 import type { Weight } from "@/lib/agency/types"
+import { WEIGHT_MULTIPLIER } from "@/lib/agency/strengths"
 import { PREFILTER_KEEP } from "./limits"
 
 /** An agency requirement, in the shape the consumer matcher understands. */
@@ -70,8 +71,8 @@ function asMapping(req: PrefilterRequirement): RequirementMapping {
   }
 }
 
-/** Must-haves count for more, in the same 3/2/1 ratio the real engine uses. */
-const WEIGHT_MULTIPLIER: Record<Weight, number> = { must: 3, important: 2, nice: 1 }
+/** Must-haves count for more, in the same 3/2/1 ratio the real engine uses —
+ *  literally the same constant, imported rather than restated. */
 
 /**
  * Rank a pool against a role's requirements. Returns at most `PREFILTER_KEEP`,

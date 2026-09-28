@@ -29,6 +29,8 @@ const LABEL: Record<Status, string> = {
 }
 
 interface Placement {
+  /** Needed to void it — the correction that `declined` is not. */
+  id: string
   status: Status
   startDate: string | null
   feePercent: number | null
@@ -38,6 +40,8 @@ interface Placement {
   rebateUntil: string | null
   inRebateWindow: boolean
   fellThroughReason: string
+  outsideProcess: boolean
+  outsideProcessReason: string
   notes: string
 }
 
@@ -70,6 +74,15 @@ export function CandidatePlacement({
   const [feeValue, setFeeValue] = useState("")
   const [rebateWeeks, setRebateWeeks] = useState("")
   const [reason, setReason] = useState("")
+  /**
+   * Whether the client ever advanced this person on this role, from the same
+   * GET. The route refuses a placement without a reason when they did not —
+   * this is only so the ask arrives BEFORE the form is filled rather than as
+   * a rejection after it. Optimistic default: assume advanced, so a failed
+   * read never invents an accusation.
+   */
+  const [advanceDecision, setAdvanceDecision] = useState(true)
+  const [outsideReason, setOutsideReason] = useState("")
 
   const hydrate = useCallback((p: Placement | null) => {
     setPlacement(p)
@@ -80,18 +93,58 @@ export function CandidatePlacement({
     setFeeValue(p.feeValue == null ? "" : String(p.feeValue))
     setRebateWeeks(p.rebateWeeks == null ? "" : String(p.rebateWeeks))
     setReason(p.fellThroughReason ?? "")
+    setOutsideReason(p.outsideProcessReason ?? "")
   }, [])
 
   useEffect(() => {
     ;(async () => {
       try {
         const res = await fetch(`/api/agency/candidates/${candidateId}/placement`)
-        if (res.ok) hydrate((await res.json()).placement ?? null)
+        if (res.ok) {
+          const body = await res.json()
+          hydrate(body.placement ?? null)
+          if (typeof body.advanceDecision === "boolean") setAdvanceDecision(body.advanceDecision)
+        }
       } finally {
         setLoaded(true)
       }
     })()
   }, [candidateId, hydrate])
+
+  /**
+   * Void the placement (22 Sep 2026). It leaves fill rate, fee value and
+   * rebate exposure; the row and its reason stay for the audit. The reason is
+   * required by the route AND by a DB constraint, so it is asked for here.
+   */
+  const voidIt = useCallback(async () => {
+    if (!placement) return
+    const reason = window.prompt(
+      "Void this placement? It comes out of your fill rate, fee value and rebate exposure. The record stays for the audit.\n\nWhy is it being voided?"
+    )
+    if (reason === null) return
+    if (!reason.trim()) {
+      toast.error("Say why this placement is being voided.")
+      return
+    }
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/agency/candidates/${candidateId}/placement`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ placementId: placement.id, reason }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body?.error || "Could not void that placement.")
+      setPlacement(null)
+      setOpen(false)
+      toast.success("Voided. It leaves your numbers; the record stays for the audit.")
+      onSaved?.()
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }, [candidateId, placement, onSaved])
 
   const save = useCallback(async () => {
     setBusy(true)
@@ -106,6 +159,7 @@ export function CandidatePlacement({
           feeValue: feeValue === "" ? null : Number(feeValue),
           rebateWeeks: rebateWeeks === "" ? null : Number(rebateWeeks),
           fellThroughReason: reason,
+          outsideProcessReason: outsideReason,
         }),
       })
       const body = await res.json()
@@ -119,7 +173,7 @@ export function CandidatePlacement({
     } finally {
       setBusy(false)
     }
-  }, [candidateId, status, startDate, feePercent, feeValue, rebateWeeks, reason, hydrate])
+  }, [candidateId, status, startDate, feePercent, feeValue, rebateWeeks, reason, outsideReason, hydrate])
 
   if (!loaded) return null
 
@@ -182,6 +236,26 @@ export function CandidatePlacement({
               ))}
             </div>
 
+            {/* A HIRE THAT SKIPPED THE LOOP SAYS SO (14 Sep 2026). The route
+                derives this — the recruiter never ticks a box claiming it.
+                Shown only where the trail is actually missing, so a normal
+                placement is recorded with no extra field and no friction. */}
+            {!advanceDecision && (
+              <label className="ag-stack ag-outside-ask" style={{ gap: 4 }}>
+                <span className="ag-meta">This candidate has no advance decision on this role.</span>
+                <input
+                  className="ag-input"
+                  value={outsideReason}
+                  onChange={(e) => setOutsideReason(e.target.value)}
+                  placeholder="Client interviewed them directly after our introduction"
+                />
+                <span className="ag-note" style={{ color: "var(--ag-ink-3)" }}>
+                  Recording it is fine — clients hire off-process. Say how it happened and it
+                  travels with the record. This describes the hire, never the person.
+                </span>
+              </label>
+            )}
+
             {status === "fell_through" && (
               <label className="ag-stack" style={{ gap: 4 }}>
                 <span className="ag-meta">What happened?</span>
@@ -225,6 +299,21 @@ export function CandidatePlacement({
               {placement && (
                 <button className="ag-btn" onClick={() => { setOpen(false); hydrate(placement) }} disabled={busy}>
                   Cancel
+                </button>
+              )}
+              {/* Void — for a placement recorded against the wrong candidate
+                  or at the wrong fee (22 Sep 2026). NOT `declined` or `fell
+                  through`: those are outcomes about a person, and using one
+                  to fix a clerical mistake writes a false fact about
+                  somebody's career into an audited table. */}
+              {placement && (
+                <button
+                  className="ag-btn"
+                  style={{ color: "var(--ag-coral-deep)" }}
+                  onClick={() => void voidIt()}
+                  disabled={busy}
+                >
+                  Void this placement
                 </button>
               )}
               <span className="ag-note" style={{ color: "var(--ag-ink-3)" }}>

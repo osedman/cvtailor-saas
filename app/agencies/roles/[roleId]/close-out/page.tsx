@@ -16,27 +16,40 @@
  *     us from the candidate; the request and the fair-processing notice are the
  *     same email, and this screen says so rather than letting a recruiter think
  *     they are just sending a form.
+ *   - The hire is SUGGESTED, never decided (21 Sep 2026, Figma frame 21).
+ *     When exactly one candidate was taken forward by the client, they are
+ *     pre-selected with the round trail that says why. Selecting records
+ *     nothing; "Confirm … as the hire" is the recruiter's act, and only then
+ *     do references and the pack open. Nothing here closes the role.
  *   - The pack preview shows GAPS. An employer inheriting this person is
  *     entitled to what was never evidenced, and a close-out screen that only
  *     showed strengths would be selling rather than handing over.
  */
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
-import { RoleRail } from "@/components/agency/role-rail"
 import { SignOut } from "@/components/agency/sign-out"
 import { RoleHeader } from "@/components/agency/role-header"
 import { CandidateReferences, type ReferenceListRow } from "@/components/agency/candidate-references"
-import { type PhaseKey } from "@/lib/agency/phases"
 import type { ChecklistItem } from "@/lib/agency/handover-checklist"
 import type { HandoverSnapshot } from "@/lib/agency/handover"
+import type { Stage } from "@/lib/agency/stage"
+import { RoundTrail } from "@/components/agency/round-trail"
+import { ArrowRight, Info } from "lucide-react"
 
 interface Candidate {
   id: string
   ref: string
   full_name: string
+  current_title?: string | null
+}
+
+/** "at round 1 and at round 2" — the advances the suggestion rests on. */
+function advancedRounds(stage: Stage): string {
+  const n = stage.trail.filter((s) => s.outcome === "advance").map((s) => `at round ${s.round}`)
+  return n.length <= 1 ? n.join("") : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}`
 }
 
 /** The document's vocabulary — the same words the app uses everywhere else,
@@ -66,31 +79,77 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   /** Delivered packs collapse to a record line — the work is done and the
    *  screen should say so, not hold the full document open forever. */
   const [packOpen, setPackOpen] = useState(false)
-  const [closure, setClosure] = useState<{ sent: number; deferred: number } | null>(null)
+  /** What closing actually did. `failed` stays visible: "everyone was told"
+   *  over failed sends is the success-that-wasn't this product refuses. */
+  const [closure, setClosure] = useState<{ sent: number; deferred: number; failed: number; noContact: number } | "unknown" | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [chosenId, setChosenId] = useState("")
+  // The client's decisions, read beside the recruiter's — see the header.
+  const [stages, setStages] = useState<Record<string, Stage | null>>({})
+  const [suggestedId, setSuggestedId] = useState<string | null>(null)
+  /** The recruiter's own act. A handover pack already existing counts. */
+  const [confirmed, setConfirmed] = useState(false)
   const [refs, setRefs] = useState<ReferenceListRow[] | null>(null)
   const [pack, setPack] = useState<HandoverSnapshot | null>(null)
   const [packId, setPackId] = useState<string | null>(null)
+
+  /**
+   * Void an undelivered pack (22 Sep 2026). The pick can then change and the
+   * right pack be generated; the voided row stays for the audit. Refused by
+   * the server once the pack has been handed over.
+   */
+  async function voidPack() {
+    if (!packId) return
+    const reason = window.prompt(
+      "Void this pack? It stops being the record for this candidate and you can generate the right one.\n\nWhy is it being voided?"
+    )
+    if (reason === null) return
+    if (!reason.trim()) {
+      setError("Say why this pack is being voided.")
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/handover`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packId, reason }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not void that pack.")
+        return
+      }
+      setPackId(null)
+      setPack(null)
+    } catch {
+      setError("Could not void that pack. Nothing has changed.")
+    } finally {
+      setBusy(false)
+    }
+  }
   const [contacts, setContacts] = useState<Array<{ id: string; company: string; full_name: string }>>([])
   const [deliverTo, setDeliverTo] = useState("")
   const [deliveredTo, setDeliveredTo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [phase, setPhase] = useState<PhaseKey | null>(null)
   // The handover checklist for the chosen candidate. The server refuses
   // delivery while anything is open; this is the same list, shown.
   const [checklist, setChecklist] = useState<ChecklistItem[] | null>(null)
   const [checklistBusy, setChecklistBusy] = useState<string | null>(null)
   const loadChecklist = useCallback(async () => {
-    if (!chosenId) return setChecklist(null)
+    // Cleared first: a failed fetch after switching candidates used to leave
+    // the PREVIOUS candidate's checklist on screen, possibly "Complete".
+    setChecklist(null)
+    if (!chosenId) return
     try {
       const res = await fetch(`/api/agency/roles/${roleId}/handover/checklist?candidateId=${encodeURIComponent(chosenId)}`)
-      if (!res.ok) return
+      if (!res.ok) return setError("Could not load the handover checklist. Reload before handing over.")
       const body = await res.json()
       if (Array.isArray(body?.items)) setChecklist(body.items as ChecklistItem[])
     } catch {
-      /* the card shows nothing rather than a guess */
+      setError("Could not load the handover checklist. Reload before handing over.")
     }
   }, [roleId, chosenId])
   useEffect(() => {
@@ -128,6 +187,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   const checklistComplete = checklist !== null && checklist.every((i) => i.resolved)
   const checklistOutstanding = (checklist ?? []).filter((i) => !i.resolved)
 
+  const clientContactRef = useRef<string | null>(null)
   const loadRole = useCallback(async () => {
     try {
       const [roleRes, candRes] = await Promise.all([
@@ -137,7 +197,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
       if (roleRes.status === 401) return router.push("/agencies")
       if (roleRes.ok) {
         const body = await roleRes.json()
-        setPhase((body?.phase as PhaseKey | null) ?? null)
+        clientContactRef.current = (body?.role?.contact_id as string | null) || (body?.brief_contact_id as string | null) || null
         if (body?.role) {
           setRole({
             ref: body.role.ref,
@@ -150,6 +210,18 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
       if (candRes.ok) {
         const body = await candRes.json()
         setCandidates(Array.isArray(body?.candidates) ? body.candidates : [])
+        setStages(body?.stages && typeof body.stages === "object" ? body.stages : {})
+        const suggested = typeof body?.suggestedHireId === "string" ? body.suggestedHireId : null
+        const picked = typeof body?.pickedHireId === "string" ? body.pickedHireId : null
+        setSuggestedId(suggested)
+        // A pack is the confirmed pick; otherwise the suggestion fills an
+        // EMPTY choice only — it never replaces one the recruiter made.
+        if (picked) {
+          setChosenId((prev) => prev || picked)
+          setConfirmed((prev) => prev || true)
+        } else if (suggested) {
+          setChosenId((prev) => prev || suggested)
+        }
       }
       // The deciding contact, for handing the pack over. Non-fatal: without
       // contacts the pack still freezes; only the delivery control hides.
@@ -158,7 +230,9 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
         .then((b) => {
           const rows = Array.isArray(b?.contacts) ? b.contacts : []
           setContacts(rows)
-          if (rows.length > 0) setDeliverTo((prev) => prev || rows[0].id)
+          // The role's own client first — a delivered pack is final, and the
+          // first row of the whole address book is often another client.
+          if (rows.length > 0) setDeliverTo((prev) => prev || clientContactRef.current || rows[0].id)
         })
         .catch(() => {})
     } catch {
@@ -174,6 +248,30 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
 
 
   const chosen = candidates.find((c) => c.id === chosenId) ?? null
+  const suggested = candidates.find((c) => c.id === suggestedId) ?? null
+  const suggestedStage = suggestedId ? stages[suggestedId] ?? null : null
+  // Close-out is about the people the client INTERVIEWED (22 Sep 2026, Ose):
+  // the hire comes from the loop, so the picker lists only those with a
+  // round on this role — plus whoever is already the pick, so a confirmed
+  // choice never vanishes from under the recruiter.
+  const inLoop = candidates.filter((c) => (stages[c.id]?.trail.length ?? 0) > 0 || c.id === chosenId)
+  const interviewed = candidates.filter((c) => (stages[c.id]?.trail.length ?? 0) > 0).length
+  const stillDeciding = Object.values(stages).some((s) => s?.kind === "awaiting-client" || s?.kind === "booked")
+  const client = role?.company || "Your client"
+  const heading = confirmed && chosen
+    ? `${client} chose ${chosen.full_name}`
+    : chosen && chosenId === suggestedId
+      ? `${client} took ${chosen.full_name} forward`
+      : !suggestedId && stillDeciding
+        ? "The client is still deciding"
+        : "Who did they choose?"
+
+  function pick(id: string) {
+    setChosenId(id)
+    setConfirmed(false)
+    setPack(null)
+    setPackId(null)
+  }
 
   /** Hand the frozen pack to the deciding contact. Idempotent server-side,
    *  audited as handover/delivered — the act that ends Tailr's part. */
@@ -210,11 +308,20 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
       })
       const body = (await res.json().catch(() => ({}))) as {
         error?: string
-        closure?: { sent?: number; deferred?: number } | null
+        closure?: { sent?: number; deferred?: number; failed?: number; noContact?: number } | null
       }
       if (!res.ok) throw new Error(body.error ?? "Could not close the role")
       setRole((r) => (r ? { ...r, status: "closed" } : r))
-      if (body.closure) setClosure({ sent: body.closure.sent ?? 0, deferred: body.closure.deferred ?? 0 })
+      setClosure(
+        body.closure
+          ? {
+              sent: body.closure.sent ?? 0,
+              deferred: body.closure.deferred ?? 0,
+              failed: body.closure.failed ?? 0,
+              noContact: body.closure.noContact ?? 0,
+            }
+          : "unknown"
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not close the role")
     } finally {
@@ -262,8 +369,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
           </div>
         </button>
         <AgencySwitcher />
-        <AgencyNav />
-        <RoleRail roleId={roleId} phase={phase} current="close-out" />
+        <AgencyNav inRole />
         <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>When the hire is made</div>
@@ -280,7 +386,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
 
           <p className="ag-step-eyebrow">Close-out · after client selection</p>
           <h1 className="ag-title">
-            {chosen ? `${role?.company || "Your client"} chose ${chosen.full_name}` : "Who did they choose?"}
+            {heading}
           </h1>
           <p className="ag-sub">
             Collect references, hand over the pack, and Tailr&apos;s part is done. Everything the
@@ -289,35 +395,97 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
 
           {error && <p className="ag-banner" role="alert">{error}</p>}
 
-          {/* 1. Who was chosen */}
-          <section className="ag-card ag-print-hide" style={{ padding: "18px 22px", marginTop: 8 }}>
-            <p className="ag-field-label">The hire</p>
-            {candidates.length === 0 ? (
-              <p className="ag-note">No candidates on this role yet.</p>
-            ) : (
-              <div className="ag-stack" style={{ gap: 8, marginTop: 8 }}>
-                {candidates.map((c) => (
-                  <button
-                    key={c.id}
-                    className={`ag-card ag-pick${chosenId === c.id ? " on" : ""}`}
-                    onClick={() => {
-                      setChosenId(c.id)
-                      setPack(null)
-                      setPackId(null)
-                    }}
-                    aria-pressed={chosenId === c.id}
-                  >
-                    <span className="ag-grow" style={{ minWidth: 0 }}>
-                      <span className="ag-meta">{c.ref}</span>
-                      <span className="ag-pick-name">{c.full_name}</span>
-                    </span>
-                  </button>
-                ))}
+          {/* 1. Who was chosen — suggested from the loop, confirmed by a person */}
+          <section className="ag-card ag-print-hide" style={{ padding: "20px 24px", marginTop: 8 }}>
+            {inLoop.length === 0 ? (
+              <p className="ag-note">Nobody has been interviewed on this role yet. Once the client has met candidates, they appear here.</p>
+            ) : confirmed && chosen ? (
+              <div className="ag-hire-done">
+                <span className="ag-hire-who">
+                  <span className="ag-hire-name">{chosen.full_name}</span>
+                  <span className="ag-hire-ref">{chosen.ref} · confirmed as the hire</span>
+                </span>
+                {stages[chosen.id] && <RoundTrail trail={stages[chosen.id]!.trail} />}
+                <button className="ag-btn ag-btn-secondary" onClick={() => setConfirmed(false)}>
+                  Change
+                </button>
               </div>
+            ) : (
+              <>
+                {suggested && suggestedStage && chosenId === suggestedId && (
+                  <p className="ag-hire-prov">
+                    <Info size={18} aria-hidden="true" />
+                    <span>
+                      Suggested from the client’s round decisions: advanced {advancedRounds(suggestedStage)}
+                      {suggestedStage.decidedAt
+                        ? `, decided ${new Date(suggestedStage.decidedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
+                        : ""}
+                      . You confirm the hire — nothing is recorded until you do.
+                    </span>
+                  </p>
+                )}
+                {suggested && chosenId && chosenId !== suggestedId && (
+                  <p className="ag-note" style={{ margin: "0 0 10px" }}>
+                    The client’s decisions suggested {suggested.full_name}.
+                  </p>
+                )}
+                <fieldset className="ag-hire">
+                  <legend className="ag-hire-legend">
+                    <b>The hire</b>
+                    <span>
+                      {interviewed} interviewed · in reference order
+                    </span>
+                  </legend>
+                  <div className="ag-hire-list">
+                    {inLoop.map((c) => {
+                      const stage = stages[c.id] ?? null
+                      const on = chosenId === c.id
+                      return (
+                        <label key={c.id} className={`ag-hire-card${on ? " on" : ""}`}>
+                          <input
+                            type="radio"
+                            name="hire"
+                            value={c.id}
+                            checked={on}
+                            onChange={() => pick(c.id)}
+                          />
+                          <span className="ag-hire-who">
+                            <span className="ag-hire-name">{c.full_name}</span>
+                            <span className="ag-hire-ref" translate="no">
+                              {c.ref}
+                              {c.current_title ? ` · ${c.current_title}` : ""}
+                            </span>
+                          </span>
+                          {stage && stage.trail.length > 0 && (
+                            <span className="ag-hire-decided">
+                              <RoundTrail trail={stage.trail} />
+                              <span className={`ag-stage-label${stage.kind === "taken-forward" ? " fwd" : ""}`}>
+                                {stage.label}
+                              </span>
+                            </span>
+                          )}
+                          {c.id === suggestedId && <span className="ag-hire-tag">Suggested</span>}
+                        </label>
+                      )
+                    })}
+                  </div>
+                </fieldset>
+                <div className="ag-hire-actions">
+                  <button
+                    className="ag-btn ag-btn-primary"
+                    disabled={!chosen}
+                    onClick={() => setConfirmed(true)}
+                  >
+                    {chosen ? `Confirm ${chosen.full_name} as the hire` : "Pick who was hired"}
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </button>
+                  <p>Opens references and the handover pack. The role stays open; the placement is recorded separately.</p>
+                </div>
+              </>
             )}
           </section>
 
-          {chosen && (
+          {chosen && confirmed && (
             <div className="ag-close-grid">
               {/* 2. References */}
               {/* Shared with the candidate file (components/agency/
@@ -562,6 +730,22 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                           {busy ? "Re-freezing…" : "Re-freeze with the latest record"}
                         </button>
                       )}
+                      {/* Void: the way out of a pack frozen against the wrong
+                          candidate (22 Sep 2026). Generation returns the
+                          existing pack rather than minting twins, so without
+                          this the mistake IS the record. Only while
+                          undelivered — the server and a DB constraint both
+                          refuse it once the client has it. */}
+                      {!deliveredTo && packId && (
+                        <button
+                          className="ag-btn ag-btn-secondary"
+                          style={{ color: "var(--ag-coral-deep)" }}
+                          onClick={voidPack}
+                          disabled={busy}
+                        >
+                          {busy ? "Voiding…" : "Void this pack"}
+                        </button>
+                      )}
                     </div>
 
                     </>
@@ -653,9 +837,11 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                           </p>
                           <p className="ag-handoff-sub">
                             The pack is with the client and stays on record here.
-                            {closure
-                              ? ` Everyone else was told — ${closure.sent} sent${closure.deferred ? `, ${closure.deferred} still to go` : ""}.`
-                              : " Everyone the loop was opened with is told."}
+                            {closure === "unknown"
+                              ? " We could not confirm the closure emails went — check the audit log before assuming anyone was told."
+                              : closure
+                                ? ` Closure emails: ${closure.sent} sent${closure.deferred ? `, ${closure.deferred} still to go` : ""}${closure.failed ? `, ${closure.failed} failed` : ""}${closure.noContact ? `, ${closure.noContact} with no email on file` : ""}.`
+                                : ""}
                             {" "}The retention clock is running; when it lapses, Tailr forgets.
                           </p>
                         </div>

@@ -19,6 +19,18 @@ const nextConfig = {
       // people's inboxes link to it, and those cannot be edited — without this
       // they would 404 forever. Send them to the home page instead.
       { source: '/walkthrough', destination: '/', permanent: true },
+      // The client-brief flow was removed (22 Sep 2026). "New brief" emails
+      // already delivered link to the inbox, so it redirects rather than 404s.
+      // Not permanent: the business may want briefs back.
+      // /agencies/briefs is a real page again (23 Sep 2026): the terms of a
+      // search, agreed by both sides. Only the old HM form still redirects.
+      { source: '/hiring/briefs/new', destination: '/hiring', permanent: false },
+      // The hiring manager's five places became three (22 Sep 2026, Figma
+      // frame 23). The cross-role phase lists are stages inside each role
+      // now; old links land on the place that answers the same question.
+      { source: '/hiring/shortlist', destination: '/hiring/roles', permanent: false },
+      { source: '/hiring/decisions', destination: '/hiring/roles', permanent: false },
+      { source: '/hiring/interviews', destination: '/hiring/diary', permanent: false },
     ]
   },
 }

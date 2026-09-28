@@ -1,0 +1,29 @@
+Ravi Chandran
+Birmingham · o.oifoh+can08@gmail.com · 07700 900008
+
+SUMMARY
+Data engineering manager, 14 years. Mostly leading now; hands-on perhaps two
+days a week.
+
+EXPERIENCE
+
+Head of Data Engineering — Thorne Utilities (2020–present)
+- Lead a team of nine across three squads.
+- Own the platform: Airflow, Snowflake, dbt (400+ models), Kafka for meter
+  readings at about 4TB/day.
+- Terraform, though my engineers write most of it now.
+- Utilities is regulated by Ofgem; I handled the consumer data protections
+  under UK GDPR for the smart meter programme.
+- Built the mentoring programme the whole department uses. Nine engineers
+  through it so far.
+
+Principal Data Engineer — Thorne Utilities (2017–2020)
+- Hands-on Python and SQL, heavy tuning on the readings tables which were in
+  the tens of billions of rows.
+
+NOTES
+My Python is 14 years but the last three have been mostly review rather than
+writing. If you want someone writing pipelines every day I am probably not it.
+
+SKILLS
+Leadership · Python · SQL · Airflow · dbt · Snowflake · Kafka · Terraform

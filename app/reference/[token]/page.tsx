@@ -18,7 +18,13 @@
  */
 
 import { use, useCallback, useEffect, useState } from "react"
+import { doorwayLoadState, retryAfterSeconds, type DoorwayLoadState } from "@/lib/agency/doorway-messages"
+import { DoorwayLoadIssue } from "@/components/agency/doorway-load-issue"
 import "../../consent/consent.css"
+
+/** Mirrors lib/agency/references.ts RefereeView — the doorway pages do not
+ *  import server modules, so the shape is restated rather than shared. */
+type ReferenceKind = "character" | "hr"
 
 interface RefereeView {
   agencyName: string
@@ -26,18 +32,80 @@ interface RefereeView {
   refereeName: string
   relationship: string
   status: string
+  kind: ReferenceKind
 }
 
 type Screen = "loading" | "invalid" | "ready" | "done"
 
-/** Four questions, keyed — never indexed, so adding a fifth later cannot
- * silently re-map answers already given. */
-const QUESTIONS = [
-  { key: "Q1", question: "How did you work with them, and for how long?" },
-  { key: "Q2", question: "What did they do well?" },
-  { key: "Q3", question: "Is there anything the employer should know?" },
-  { key: "Q4", question: "Would you work with them again?" },
-]
+/**
+ * Two forms, because the two references ask different things — Figma frame
+ * 24, band H (23 Sep 2026).
+ *
+ * Until today every referee got the same four open questions, including the
+ * HR team of a former employer, who are usually not permitted to answer
+ * "what did they do well?" and had to either refuse or overstep.
+ *
+ * KEYED, NEVER INDEXED. An answer is stored against its key, so changing
+ * this set cannot silently re-map an answer somebody already gave. The keys
+ * below are therefore append-only in spirit: Q1 was "how did you work with
+ * them, and for how long?", which is now the dates, so the character form
+ * starts at Q2 rather than renumbering and colliding with old answers.
+ */
+/**
+ * `from` / `to` are what gets STORED against the answer, so they read as full
+ * questions in the record. `fromLabel` / `toLabel` are what the referee sees,
+ * and they are short on purpose: two labels of unequal length put the two
+ * inputs at different heights, which is exactly what the first render did
+ * (Figma frame 24 band H, and Ose's screenshot of 23 Sep 2026).
+ */
+const DATE_QUESTIONS: Record<
+  ReferenceKind,
+  { legend: string; from: string; to: string; fromLabel: string; toLabel: string; hint: string; still: string }
+> = {
+  character: {
+    legend: "When did you work together?",
+    from: "When did you start working together?",
+    to: "When did you stop working together?",
+    fromLabel: "From",
+    toLabel: "To",
+    hint: "Month and year is plenty — a rough answer is better than none.",
+    still: "We still work together",
+  },
+  hr: {
+    legend: "When were they employed?",
+    from: "When did their employment start?",
+    to: "When did it end?",
+    fromLabel: "From",
+    toLabel: "To",
+    hint: "Month and year.",
+    still: "They still work here",
+  },
+}
+
+const QUESTIONS_BY_KIND: Record<ReferenceKind, Array<{ key: string; question: string; hint?: string }>> = {
+  /** Two questions, not four. Three of the old set overlapped. */
+  character: [
+    {
+      key: "Q2",
+      question: "What were they like to work with?",
+      hint: "In your own words. Whatever you write is passed on exactly as written — nothing is summarised.",
+    },
+    { key: "Q4", question: "Would you work with them again, and why?" },
+  ],
+  /** Facts only. No "what were they like": see the comment above. */
+  hr: [
+    { key: "H1", question: "What was their job title?" },
+    {
+      key: "H2",
+      question: "Anything factual we should know?",
+      hint: "A notice period, or a correction to the dates above. Optional.",
+    },
+  ],
+}
+
+/** The dates are answers like any other, so they need no column of their own
+ *  and they arrive verbatim, which is how everything else here is stored. */
+const DATE_KEYS = { from: "D1", to: "D2", current: "D3" } as const
 
 export default function ReferencePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -46,20 +114,37 @@ export default function ReferencePage({ params }: { params: Promise<{ token: str
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [declined, setDeclined] = useState(false)
+  /** "We still work together" — the honest answer to a missing end date. */
+  const [stillThere, setStillThere] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /* A refusal that is NOT a dead link: busy (429) or our own failure. These
+   * used to fall into "invalid", so a rate-limited visitor was told their
+   * good link had expired (28 Sep 2026). Only a 404 is invalid now. */
+  const [loadIssue, setLoadIssue] = useState<DoorwayLoadState | null>(null)
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/reference/${encodeURIComponent(token)}`)
-      if (!res.ok) return setScreen("invalid")
+      const issue = doorwayLoadState({
+        status: res.status,
+        retryAfter: retryAfterSeconds(res.headers.get("Retry-After")),
+      })
+      if (issue?.kind === "dead") return setScreen("invalid")
+      if (issue) return setLoadIssue(issue)
+      setLoadIssue(null)
       const body = (await res.json()) as { reference?: RefereeView }
       if (!body.reference) return setScreen("invalid")
       setView(body.reference)
       setScreen("ready")
     } catch {
-      setScreen("invalid")
+      setLoadIssue(doorwayLoadState({ status: null, retryAfter: null }))
     }
   }, [token])
+
+  const reload = useCallback(() => {
+    setLoadIssue(null)
+    void load()
+  }, [load])
 
   useEffect(() => {
     void load()
@@ -76,11 +161,29 @@ export default function ReferencePage({ params }: { params: Promise<{ token: str
           decline
             ? { decline: true }
             : {
-                answers: QUESTIONS.map((q) => ({
-                  key: q.key,
-                  question: q.question,
-                  answer: answers[q.key] ?? "",
-                })).filter((a) => a.answer.trim().length > 0),
+                /**
+                 * The dates travel as answers, keyed like the rest, so the
+                 * recruiter's screen and the handover pack render them with
+                 * no new plumbing and the referee's words stay verbatim.
+                 */
+                answers: [
+                  { key: DATE_KEYS.from, question: dates.from, answer: answers[DATE_KEYS.from] ?? "" },
+                  {
+                    key: DATE_KEYS.to,
+                    question: dates.to,
+                    answer: stillThere ? "" : answers[DATE_KEYS.to] ?? "",
+                  },
+                  {
+                    key: DATE_KEYS.current,
+                    question: kind === "hr" ? "Still employed there?" : "Still working together?",
+                    answer: stillThere ? "Yes" : "",
+                  },
+                  ...questions.map((q) => ({
+                    key: q.key,
+                    question: q.question,
+                    answer: answers[q.key] ?? "",
+                  })),
+                ].filter((a) => a.answer.trim().length > 0),
               }
         ),
       })
@@ -95,6 +198,20 @@ export default function ReferencePage({ params }: { params: Promise<{ token: str
     } finally {
       setSaving(false)
     }
+  }
+
+  /**
+   * Which form this link opens. It comes from the reference row, never from
+   * the URL or a guess: the recruiter chose it when they added the referee,
+   * and the request email already told them which one they were being asked
+   * for. An unrecognised value reads as character, the safer of the two.
+   */
+  const kind: ReferenceKind = view?.kind === "hr" ? "hr" : "character"
+  const questions = QUESTIONS_BY_KIND[kind]
+  const dates = DATE_QUESTIONS[kind]
+
+  if (loadIssue && loadIssue.kind !== "dead") {
+    return <DoorwayLoadIssue issue={loadIssue} onRetry={reload} />
   }
 
   if (screen === "loading") {
@@ -155,13 +272,61 @@ export default function ReferencePage({ params }: { params: Promise<{ token: str
           exactly as you write them.
         </p>
         <p className="cs-body">
-          <b>You are under no obligation.</b> There is a &quot;prefer not to&quot; button at the
+          <b>You are under no obligation.</b>{" "}There is a &quot;prefer not to&quot; button at the
           bottom, and choosing it tells us to stop asking.
         </p>
 
-        {QUESTIONS.map((q) => (
-          <label className="cs-body" key={q.key} htmlFor={`ref-${q.key}`}>
-            <b>{q.question}</b>
+        {/* The dates. Free text on purpose: a date picker demands a
+            precision most people do not have about a job they left in 2021,
+            and "spring 2021" is a more honest answer than a wrong day. */}
+        <fieldset className="cs-fieldset cs-q">
+          <legend className="cs-q-label">{dates.legend}</legend>
+          <p className="cs-hint">{dates.hint}</p>
+          <div className="cs-pair">
+            <label className="cs-sub" htmlFor={`ref-${DATE_KEYS.from}`}>
+              {dates.fromLabel}
+              <input
+                id={`ref-${DATE_KEYS.from}`}
+                className="cs-input"
+                placeholder="March 2021"
+                autoComplete="off"
+                value={answers[DATE_KEYS.from] ?? ""}
+                onChange={(e) => setAnswers((a) => ({ ...a, [DATE_KEYS.from]: e.target.value.slice(0, 100) }))}
+              />
+            </label>
+            <label className="cs-sub" htmlFor={`ref-${DATE_KEYS.to}`}>
+              {dates.toLabel}
+              <input
+                id={`ref-${DATE_KEYS.to}`}
+                className="cs-input"
+                placeholder="June 2024"
+                autoComplete="off"
+                disabled={stillThere}
+                value={stillThere ? "" : answers[DATE_KEYS.to] ?? ""}
+                onChange={(e) => setAnswers((a) => ({ ...a, [DATE_KEYS.to]: e.target.value.slice(0, 100) }))}
+              />
+            </label>
+          </div>
+          <label className="cs-check" htmlFor="ref-still">
+            <input
+              id="ref-still"
+              type="checkbox"
+              checked={stillThere}
+              onChange={(e) => {
+                setStillThere(e.target.checked)
+                // The end date and the checkbox are the same fact said two
+                // ways; letting both stand would send a contradiction.
+                setAnswers((a) => ({ ...a, [DATE_KEYS.to]: e.target.checked ? "" : a[DATE_KEYS.to] ?? "" }))
+              }}
+            />
+            <span>{dates.still}</span>
+          </label>
+        </fieldset>
+
+        {questions.map((q) => (
+          <label className="cs-q" key={q.key} htmlFor={`ref-${q.key}`}>
+            <span className="cs-q-label">{q.question}</span>
+            {q.hint && <span className="cs-hint">{q.hint}</span>}
             <textarea
               id={`ref-${q.key}`}
               className="cs-textarea"
@@ -180,17 +345,19 @@ export default function ReferencePage({ params }: { params: Promise<{ token: str
           </p>
         )}
 
-        <button className="cs-btn" onClick={() => submit(false)} disabled={saving}>
-          {saving ? "Sending…" : "Send my reference"}
-        </button>
-        {/* Equal standing, not a footnote. */}
-        <button
-          className="cs-btn cs-btn-quiet"
-          onClick={() => submit(true)}
-          disabled={saving}
-        >
-          I&apos;d prefer not to
-        </button>
+        <div className="cs-actions">
+          <button className="cs-btn" onClick={() => submit(false)} disabled={saving} aria-busy={saving}>
+            {saving ? "Sending…" : "Send my reference"}
+          </button>
+          {/* Equal standing, not a footnote. */}
+          <button
+            className="cs-btn cs-btn-quiet"
+            onClick={() => submit(true)}
+            disabled={saving}
+          >
+            I&apos;d prefer not to
+          </button>
+        </div>
 
         <p className="cs-foot">
           <b>What we hold about you.</b> Your name, your email address and your relationship to{" "}

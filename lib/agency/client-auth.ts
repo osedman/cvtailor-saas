@@ -416,9 +416,27 @@ export async function listClientAccess(ctx: AgencyContext): Promise<ClientAccess
     .from("client_contacts")
     .select("id, company, email, full_name, user_id")
     .eq("agency_id", ctx.agencyId)
+    // Archived contacts left the address book (22 Sep 2026); this list is
+    // the access table for the same address book, so they leave it too.
+    .is("archived_at", null)
     .order("company")
   if (error) throw error
   if (!contacts || contacts.length === 0) return []
+
+  // Which linked people also hold a membership here. Both staging testers
+  // do (a recruiter who is also the client contact), and without this flag
+  // removing their client access looks like it did nothing.
+  const linkedUserIds = contacts.map((c) => c.user_id as string | null).filter((u): u is string => Boolean(u))
+  const memberIds = new Set<string>()
+  if (linkedUserIds.length > 0) {
+    const { data: members } = await admin
+      .from("members")
+      .select("user_id")
+      .eq("agency_id", ctx.agencyId)
+      .eq("status", "active")
+      .in("user_id", linkedUserIds)
+    for (const m of members ?? []) memberIds.add(m.user_id as string)
+  }
 
   const { data: invites, error: inviteError } = await admin
     .from("client_invites")
@@ -462,6 +480,7 @@ export async function listClientAccess(ctx: AgencyContext): Promise<ClientAccess
       state,
       inviteId,
       expiresAt,
+      alsoMember: Boolean(contact.user_id) && memberIds.has(contact.user_id as string),
     }
   })
 }
@@ -641,15 +660,32 @@ export async function acceptInvite(
  * NEVER return, in any shape, to a client:
  *   · job_roles.recruiter_notes      — the recruiter's private thinking
  *   · candidate_reviews.notes        — likewise, per candidate
- *   · candidates.full_name, .email, .cv_storage_path, or any CV text
- *   · candidate_evidence (any row)   — quotes, strengths, sources
+ *   · candidates.email, .phone, or any way of contacting them directly
+ *   · candidates.cv_storage_path     — the file itself never travels
  *   · score_breakdowns / overrides   — the agency's method is the agency's
  *   · another contact's briefs, slots, rounds or decisions
  *
- * A candidate appears to a client as their REF ('CAN-01') and nothing more,
- * until the recruiter deliberately discloses more through a submission
- * snapshot or a handover pack. If a future feature needs a name here, that is
- * a product decision with a DPIA attached — not a widened select.
+ * DISCLOSABLE THROUGH A SUBMISSION, AND ONLY THROUGH ONE (changed 22 Sep
+ * 2026, Ose's decision — this is how the process works today: a hiring
+ * manager reads the CV and the evidence and decides from them):
+ *   · candidates.full_name           — unless the candidate asked to be
+ *                                      withheld; `redacted` outranks every
+ *                                      switch, in both directions
+ *   · candidate_evidence             — requirement + verbatim quote
+ *   · candidates.cv_text             — through lib/agency/cv-disclosure.ts,
+ *                                      contact details stripped, served live
+ *                                      so purge still erases it, gated on the
+ *                                      snapshot's frozen `cv` switch, and
+ *                                      audited on every single view
+ *
+ * The line that did NOT move: a client still cannot reach a candidate
+ * without the recruiter. Names and evidence are a judgement; a phone number
+ * is a way around the fee.
+ *
+ * Outside a submission a candidate is still their REF ('CAN-01') and nothing
+ * more. The dashboard select()s below disclose nothing new — the door is the
+ * submission snapshot and the CV route, not this function. The DPIA on this
+ * disclosure is OPEN: docs/DPIA-DECISIONS.md, 22 Sep 2026.
  * ══════════════════════════════════════════════════════════════════════════
  *
  * Scoping: every query is filtered to the caller's OWN contact ids, which
@@ -747,13 +783,21 @@ export async function getHiringDashboard(ctx: HiringContext): Promise<HiringDash
   // company_context stay on the recruiter's side of the wall.
   const roleIds = [...new Set(roundRows.map((r) => r.role_id as string).filter(Boolean))]
   const roleTitles = new Map<string, string>()
+  /* How many rounds this role PLANS. Both hiring-manager screens rendered
+   * "of 2" as a literal until 17 Sep 2026 while job_roles.planned_rounds was
+   * a real field set at intake — so a three-round process was told it was on
+   * its final round, and "the last round" could not mean anything. */
+  const rolePlanned = new Map<string, number>()
   if (roleIds.length > 0) {
     const { data: roles, error: roleError } = await admin
       .from("job_roles")
-      .select("id, title")
+      .select("id, title, planned_rounds")
       .in("id", roleIds)
     if (roleError) throw roleError
-    for (const role of roles ?? []) roleTitles.set(role.id as string, (role.title as string) ?? "")
+    for (const role of roles ?? []) {
+      roleTitles.set(role.id as string, (role.title as string) ?? "")
+      rolePlanned.set(role.id as string, (role.planned_rounds as number | null) ?? 2)
+    }
   }
 
   // Candidate REFS for the rounds. `id, ref` — the select is this narrow on
@@ -845,6 +889,7 @@ export async function getHiringDashboard(ctx: HiringContext): Promise<HiringDash
       contact_id: r.contact_id as string,
       role_id: r.role_id as string,
       role_title: roleTitles.get(r.role_id as string) ?? "",
+      planned_rounds: rolePlanned.get(r.role_id as string) ?? 2,
       candidate_ref: candidateRefs.get(r.candidate_id as string) ?? "",
       round_number: r.round_number as number,
       scheduled_at: (r.scheduled_at as string | null) ?? null,

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { AgencyAccessError, agencyAdmin, getJobRole, requireAgencyContext, writeAudit } from "@/lib/agency/db"
+import { AgencyAccessError, agencyAdmin, discardJobRole, getJobRole, requireAgencyContext, writeAudit } from "@/lib/agency/db"
 import { setRoleOwner } from "@/lib/agency/role-owner"
 import { derivePhase } from "@/lib/agency/phases"
 import { sendClosureNotices, type ClosureResult } from "@/lib/agency/closure"
@@ -82,6 +82,7 @@ export async function GET(
       constraints: constraints.data ?? [],
       agency: agency.data ?? null,
       brief_jd: ((brief.data?.jd_raw as string | undefined) ?? "").trim() || null,
+      brief_contact_id: (brief.data?.contact_id as string | null | undefined) ?? null,
       caller_role: auth.ctx.role,
       // null rather than a guess when either read failed: the rail renders
       // nothing on null, and telling a recruiter in handover that they are at
@@ -221,5 +222,28 @@ export async function PATCH(
       { error: errorMessage(error) },
       { status: 500 }
     )
+  }
+}
+
+/**
+ * DELETE { reason } → discard this role.
+ *
+ * The way out of a role created twice or by mistake. NOT "close": closing is
+ * an outcome that starts the retention clock and tells candidates the role is
+ * filled. Refused once anyone is on the role, with that explanation — see
+ * discardJobRole().
+ */
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  try {
+    const { roleId } = await params
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+    const body = await req.json().catch(() => ({}))
+    const reason = typeof body?.reason === "string" ? body.reason : ""
+    await discardJobRole(auth.ctx, roleId, reason)
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    if (error instanceof AgencyAccessError) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
