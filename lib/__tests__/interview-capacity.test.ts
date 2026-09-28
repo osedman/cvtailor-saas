@@ -81,7 +81,9 @@ describe("the rules validator", () => {
   it("falls back rather than throwing on nonsense", () => {
     expect(normalise(null)).toEqual(DEFAULT_SETTINGS)
     expect(normalise({ locationKind: "telepathy" }).locationKind).toBe("video")
-    expect(normalise({ reschedulePolicy: "whenever" }).reschedulePolicy).toBe("until_notice")
+    expect(normalise({ reschedulePolicy: "whenever" }).reschedulePolicy).toBe("none")
+    // One choice per candidate by default (28 Sep 2026).
+    expect(DEFAULT_SETTINGS.reschedulePolicy).toBe("none")
   })
 
   it("puts a reversed date range back in order rather than failing the check", () => {

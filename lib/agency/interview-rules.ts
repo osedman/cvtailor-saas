@@ -47,7 +47,11 @@ export const DEFAULT_SETTINGS: InterviewSettings = {
   minNoticeHours: 24,
   bufferMinutes: 15,
   maxPerDay: 4,
-  reschedulePolicy: "until_notice",
+  // One choice per candidate (Ose, 28 Sep 2026: "a user should only be able
+  // to select one time"). Moving a chosen time goes through the recruiter.
+  // The client's set-up screen can still allow moves for a role; that is
+  // their explicit choice, not the default.
+  reschedulePolicy: "none",
   waveSize: null,
   waveReleaseHours: 48,
   rescheduleLimit: 1,

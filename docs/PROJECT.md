@@ -7600,3 +7600,29 @@ reproduction on staging: no refusal. 1,944 tests green (including the
 scenario as a test that fails with the old limit), tsc and build clean.
 Owed: a Figma frame for the new busy card (reuses the doorway classes);
 `hiring/accept` has the same per-network shape and was left alone.
+
+## 📅 Interviews moved to today; one time per candidate (28 September 2026)
+
+Ose: "move all the interviews to today and also a user should only be able
+to select one time."
+
+**Moved (staging data, 19:57 London).** The three upcoming round-2
+interviews on ROL-2419 moved from 30 Sep to today, each with its booked
+window so the diary stays in step, spread so every state can be tested:
+CAN-04 18:30 (finished), CAN-07 19:45 (in progress), CAN-21 21:00
+(upcoming). Their original times (30 Sep 10:00 / 11:00 / 12:00) are in each
+`fixture_rescheduled` audit row's from_value. Completed interviews were left
+where they happened; the hiring manager's 09:00–12:00 windows today would
+have clashed with the original hours.
+
+**One time per candidate.** The database already guaranteed one person per
+window (unique index on `interview_rounds.slot_id`) and one window per
+interview — staging had zero windows held twice and zero candidates with two
+open interviews. The second choice came from "Move": every role allowed one
+move up to 24 h before. The code default is now `reschedulePolicy: "none"`
+(`lib/agency/interview-rules.ts`), and ROL-2417/2418/2419 were switched to
+"none", audit-logged. A booked candidate now reads "This interview cannot be
+moved online — reply to your recruiter if you need to." The client's set-up
+screen can still allow moves for a role, as their explicit choice. The
+schema column default is still 'until_notice'; the code writes every column
+explicitly, so it is not reached.
