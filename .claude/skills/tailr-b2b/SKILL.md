@@ -276,12 +276,23 @@ eighth step.
 1. `mockups/agency-prototype/screens/*.jsx` — source of truth for the original
    seven screens' structure and copy.
 2. `mockups/agency-dashboard-v2.html` — approved dashboard.
-3. Figma "Tailr — Hiring Manager Concept" — everything from 12 Aug onward.
-   As of 4 Sep the file has ONE page (`00 · Concept map`) holding three
-   frames: the hiring-loop map, `01 · Three phases` (222:2, approved), and
-   `02 · Role header` (300:2, awaiting Ose's sign-off — the ownership strip,
-   sub-state chips and next action of `docs/B2B-SMOOTH-FLOW-PLAN.md` Wave 1).
-   The ~12 frames listed above are NOT in the file; do not trust that list.
+3. Figma **"Tailr — Hiring Manager Concept"** (`AWRRbEOX6rLsltutFDL3zs`) —
+   everything from 12 Aug onward. **Re-read 28 Sep: the file has SIX pages,
+   and `00 · Concept map` alone holds 30 top-level frames numbered `00 ·`
+   to `30 ·`**, the latest tracking work as recent as 24 Sep. The previous
+   note here ("ONE page, three frames, as of 4 Sep") was months stale and
+   told you not to trust the file — it was the note that could not be
+   trusted. Frames are `NN · Title · subtitle`, 1840 wide, laid left to
+   right at y=0 on a ~1940 pitch; the next one goes at the right edge.
+   Pages: `00 · Concept map`, `01 · Hiring manager`, `02 · Recruiter
+   additions`, `03 · Consumer job board`, `04 · Enriched candidate view`,
+   `05 · Candidate doorways`.
+   Awaiting Ose: `02 · Role header` (300:2 — the ownership strip, sub-state
+   chips and next action of `docs/B2B-SMOOTH-FLOW-PLAN.md` Wave 1) and
+   `30 · Type specimen` (592:2 — the Noto Sans change on
+   `claude/b2b-noto-sans`: before/after on display, the ramp at true sizes,
+   what stays mono, and what approving costs).
+   **Count the frames before quoting this list again.**
 
 **Theme:** recruiter dashboard + all `/hiring` = **dark**, scoped by
 `.ag-app:has(.agd-main)`. The seven workflow screens and the adjunct recruiter
