@@ -18,6 +18,8 @@
  */
 
 import { use, useCallback, useEffect, useState } from "react"
+import { doorwayLoadState, retryAfterSeconds, type DoorwayLoadState } from "@/lib/agency/doorway-messages"
+import { DoorwayLoadIssue } from "@/components/agency/doorway-load-issue"
 import "../../consent/consent.css"
 
 /** Mirrors lib/agency/references.ts RefereeView — the doorway pages do not
@@ -115,19 +117,34 @@ export default function ReferencePage({ params }: { params: Promise<{ token: str
   /** "We still work together" — the honest answer to a missing end date. */
   const [stillThere, setStillThere] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /* A refusal that is NOT a dead link: busy (429) or our own failure. These
+   * used to fall into "invalid", so a rate-limited visitor was told their
+   * good link had expired (28 Sep 2026). Only a 404 is invalid now. */
+  const [loadIssue, setLoadIssue] = useState<DoorwayLoadState | null>(null)
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/reference/${encodeURIComponent(token)}`)
-      if (!res.ok) return setScreen("invalid")
+      const issue = doorwayLoadState({
+        status: res.status,
+        retryAfter: retryAfterSeconds(res.headers.get("Retry-After")),
+      })
+      if (issue?.kind === "dead") return setScreen("invalid")
+      if (issue) return setLoadIssue(issue)
+      setLoadIssue(null)
       const body = (await res.json()) as { reference?: RefereeView }
       if (!body.reference) return setScreen("invalid")
       setView(body.reference)
       setScreen("ready")
     } catch {
-      setScreen("invalid")
+      setLoadIssue(doorwayLoadState({ status: null, retryAfter: null }))
     }
   }, [token])
+
+  const reload = useCallback(() => {
+    setLoadIssue(null)
+    void load()
+  }, [load])
 
   useEffect(() => {
     void load()
@@ -192,6 +209,10 @@ export default function ReferencePage({ params }: { params: Promise<{ token: str
   const kind: ReferenceKind = view?.kind === "hr" ? "hr" : "character"
   const questions = QUESTIONS_BY_KIND[kind]
   const dates = DATE_QUESTIONS[kind]
+
+  if (loadIssue && loadIssue.kind !== "dead") {
+    return <DoorwayLoadIssue issue={loadIssue} onRetry={reload} />
+  }
 
   if (screen === "loading") {
     return (

@@ -8,14 +8,19 @@
  *         or { slotId, move: true } to move a time they already hold
  *
  * Every failure answers identically, so a guessed token learns nothing about
- * whether it nearly worked. Rate-limited on both verbs: an unauthenticated
- * endpoint keyed by a secret is exactly the shape worth guessing at, and the
- * POST changes state and can release a client's diary slot.
+ * whether it nearly worked.
+ *
+ * Rate-limited on both verbs against FLOODS, not guessing: the token is 192
+ * random bits (randomBytes(24), stored hashed), which no request rate can
+ * guess. So the limit is per link (one person's generous allowance) plus a
+ * high per-network ceiling — see checkDoorwayLimit. It used to be the sign-in
+ * tier keyed by IP alone (3 a minute), which on 28 Sep 2026 refused the
+ * second candidate on a shared network and made their link look dead.
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { claimBookingSlot, peekBooking, rescheduleBooking, respondToBooking } from "@/lib/agency/booking"
-import { checkRateLimit, anonRateLimitId } from "@/lib/rate-limit"
+import { checkDoorwayLimit } from "@/lib/rate-limit"
 
 export const maxDuration = 15
 
@@ -23,17 +28,16 @@ function notFound() {
   return NextResponse.json({ error: "That link is not valid" }, { status: 404 })
 }
 
-function callerId(req: NextRequest): string {
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown"
-  return anonRateLimitId(`booking:${ip}`)
+function callerIp(req: NextRequest): string {
+  return (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown"
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
-    const limited = await checkRateLimit(callerId(req), "auth")
+    const { token } = await params
+    const limited = await checkDoorwayLimit("booking", callerIp(req), token)
     if (limited) return limited
 
-    const { token } = await params
     const view = await peekBooking(token)
     if (view.state === "unknown") return notFound()
     return NextResponse.json({ booking: view })
@@ -45,10 +49,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
-    const limited = await checkRateLimit(callerId(req), "auth")
+    const { token } = await params
+    const limited = await checkDoorwayLimit("booking", callerIp(req), token)
     if (limited) return limited
 
-    const { token } = await params
     const body = (await req.json().catch(() => ({}))) as { answer?: unknown; slotId?: unknown; move?: unknown }
 
     // Self-booking: the invitation left the time open and they picked one,

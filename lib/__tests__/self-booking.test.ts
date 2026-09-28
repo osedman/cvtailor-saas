@@ -99,7 +99,10 @@ describe("the doorway", () => {
     expect(src).toMatch(/toLocaleTimeString\(undefined,/)
   })
   it("says plainly when somebody was quicker", () => {
-    expect(src).toMatch(/Somebody took that time a moment before you/)
+    // The sentence moved into lib/agency/booking-messages.ts on 28 Sep 2026,
+    // where "not_open" (the second person on the same time) gets it too.
+    expect(src).toMatch(/bookingChoiceMessage\(/)
+    expect(read("lib/agency/booking-messages.ts")).toMatch(/That time has just been taken/)
   })
   it("keeps a way to say none of them work", () => {
     expect(src).toMatch(/None of these work/)

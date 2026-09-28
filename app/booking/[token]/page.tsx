@@ -1,6 +1,9 @@
 "use client"
 
 import type { BookingView } from "@/lib/agency/booking"
+import { bookingAnswerMessage, bookingChoiceMessage } from "@/lib/agency/booking-messages"
+import { doorwayLoadState, retryAfterSeconds, type DoorwayLoadState } from "@/lib/agency/doorway-messages"
+import { DoorwayLoadIssue } from "@/components/agency/doorway-load-issue"
 
 /**
  * Confirm or rearrange an interview — Figma "Candidate · Interview invitation".
@@ -52,20 +55,38 @@ export default function BookingPage({ params }: { params: Promise<{ token: strin
   const { token } = use(params)
   const [booking, setBooking] = useState<Booking | null>(null)
   const [showMove, setShowMove] = useState(false)
-  const [dead, setDead] = useState(false)
+  /*
+   * Why the page could not load, when it could not. It used to be one
+   * boolean, `dead`, set by ANY non-OK answer — so a 429 from the rate
+   * limiter (a second candidate on the same network, 28 Sep 2026) told the
+   * person their perfectly good link was not valid. Now only a 404 is dead;
+   * busy waits and retries on its own, and our own failures offer a retry.
+   */
+  const [loadIssue, setLoadIssue] = useState<DoorwayLoadState | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/booking/${encodeURIComponent(token)}`)
-      if (!res.ok) return setDead(true)
+      const issue = doorwayLoadState({
+        status: res.status,
+        retryAfter: retryAfterSeconds(res.headers.get("Retry-After")),
+        what: "your interview",
+      })
+      if (issue) return setLoadIssue(issue)
       const body = await res.json()
+      setLoadIssue(null)
       setBooking(body.booking as Booking)
     } catch {
-      setDead(true)
+      setLoadIssue(doorwayLoadState({ status: null, retryAfter: null, what: "your interview" }))
     }
   }, [token])
+
+  const reload = useCallback(() => {
+    setLoadIssue(null)
+    void load()
+  }, [load])
 
   useEffect(() => {
     void load()
@@ -81,19 +102,30 @@ export default function BookingPage({ params }: { params: Promise<{ token: strin
         body: JSON.stringify({ answer: value }),
       })
       const body = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(typeof body?.error === "string" ? body.error : "Something went wrong.")
+      const message = bookingAnswerMessage({
+        status: res.status,
+        retryAfter: retryAfterSeconds(res.headers.get("Retry-After")),
+        error: body?.error,
+      })
+      if (message) {
+        setError(message)
         return
       }
       setBooking(body.booking as Booking)
     } catch {
-      setError("Something went wrong.")
+      setError(bookingAnswerMessage({ status: null, retryAfter: null }))
     } finally {
       setBusy(false)
     }
   }
 
-  if (dead) {
+  if (loadIssue && loadIssue.kind !== "dead") {
+    // Busy (429) counts down and retries on its own; our own failure offers
+    // a retry. Neither is the link's fault, so neither says it is dead.
+    return <DoorwayLoadIssue issue={loadIssue} onRetry={reload} eyebrow="Interview" />
+  }
+
+  if (loadIssue?.kind === "dead") {
     return (
       <main className="cs-wrap">
         <div className="cs-card">
@@ -131,15 +163,18 @@ export default function BookingPage({ params }: { params: Promise<{ token: strin
       })
       const body = await res.json().catch(() => ({}))
       if (body?.booking) setBooking(body.booking as Booking)
-      if (!res.ok || body?.outcome === "taken") {
-        setError(
-          body?.outcome === "taken"
-            ? "Somebody took that time a moment before you. The times below are the ones still free."
-            : "That did not save. Please try again."
-        )
-      }
+      // "not_open" is what the second person to pick the same time gets —
+      // the window was already hidden from the list — so it says "taken"
+      // too, instead of the choice silently vanishing.
+      setError(
+        bookingChoiceMessage({
+          status: res.status,
+          outcome: body?.outcome,
+          retryAfter: retryAfterSeconds(res.headers.get("Retry-After")),
+        })
+      )
     } catch {
-      setError("That did not save. Please try again.")
+      setError(bookingChoiceMessage({ status: null, retryAfter: null }))
     } finally {
       setBusy(false)
     }

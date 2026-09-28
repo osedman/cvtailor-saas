@@ -30,6 +30,9 @@ vi.mock("@/lib/agency/db", async () => {
   }
 })
 
+const notify = vi.hoisted(() => vi.fn(async () => ({ sent: 0 })))
+vi.mock("../agency/notify", () => ({ notify }))
+
 import { requestCapture, peekConsent, recordDecision } from "../agency/consent"
 import { AgencyAccessError } from "../agency/db"
 import type { AgencyContext } from "../agency/types"
@@ -241,5 +244,70 @@ describe("recordDecision", () => {
   it("returns null for an unknown token rather than throwing", async () => {
     admin.from.mockImplementation(() => table({ data: null, error: null }))
     expect(await recordDecision(TOKEN, "granted")).toBeNull()
+  })
+})
+
+/*
+ * Every changed answer emails the agency's recruiters. A repeat of the answer
+ * already on file is not news: recording it again would let a scripted link
+ * turn the per-link rate limit into a stream of recruiter emails.
+ */
+describe("recordDecision — repeating an answer changes nothing", () => {
+  function rounds(status: string, ops: string[]) {
+    admin.from.mockImplementation((t: string) => {
+      if (t === "interview_rounds")
+        return table({ data: { ...ROUND, capture_consent_status: status }, error: null }, (op) => ops.push(`${t}:${op}`))
+      if (t === "candidates") return table({ data: { ref: "CAN-02" }, error: null })
+      return table({ data: [], error: null }, (op) => ops.push(`${t}:${op}`))
+    })
+  }
+
+  it("the same answer again writes nothing, audits nothing and emails nobody", async () => {
+    const ops: string[] = []
+    rounds("granted", ops)
+    const res = await recordDecision(TOKEN, "granted")
+    expect(res).toEqual({ ok: true, decision: "granted", recordingPaths: [], rescoreCandidateId: null })
+    expect(ops).not.toContain("interview_rounds:update")
+    expect(writeAudit).not.toHaveBeenCalled()
+    expect(notify).not.toHaveBeenCalled()
+  })
+
+  it("a changed answer is recorded, audited and sent to the agency once", async () => {
+    const ops: string[] = []
+    rounds("pending", ops)
+    await recordDecision(TOKEN, "granted")
+    expect(ops).toContain("interview_rounds:update")
+    expect(writeAudit).toHaveBeenCalledTimes(1)
+    expect(notify).toHaveBeenCalledTimes(1)
+    expect((notify.mock.calls[0] as unknown[])[1]).toMatchObject({ kind: "consent_answered" })
+  })
+
+  it("a repeated withdrawal with nothing left to remove is silent", async () => {
+    const ops: string[] = []
+    rounds("withdrawn", ops)
+    const res = await recordDecision(TOKEN, "withdrawn")
+    expect(res?.recordingPaths).toEqual([])
+    expect(ops).not.toContain("interview_rounds:update")
+    expect(writeAudit).not.toHaveBeenCalled()
+    expect(notify).not.toHaveBeenCalled()
+  })
+
+  it("a repeated withdrawal still removes anything that reappeared, and audits that — but emails nobody", async () => {
+    const deleted: string[] = []
+    admin.from.mockImplementation((t: string) => {
+      if (t === "interview_rounds") return table({ data: { ...ROUND, capture_consent_status: "withdrawn" }, error: null })
+      if (t === "round_artifacts")
+        return table(
+          { data: [{ id: "art-2", recording_path: "agency-1/role-1/cand-1/r2.m4a" }], error: null },
+          (op) => op === "delete" && deleted.push("round_artifacts")
+        )
+      if (t === "candidates") return table({ data: { ref: "CAN-02" }, error: null })
+      return table({ data: [], error: null })
+    })
+    const res = await recordDecision(TOKEN, "withdrawn")
+    expect(res?.recordingPaths).toEqual(["agency-1/role-1/cand-1/r2.m4a"])
+    expect(deleted).toContain("round_artifacts")
+    expect(writeAudit).toHaveBeenCalledTimes(1)
+    expect(notify).not.toHaveBeenCalled()
   })
 })

@@ -7573,3 +7573,30 @@ caption is gone. It names the company, not one person (board 29 drew
 — linked contact, brief contacts, recipients, panellists, slot contacts;
 the DPIA entry says so and board 29 was updated to match. 1,895 tests green,
 tsc clean, build green. Not clicked by a person yet.
+
+## 🔗 Interview links failed for the second person on a network (28 September 2026)
+
+Ose: testing booking links, the first person chose a time and it worked; the
+next person got "this link is invalid" or "this time did not save".
+**Cause:** the booking route rate-limited every request per internet
+address at the sign-in tier (3/min, 15/day) BEFORE looking at the link, so
+a second person on the same Wi-Fi was refused with 429, and the page showed
+any refusal as a dead link or a failed save. Evidence: staging
+`rate_limits` had one caller at 6 requests in the 17:42:29 minute (3
+refused), three seconds before CAN-04 booked. Reproduced through the real
+route from a TEST-NET address: the fourth request from one network → 429.
+**Second bug, same moment:** picking a time someone had just taken returned
+`not_open` and the page showed nothing — the time silently vanished.
+**Fix:** per-link limit (20/min, 200/day) plus a per-network flood ceiling
+(120/min, 3000/day) in one helper, `checkDoorwayLimit`, used by the booking,
+consent and reference doorways (192-bit tokens: the strict tier never
+protected against guessing). Pages tell the truth: only 404 says "not
+valid"; 429 is a busy card that retries itself; 5xx says try again;
+`not_open` and `taken` both say the time was just taken. The security review
+caught a side effect — a replayed consent link could have emailed the
+agency's recruiters ~200 times a day — so a repeated consent answer is now a
+no-op and consent saves carry a 5/min, 20/day per-link limit. Re-ran the
+reproduction on staging: no refusal. 1,944 tests green (including the
+scenario as a test that fails with the old limit), tsc and build clean.
+Owed: a Figma frame for the new busy card (reuses the doorway classes);
+`hiring/accept` has the same per-network shape and was left alone.

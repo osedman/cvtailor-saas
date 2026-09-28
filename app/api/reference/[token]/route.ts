@@ -4,24 +4,28 @@
  *
  * Invalid, spent and declined all answer identically, so a guessed token
  * learns nothing about who is being referenced.
+ *
+ * Rate-limited against FLOODS, not guessing: the token is 192 random bits,
+ * which no request rate can guess. So the limit is per link plus a high
+ * per-network ceiling (checkDoorwayLimit), never the sign-in tier keyed by IP
+ * alone — referees at one employer share an office network.
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { peekReference, recordReference, type RefereeAnswer } from "@/lib/agency/references"
-import { checkRateLimit, anonRateLimitId } from "@/lib/rate-limit"
+import { checkDoorwayLimit } from "@/lib/rate-limit"
 
 export const maxDuration = 15
 
-function callerId(req: NextRequest): string {
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown"
-  return anonRateLimitId(`reference:${ip}`)
+function callerIp(req: NextRequest): string {
+  return (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown"
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
-    const limited = await checkRateLimit(callerId(req), "auth")
-    if (limited) return limited
     const { token } = await params
+    const limited = await checkDoorwayLimit("reference", callerIp(req), token)
+    if (limited) return limited
     const view = await peekReference(token)
     if (!view) return NextResponse.json({ error: "That link is not valid" }, { status: 404 })
     return NextResponse.json({ reference: view })
@@ -32,9 +36,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
-    const limited = await checkRateLimit(callerId(req), "auth")
-    if (limited) return limited
     const { token } = await params
+    const limited = await checkDoorwayLimit("reference", callerIp(req), token)
+    if (limited) return limited
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
     const answers: RefereeAnswer[] = Array.isArray(body.answers)
       ? (body.answers as unknown[])

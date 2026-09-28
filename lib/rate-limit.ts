@@ -51,6 +51,37 @@ const PRESETS: Record<string, Rule[]> = {
     { key: 'upload:min', limit: 10,  windowSeconds: 60 },
     { key: 'upload:day', limit: 100, windowSeconds: DAY },
   ],
+  // The token doorways (booking, consent, reference): anonymous pages whose
+  // only credential is a 192-bit link token (randomBytes(24), stored hashed).
+  // Guessing one is infeasible at any request rate, so these limits are NOT
+  // anti-guessing — they only stop a flood. Two ceilings, used together by
+  // checkDoorwayLimit():
+  //
+  // Per LINK — generous for one person, who opens the page, picks, changes
+  // their mind, reloads. Nobody else shares this bucket.
+  doorway_link: [
+    { key: 'doorway_link:min', limit: 20,  windowSeconds: 60 },
+    { key: 'doorway_link:day', limit: 200, windowSeconds: DAY },
+  ],
+  // Per NETWORK — a flood ceiling only. An office, a family Wi-Fi or a mobile
+  // carrier's NAT puts many real candidates behind one address; on 28 Sep 2026
+  // the "auth" tier (3/min per IP) refused the second of them, and the page
+  // showed "That link is not valid". High enough that shared networks never
+  // meet it, low enough that a script hammering the endpoint does.
+  doorway_net: [
+    { key: 'doorway_net:min', limit: 120,  windowSeconds: 60 },
+    { key: 'doorway_net:day', limit: 3000, windowSeconds: DAY },
+  ],
+  // Per LINK, for doorway writes that reach a person's inbox (the consent
+  // answer emails every recruiter on the agency). doorway_link's 20/min is
+  // right for reading and choosing, but as an email ceiling it would allow 200
+  // recruiter emails a day from one scripted link. A real candidate answers
+  // once, maybe changes their mind; five a minute is far past that. Per link,
+  // so a second candidate on the same Wi-Fi never shares it.
+  doorway_write: [
+    { key: 'doorway_write:min', limit: 5,  windowSeconds: 60 },
+    { key: 'doorway_write:day', limit: 20, windowSeconds: DAY },
+  ],
 }
 
 export type RateLimitPreset = keyof typeof PRESETS
@@ -83,23 +114,70 @@ export function anonRateLimitId(seed: string): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`
 }
 
+/** The one 429 every limiter answers with, so pages read a single shape. */
+function limitedResponse(resetSeconds: number): NextResponse {
+  const mins = Math.ceil(resetSeconds / 60)
+  const wait = resetSeconds >= 3600
+    ? `${Math.ceil(resetSeconds / 3600)} hour(s)`
+    : resetSeconds >= 60 ? `${mins} minute(s)` : `${resetSeconds} second(s)`
+  return NextResponse.json(
+    { error: `You're doing that a lot — please wait ${wait} and try again.` },
+    { status: 429, headers: { 'Retry-After': String(resetSeconds) } },
+  )
+}
+
+async function enforce(userId: string, rules: Rule[]): Promise<NextResponse | null> {
+  for (const rule of rules) {
+    const { allowed, resetSeconds } = await consume(userId, rule)
+    if (!allowed) return limitedResponse(resetSeconds)
+  }
+  return null
+}
+
 /**
  * Enforce the given preset for a user. Returns a 429 NextResponse if any rule
  * is exceeded, otherwise null (proceed).
  */
 export async function checkRateLimit(userId: string, preset: RateLimitPreset): Promise<NextResponse | null> {
-  for (const rule of PRESETS[preset]) {
-    const { allowed, resetSeconds } = await consume(userId, rule)
-    if (!allowed) {
-      const mins = Math.ceil(resetSeconds / 60)
-      const wait = resetSeconds >= 3600
-        ? `${Math.ceil(resetSeconds / 3600)} hour(s)`
-        : resetSeconds >= 60 ? `${mins} minute(s)` : `${resetSeconds} second(s)`
-      return NextResponse.json(
-        { error: `You're doing that a lot — please wait ${wait} and try again.` },
-        { status: 429, headers: { 'Retry-After': String(resetSeconds) } },
-      )
-    }
+  return enforce(userId, PRESETS[preset])
+}
+
+/**
+ * The two counter ids a token doorway request is charged to. Pure, so a test
+ * can prove the property the 28 Sep bug lacked: two links on one network get
+ * DIFFERENT link ids (one candidate never spends another's allowance) and the
+ * SAME network id (the flood ceiling still sees them together).
+ *
+ * The link seed is sha256(token), never the raw token — seeds are the kind of
+ * thing that ends up in a log line.
+ */
+export function doorwayLimitIds(doorway: string, ip: string, token: string): { net: string; link: string } {
+  const tokenHash = createHash('sha256').update(token).digest('hex')
+  return {
+    net: anonRateLimitId(`${doorway}:net:${ip}`),
+    link: anonRateLimitId(`${doorway}:link:${tokenHash}`),
   }
-  return null
+}
+
+/**
+ * Rate limit for an anonymous token doorway (booking, consent, reference).
+ * Consumes the per-network flood ceiling first, then the per-link ceiling.
+ * Returns the same 429 shape as checkRateLimit (with Retry-After), or null.
+ *
+ * Not for sign-in or OTP routes: those send email and keep the strict "auth"
+ * tier on purpose.
+ */
+export async function checkDoorwayLimit(doorway: string, ip: string, token: string): Promise<NextResponse | null> {
+  const ids = doorwayLimitIds(doorway, ip, token)
+  return (await enforce(ids.net, PRESETS.doorway_net)) ?? (await enforce(ids.link, PRESETS.doorway_link))
+}
+
+/**
+ * The extra per-link ceiling for a doorway write that notifies someone (the
+ * consent answer). Call it after checkDoorwayLimit. Keyed by the same link id,
+ * so it never touches another candidate's allowance on a shared network.
+ */
+export async function checkDoorwayWriteLimit(doorway: string, token: string): Promise<NextResponse | null> {
+  // The link id does not depend on the address; any ip gives the same one.
+  return enforce(doorwayLimitIds(doorway, '', token).link, PRESETS.doorway_write)
 }
