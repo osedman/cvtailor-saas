@@ -7448,3 +7448,23 @@ the sticky rail beside a wide matrix, the phone sheet and the undo notice
 above the bar should be eyeballed on staging at 1440 and 375. Copy
 deviation: the reading-card eyebrow says "{n} calls", not "call answers"
 (the route returns no answers total).
+
+## 📎 The JD on the brief — board 28 drawn, backend in flight (28 September 2026)
+
+Ose approved board 27 (26 Sep) and asked for the JD attachment on the brief,
+client-visible. Per the working rules, designed first: **board 28, node
+551:2** — https://www.figma.com/design/AWRRbEOX6rLsltutFDL3zs/?node-id=551-2.
+The design: an un-numbered first section "The job description" on the
+brief form (CLIENT AGREES tier) with attach / attached / replaced states;
+one review line on both sides ("Job description · name · size · Download",
+CHANGED pill with "was …", Change on the client's copy with a replace zone);
+the role's intake receives the text with a "FROM THE BRIEF · name" chip when
+a role connects (only if the box is empty; Extract requirements stays the
+recruiter's press); four rules (two sides only; a new file is a new version;
+the text goes one place; it dies with the brief). Awaiting Ose's sign-off
+before the UI is coded. The non-UI half — migration
+`supabase/migrations/20260926120000_brief_jd_files.sql` (private bucket
+`agency-briefs`, table `agency.search_brief_files`, browser holds no grant),
+`lib/agency/brief-files.ts`, `config.jdFileId` in the client-editable tier,
+four routes, connect copying text into `jd_raw` — is being built and
+reviewed by a workflow; migration to be run by hand, staging then prod.
