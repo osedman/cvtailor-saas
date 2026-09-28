@@ -155,6 +155,7 @@ offers times, meets people, and decides — and the record deepens each round.
   #DC4F33). Type is **Noto Sans** across every B2B surface (Ose, 28 Sep),
   body and headlines alike; Geist Mono stays on ids and machine data. The
   Fraunces headline fork of 7 Aug is retired — do not restore it as a fix.
+  Approved on Figma frame `30 · Type specimen` (592:2).
 
 ## Architecture decisions (5 Aug — do not relitigate)
 
@@ -295,11 +296,11 @@ eighth step.
    Frames are `NN · Title · subtitle`, 1840 wide, laid left to right at y=0
    on a ~1940 pitch; the next one goes at the right edge.
    Approved: `01 · Three phases` (222:2), `03 · Navigation` (334:2, 13 Sep —
-   the two nav scopes, the death of RoleRail, the folded step bar).
+   the two nav scopes, the death of RoleRail, the folded step bar), and
+   `30 · Type specimen` (592:2, **approved 28 Sep** — Noto Sans across every
+   B2B surface, retiring the Fraunces headline; shipped as `fb89ac6`).
    Awaiting Ose: `02 · Role header` (300:2 — the ownership strip, sub-state
-   chips and next action of `docs/B2B-SMOOTH-FLOW-PLAN.md` Wave 1) and
-   `30 · Type specimen` (592:2 — the Noto Sans change: before/after on
-   display, the ramp at true sizes, what stays mono, what approving costs).
+   chips and next action of `docs/B2B-SMOOTH-FLOW-PLAN.md` Wave 1).
    **Count the frames before quoting this list again.**
    **Match the house style when adding one:** 1840 wide, VERTICAL auto-layout,
    64 padding, 36 gap, fill `#f9f6f0`; bands are FILL-width, `#fdfcf9`, 1px
