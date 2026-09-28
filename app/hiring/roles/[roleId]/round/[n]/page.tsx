@@ -15,6 +15,7 @@ import { use } from "react"
 import Link from "next/link"
 import { HandOff, HmFrame, RoomHeader, useRoom } from "@/components/agency/hm-room"
 import { DECISION_LABEL, RoundActions, fmtWhen } from "@/components/agency/hm-shared"
+import { CaseSummary, displayName, useSubmittedCases } from "@/components/agency/hm-case"
 import { owedOn, plannedFor, roundEnded, stageHref } from "@/lib/agency/hm-room"
 import type { HiringRound } from "@/lib/agency/types"
 
@@ -29,6 +30,10 @@ export default function RoundStage({ params }: { params: Promise<{ roleId: strin
   const { roleId, n: nParam } = use(params)
   const n = Math.max(1, Number.parseInt(nParam, 10) || 1)
   const room = useRoom(roleId)
+  // Board 31, band A: the case the recruiter submitted, beside every
+  // decision. One read for the page; cards look their person up by ref.
+  const { cases } = useSubmittedCases(roleId)
+  const nameOf = (ref: string) => displayName(cases.state === "ready" ? cases.byRef.get(ref) : undefined, ref)
   const now = room.nowMs
   const planned = plannedFor(room.rounds)
 
@@ -81,7 +86,7 @@ export default function RoundStage({ params }: { params: Promise<{ roleId: strin
               </div>
               <p className="agd-sub hm-stage-lede">
                 Write up what you saw, then decide.{" "}
-                {n >= planned ? "This is the last planned round — advancing means they are your pick." : `Advancing invites them to round ${n + 1}.`}
+                {n >= planned ? "This is the last planned round — advancing puts them in your final choice." : `Advancing invites them to round ${n + 1}.`}
               </p>
               <div className="ag-stack" style={{ gap: 12 }}>
                 {owed.map((r) => (
@@ -92,7 +97,11 @@ export default function RoundStage({ params }: { params: Promise<{ roleId: strin
                         Your recruiter has not confirmed this interview took place yet — you can still write it up.
                       </p>
                     )}
-                    <RoundActions round={r} onDone={() => void room.reload()} />
+                    <RoundActions
+                      round={r}
+                      onDone={() => void room.reload()}
+                      caseSlot={<CaseSummary roleId={roleId} refId={r.candidate_ref} cases={cases} />}
+                    />
                   </div>
                 ))}
               </div>
@@ -110,7 +119,7 @@ export default function RoundStage({ params }: { params: Promise<{ roleId: strin
               <ul className="hm-quiet-list">
                 {rest.map((r) => (
                   <li key={r.id}>
-                    <Link href={`/hiring/roles/${roleId}/rounds/${encodeURIComponent(r.candidate_ref)}`}>{r.candidate_ref}</Link>
+                    <Link href={`/hiring/roles/${roleId}/rounds/${encodeURIComponent(r.candidate_ref)}`}>{nameOf(r.candidate_ref)}</Link>
                     <span data-decision={r.latest_decision ?? undefined}>{standing(r, now)}</span>
                   </li>
                 ))}
@@ -138,7 +147,7 @@ export default function RoundStage({ params }: { params: Promise<{ roleId: strin
                   {g.rounds.map((r) => (
                     <li key={r.id}>
                       <Link href={`/hiring/roles/${roleId}/rounds/${encodeURIComponent(r.candidate_ref)}`}>
-                        {r.candidate_ref} · open the write-up
+                        {nameOf(r.candidate_ref)} · open their round
                       </Link>
                       <span data-decision={r.latest_decision ?? undefined}>{standing(r, now)}</span>
                     </li>

@@ -87,6 +87,8 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
   // The client's decisions, read beside the recruiter's — see the header.
   const [stages, setStages] = useState<Record<string, Stage | null>>({})
   const [suggestedId, setSuggestedId] = useState<string | null>(null)
+  /** The client's own final choice and reason (board 31), when they gave one. */
+  const [clientChoice, setClientChoice] = useState<{ action: string; candidateId: string | null; reason: string; at: string } | null>(null)
   /** The recruiter's own act. A handover pack already existing counts. */
   const [confirmed, setConfirmed] = useState(false)
   const [refs, setRefs] = useState<ReferenceListRow[] | null>(null)
@@ -214,6 +216,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
         const suggested = typeof body?.suggestedHireId === "string" ? body.suggestedHireId : null
         const picked = typeof body?.pickedHireId === "string" ? body.pickedHireId : null
         setSuggestedId(suggested)
+        setClientChoice(body?.clientChoice && typeof body.clientChoice === "object" ? body.clientChoice : null)
         // A pack is the confirmed pick; otherwise the suggestion fills an
         // EMPTY choice only — it never replaces one the recruiter made.
         if (picked) {
@@ -412,7 +415,25 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
               </div>
             ) : (
               <>
-                {suggested && suggestedStage && chosenId === suggestedId && (
+                {/* Board 31, band C: the client said who, and why, in their words. */}
+                {clientChoice && (
+                  <div className="ag-hire-client">
+                    <p className="ag-hire-client-head">
+                      {clientChoice.action === "chosen"
+                        ? `${role?.company || "The client"} chose ${candidates.find((c) => c.id === clientChoice.candidateId)?.full_name ?? "a candidate"}`
+                        : `${role?.company || "The client"} chose neither of the people taken forward`}
+                      <span>
+                        {" · "}
+                        {new Date(clientChoice.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                      </span>
+                    </p>
+                    <blockquote>{clientChoice.reason}</blockquote>
+                    <p className="ag-note" style={{ margin: 0 }}>
+                      Their preference, in their words. You confirm the hire — nothing is recorded until you do.
+                    </p>
+                  </div>
+                )}
+                {!clientChoice && suggested && suggestedStage && chosenId === suggestedId && (
                   <p className="ag-hire-prov">
                     <Info size={18} aria-hidden="true" />
                     <span>
@@ -426,7 +447,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                 )}
                 {suggested && chosenId && chosenId !== suggestedId && (
                   <p className="ag-note" style={{ margin: "0 0 10px" }}>
-                    The client’s decisions suggested {suggested.full_name}.
+                    {clientChoice?.action === "chosen" ? "The client chose" : "The client’s decisions suggested"} {suggested.full_name}.
                   </p>
                 )}
                 <fieldset className="ag-hire">
@@ -464,7 +485,11 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                               </span>
                             </span>
                           )}
-                          {c.id === suggestedId && <span className="ag-hire-tag">Suggested</span>}
+                          {c.id === suggestedId && (
+                            <span className="ag-hire-tag">
+                              {clientChoice?.action === "chosen" && clientChoice.candidateId === c.id ? "Client’s choice" : "Suggested"}
+                            </span>
+                          )}
                         </label>
                       )
                     })}

@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useState } from "react"
+import type { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { HiringLink, HiringRound, HiringSlot, RoundDecision } from "@/lib/agency/types"
@@ -208,7 +209,19 @@ export function SlotChip({ slot, onWithdraw }: { slot: HiringSlot; onWithdraw: (
  * is a state for THE ROUND — it never removes the candidate, and the server has
  * no code path that would let it.
  */
-export function RoundActions({ round, onDone }: { round: HiringRound; onDone: () => void }) {
+export function RoundActions({
+  round,
+  onDone,
+  caseSlot,
+}: {
+  round: HiringRound
+  onDone: () => void
+  /**
+   * The candidate's submitted case (board 31, band A). Passed in rather than
+   * fetched here so one shortlist read serves every card on the page.
+   */
+  caseSlot?: ReactNode
+}) {
   const [notes, setNotes] = useState("")
   const [justWritten, setJustWritten] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -316,6 +329,8 @@ export function RoundActions({ round, onDone }: { round: HiringRound; onDone: ()
           </span>
         )}
       </div>
+
+      {caseSlot}
 
       {canWrite && !decided && (
         <>

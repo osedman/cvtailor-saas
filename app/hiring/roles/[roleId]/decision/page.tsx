@@ -12,11 +12,15 @@
 import { use } from "react"
 import { HandOff, HmFrame, RoomHeader, useRoom } from "@/components/agency/hm-room"
 import { DecisionsComplete } from "@/components/agency/hm-shared"
+import { displayName, useSubmittedCases } from "@/components/agency/hm-case"
+import { FinalChoice } from "@/components/agency/hm-final-choice"
 import { outcomeByRef, outcomeSentence, plannedFor, stageHref } from "@/lib/agency/hm-room"
 
 export default function DecisionStage({ params }: { params: Promise<{ roleId: string }> }) {
   const { roleId } = use(params)
   const room = useRoom(roleId)
+  const { cases } = useSubmittedCases(roleId)
+  const nameOf = (ref: string) => displayName(cases.state === "ready" ? cases.byRef.get(ref) : undefined, ref)
   const planned = plannedFor(room.rounds)
   const outcomes = [...outcomeByRef(room.rounds).entries()].sort((a, b) => a[0].localeCompare(b[0]))
   const forward = outcomes.filter(([, o]) => o.decision === "advance" && o.round >= planned).map(([ref]) => ref)
@@ -24,7 +28,7 @@ export default function DecisionStage({ params }: { params: Promise<{ roleId: st
 
   const headline =
     forward.length === 1
-      ? `You took ${forward[0]} forward.`
+      ? `You took ${nameOf(forward[0])} forward.`
       : forward.length > 1
         ? `You took ${forward.length} forward.`
         : pending > 0
@@ -37,11 +41,26 @@ export default function DecisionStage({ params }: { params: Promise<{ roleId: st
     <HmFrame screen={room.screen} crumb="Hiring / Roles / Decision">
       <RoomHeader room={room} roleId={roleId} here={{ key: "decision" }} />
 
+      {/* Board 31, band B: once someone is taken forward, Decision is the
+          final choice — side by side, in the manager's own words — rather
+          than a receipt that said "You took 2 forward" and stopped. */}
+      {forward.length > 0 && (
+        <section className="agd-band">
+          <FinalChoice roleId={roleId} finalists={forward} rounds={room.rounds} cases={cases} />
+        </section>
+      )}
+
       <section className="agd-band">
-        <h2 className="agd-h1 hm-decision-head">{headline}</h2>
+        {forward.length === 0 && <h2 className="agd-h1 hm-decision-head">{headline}</h2>}
+        {forward.length > 0 && (
+          <div className="agd-eyebrow-row">
+            <h2 className="agd-eyebrow">Where everyone landed</h2>
+            <span className="agd-rule" />
+          </div>
+        )}
         <p className="agd-sub">
           {forward.length > 0
-            ? "Your recruiter now handles references, the offer and the handover. Nothing here closes the role."
+            ? "Your recruiter handles references, the offer and the handover. Nothing here closes the role."
             : pending > 0
               ? `${pending === 1 ? "One candidate is" : `${pending} candidates are`} still waiting on a round decision.`
               : "When interviews have happened and you have decided, the outcome is summarised here."}
@@ -50,7 +69,7 @@ export default function DecisionStage({ params }: { params: Promise<{ roleId: st
           <ul className="hm-quiet-list">
             {outcomes.map(([ref, o]) => (
               <li key={ref}>
-                <span className="hm-q-strong">{ref}</span>
+                <span className="hm-q-strong">{nameOf(ref)}</span>
                 <span data-decision={o.decision ?? undefined}>{outcomeSentence(o, planned)}</span>
               </li>
             ))}

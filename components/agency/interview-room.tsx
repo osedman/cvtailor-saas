@@ -38,6 +38,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import type { InterviewRoom as Room, RoomRound } from "@/lib/agency/interview-room"
+import { CaseSummary, useSubmittedCases } from "@/components/agency/hm-case"
 
 const DECISIONS: Array<{ key: "advance" | "hold" | "decline"; label: string; note: string }> = [
   { key: "advance", label: "Advance", note: "" },
@@ -70,6 +71,7 @@ export function InterviewRoom({
   const [justWritten, setJustWritten] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { cases } = useSubmittedCases(roleId)
 
   const load = useCallback(async () => {
     try {
@@ -198,6 +200,8 @@ export function InterviewRoom({
 
   const { candidate, role, rounds } = room
   const lastPlanned = role.plannedRounds
+  const lastDecided = [...rounds].filter((r) => r.decision).sort((a, b) => b.roundNumber - a.roundNumber)[0]
+  const takenForward = !current && lastDecided?.decision === "advance" && lastDecided.roundNumber >= lastPlanned
 
   return (
     <div className="hm-room" data-modal={inModal}>
@@ -259,24 +263,16 @@ export function InterviewRoom({
       {/* WHAT THEY ARE DECIDING AGAINST. Straight out of the submission
           snapshot — what the client was sent, frozen at generation. They
           approved this shortlist weeks ago and have not seen it since. */}
-      {(candidate.narrative || candidate.strengths.length > 0 || candidate.gaps.length > 0) && (
-        <section className="hm-room-ev" aria-labelledby="room-ev-h">
-          <div className="hm-room-ev-head">
-            <h2 className="hm-room-ev-title" id="room-ev-h">What you are deciding against</h2>
-            {candidate.mustHaveTotal !== null && (
-              <span className="hm-room-ev-meta">
-                {candidate.mustHaveHit ?? 0} of {candidate.mustHaveTotal} must-haves evidenced
-              </span>
-            )}
-          </div>
-          {candidate.narrative && <p className="hm-room-ev-body">{candidate.narrative}</p>}
-          {candidate.gaps.length > 0 && (
-            <p className="hm-room-ev-gaps">
-              <b>Known gaps:</b> {candidate.gaps.join(" · ")}
-            </p>
-          )}
-        </section>
-      )}
+      {/* Board 31, band A: the whole case — the evidence verbatim and the CV —
+          not only a count and the gaps. `strengths` was in this payload and
+          in the render condition, and never drawn. */}
+      <section className="hm-room-ev" aria-labelledby="room-ev-h">
+        <div className="hm-room-ev-head">
+          <h2 className="hm-room-ev-title" id="room-ev-h">What you are deciding against</h2>
+        </div>
+        {candidate.narrative && <p className="hm-room-ev-body">{candidate.narrative}</p>}
+        <CaseSummary roleId={roleId} refId={candidate.ref} cases={cases} />
+      </section>
 
       {error && <p className="ag-banner" role="alert">{error}</p>}
 
@@ -352,6 +348,13 @@ export function InterviewRoom({
               ? "This room stays readable. A decision is append-only — what is above is the record of it, not a form to fill in again."
               : "Once a booked interview has happened, it opens here for your write-up and your decision."}
           </p>
+          {/* Advanced at the last planned round: the next thing is the final
+              choice, and the room used to stop here with no way on. */}
+          {takenForward && (
+            <a className="hm-room-save hm-room-onward" href={`/hiring/roles/${roleId}/decision`}>
+              Go to your final choice →
+            </a>
+          )}
         </section>
       )}
 

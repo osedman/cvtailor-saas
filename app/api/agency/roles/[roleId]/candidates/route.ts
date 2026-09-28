@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { AgencyAccessError, agencyAdmin, requireAgencyContext } from "@/lib/agency/db"
 import { getStagesForRoles } from "@/lib/agency/stages"
+import { liveChoice } from "@/lib/agency/final-choice"
 import { CV_TEXT_LIMIT, extractFileText, ingestCandidate } from "@/lib/agency/ingest"
 import { errorMessage } from "@/lib/error-message"
 
@@ -51,7 +52,7 @@ export async function GET(
       )
     }
 
-    const [candidates, scores, evidence, reviews, decisions, stageMap] = await Promise.all([
+    const [candidates, scores, evidence, reviews, decisions, stageMap, finalChoiceRows] = await Promise.all([
       auth.db
         .from("candidates")
         .select(
@@ -74,10 +75,21 @@ export async function GET(
       // The client's round decisions, read beside the recruiter's call —
       // never written into it (decided 21 Sep 2026, Figma frame 21).
       getStagesForRoles(auth.ctx, [roleId]),
+      // The client's final choice and their reason (board 31). Read through
+      // the member-scoped client: RLS is the tenancy check.
+      auth.db
+        .from("client_final_choices")
+        .select("action, candidate_id, candidate_ref, reason, created_at, by_contact_id")
+        .eq("role_id", roleId)
+        .order("created_at", { ascending: false })
+        .limit(1),
     ])
     if (candidates.error) throw candidates.error
 
     const candidateIds = new Set((candidates.data ?? []).map((c) => c.id))
+    // A table that is not there yet (migration not run) must not take the
+    // whole candidate list down with it — it reads as "no choice".
+    const clientChoice = finalChoiceRows.error ? null : liveChoice(finalChoiceRows.data ?? [])
     return NextResponse.json({
       candidates: candidates.data ?? [],
       scores: (scores.data ?? []).filter((s) => candidateIds.has(s.candidate_id)),
@@ -85,7 +97,20 @@ export async function GET(
       reviews: reviews.data ?? [],
       decisions: decisions.data ?? [],
       stages: Object.fromEntries(stageMap.get(roleId)?.byCandidate ?? []),
-      suggestedHireId: stageMap.get(roleId)?.suggestedId ?? null,
+      // A fact outranks an inference: the client's stated choice replaces the
+      // guess the loop makes (which only fires when exactly one person was
+      // taken forward). It still only SUGGESTS — the recruiter confirms.
+      clientChoice: clientChoice && {
+        action: clientChoice.action,
+        candidateId: clientChoice.candidateId,
+        candidateRef: clientChoice.candidateRef,
+        reason: clientChoice.reason,
+        at: clientChoice.at,
+      },
+      suggestedHireId:
+        clientChoice?.action === "chosen" && clientChoice.candidateId && candidateIds.has(clientChoice.candidateId)
+          ? clientChoice.candidateId
+          : stageMap.get(roleId)?.suggestedId ?? null,
       pickedHireId: stageMap.get(roleId)?.pickedId ?? null,
     })
   } catch (error) {

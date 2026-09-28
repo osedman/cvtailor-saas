@@ -166,7 +166,19 @@ export async function getInterviewRoom(
    * decision. A scheduled round in the future is not owed — nothing can be
    * written about an interview that has not occurred — and a cancelled one is
    * history. */
-  const owed = rounds.find((r) => r.status === "completed" && !r.decision) ?? null
+  const nowMs = Date.now()
+  const ended = (r: RoomRound) => {
+    if (r.status === "completed") return true
+    if (r.status !== "scheduled" || !r.scheduledAt) return false
+    // The same rule roundEnded (hm-room.ts) uses, so the room and the round
+    // page agree. It was `status === "completed"` alone, so a room opened
+    // for an interview that had ended — but that nobody had marked done —
+    // said "No interview to write up yet" while the round page offered the
+    // write-up (28 Sep 2026). Writing it up is what completes the round.
+    const end = Date.parse(r.scheduledAt) + (r.durationMinutes || 45) * 60_000
+    return Number.isFinite(end) && end <= nowMs
+  }
+  const owed = rounds.find((r) => ended(r) && !r.decision) ?? null
   const plannedRounds = (role.planned_rounds as number | null) ?? 2
 
   return {

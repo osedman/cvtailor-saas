@@ -1035,3 +1035,71 @@ a.hm-stage:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2
 .hm-brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
 .hm-brief-actions .agd-tbtn { min-height: 44px; }
 @media (max-width: 480px) { .hm-brief-actions { flex-direction: column; align-items: stretch; } .hm-brief-actions .agd-tbtn { width: 100%; text-align: center; } }
+
+/* ── The case, beside every decision — Figma board 31, band A (28 Sep 2026) ──
+ * The submitted evidence on the round card and in the interview room. Mono
+ * stays for the pills only (ids and numbers); quotes read in the house face. */
+.hm-case { display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
+.hm-case-who { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hm-case-name { margin: 0; font-weight: 600; font-size: var(--t-lead); color: var(--ag-ink); }
+.hm-case-title { margin: 0; font-size: var(--t-small); color: var(--ag-ink-3); }
+.hm-case-pill {
+  font-family: var(--ag-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--ag-border);
+  color: var(--ag-ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hm-case-fit { background: var(--ag-tint-1); border-color: var(--ag-tint-2); color: var(--ag-coral-text); }
+.hm-case-cols { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 720px) { .hm-case-cols { grid-template-columns: minmax(0, 1fr); } }
+.hm-case-ev ul, .hm-case-side ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.hm-case-ev li {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 9px 12px; border-radius: 8px; background: var(--ag-tint-1);
+}
+.hm-case-ev b { font-weight: 500; font-size: var(--t-small); color: var(--ag-coral-text); }
+.hm-case-ev q { font-size: var(--t-body); line-height: 1.5; color: var(--ag-ink); }
+.hm-case-side p, .hm-case-side li { margin: 6px 0 0; font-size: var(--t-small); line-height: 1.5; color: var(--ag-ink-2); }
+.hm-case-side li::before { content: "· "; color: var(--ag-ink-3); }
+.hm-case-withheld, .hm-case-none { margin: 0; font-size: var(--t-small); }
+.hm-case-more { align-self: flex-start; }
+
+/* ── The final choice — board 31, bands B and C ─────────────────────────── */
+.hm-final, .hm-final-sent { display: flex; flex-direction: column; gap: 14px; }
+.hm-final-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.hm-finalist {
+  display: flex; flex-direction: column; gap: 12px; min-width: 0;
+  padding: 18px; border-radius: 12px;
+  background: var(--ag-paper); border: 1px solid var(--ag-border);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.hm-finalist[data-picked="true"] { border-color: var(--ag-coral); box-shadow: 0 0 0 1px var(--ag-coral); }
+.hm-final-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hm-final-trail { list-style: none; margin: 6px 0 0; padding: 0; font-size: var(--t-small); color: var(--ag-ink-2); line-height: 1.6; }
+.hm-final-pick {
+  padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  background: var(--ag-tint-1); border: 1px solid var(--ag-coral);
+  color: var(--ag-coral-text); font: inherit; font-weight: 600; font-size: var(--t-small);
+}
+.hm-final-why {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 16px; border-radius: 12px; background: var(--ag-paper); border: 1px solid var(--ag-border);
+}
+.hm-final-send {
+  padding: 9px 16px; border-radius: 999px; border: 0; cursor: pointer;
+  background: var(--ag-coral); color: #fff; font: inherit; font-weight: 500; font-size: var(--t-small);
+}
+.hm-final-send:hover:not(:disabled) { background: var(--ag-coral-deep); }
+.hm-final-send:disabled { opacity: 0.45; cursor: default; }
+.hm-final-alt { margin: 0; font-size: var(--t-small); color: var(--ag-ink-3); }
+.hm-final-alt span { color: var(--ag-ink); font-weight: 500; }
+.hm-final-reason { margin: 0; padding: 12px 14px; border-radius: 8px; background: var(--ag-paper); border: 1px solid var(--ag-border); }
+.hm-final-reason blockquote { margin: 6px 0 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink); white-space: pre-wrap; }
+.hm-room-onward { display: inline-block; margin-top: 10px; text-decoration: none; }
+@media (prefers-reduced-motion: reduce) { .hm-finalist { transition: none; } }

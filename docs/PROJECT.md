@@ -7687,3 +7687,38 @@ and fixed: the rights and portal doorways returned the database's error text
 to whoever held the link — now "Something went wrong" with a name/code-only
 log, and a test covers all seven unauthenticated doorways. 1,984 tests green,
 tsc and build clean.
+
+## ⚖️ The hiring manager decides on evidence, and says who they want — board 31 (28 September 2026)
+
+Ose, after writing up round 2 of ROL-2419 and advancing CAN-07 and CAN-21 at
+the last planned round: "there's no more rounds. There should be an option to
+select the final … I still can't see the evidence/dossier/cv/even the score in
+the different rounds (how will the hiring manager justify their decision)".
+Figma board 31 drawn and approved the same evening.
+
+**Every round carries the case (band A).** Round cards and the interview
+room now show fit, must-haves, the strongest evidence verbatim, known gaps,
+what to ask, and the CV one click away — from the same submission-gated read
+the Shortlist stage uses (`components/agency/hm-case.tsx`). A disclosure
+switch that is off is named, never a silent gap. The interview room had the
+evidence in its payload and never drew it; it also said "No interview to
+write up yet" for an ended-but-still-scheduled round — now the same ended
+rule as the round page — and gained "Go to your final choice" after a
+last-round advance.
+
+**The final choice, with a reason (bands B, C).** Decision shows everyone
+taken forward side by side; the hiring manager chooses one (or neither) and
+must say why in their own words. New append-only, audit-coupled table
+`agency.client_final_choices` (migration `20260928120000_client_final_choice.sql`),
+writer `lib/agency/final-choice.ts`, route `/api/hiring/roles/[roleId]/final-choice`.
+The submission is the gate; only someone advanced can be chosen; choosing
+turns nobody down. The recruiter's close-out opens on "{Company} chose X"
+with the client's reason and tags them "Client's choice" — the recruiter
+still confirms the hire.
+
+**Not built, said plainly:** "ask for another round" is a sentence pointing
+at the recruiter, not a feature — extending `planned_rounds` stays theirs.
+The reason is not yet printed in the handover pack.
+
+2,000 tests green, tsc and build clean. **Migration must run on STAGING
+before this is pushed**; not on prod (the agencies prod port is Ose's call).
