@@ -21,13 +21,23 @@
  *    while giving a stranger nothing they can send mail to. Binding still
  *    requires proving mailbox ownership in /api/hiring/accept.
  *
- * Rate limited per caller IP: a 24-byte token is unguessable, but guessing
- * should not be free, and this endpoint runs a database lookup per attempt.
+ * Rate limited like the other token doorways (checkDoorwayLimit): a loose
+ * flood ceiling per network plus a per-link limit keyed by a hash of the
+ * token. Guessing is not what the limit is for — the token is 24 random bytes,
+ * 192 bits, which no request rate can find — and the network ceiling still
+ * binds anyone rotating tokens to fish. Until 28 Sep 2026 this was the strict
+ * per-IP "share" tier (10/min), and the eleventh colleague in one office
+ * opening their own invite was refused.
+ *
+ * Accepted limitation: anyone holding the link can exhaust its per-link bucket
+ * (20/min, 200/day) and delay the invitee. It breaks neither confidentiality
+ * nor binding, and the recruiter re-issuing the invite (a new token, so a new
+ * bucket) clears it — the same trade booking, consent and reference accept.
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { peekInvite } from "@/lib/agency/client-auth"
-import { anonRateLimitId, checkRateLimit } from "@/lib/rate-limit"
+import { checkDoorwayLimit } from "@/lib/rate-limit"
 
 export const maxDuration = 15
 
@@ -58,15 +68,16 @@ function maskEmail(email: string): string {
 
 export async function GET(req: NextRequest) {
   try {
-    // Charged before the token is looked at, so a malformed probe costs the
-    // same as a well-formed one. Keyed on IP rather than on the token: keying
-    // on the token would let a guesser rotate tokens for free, which is the
-    // one thing this limit exists to stop.
+    // The token is read (not looked up) first, because the per-link half of
+    // the limit is keyed on it. The limit is still charged before any lookup
+    // and before the empty-token check, so a malformed probe costs the same
+    // as a well-formed one, and rotating tokens still spends the network's
+    // flood ceiling.
+    const token = req.nextUrl.searchParams.get("token") ?? ""
     const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown"
-    const limited = await checkRateLimit(anonRateLimitId(`hiring-invite-ip:${ip}`), "share")
+    const limited = await checkDoorwayLimit("hiring-invite", ip, token)
     if (limited) return limited
 
-    const token = req.nextUrl.searchParams.get("token") ?? ""
     if (!token) return deadLink()
 
     const invite = await peekInvite(token)

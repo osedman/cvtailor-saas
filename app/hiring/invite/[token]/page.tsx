@@ -28,14 +28,27 @@
  *    the link returns here to finish. One auth pool, three hats (§5.4) — the
  *    person signing in may already have a Tailr account, and they keep it.
  *
- * Light theme on purpose: this page never renders `.agd-main`, so it stays on
- * paper. The dark surface is the workspace, and they are not in it yet.
+ * Theme: this page sits inside the hiring layout's AgencyShell
+ * (`ag-app ag-themed`, next-themes defaultTheme "system"), so every --ag-*
+ * token here follows the visitor's light/dark preference. Anything rendered
+ * on this page must read those tokens — including the busy/retry card below,
+ * whose cs- tokens are re-pointed at them.
+ *
+ * Only a 404 is the dead link (28 Sep 2026). A 429 from the rate limiter — a
+ * colleague in the same office opening their own invite — or our own failure
+ * used to render "isn't valid any more" too, telling someone to give up on a
+ * good link. Those now show the shared busy/retry card the other token
+ * doorways use (DoorwayLoadIssue, consent.css's cs- classes).
  */
 
 import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth/auth-provider"
+import { DoorwayLoadIssue } from "@/components/agency/doorway-load-issue"
+import { doorwayLoadState, retryAfterSeconds, type DoorwayLoadState } from "@/lib/agency/doorway-messages"
+import { tooManyAcceptsMessage } from "@/lib/agency/hiring-invite-messages"
 import { createClient } from "@/lib/supabase/client"
+import "../../../consent/consent.css"
 
 interface InvitePreview {
   agencyName: string
@@ -59,6 +72,11 @@ export default function HiringInvitePage({ params }: { params: Promise<{ token: 
 
   const [lookup, setLookup] = useState<Lookup>("loading")
   const [invite, setInvite] = useState<InvitePreview | null>(null)
+  /** A load refused for a reason that is NOT a dead link: busy (429) or our
+   *  own failure (5xx, network). */
+  const [loadIssue, setLoadIssue] = useState<DoorwayLoadState | null>(null)
+  /** Bumped by the busy card's retry to run the preview again. */
+  const [attempt, setAttempt] = useState(0)
 
   const [phase, setPhase] = useState<Phase>("idle")
   const [acceptError, setAcceptError] = useState<string | null>(null)
@@ -80,23 +98,35 @@ export default function HiringInvitePage({ params }: { params: Promise<{ token: 
       try {
         const res = await fetch(`/api/hiring/invite?token=${encodeURIComponent(token)}`)
         if (!live) return
-        if (!res.ok) return setLookup("dead")
+        const issue = doorwayLoadState({
+          status: res.status,
+          retryAfter: retryAfterSeconds(res.headers.get("Retry-After")),
+          what: "this invitation",
+        })
+        if (issue?.kind === "dead") return setLookup("dead")
+        if (issue) return setLoadIssue(issue)
+        setLoadIssue(null)
         const body = (await res.json()) as { invite?: InvitePreview }
         if (!live) return
         if (!body.invite) return setLookup("dead")
         setInvite(body.invite)
         setLookup("ready")
       } catch {
-        // A network failure and a dead token look the same to the reader on
-        // purpose; the retry advice below covers both.
-        if (live) setLookup("dead")
+        // A network failure says nothing about the token, so it is our
+        // failure to report, never the dead link.
+        if (live) setLoadIssue(doorwayLoadState({ status: null, retryAfter: null, what: "this invitation" }))
       }
     }
     void peek()
     return () => {
       live = false
     }
-  }, [token])
+  }, [token, attempt])
+
+  const reload = useCallback(() => {
+    setLoadIssue(null)
+    setAttempt((n) => n + 1)
+  }, [])
 
   const accept = useCallback(async () => {
     setPhase("accepting")
@@ -125,6 +155,13 @@ export default function HiringInvitePage({ params }: { params: Promise<{ token: 
         // Session expired mid-flow: fall back to the signed-out half.
         setPhase("idle")
         setAcceptError("Your session has expired. Sign in again to accept this invitation.")
+        return
+      }
+      if (res.status === 429) {
+        // Busy, not refused: say how long, so an immediate retry is not
+        // refused again.
+        setPhase("idle")
+        setAcceptError(tooManyAcceptsMessage(retryAfterSeconds(res.headers.get("Retry-After"))))
         return
       }
       setPhase("idle")
@@ -185,6 +222,37 @@ export default function HiringInvitePage({ params }: { params: Promise<{ token: 
   }, [signOut])
 
   const busy = lookup === "loading" || (lookup === "ready" && authLoading)
+
+  if (loadIssue && loadIssue.kind !== "dead") {
+    // consent.css scopes its tokens to .cs-app with fixed light values. Here
+    // they are pointed at the hiring shell's --ag-* tokens (inline style beats
+    // the class rule), so the card follows the shell's light/dark theme
+    // instead of flashing cream in dark mode. The shell's Geist is its face.
+    return (
+      <div
+        className="cs-app"
+        style={
+          {
+            flex: 1,
+            minWidth: 0,
+            "--cs-sans": "var(--font-ag-sans)",
+            "--cs-ink": "var(--ag-ink)",
+            "--cs-ink-2": "var(--ag-ink-2)",
+            "--cs-ink-3": "var(--ag-ink-3)",
+            "--cs-paper": "var(--ag-paper)",
+            "--cs-cream": "var(--ag-cream)",
+            "--cs-border": "var(--ag-border)",
+            "--cs-line": "var(--ag-line-2)",
+            "--cs-coral": "var(--ag-coral)",
+            "--cs-coral-text": "var(--ag-coral-text)",
+            "--cs-tint": "var(--ag-tint-1)",
+          } as React.CSSProperties
+        }
+      >
+        <DoorwayLoadIssue issue={loadIssue} onRetry={reload} eyebrow="Hiring manager" />
+      </div>
+    )
+  }
 
   return (
     <main className="hm-door">

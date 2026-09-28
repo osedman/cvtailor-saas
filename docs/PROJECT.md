@@ -7626,3 +7626,23 @@ moved online — reply to your recruiter if you need to." The client's set-up
 screen can still allow moves for a role, as their explicit choice. The
 schema column default is still 'until_notice'; the code writes every column
 explicitly, so it is not reached.
+
+## 🤝 Colleagues in one office can accept their hiring invites (28 September 2026)
+
+Ose: "fix the hiring invite acceptance limit too." Reproduced from a TEST-NET
+address: the fourth colleague on one network was refused at acceptance
+(per-IP "auth", 3/min) and the eleventh at the invite preview (per-IP
+"share", 10/min). Both now use `checkDoorwayLimit` — per-link limit plus a
+per-network flood ceiling — like booking, consent and reference. The
+per-account "auth" limit on acceptance stays (stops a throwaway account
+grinding links). The accept page shows the shared busy/retry card for a 429
+or 5xx on the preview (only a 404 is a dead link; a dropped connection is no
+longer shown as one), themed to the hiring shell after the review caught it
+flashing cream in dark mode, and "Too many tries just now. Wait {n}, then
+accept again." for a refused accept. Re-ran the preview reproduction: eleven
+colleagues, none refused; the accept scenario runs as a test through the real
+route (ten colleagues, none refused; it refused the fourth on the old code).
+Accepted limitation, written into the route: a link holder can exhaust that
+link's bucket; re-issuing the invite clears it. 1,961 tests green, tsc and
+build clean. The sign-in code request (`request-otp`) still limits per network
+at 3/min by design and was not touched.
