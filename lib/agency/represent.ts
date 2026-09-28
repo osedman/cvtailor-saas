@@ -8,9 +8,12 @@
  * candidate rows are per (agency, role, person), so the schema's own grain
  * enforces it.
  *
- * THE ANSWER GATES ONE ACT ONLY: submission to a client. It never filters,
- * ranks or hides anyone (guardrail test), and declining is not withdrawal
- * from consideration.
+ * THE ANSWER GATES DISCLOSURE TO A CLIENT, AND NOTHING ELSE. Two acts read
+ * it, both here: submission (checkRepresentGate) and, since 28 Sep 2026,
+ * names at shortlist (representClientVisibility — what the hiring manager
+ * sees of a candidate the recruiter has shortlisted but not yet submitted).
+ * It never filters, ranks or hides anyone from the RECRUITER (guardrail
+ * test), and declining is not withdrawal from consideration.
  *
  * 'withdrawn' is distinct from 'declined' on purpose. A revoked yes and a
  * plain no are different facts, and the audit trail must say which happened.
@@ -79,6 +82,38 @@ export async function answerRepresent(
   })
 
   return next
+}
+
+/**
+ * What a client may see of a shortlisted, not-yet-submitted candidate, from
+ * their right-to-represent answer alone (Ose, 28 Sep 2026: names at
+ * shortlist). Kept beside the submission gate so the two readings of the
+ * answer cannot drift apart:
+ *
+ *   - agreed       "name"                — they said yes.
+ *   - unanswered   "awaiting_permission" — shown as their ref, unless the
+ *                  caller passes showUnanswered (SHOW_NAMES_BEFORE_PERMISSION
+ *                  in client-shortlisting.ts, off by default).
+ *   - declined / withdrawn / anything unknown   "hidden" — never appears at
+ *                  all. Unknown fails closed.
+ *
+ * Redaction (candidates.redacted) is a separate gate the caller applies on
+ * top; this answers only the represent question.
+ */
+export type RepresentClientVisibility = "hidden" | "awaiting_permission" | "name"
+
+export function representClientVisibility(
+  status: string | null | undefined,
+  showUnanswered: boolean
+): RepresentClientVisibility {
+  switch (status) {
+    case "agreed":
+      return "name"
+    case "unanswered":
+      return showUnanswered ? "name" : "awaiting_permission"
+    default:
+      return "hidden"
+  }
 }
 
 /**

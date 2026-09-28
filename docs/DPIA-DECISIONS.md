@@ -16,6 +16,67 @@ cannot go quiet just because nobody opened this file.
 
 ---
 
+## 2026-09-28 · Names reach the hiring manager at shortlist, before any submission
+
+**Status: OPEN** — being built on staging (server first; the screen waits
+for Figma board 29's sign-off). No DPIA, no legal review.
+
+**Decided by Ose**, 28 Sep 2026: "the hiring manager should be able to see
+the names of the candidates, as soon as they're shortlisted."
+
+**What changes.** Until now a candidate's name reached the client only
+through a submission (22 Sep entry below), after the right-to-represent gate
+and under the disclosure the recruiter froze. Now the hiring manager's
+shortlist stage shows each shortlisted name the moment the recruiter adds
+them — before any submission, before the recruiter has chosen what else to
+disclose.
+
+| Data | Before | After |
+|---|---|---|
+| Name of a shortlisted candidate | At submission only | At shortlist, live |
+| Name of one who **declined or withdrew** permission | Never | **Still never** — not even their ref |
+| Name of one who **asked to be withheld** (`redacted`) | Ref only | **Still ref only** |
+| Name of one who **has not answered** the ask | At submission, only with the recruiter's audited override | **Ref only** until they agree (`SHOW_NAMES_BEFORE_PERMISSION = false`) |
+| CV, evidence, scores, contact details | At submission | **Still at submission** |
+
+**How it is constrained.** Names and the time they were added; nothing
+else leaves the server. Read live from the shortlist on every visit, never
+frozen, so taking someone off removes them and an erasure removes them
+everywhere. A candidate with a **pending** erasure or objection request
+(`agency.rights_requests`) is dropped before the purge runs — the review
+found the old `candidates.erasure_requested_at` column is never written, so
+it cannot be the guard. Scoped to the role's tie to the caller, the same
+check the role room already uses. Right-to-represent is read in one place:
+`representClientVisibility` in `lib/agency/represent.ts`. Verified on
+staging 28 Sep: a shortlisted, unanswered candidate appeared to the tied
+contact as their ref, "awaiting permission", and disappeared when the
+decision was restored; a contact with no tie got nothing. The recruiter's step 05 rail says names reach the
+client as they are added; its old caption ("nothing reaches the client
+until you build it there") is withdrawn.
+
+**What a reviewer needs to decide.**
+
+1. The Art 14 notice at ingestion must say a name may be shown to the
+   client as soon as the candidate is shortlisted. It has not been updated
+   (and the 22 Sep CV gap is still open).
+2. Unanswered candidates: showing their name before they agree is one
+   switch (`SHOW_NAMES_BEFORE_PERMISSION`). If it is ever flipped, this
+   entry must say so and why.
+3. Should each first disclosure of a name to a contact write an audit row,
+   as CV views do? Today it does not.
+4. A name seen and then removed has still been seen. Does the terms of
+   business need to cover what a client does with a name from a shortlist
+   that was later changed?
+
+**Where it is implemented.** `lib/agency/client-shortlisting.ts`,
+`app/api/hiring/roles/[roleId]/shortlisting/route.ts`; the screen in
+`app/hiring/roles/[roleId]/shortlist/page.tsx` after sign-off; the rail
+copy in `components/agency/shortlist-rail.tsx`.
+
+**Migration:** none.
+
+---
+
 ## 2026-09-23 · Found by the E2E: two erasure/credential gaps that pre-date this week
 
 **Status: OPEN** — both need a migration; neither is new this week, both

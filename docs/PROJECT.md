@@ -7501,3 +7501,25 @@ attachment · safe to ignore" and its audit rows, attributed to the owner.
 **Production** has none of the agency brief tables yet, so this file cannot
 run there until the 23 Sep brief migrations do — that belongs to the
 agencies production port, not now.
+
+## 👀 Names reach the hiring manager at shortlist — server on staging, screen awaits board 29 (28 September 2026)
+
+Ose: "On the hiring manager side the hiring manager should be able to see
+the names of the candidates, as soon as they're shortlisted." Until now a
+name reached the client only through a submission. New
+`lib/agency/client-shortlisting.ts` + `GET /api/hiring/roles/:id/shortlisting`
+return, for the contact tied to the role (the room's own tie check), each
+live-shortlisted candidate not already in their latest submission as
+`{ref, name|null, withheld, addedAt}` — nothing else. The candidate's
+answers govern, read in ONE place (`representClientVisibility` in
+`represent.ts`): declined/withdrawn never appear; asked-to-be-withheld →
+ref; not yet answered → ref "awaiting permission" unless
+`SHOW_NAMES_BEFORE_PERMISSION` is flipped (default false — the orchestrator's
+assumption, Ose to decide); a pending erasure or objection request drops
+them (the review found `erasure_requested_at` is never written). Verified on
+staging: a shortlisted unanswered candidate appeared as their ref and
+vanished when the decision was restored; an untied contact got nothing.
+Every shortlisted candidate on staging today is unanswered, so under the
+default the hiring manager sees refs only. DPIA entry logged (OPEN).
+Board 29 (node 571:2) draws the screen, the "added since" list after a
+submission, and the step 05 rail copy that must change with it.

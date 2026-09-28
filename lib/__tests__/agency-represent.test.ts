@@ -180,8 +180,11 @@ describe("the answer never filters, ranks or hides anyone", () => {
     const offenders: string[] = []
     for (const f of files) {
       const rel = path.relative(process.cwd(), f)
-      // The gate is the ONE permitted consumer: gating submission is the
-      // single act the answer governs, and it lives in represent.ts alone.
+      // represent.ts is the ONE permitted consumer: the answer gates
+      // disclosure to a client — submission (checkRepresentGate) and names
+      // at shortlist (representClientVisibility, 28 Sep 2026) — and both
+      // readings live there alone. client-shortlisting.ts calls the latter
+      // rather than reading the status itself.
       if (rel === "lib/agency/represent.ts") continue
       const text = readFileSync(f, "utf8")
       if (/\.(eq|neq|in|gt|lt|order)\(\s*["']represent_status/.test(text)) {
