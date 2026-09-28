@@ -16,8 +16,11 @@
  *     "Add to shortlist" on that person; the × goes back through the same
  *     single human-only decision writer and clears the decision.
  *   · It never sends. Confirm opens the submission step (step 07) exactly
- *     as "Build submission" did; nothing reaches the client until the
- *     recruiter builds it there. The caption under the button says so.
+ *     as "Build submission" did. What reaches the client early is the NAME
+ *     only (board 29, 28 Sep 2026: the hiring manager sees each name as it
+ *     is added — lib/agency/client-shortlisting.ts); the CV, the evidence
+ *     and the scores still wait for the submission, and the sub and the
+ *     caption say so.
  *   · It never reorders by anything but score, and the order can still be
  *     changed on the submission.
  *
@@ -40,6 +43,8 @@ export interface ShortlistEntry {
 
 export interface ShortlistRailProps {
   company: string
+  /** The client's first name, from the role's linked contact. */
+  clientName?: string
   entries: ShortlistEntry[]
   holdCount: number
   passedCount: number
@@ -57,6 +62,7 @@ function railTitle(n: number): string {
 
 export function ShortlistRail({
   company,
+  clientName,
   entries,
   holdCount,
   passedCount,
@@ -73,8 +79,10 @@ export function ShortlistRail({
         </span>
         <h2 className="ag-sl-title" aria-live="polite">{railTitle(n)}</h2>
         <p className="ag-sl-sub">
-          Add from the cards or the recommendation. The order can change on the submission.
+          {clientName?.trim() || "The client"} sees each name as you add it. The CV, evidence and scores wait for
+          the submission.
         </p>
+        <p className="ag-sl-visible">Names visible to the client</p>
       </div>
 
       <ol className="ag-sl-list">
@@ -120,7 +128,7 @@ export function ShortlistRail({
           Confirm shortlist →
         </button>
         <p className="ag-sl-caption">
-          Opens the submission step. Nothing reaches the client until you build it there.
+          Opens the submission step, where you choose what else the client reads.
         </p>
       </div>
     </section>

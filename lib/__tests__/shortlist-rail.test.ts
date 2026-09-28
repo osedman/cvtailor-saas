@@ -77,14 +77,15 @@ describe("the rail", () => {
     expect(compareStep()).toMatch(/onConfirm: \(\) => setStep\("submission"\)/)
     expect(RAIL).toMatch(/onClick=\{onConfirm\}[\s\S]{0,120}Confirm shortlist →/)
     expect(RAIL).not.toMatch(/fetch\(/)
-    expect(RAIL).toContain("Opens the submission step. Nothing reaches the client until you build it there.")
+    expect(RAIL).toContain("Opens the submission step, where you choose what else the client reads.")
   })
 
   it("carries the board's words", () => {
     expect(RAIL).toContain('"Nobody yet"')
     expect(RAIL).toContain('"1 person, in score order"')
     expect(RAIL).toContain("people, in score order")
-    expect(RAIL).toContain("Add from the cards or the recommendation. The order can change on the submission.")
+    // Board 29 replaced board 26's sub: the client now sees names as they are added.
+    expect(RAIL).toMatch(/sees each name as you add it\. The CV, evidence and scores wait for\s+the submission\./)
     expect(RAIL).toContain("Your next add lands here")
     expect(RAIL).toContain("Kept for later. Never sent.")
     expect(RAIL).toContain("Internal record only.")

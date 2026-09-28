@@ -2693,6 +2693,8 @@ a.ag-rh-next:hover { opacity: 0.86; }
 .ag-sl-eyebrow { margin-bottom: 6px; }
 .ag-sl-title { font-family: var(--ag-display); font-size: var(--t-title); font-weight: 600; letter-spacing: var(--track-tight); line-height: 1.2; color: var(--ag-ink); margin: 0; text-wrap: balance; }
 .ag-sl-sub { margin: 6px 0 0; font-size: var(--t-small); line-height: 1.5; color: var(--ag-ink-3); }
+/* Board 29: the client sees names as they are added — said where the adding happens. */
+.ag-sl-visible { margin: 6px 0 0; font-size: var(--t-caption); line-height: 1.4; color: var(--ag-coral-text); font-weight: 500; }
 .ag-sl-list { list-style: none; margin: 0; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid var(--ag-border); }
 .ag-sl-row { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-radius: var(--r-sm); }
 .ag-sl-row:hover { background: var(--ag-cream); }

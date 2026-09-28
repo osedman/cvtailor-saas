@@ -47,6 +47,9 @@ export function useHiringData() {
   const [rounds, setRounds] = useState<HiringRound[]>([])
   const [slots, setSlots] = useState<HiringSlot[]>([])
   const [agencyName, setAgencyName] = useState("")
+  // How many distinct agencies the caller is linked to. `agencyName` is the
+  // FIRST link's, so it names the right firm only when this is 1.
+  const [agencyCount, setAgencyCount] = useState(0)
   const [alsoRecruiter, setAlsoRecruiter] = useState(false)
   // The clock ticks, so an interview can end — and a write-up fall due —
   // while the page is open.
@@ -73,6 +76,7 @@ export function useHiringData() {
       setRounds(Array.isArray(d.rounds) ? d.rounds : [])
       setSlots(Array.isArray(d.slots) ? d.slots : [])
       setAgencyName(d.links?.[0]?.agencyName ?? "")
+      setAgencyCount(distinctAgencyCount(d.links))
       setAlsoRecruiter(Boolean(body.alsoRecruiter))
       setScreen("ready")
     } catch {
@@ -84,7 +88,12 @@ export function useHiringData() {
     void load()
   }, [load])
 
-  return { screen, roles, rounds, slots, agencyName, alsoRecruiter, nowMs, reload: load }
+  return { screen, roles, rounds, slots, agencyName, agencyCount, alsoRecruiter, nowMs, reload: load }
+}
+
+/** Distinct, non-empty agency names across the caller's links. */
+export function distinctAgencyCount(links: Array<{ agencyName?: string }> | null | undefined): number {
+  return new Set((links ?? []).map((l) => (l.agencyName ?? "").trim()).filter(Boolean)).size
 }
 
 /** One role's room: its ladder row, its rounds, whether a pack reached you. */

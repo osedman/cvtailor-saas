@@ -2406,6 +2406,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             }
             const railProps = {
               company: role.company || "",
+              // The role's linked hiring manager, by first name (board 29).
+              // Every client-side contact tied to the role sees the names (the
+              // linked contact, brief contacts, recipients, panellists, slot
+              // contacts — lib/agency/client-header.ts), so the rail names the
+              // company, not one person: "Meridian Health sees each name…".
+              clientName: role.company?.trim() || "The client",
               entries: railEntries,
               holdCount: decisionCounts.hold,
               passedCount: decisionCounts.reject,

@@ -8,11 +8,23 @@
  * decided, not the choice made at the shortlist ("declined after round 1",
  * never "you asked to interview them"). Replaces the cross-role Shortlist
  * screen, where you could not tell which role a candidate was for.
+ *
+ * Board 29 (28 Sep 2026): before any submission the stage shows who is being
+ * shortlisted, by name, as it happens; after one, anyone shortlisted since
+ * appears under it until the next submission carries them. Both come from
+ * components/agency/hm-shortlisting.tsx.
  */
 
-import { use, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useRef, useState } from "react"
 import { HandOff, HmFrame, RoomHeader, useRoom } from "@/components/agency/hm-room"
 import { CandidateDetail } from "@/components/agency/hm-candidate"
+import {
+  AddedSince,
+  BeingShortlisted,
+  NothingShortlistedYet,
+  shortlisterName,
+  useShortlisting,
+} from "@/components/agency/hm-shortlisting"
 import type { ShortlistEntry, ShortlistDisclosure } from "@/lib/agency/client-shortlist"
 import { outcomeByRef, outcomeSentence, plannedFor, stageHref } from "@/lib/agency/hm-room"
 
@@ -33,6 +45,12 @@ type Loaded =
 export default function ShortlistStage({ params }: { params: Promise<{ roleId: string }> }) {
   const { roleId } = use(params)
   const room = useRoom(roleId)
+  const building = useShortlisting(roleId)
+  const agency = shortlisterName({
+    agencyName: room.agencyName,
+    agencyCount: room.agencyCount,
+    recruiterName: room.row?.role.recruiterName,
+  })
   const [list, setList] = useState<Loaded>({ state: "loading" })
   /**
    * Which candidates are open. A Set rather than one id: reading two people
@@ -48,22 +66,52 @@ export default function ShortlistStage({ params }: { params: Promise<{ roleId: s
       return next
     })
 
-  useEffect(() => {
-    let live = true
-    fetch(`/api/hiring/roles/${roleId}/shortlist`)
-      .then(async (r) => {
-        if (!live) return
-        if (r.status === 404) return setList({ state: "none" })
-        if (!r.ok) return setList({ state: "error" })
+  /**
+   * The submission view. Loaded on mount, and again when the live list says
+   * a submission has landed (or someone left it, which is what a new
+   * submission looks like from here) — otherwise a submission sent while the
+   * stage is open would read as "Nothing shortlisted yet". A failed reload
+   * keeps the submission already on screen.
+   */
+  const listSeq = useRef(0)
+  const loadList = useCallback(async () => {
+    const mine = ++listSeq.current
+    let next: Loaded
+    try {
+      const r = await fetch(`/api/hiring/roles/${roleId}/shortlist`, { cache: "no-store" })
+      if (r.status === 404) next = { state: "none" }
+      else if (!r.ok) next = { state: "error" }
+      else {
         const b = (await r.json()) as { shortlist?: { intro: string; generatedAt: string; entries: ShortlistEntry[]; disclosure: ShortlistDisclosure } }
-        if (!b.shortlist) return setList({ state: "none" })
-        setList({ state: "ready", ...b.shortlist })
-      })
-      .catch(() => live && setList({ state: "error" }))
-    return () => {
-      live = false
+        next = b.shortlist ? { state: "ready", ...b.shortlist } : { state: "none" }
+      }
+    } catch {
+      next = { state: "error" }
     }
+    if (mine !== listSeq.current) return
+    setList((prev) => (next.state === "error" && prev.state === "ready" ? prev : next))
   }, [roleId])
+
+  useEffect(() => {
+    void loadList()
+    return () => {
+      // Invalidate anything still in flight.
+      listSeq.current++
+    }
+  }, [loadList])
+
+  const seenRefs = useRef<Set<string> | null>(null)
+  useEffect(() => {
+    if (building.status !== "ready") return
+    const refs = new Set(building.entries.map((e) => e.ref))
+    const before = seenRefs.current
+    seenRefs.current = refs
+    if (list.state === "none" && building.submitted) {
+      void loadList()
+      return
+    }
+    if (list.state === "ready" && before && [...before].some((r) => !refs.has(r))) void loadList()
+  }, [building, list.state, loadList])
 
   const outcomes = outcomeByRef(room.rounds)
   const planned = plannedFor(room.rounds)
@@ -79,17 +127,21 @@ export default function ShortlistStage({ params }: { params: Promise<{ roleId: s
       {list.state === "error" && (
         <p className="ag-banner" role="alert">We could not load the shortlist. Reload the page.</p>
       )}
-      {list.state === "none" && (
-        <section className="agd-band">
-          <div className="hm-note-card">
-            <p className="hm-note-title">No shortlist has reached this workspace.</p>
-            <p>
-              If your recruiter sent it by email or as a document, it is in your inbox rather than here — reply
-              to them with who you would like to interview.
-            </p>
-          </div>
-        </section>
+      {list.state === "none" &&
+        (building.status === "loading" || (building.status === "ready" && building.submitted)) && (
+          <p className="ag-quiet" aria-live="polite">Loading the shortlist…</p>
+        )}
+      {list.state === "none" && building.status === "error" && (
+        <p className="ag-banner" role="alert">We could not load the shortlist. Reload the page.</p>
       )}
+      {list.state === "none" &&
+        building.status === "ready" &&
+        !building.submitted &&
+        (building.entries.length > 0 ? (
+          <BeingShortlisted entries={building.entries} agency={agency} nowMs={room.nowMs} />
+        ) : (
+          <NothingShortlistedYet agency={agency} />
+        ))}
 
       {list.state === "ready" && (
         <section className="agd-band" aria-labelledby="hm-sl">
@@ -164,6 +216,13 @@ export default function ShortlistStage({ params }: { params: Promise<{ roleId: s
             })}
           </ul>
         </section>
+      )}
+
+      {list.state === "ready" && building.status === "ready" && (
+        <AddedSince entries={building.entries} agency={agency} nowMs={room.nowMs} />
+      )}
+      {list.state === "ready" && building.status === "error" && (
+        <p className="ag-banner" role="alert">We could not load who has been shortlisted since the submission. Reload the page.</p>
       )}
 
       {list.state === "ready" &&

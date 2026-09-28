@@ -46,7 +46,11 @@ everywhere. A candidate with a **pending** erasure or objection request
 (`agency.rights_requests`) is dropped before the purge runs — the review
 found the old `candidates.erasure_requested_at` column is never written, so
 it cannot be the guard. Scoped to the role's tie to the caller, the same
-check the role room already uses. Right-to-represent is read in one place:
+check the role room already uses — which means **every client-side contact
+tied to the role** sees the names: the role's linked contact, brief
+contacts, un-revoked submission recipients, interview panellists and
+slot contacts. The recruiter's rail therefore names the company ("Meridian
+Health sees each name as you add it"), not one person. Right-to-represent is read in one place:
 `representClientVisibility` in `lib/agency/represent.ts`. Verified on
 staging 28 Sep: a shortlisted, unanswered candidate appeared to the tied
 contact as their ref, "awaiting permission", and disappeared when the

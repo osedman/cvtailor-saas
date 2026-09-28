@@ -7550,3 +7550,26 @@ override for the same person. A test now refuses the switch unless the DPIA
 log records it. Re-verified live on staging: the unanswered CAN-15 appeared
 by name and vanished on restore. Board 29 updated to match. The screen and
 the rail copy are being built.
+
+## 👀 Names at shortlist — the screen, built to board 29 (28 September 2026)
+
+The hiring manager's Shortlist stage now shows who is being shortlisted.
+Before a submission: "Being shortlisted · n so far", each name with when it
+was added, withheld people as their ref ("Asked to be withheld"), and a
+reworded note when nobody is shortlisted yet. After a submission: the
+submission as before, then "Added since · not sent yet". The list refreshes
+on focus and every minute while the tab is visible; a refetch failure keeps
+the last list; a 401/403/404 clears it (tie revoked). Built by a four-agent
+workflow; the review found a real high bug — a submission landing while the
+page was open read as "Nothing shortlisted yet" — fixed by reloading the
+submission when the live list reports one. The agency name in the copy is
+used only when the hiring manager is linked to one agency.
+
+The recruiter's rail says "{Company} sees each name as you add it. The CV,
+evidence and scores wait for the submission." with "Names visible to the
+client", and the new Confirm caption; the old "nothing reaches the client"
+caption is gone. It names the company, not one person (board 29 drew
+"Owen"), because every client-side contact tied to the role sees the names
+— linked contact, brief contacts, recipients, panellists, slot contacts;
+the DPIA entry says so and board 29 was updated to match. 1,895 tests green,
+tsc clean, build green. Not clicked by a person yet.
