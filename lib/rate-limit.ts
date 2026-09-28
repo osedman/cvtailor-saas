@@ -131,7 +131,9 @@ export function anonRateLimitId(seed: string): string {
 }
 
 /** The one 429 every limiter answers with, so pages read a single shape. */
-function limitedResponse(resetSeconds: number): NextResponse {
+/** The one 429 every limit answers with — also used where an upstream service
+ *  (Supabase's own per-account wait) refuses, so the words never differ. */
+export function limitedResponse(resetSeconds: number): NextResponse {
   const mins = Math.ceil(resetSeconds / 60)
   const wait = resetSeconds >= 3600
     ? `${Math.ceil(resetSeconds / 3600)} hour(s)`

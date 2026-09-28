@@ -15,7 +15,6 @@
 import { createHash } from "crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { agencyAdmin, writeAudit } from "@/lib/agency/db"
-import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 15
 
@@ -74,10 +73,14 @@ export async function GET(
       viewer: { name: contact?.full_name ?? "", company: contact?.company ?? "" },
     })
   } catch (error) {
-    return NextResponse.json(
-      { error: errorMessage(error) },
-      { status: 500 }
-    )
+    // Unauthenticated doorway: never the database's words (Postgres quotes row
+    // values, and these rows hold names and addresses), and name/code only in
+    // the log.
+    console.error("[portal] failed", {
+      name: error instanceof Error ? error.name : typeof error,
+      code: (error as { code?: string })?.code,
+    })
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 })
   }
 }
 
@@ -150,9 +153,13 @@ export async function POST(
 
     return NextResponse.json({ recorded: true }, { status: 201 })
   } catch (error) {
-    return NextResponse.json(
-      { error: errorMessage(error) },
-      { status: 500 }
-    )
+    // Unauthenticated doorway: never the database's words (Postgres quotes row
+    // values, and these rows hold names and addresses), and name/code only in
+    // the log.
+    console.error("[portal] failed", {
+      name: error instanceof Error ? error.name : typeof error,
+      code: (error as { code?: string })?.code,
+    })
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 })
   }
 }

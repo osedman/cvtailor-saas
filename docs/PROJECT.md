@@ -7666,3 +7666,23 @@ one network can now send 400 sign-in emails a day across both doors (was
 not changed here: the route returns generateLink's own error text on a 400,
 which can say whether an address has an account if sign-ups are disabled.
 1,969 tests green (the new tests fail on the old limit), tsc and build clean.
+
+## 🔒 Upstream error text no longer reaches strangers (28 September 2026)
+
+Ose: "fix the generateLink error message too." `request-otp` returned
+Supabase's `generateLink` error text on a 400 and Resend's on a 500.
+Supabase's words are facts about the account ("Signups not allowed" = no
+account, once sign-ups are off; "User is banned" = one exists) and can quote
+the address; Resend's describe our mail setup. Checked first: sign-ups are ON
+on staging and production today, so an unknown address gets an account, not
+an error — the leak was latent, live the day sign-ups go off or an account
+is banned. Reproduced with a test feeding the real route those refusals:
+8 failures. Now every generateLink refusal reads "We couldn't start sign-in
+for that address. Check it and try again."; Supabase's own per-account wait
+("only request this after N seconds") becomes the app's usual 429 with
+Retry-After; a failed send reads "We couldn't send the sign-in email just
+now."; logs carry status and code only, never the message. Siblings found
+and fixed: the rights and portal doorways returned the database's error text
+to whoever held the link — now "Something went wrong" with a name/code-only
+log, and a test covers all seven unauthenticated doorways. 1,984 tests green,
+tsc and build clean.

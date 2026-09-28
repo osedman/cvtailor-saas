@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/server"
 import { sendEmail } from "@/lib/email"
-import { checkRateLimit, anonRateLimitId } from "@/lib/rate-limit"
+import { checkRateLimit, anonRateLimitId, limitedResponse } from "@/lib/rate-limit"
 // One definition of the open-redirect guard for the whole auth flow. It used
 // to live here as a private copy; two copies of a security check is how one of
 // them quietly drifts permissive.
@@ -70,9 +70,21 @@ export async function POST(request: Request) {
     })
 
     if (error) {
-      console.error("[auth/request-otp] generateLink:", error.message)
+      // Supabase's words are facts about the ACCOUNT — "Signups not allowed"
+      // says an address has none, "User is banned" says one exists — and an
+      // unauthenticated caller must not learn either, so they never leave the
+      // server, and the log gets the code and status only (the message can
+      // quote the address). One refusal is worth passing on, in our words:
+      // Supabase's own per-account wait, which becomes the app's usual 429.
+      const status = (error as { status?: number }).status
+      const code = (error as { code?: string }).code
+      console.error("[auth/request-otp] generateLink refused", { status, code })
+      if (status === 429 || code === "over_request_rate_limit" || code === "over_email_send_rate_limit") {
+        const seconds = Number((error.message ?? "").match(/(\d+)\s*seconds?/i)?.[1])
+        return limitedResponse(Number.isFinite(seconds) && seconds > 0 ? seconds : 60)
+      }
       return NextResponse.json(
-        { error: error.message || "Could not start sign-in" },
+        { error: "We couldn't start sign-in for that address. Check it and try again." },
         { status: 400 },
       )
     }
@@ -107,16 +119,22 @@ export async function POST(request: Request) {
     })
 
     if (!sent.sent) {
-      console.error("[auth/request-otp] Resend:", sent.error || sent.skipped)
+      // Resend's text describes our mail setup and can quote an address; it
+      // stays out of the reply and out of the log.
+      console.error("[auth/request-otp] Resend did not send", { skipped: sent.skipped ?? null, failed: Boolean(sent.error) })
       return NextResponse.json(
-        { error: sent.error || "Error sending magic link email" },
+        { error: "We couldn't send the sign-in email just now. Try again in a minute." },
         { status: 500 },
       )
     }
 
     return NextResponse.json({ ok: true })
   } catch (e) {
-    console.error("[auth/request-otp] failed:", e)
+    // Name and code only: an upstream message can quote the address.
+    console.error("[auth/request-otp] failed", {
+      name: e instanceof Error ? e.name : typeof e,
+      code: (e as { code?: string })?.code,
+    })
     return NextResponse.json({ error: "Error sending magic link email" }, { status: 500 })
   }
 }
