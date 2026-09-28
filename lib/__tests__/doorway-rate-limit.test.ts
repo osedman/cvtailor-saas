@@ -136,10 +136,13 @@ describe("the token doorways use the doorway limit, not the sign-in tier", () =>
     })
   }
 
-  it("sign-in still uses the strict auth tier, per email and per IP", () => {
+  it("sign-in uses the strict auth tier per email and the auth_net ceiling per network", () => {
+    // 28 Sep 2026: the per-network charge moved from "auth" to "auth_net"
+    // (signin-code-limit.test.ts); the per-address charge is unchanged.
     const otp = read("app/api/auth/request-otp/route.ts")
     expect(otp).toMatch(/checkRateLimit\(anonRateLimitId\(`email:\$\{door\}:\$\{email\}`\), "auth"\)/)
-    expect(otp).toMatch(/checkRateLimit\(anonRateLimitId\(`ip:\$\{door\}:\$\{ip\}`\), "auth"\)/)
+    expect(otp).toMatch(/checkRateLimit\(anonRateLimitId\(`ip:\$\{door\}:\$\{ip\}`\), "auth_net"\)/)
+    expect(otp).not.toMatch(/checkDoorwayLimit/)
   })
 
   it("the doorway presets are the decided numbers", () => {

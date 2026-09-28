@@ -31,12 +31,28 @@ const PRESETS: Record<string, Rule[]> = {
     { key: 'ai:min', limit: 20,  windowSeconds: 60 },
     { key: 'ai:day', limit: 250, windowSeconds: DAY },
   ],
-  // Unauthenticated sign-in email sends (magic link / OTP). Keyed per email
-  // and per IP by the caller — stops the endpoint being used to email-bomb an
-  // address or drain the Resend quota.
+  // Unauthenticated sign-in email sends (magic link / OTP). Keyed per target
+  // email address by the caller — stops the endpoint being used to email-bomb
+  // an inbox. The per-network charge uses "auth_net" below, not this.
   auth: [
     { key: 'auth:min', limit: 3,  windowSeconds: 60 },
     { key: 'auth:day', limit: 15, windowSeconds: DAY },
+  ],
+  // Per NETWORK, per front door — a flood ceiling for sign-in email only. On
+  // 28 Sep 2026 request-otp charged the caller's network at "auth" (3/min,
+  // 15/day), a number set for one person, so the fourth colleague in one
+  // office asking for a code for their OWN address was refused. An office
+  // signing in together passes this; one network is capped at 200 sign-in
+  // emails a day per door (400 across both doors, where the old number allowed
+  // 30). It is NOT the Resend account quota: nothing caps the total across
+  // networks, and rotating addresses reaches that quota whatever this says.
+  // The same ceiling bounds, per source, the generateLink side effects (its
+  // error messages, junk sign-ups, and using up someone's per-address bucket).
+  // What stops an inbox being flooded is the per-ADDRESS "auth" charge above,
+  // and it is unchanged.
+  auth_net: [
+    { key: 'auth_net:min', limit: 20,  windowSeconds: 60 },
+    { key: 'auth_net:day', limit: 200, windowSeconds: DAY },
   ],
   // Career Arc share-link writes (create / regenerate / settings). Cheap DB
   // ops, but token regeneration and settings churn shouldn't be scriptable.
@@ -165,7 +181,7 @@ export function doorwayLimitIds(doorway: string, ip: string, token: string): { n
  * Returns the same 429 shape as checkRateLimit (with Retry-After), or null.
  *
  * Not for sign-in or OTP routes: those send email and keep the strict "auth"
- * tier on purpose.
+ * tier per address on purpose (with "auth_net" as their per-network ceiling).
  */
 export async function checkDoorwayLimit(doorway: string, ip: string, token: string): Promise<NextResponse | null> {
   const ids = doorwayLimitIds(doorway, ip, token)

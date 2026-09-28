@@ -7646,3 +7646,23 @@ Accepted limitation, written into the route: a link holder can exhaust that
 link's bucket; re-issuing the invite clears it. 1,961 tests green, tsc and
 build clean. The sign-in code request (`request-otp`) still limits per network
 at 3/min by design and was not touched.
+
+## ✉️ Colleagues in one office can get sign-in codes (28 September 2026)
+
+Ose: "fix the sign-in code limit too." Reproduced with the limiter exactly
+as `request-otp` calls it (no email sent): colleagues 1–3 on one network got
+codes for their own addresses, the fourth was refused. The per-ADDRESS limit
+("auth", 3/min, 15/day — what stops an inbox being flooded) is unchanged and
+still charged first. The per-NETWORK limit moved from "auth" to a new
+`auth_net` preset, 20/min and 200/day per front door. Re-ran: ten colleagues
+on one network, none refused. The sign-in surfaces already showed the
+server's "please wait N…" sentence; the one gap (a 429 with no JSON body
+fell through to "Error sending magic link email") is closed in
+`auth-provider.tsx`. The email-abuse review cleared it: a refusal still
+reveals nothing about whether an address has an account, because both
+counters are charged before the account lookup. Written down in the preset:
+one network can now send 400 sign-in emails a day across both doors (was
+30), and nothing caps the total across networks. Follow-up, pre-existing and
+not changed here: the route returns generateLink's own error text on a 400,
+which can say whether an address has an account if sign-ups are disabled.
+1,969 tests green (the new tests fail on the old limit), tsc and build clean.

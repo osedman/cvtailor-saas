@@ -113,10 +113,10 @@ describe("the hiring invite routes use the doorway limit, not a per-network stri
     expect(bind).toBeGreaterThan(doorway)
   })
 
-  it("sign-in is untouched: request-otp still uses the strict auth tier per email and per IP", () => {
+  it("sign-in keeps its own limits: auth per email, auth_net per network, no doorway limit", () => {
     const otp = read("app/api/auth/request-otp/route.ts")
     expect(otp).toMatch(/checkRateLimit\(anonRateLimitId\(`email:\$\{door\}:\$\{email\}`\), "auth"\)/)
-    expect(otp).toMatch(/checkRateLimit\(anonRateLimitId\(`ip:\$\{door\}:\$\{ip\}`\), "auth"\)/)
+    expect(otp).toMatch(/checkRateLimit\(anonRateLimitId\(`ip:\$\{door\}:\$\{ip\}`\), "auth_net"\)/)
     expect(otp).not.toMatch(/checkDoorwayLimit/)
   })
 })

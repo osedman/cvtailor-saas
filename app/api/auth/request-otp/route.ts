@@ -36,14 +36,20 @@ export async function POST(request: Request) {
   // the person actually started on.
   const door = doorFromHost(request.headers.get("host"))
 
-  // Unauthenticated endpoint that sends email — limit per target address AND
-  // per caller IP so it can't email-bomb an inbox or drain the Resend quota.
-  // Keyed by door as well: one person is often both a consumer and a
+  // Unauthenticated endpoint that sends email — two limits, charged in order:
+  //  1. Per target ADDRESS at "auth" (3/min, 15/day): what stops anyone
+  //     email-bombing an inbox. Strict on purpose; one address, one person.
+  //  2. Per caller NETWORK at "auth_net" (20/min, 200/day per door): a
+  //     per-network flood ceiling, not the Resend account quota (see the
+  //     preset). Until 28 Sep 2026 this was "auth" too, a number
+  //     for one person, so the fourth colleague in one office asking for a
+  //     code for their own address was refused with 429.
+  // Both are keyed by door: one person is often both a consumer and a
   // recruiter, and their job-hunting must not throttle their day job.
   const ip = (request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown"
   const limited =
     (await checkRateLimit(anonRateLimitId(`email:${door}:${email}`), "auth")) ??
-    (await checkRateLimit(anonRateLimitId(`ip:${door}:${ip}`), "auth"))
+    (await checkRateLimit(anonRateLimitId(`ip:${door}:${ip}`), "auth_net"))
   if (limited) return limited
 
   // Origin header first (it already follows the calling host), then the
