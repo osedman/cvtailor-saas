@@ -301,14 +301,25 @@ export async function POST(
       .single()
     if (subError) throw subError
 
-    // Portal: one token per named recipient, raw value returned exactly once.
+    // EVERY SEND REACHES THE CLIENT'S WORKSPACE (29 Sep 2026). A recipient row
+    // is the one door the hiring side opens by — getClientShortlist gates the
+    // shortlist, the interview room and the round set-up on it. Rows used to
+    // be minted for `portal` only, and the screen's default tab was
+    // `document`, so the ordinary send gave the client a file and nothing in
+    // Tailr to interview from (ROL-2420, ROL-2421). The format is now how the
+    // shortlist is ALSO delivered; the workspace delivery is not optional.
+    // Named recipients win; otherwise the role's own client contact.
+    const named: string[] = Array.isArray(body?.recipients)
+      ? (body.recipients as Array<{ contact_id?: unknown }>).map((r) => r?.contact_id).filter((id): id is string => typeof id === "string")
+      : []
+    const recipientIds = [...new Set(named.length > 0 ? named : role.contact_id ? [role.contact_id] : [])].slice(0, 10)
+
+    // One token per recipient, raw value returned exactly once.
     const links: Array<{ contact_id: string; url: string; expires_at: string }> = []
-    if (format === "portal" && Array.isArray(body?.recipients)) {
+    if (recipientIds.length > 0) {
       const days = Math.min(MAX_EXPIRY_DAYS, Math.max(1, Number(body?.expires_days) || DEFAULT_EXPIRY_DAYS))
       const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString()
-      for (const recipient of body.recipients.slice(0, 10)) {
-        const contactId = recipient?.contact_id
-        if (typeof contactId !== "string") continue
+      for (const contactId of recipientIds) {
         const { data: contact } = await admin
           .from("client_contacts")
           .select("id, agency_id")

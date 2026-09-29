@@ -185,3 +185,20 @@ describe("a sticky column scrolls; it does not crush its cards", () => {
     }
   })
 })
+
+describe("every send reaches the client's workspace (29 Sep 2026)", () => {
+  const route = read(ROUTE)
+
+  it("recipient rows are not gated on the portal format", () => {
+    // The bug: rows were minted only `if (format === "portal" ...)`, the
+    // screen defaulted to Document, and the hiring side (getClientShortlist)
+    // opens only on a recipient row — so the client got a file and no way to
+    // interview. The format is the extra delivery, never the gate.
+    expect(route).not.toMatch(/format === "portal" &&/)
+    expect(route).toMatch(/if \(recipientIds\.length > 0\)/)
+  })
+
+  it("falls back to the role's own client contact when nobody is named", () => {
+    expect(route).toMatch(/role\.contact_id \? \[role\.contact_id\] : \[\]/)
+  })
+})

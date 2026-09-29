@@ -64,6 +64,8 @@ export interface JobRole {
   brief_version: number | null
   brief_config: unknown | null
   brief_connected_at: string | null
+  /** The client contact the role is for; the default submission recipient. */
+  contact_id?: string | null
   created_at: string
   updated_at: string
 }
