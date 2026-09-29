@@ -24,6 +24,7 @@
 import { agencyAdmin, writeAudit } from "./db"
 import { getInterviewSettings } from "./interview-settings"
 import { offerSlot } from "./rounds"
+import { discloseEntry, readDisclosure } from "./snapshot-disclosure"
 import type { HiringContext } from "./types"
 
 /**
@@ -139,30 +140,9 @@ export async function getClientShortlist(ctx: HiringContext, roleId: string): Pr
     disclosure?: Partial<ShortlistDisclosure>
     shortlisted?: Array<Record<string, unknown>>
   }
-  // Read back exactly as frozen. An older snapshot with no disclosure block
-  // predates the switches, and the submission builder's own defaults are the
-  // honest reading of what the recruiter intended then.
-  const d = snapshot.disclosure ?? {}
-  const disclosure: ShortlistDisclosure = {
-    scores: d.scores !== false,
-    evidence: d.evidence !== false,
-    probes: d.probes !== false,
-    notes: d.notes === true,
-    logistics: d.logistics !== false,
-    /**
-     * The CV, and the one switch that defaults the OTHER way on read.
-     *
-     * The builder defaults `cv` to true from 22 Sep 2026. A snapshot with no
-     * `cv` key at all predates the decision — it was sent to this client
-     * under the old rule, which promised the CV would not reach them.
-     * Reading that absence as "true" would disclose, retroactively and
-     * silently, documents sent under a different promise. So: missing means
-     * NO. Only a snapshot that says so discloses a CV.
-     */
-    cv: d.cv === true,
-  }
-  const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null)
-  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null)
+  // Read back exactly as frozen, by the one rule every door uses
+  // (lib/agency/snapshot-disclosure.ts, 29 Sep 2026).
+  const disclosure: ShortlistDisclosure = readDisclosure(snapshot)
   // Every shortlist sent to THIS person on THIS role, newest choice per ref
   // (22 Sep 2026). Read from the latest recipient row only, a re-sent
   // shortlist wiped every earlier choice back to "not decided" — and the
@@ -188,39 +168,25 @@ export async function getClientShortlist(ctx: HiringContext, roleId: string): Pr
     generatedAt: s.generated_at,
     intro: typeof snapshot.intro === "string" ? snapshot.intro : "",
     disclosure,
-    entries: (snapshot.shortlisted ?? []).map((e) => ({
-      ref: String(e.ref ?? ""),
-      // An erased candidate's name never leaves the server — hiding it in the
-      // UI still shipped it to the browser (22 Sep 2026).
-      fullName: e.redacted === true ? "" : String(e.full_name ?? ""),
-      currentTitle: typeof e.current_title === "string" ? e.current_title : null,
-      location: typeof e.location === "string" ? e.location : null,
-      years: typeof e.years === "number" ? e.years : null,
-      redacted: e.redacted === true,
-      action: latest.get(String(e.ref ?? "")) ?? null,
-      overall: disclosure.scores ? num(e.overall) : null,
-      mustHaveHit: disclosure.scores ? num(e.must_have_hit) : null,
-      mustHaveTotal: disclosure.scores ? num(e.must_have_total) : null,
-      narrative: disclosure.notes ? str(e.narrative) : null,
-      strengths: disclosure.evidence
-        ? ((e.strengths ?? []) as Array<Record<string, unknown>>)
-            .map((x) => ({ requirement: String(x.requirement ?? ""), quote: String(x.quote ?? "") }))
-            .filter((x) => x.requirement && x.quote)
-            // Was 3. The shortlist card shows one and the candidate detail
-            // shows the lot, and a cap of 3 silently decided which evidence
-            // the client was allowed to weigh (22 Sep 2026).
-            .slice(0, 24)
-        : null,
-      gaps: disclosure.evidence
-        ? ((e.gaps ?? []) as Array<Record<string, unknown>>)
-            .map((x) => ({ requirement: String(x.requirement ?? ""), weight: String(x.weight ?? "") }))
-            .filter((x) => x.requirement)
-            .slice(0, 3)
-        : null,
-      probeAreas: disclosure.probes
-        ? ((e.probe_areas ?? []) as unknown[]).map((x) => String(x)).filter(Boolean).slice(0, 3)
-        : null,
-    })),
+    entries: (snapshot.shortlisted ?? []).map((e) => {
+      const x = discloseEntry(e, disclosure)
+      return {
+        ref: x.ref,
+        fullName: x.fullName,
+        currentTitle: x.currentTitle,
+        location: x.location,
+        years: x.years,
+        redacted: x.redacted,
+        action: latest.get(x.ref) ?? null,
+        overall: x.overall,
+        mustHaveHit: x.mustHaveHit,
+        mustHaveTotal: x.mustHaveTotal,
+        narrative: x.narrative,
+        strengths: x.strengths,
+        gaps: x.gaps,
+        probeAreas: x.probeAreas,
+      }
+    }),
   }
 }
 

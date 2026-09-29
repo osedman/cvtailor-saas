@@ -7794,3 +7794,32 @@ build on any hardcoded sender in the agency trees. Auto-renew on (Ose).
 Resend verification of tailrecruit.com is Ose's: the connector cannot reach
 Resend and can only replace the whole Vercel DNS zone, not add a record.
 2,019 tests green, tsc clean.
+
+## 🔒 The client portal honours the disclosure switches (29 September 2026)
+
+Found by the board-31 code map: `/api/portal/[token]` returned the RAW
+submission snapshot, while the hiring workspace applied the recruiter's
+frozen switches. So on the portal a name-withheld candidate's name, and any
+score, evidence, screening note or logistics the recruiter had switched off,
+reached the browser — hidden or not by the page, the response was the leak.
+It also always carried recruiter-internal fields (category sub-scores,
+confidence, `not_submitted_count`) and the role's salary band.
+
+**Fix: one rule for every door.** `lib/agency/snapshot-disclosure.ts` —
+`readDisclosure` (the switches as frozen; old snapshots read the builder's
+defaults, and a missing `cv` key means NO) and `discloseEntry` (null =
+withheld, never 0 or []). The portal route now returns
+`disclosePortalSnapshot()`, an allow-list: only named fields leave the
+server. The workspace mapper (`getClientShortlist`) goes through the same
+functions, so the next snapshot field is withheld by default at both doors.
+The portal page reads the disclosed shape and says "Score not shared" /
+"Withheld, not missing — ask them", and shows "Candidate CAN-xx · name
+withheld at the candidate's request" instead of a name.
+
+**Verified on staging data:** one live submission (2 active links) had
+`notes` off — it carried no narrative, so no note had leaked — but its raw
+payload did carry both candidates' sub-scores and the role's salary band to
+link holders; the allow-list strips both. 2,029 tests green (10 new in
+`snapshot-disclosure.test.ts`; the hiring-disclosure guardrail now points at
+the shared module), tsc and build clean. No UI frame needed: withheld
+states follow the existing "withheld, not absent" pattern (board 24).

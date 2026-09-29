@@ -4,8 +4,13 @@
  * The raw token in the URL is never stored: it is hashed and matched against
  * submission_recipients.token_hash, so a leaked database cannot mint working
  * links, and each named recipient is individually revocable. The response is
- * ONLY the immutable submission snapshot — no internal state (recruiter
- * notes, rejected candidates, overrides, audit) is reachable from here.
+ * the submission snapshot AS DISCLOSED — built field by field from the
+ * switches the recruiter froze into it (lib/agency/snapshot-disclosure.ts).
+ * Until 29 Sep 2026 this returned the raw snapshot, so a name-withheld
+ * candidate's name, and scores, evidence, notes and logistics the recruiter
+ * had switched off, all reached the browser. No internal state (recruiter
+ * notes beyond the narrative they chose to send, rejected candidates,
+ * overrides, audit) is reachable from here.
  *
  * POST records a client action (interview / approve / decline / question).
  * Actions are signals to the recruiter and never change shortlist state —
@@ -15,6 +20,7 @@
 import { createHash } from "crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { agencyAdmin, writeAudit } from "@/lib/agency/db"
+import { disclosePortalSnapshot } from "@/lib/agency/snapshot-disclosure"
 
 export const maxDuration = 15
 
@@ -67,7 +73,7 @@ export async function GET(
       .eq("id", recipient.id)
 
     return NextResponse.json({
-      snapshot: submission?.snapshot ?? null,
+      snapshot: disclosePortalSnapshot(submission?.snapshot),
       generated_at: submission?.generated_at,
       agency: agency?.name ?? "",
       viewer: { name: contact?.full_name ?? "", company: contact?.company ?? "" },

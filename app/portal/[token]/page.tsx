@@ -9,28 +9,17 @@
 
 import { use, useEffect, useState } from "react"
 
-interface Entry {
-  ref: string
-  full_name: string
-  current_title: string
-  years: number | null
-  location: string
-  overall: number
-  original_overall: number | null
-  must_have_hit: number
-  must_have_total: number
-  reviewed: boolean
-  narrative: string
-  strengths: Array<{ requirement: string; quote: string | null }>
-  gaps: Array<{ requirement: string; weight: string }>
-}
+import type { DisclosedEntry, DisclosedPortalSnapshot } from "@/lib/agency/snapshot-disclosure"
+
+/*
+ * The payload is the snapshot AS DISCLOSED (29 Sep 2026): a switch the
+ * recruiter turned off arrives as null, never as a value the page then hides.
+ * Null reads "not shared" on screen — withheld is not the same as absent.
+ */
+type Entry = DisclosedEntry
 
 interface Payload {
-  snapshot: {
-    role: { ref: string; title: string; company: string; location: string; salary_band: string }
-    shortlisted: Entry[]
-    generated_at: string
-  } | null
+  snapshot: DisclosedPortalSnapshot | null
   agency: string
   viewer: { name: string; company: string }
 }
@@ -69,6 +58,7 @@ export default function PortalPage({ params }: { params: Promise<{ token: string
     }
   }
 
+  const nameOf = (e: Entry) => (e.redacted || !e.fullName ? `Candidate ${e.ref}` : e.fullName)
   const initials = (name: string) =>
     name.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?"
   const tier = (n: number) => (n >= 80 ? "hi" : n >= 60 ? "med" : "lo")
@@ -98,10 +88,13 @@ export default function PortalPage({ params }: { params: Promise<{ token: string
           <div>
             <div className="ag-eyebrow">Shortlist · {snapshot.role.title}</div>
             <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 4 }}>
-              {snapshot.shortlisted.length === 1 ? "One candidate, backed with evidence." : `${snapshot.shortlisted.length} candidates, ranked with evidence.`}
+              {snapshot.shortlisted.length === 1
+                ? `One candidate${snapshot.disclosure.evidence ? ", backed with evidence" : ""}.`
+                : `${snapshot.shortlisted.length} candidates${snapshot.disclosure.evidence ? ", with the evidence behind each" : ""}.`}
             </h1>
             <div className="ag-meta" style={{ color: "var(--ag-tint-2)", marginTop: 6 }}>
-              Prepared by {agency} · {snapshot.role.ref} · {new Date(snapshot.generated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+              Prepared by {agency} · {snapshot.role.ref}
+              {snapshot.generatedAt ? ` · ${new Date(snapshot.generatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
             </div>
           </div>
           <div className="ag-brand-mark" style={{ background: "var(--ag-coral)" }}>T</div>
@@ -110,22 +103,33 @@ export default function PortalPage({ params }: { params: Promise<{ token: string
         {snapshot.shortlisted.map((entry) => (
           <div key={entry.ref} style={{ padding: "22px 28px", borderBottom: "1px solid var(--ag-border)" }}>
             <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 12 }}>
-              <div className="ag-avatar" style={{ width: 44, height: 44 }}>{initials(entry.full_name)}</div>
+              <div className="ag-avatar" style={{ width: 44, height: 44 }}>{entry.redacted ? "–" : initials(entry.fullName)}</div>
               <div className="ag-grow">
                 <div style={{ fontWeight: 600, fontSize: 15 }}>
-                  {entry.full_name}
-                  {entry.reviewed && <span className="ag-meta" style={{ marginLeft: 8 }}>{entry.ref} · Screened ✓</span>}
+                  {nameOf(entry)}
+                  {entry.reviewed && <span className="ag-meta" style={{ marginLeft: 8 }}>{entry.redacted ? "" : `${entry.ref} · `}Screened ✓</span>}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>
-                  {entry.current_title}{entry.years ? ` · ${entry.years} yrs` : ""}{entry.location ? ` · ${entry.location}` : ""}
+                  {[entry.currentTitle, entry.years ? `${entry.years} yrs` : null, entry.location].filter(Boolean).join(" · ")}
                 </div>
+                {entry.redacted && (
+                  <div className="ag-meta" style={{ marginTop: 4 }}>Name withheld at the candidate&apos;s request. Your recruiter can introduce you.</div>
+                )}
               </div>
               <div style={{ textAlign: "right" }}>
-                <span className={`ag-score ${tier(entry.overall)}`}>{Math.round(entry.overall)}</span>
-                {entry.original_overall != null && entry.original_overall !== entry.overall && (
-                  <div className="ag-delta">{Math.round(entry.original_overall)} → {Math.round(entry.overall)} after screening</div>
+                {entry.overall !== null ? (
+                  <>
+                    <span className={`ag-score ${tier(entry.overall)}`}>{Math.round(entry.overall)}</span>
+                    {entry.originalOverall !== null && entry.originalOverall !== entry.overall && (
+                      <div className="ag-delta">{Math.round(entry.originalOverall)} → {Math.round(entry.overall)} after screening</div>
+                    )}
+                    {entry.mustHaveHit !== null && entry.mustHaveTotal !== null && (
+                      <div className="ag-meta" style={{ marginTop: 4 }}>{entry.mustHaveHit}/{entry.mustHaveTotal} must haves</div>
+                    )}
+                  </>
+                ) : (
+                  <div className="ag-meta">Score not shared</div>
                 )}
-                <div className="ag-meta" style={{ marginTop: 4 }}>{entry.must_have_hit}/{entry.must_have_total} must haves</div>
               </div>
             </div>
 
@@ -145,9 +149,11 @@ export default function PortalPage({ params }: { params: Promise<{ token: string
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <button className="ag-btn ag-btn-coral" onClick={() => act(entry.ref, "interview")}>Accept for interview</button>
                   <button className="ag-btn ag-btn-secondary" onClick={() => setAsking(asking === entry.ref ? null : entry.ref)}>Ask a question</button>
-                  <button className="ag-btn" onClick={() => setEvidenceOpen(evidenceOpen === entry.ref ? null : entry.ref)}>
-                    {evidenceOpen === entry.ref ? "Hide evidence" : "See evidence"}
-                  </button>
+                  {entry.strengths !== null && (
+                    <button className="ag-btn" onClick={() => setEvidenceOpen(evidenceOpen === entry.ref ? null : entry.ref)}>
+                      {evidenceOpen === entry.ref ? "Hide evidence" : "See evidence"}
+                    </button>
+                  )}
                   <button className="ag-btn" onClick={() => act(entry.ref, "decline")}>Not for this role</button>
                 </div>
                 {asking === entry.ref && (
@@ -161,7 +167,7 @@ export default function PortalPage({ params }: { params: Promise<{ token: string
 
             {evidenceOpen === entry.ref && (
               <div style={{ marginTop: 14, display: "grid", gap: 14 }}>
-                {entry.strengths.length > 0 && (
+                {entry.strengths && entry.strengths.length > 0 && (
                   <div>
                     <div className="ag-eyebrow" style={{ marginBottom: 6 }}>Strengths, from the CV itself</div>
                     <div style={{ display: "grid", gap: 8 }}>
@@ -174,7 +180,7 @@ export default function PortalPage({ params }: { params: Promise<{ token: string
                     </div>
                   </div>
                 )}
-                {entry.gaps.length > 0 && (
+                {entry.gaps && entry.gaps.length > 0 && (
                   <div>
                     <div className="ag-eyebrow" style={{ marginBottom: 6, color: "var(--ag-warn)" }}>Known gaps, stated plainly</div>
                     <div style={{ display: "grid", gap: 4 }}>
@@ -191,13 +197,27 @@ export default function PortalPage({ params }: { params: Promise<{ token: string
           </div>
         ))}
 
+        {(() => {
+          const off = [
+            !snapshot.disclosure.scores ? "scores" : null,
+            !snapshot.disclosure.evidence ? "the evidence" : null,
+          ].filter(Boolean)
+          return off.length > 0 ? (
+            <div style={{ padding: "12px 28px", borderBottom: "1px solid var(--ag-border)" }}>
+              <span className="ag-meta">
+                {agency || "Your recruiter"} did not include {off.join(" or ")} with this shortlist. Withheld, not missing — ask them if you need it.
+              </span>
+            </div>
+          ) : null
+        })()}
+
         <div style={{ background: "var(--ag-cream)", padding: "12px 28px", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <span className="ag-meta">Viewing as {viewer.name || "your team"}{viewer.company ? ` · ${viewer.company}` : ""} · this link is personal</span>
           <span className="ag-meta">Powered by Tailr</span>
         </div>
       </div>
       <p style={{ fontSize: 11.5, color: "var(--ag-ink-4)", textAlign: "center", marginTop: 16 }}>
-        Every score above traces to CV evidence or the recruiter&apos;s screening call. Declining flags a candidate for your recruiter; it never removes anyone.
+        {snapshot.disclosure.scores ? "Every score above traces to CV evidence or the recruiter's screening call. " : ""}Declining flags a candidate for your recruiter; it never removes anyone.
       </p>
     </div>
   )
