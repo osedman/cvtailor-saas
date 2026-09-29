@@ -25,8 +25,24 @@ import { appPath, getMarketingOrigin, marketingPath } from '@/lib/site-url'
  * When EMAIL_ALLOWLIST is unset, these still receive mail outside production.
  * Without a default, deploying the guard before the Vercel variable exists
  * silently kills staging sign-in — the founder's own OTP would be the first
- * thing blocked. Strangers are refused either way; the variable EXTENDS this
- * list, it does not replace the protection.
+ * thing blocked.
+ *
+ * SETTING THE VARIABLE REPLACES THIS LIST — it does not extend it. These
+ * addresses stop being special the moment EMAIL_ALLOWLIST holds anything, so
+ * an allowlist that omits them silently stops the founder's own mail: the
+ * guard returns a `skipped` reason, sendEmail never throws, and callers
+ * fire-and-forget, so nothing surfaces as an error anywhere.
+ *
+ * That is deliberate — a variable that could only ever ADD recipients could
+ * not be used to narrow the guard — and it is pinned by "a populated variable
+ * replaces the default list rather than extending strangers in" in
+ * lib/__tests__/email-environment-guard.test.ts. The practical rule: if you
+ * set EMAIL_ALLOWLIST at all, carry these three entries into it.
+ *
+ * An earlier version of this comment said the variable EXTENDS the list. It
+ * never did. That sentence cost a round of "why is my lean-frame account not
+ * receiving anything" on 29 Sep 2026 — the first place anyone looks when mail
+ * goes missing is the comment above the allowlist, and it ruled out the cause.
  */
 const DEFAULT_NON_PROD_ALLOWLIST = ["o.oifoh@gmail.com", "ose@lean-frame.com", "@lean-frame.com"]
 
