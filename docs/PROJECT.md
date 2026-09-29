@@ -7897,3 +7897,21 @@ them while the role is open: the purge clock starts only at close. So the rule
 is to never close or discard ROL-2421. It is written into CLAUDE.md and the
 seed README so every agent sees it.
 
+
+## 🐛 A document send gave the client nothing to interview from (29 September 2026)
+
+Ose sent ROL-2421's shortlist and the client could see it but not interview.
+Root cause: the hiring side opens the shortlist, the interview room and the
+round set-up only through a `submission_recipients` row
+(`getClientShortlist`). The submission route minted rows for `portal` only,
+and step 07 defaults to the Document tab, so the ordinary send left the client
+with a file and no workspace door.
+
+Fix (`1a1a30b`): every send now creates recipient rows, for the named people
+or, when nobody is named, for the role's own client contact. The format is how
+the shortlist is also delivered, never the gate. A test pins it. ROL-2420 and
+ROL-2421 were backfilled on staging to the Meridian contact, each with an
+audit row.
+
+**Figma board 34** (`625:2`), "Send to the client: the workspace first, files
+as options", is up for sign-off. It redesigns step 07 around that rule.
