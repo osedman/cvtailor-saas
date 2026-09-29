@@ -1,0 +1,32 @@
+Funmilayo Adebisi
+London · o.oifoh+po01@gmail.com · 07700 900201
+
+SUMMARY
+Product Owner with four years in digital health, now owning online booking at a private clinic group after three years delivering an NHS GP appointments app.
+
+EXPERIENCE
+
+Product Owner, Online Booking — Ashcombe Clinics Group (2022–present)
+- Own the backlog for online booking across 14 clinics for a Scrum team of six.
+- Write user stories and acceptance criteria; run refinement, planning and reviews every two weeks.
+- Work with clinic managers and consultants to agree booking rules and slot templates.
+- Set up GA4 funnel reporting for the booking journey; online bookings grew from 38% to 45% of appointments in my first year.
+- Introduced SMS reminders with our booking-engine supplier.
+
+Product Owner — Pellwood Digital (2019–2022)
+- Product Owner for a GP appointment and repeat-prescription app delivered for three NHS trusts; 210,000 registered users by 2022.
+- Wrote user stories and acceptance criteria, ran backlog refinement and sprint reviews with trust stakeholders.
+- Ran monthly usability sessions with patients alongside the agency's UX researcher.
+- Maintained the product roadmap and shared it with trust digital leads each quarter.
+- Supported the trusts' DSPT and DCB0160 submissions with product documentation.
+
+Business Analyst — Kestrel Vale NHS Foundation Trust (2016–2019)
+- Requirements and process mapping for the outpatient booking system replacement.
+- Ran workshops with outpatient clerks, clinic nurses and consultants.
+
+EDUCATION
+BSc Health Sciences — University of Leicester
+Certified Scrum Product Owner (CSPO)
+
+SKILLS
+Product ownership · Scrum · User stories & acceptance criteria · GA4 · Stakeholder management · Roadmapping · DSPT · DCB0160 · Usability testing · Jira · Confluence

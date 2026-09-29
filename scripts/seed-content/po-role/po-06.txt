@@ -1,0 +1,29 @@
+Idris Mahmood
+London (hybrid) · o.oifoh+po06@gmail.com · 07700 900206
+
+SUMMARY
+Senior Product Owner with nine years in digital products, five in healthcare. I have owned booking, telehealth and patient apps, and I run teams on outcomes, research and clean backlogs.
+
+EXPERIENCE
+
+Senior Product Owner, Virtual Care — Brambleford Health Partners (2021–present)
+- Own the backlog for video consultations, online booking and the patient app across 120 GP surgeries; two Scrum teams, 14 engineers.
+- Write user stories and acceptance criteria and coach two junior POs on the same; average cycle time fell from 11 to 6 days.
+- Work with GPs, practice managers and the operations director on a shared priorities board; handled the move from COVID-era video-first to a hybrid model without a drop in satisfaction.
+- Built the metrics layer with our analyst in GA4 and BigQuery SQL; online consultations reached 34% of all appointments.
+- Own the roadmap and the outcome targets: time to first appointment down from 9 days to 4, patient satisfaction at 4.6/5.
+- Worked with our CSO on DCB0129 and on DSPT evidence; completed DPIAs for new data flows.
+- Delivered WCAG 2.2 AA conformance for the app and the web booking flow.
+- Run research sprints with two user researchers; recruited a standing patient panel of 60 people.
+- Lead supplier management for the video platform and the clinical system integration partner.
+
+Product Owner — Corrin Bank (2017–2021)
+- Owned the mobile onboarding backlog; reduced onboarding time from 14 minutes to 5.
+- Ran experiments in Amplitude and wrote SQL for weekly product reviews.
+
+EDUCATION
+MSc Management — Imperial College London
+BEng Electronic Engineering — University of Southampton
+
+SKILLS
+Product ownership · Scrum · User stories & acceptance criteria · GA4 · Amplitude · BigQuery SQL · Roadmaps & outcome metrics · Clinical stakeholder management · DCB0129 · DSPT · WCAG 2.2 · UX research · Supplier management · Coaching

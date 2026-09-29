@@ -1,0 +1,30 @@
+Ben Hartley
+Guildford (hybrid) · o.oifoh+po08@gmail.com · 07700 900208
+
+SUMMARY
+Digital Project Manager with eight years delivering patient-facing systems in the NHS. I have worked alongside Product Owners for years and now want to own the product myself.
+
+EXPERIENCE
+
+Senior Digital Project Manager — Harrowgate Community Health (2020–present)
+- Delivered the patient portal rollout across 14 community services on time and £90,000 under a £1.1m budget.
+- Ran project governance: RAID logs, highlight reports, stage gates and the programme board.
+- Worked closely with clinical leads, service managers and the operations team to plan go-lives and staff training.
+- Coordinated the DSPT evidence for the portal and supported the Clinical Safety Officer through the DCB0160 assessment.
+- Managed the portal supplier's delivery plan, change requests and contractual milestones.
+- Worked alongside the Product Owner and the Scrum team; attended sprint reviews and helped write some user stories for go-live readiness.
+- Tracked benefits after go-live: 41% of community patients registered on the portal within a year, and letter postage costs fell by £160,000.
+- Organised accessibility testing with a disability charity ahead of launch and managed the fixes through the supplier.
+- Priorities and the roadmap were set by the Product Owner and the programme board; my role was to plan and land delivery.
+- Limited direct use of analytics tools; I relied on the supplier's monthly usage reports.
+
+Project Manager — Kestrel Vale NHS Foundation Trust (2016–2020)
+- Managed the replacement of the outpatient booking system; migrated 380,000 future appointments with no lost bookings.
+- Supplier management, testing coordination and benefits tracking.
+
+EDUCATION
+BA History — University of Exeter
+PRINCE2 Practitioner · AgilePM Foundation
+
+SKILLS
+Project management · PRINCE2 · Agile delivery · RAID management · Clinical stakeholder engagement · DSPT · DCB0160 · Supplier and contract management · Go-live planning · MS Project · Jira

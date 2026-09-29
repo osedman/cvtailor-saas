@@ -1,0 +1,32 @@
+Samuel Okafor
+Croydon · o.oifoh+po15@gmail.com · 07700 900215
+
+SUMMARY
+Junior Business Analyst with eighteen months' experience in a housing association's digital team. Keen to grow into a product role and learning Scrum through my current team.
+
+EXPERIENCE
+
+Junior Business Analyst — Saltmarsh Housing Trust (2025–present)
+- Support the senior BA on requirements for a tenant repairs reporting portal used by 22,000 households.
+- Draft user stories for the senior BA and the Product Owner to review; I am building my skills in writing acceptance criteria.
+- Take notes in workshops with the repairs team, customer services and contractors, and turn them into process maps in Visio.
+- Attend daily stand-ups, sprint planning and reviews as part of a Scrum team.
+- Pull simple reports from the portal's admin dashboard for the weekly team update.
+- Helped test the portal before release, writing test cases and logging defects in Jira.
+- Joined two tenant usability sessions as a note-taker.
+- Maintain the requirements log and the glossary in Confluence so new team members can get up to speed.
+- Shadowed repairs call handlers for a week to document the current process and the most common failure points.
+
+Customer Service Adviser — Saltmarsh Housing Trust (2023–2025)
+- Handled tenant calls and emails on repairs, rent and complaints; consistently above target on first contact resolution.
+- Suggested changes to the repairs web form that reduced incomplete reports.
+
+Retail Assistant — Fernbrook Retail (2021–2023)
+- Customer service and stock management, part-time during university.
+
+EDUCATION
+BSc Business Management — University of Greenwich
+BCS Foundation Certificate in Business Analysis
+
+SKILLS
+Requirements gathering · Process mapping · Visio · User stories (drafting) · Test cases · Jira · Confluence · Excel · Customer service · Workshop note-taking

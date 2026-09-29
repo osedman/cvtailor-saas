@@ -1,0 +1,31 @@
+Arjun Kapoor
+London (hybrid) · o.oifoh+po12@gmail.com · 07700 900212
+
+SUMMARY
+Data-led Product Owner with four years in e-commerce and travel booking. Strong analytics and experimentation; no healthcare experience yet.
+
+EXPERIENCE
+
+Product Owner, Checkout & Booking — Pellwood Travel (2022–present)
+- Own the backlog for hotel and rail booking checkout for a Scrum team of seven.
+- Write user stories and acceptance criteria; run refinement and sprint reviews.
+- Lifted booking conversion from 2.8% to 3.6% through 40+ A/B tests in two years.
+- Build my own Amplitude charts and write SQL daily in Snowflake; built the team's weekly metrics review.
+- Own the quarterly roadmap and targets for conversion and average order value.
+- Stakeholders are mainly marketing, customer service and the commercial team.
+- Reduced payment failures by 18% by switching fraud rules with the payments supplier and tracking the effect in SQL.
+- Introduced a mobile-first checkout that took mobile conversion from 1.9% to 2.9%.
+- Worked with the UX designer on prototype tests with five to eight customers before larger changes.
+- No experience of healthcare, clinicians or regulated health data.
+
+Product Analyst — Oakhollow Retail (2020–2022)
+- Funnel analysis, experiment design and dashboards in GA4 and Looker.
+- Supported the Product Owner with data for prioritisation.
+- Built the experimentation guide used by four product teams, covering sample sizes, guardrail metrics and when to stop a test.
+- Automated the weekly trading report in SQL, saving the commercial team a day of manual work each week.
+
+EDUCATION
+BSc Statistics — University College London
+
+SKILLS
+Product ownership · Scrum · User stories & acceptance criteria · Amplitude · GA4 · SQL · Snowflake · A/B testing · Roadmaps · Conversion optimisation · Jira

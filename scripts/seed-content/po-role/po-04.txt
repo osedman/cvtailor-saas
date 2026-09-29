@@ -1,0 +1,29 @@
+Harpreet Sandhu
+Reading (hybrid) · o.oifoh+po04@gmail.com · 07700 900204
+
+SUMMARY
+Product Owner with six years in digital health, focused on patient apps and clinical workflow. Background in NHS digital transformation; comfortable in a room of consultants and equally comfortable in a SQL console.
+
+EXPERIENCE
+
+Product Owner, Patient Engagement — Harrowgate Community Health (2021–present)
+- Own the backlog for the patient app and web portal (appointments, letters, questionnaires) for a Scrum team of seven serving 320,000 patients.
+- Wrote over 600 user stories with acceptance criteria; built a story template adopted by the other three product teams.
+- Moved 48% of outpatient letters to digital-first delivery, saving £410,000 a year in print and postage.
+- Run a monthly clinical design authority with consultants, therapists and service managers to agree priorities and trade-offs.
+- Built the product dashboard in GA4 and Looker; use SQL to size opportunities before they reach the backlog.
+- Own the roadmap and outcome measures, reported quarterly to the trust's digital board; reduced did-not-attend rates in community clinics from 9.5% to 6.8%.
+- Partner with the Clinical Safety Officer on DCB0160 deployment assessments and the trust DSPT submission.
+- Commissioned and ran accessibility testing with users of screen readers and switch access against WCAG 2.2.
+- Manage the app supplier contract: monthly service reviews, roadmap alignment and a renegotiated SLA with service credits.
+
+Digital Change Lead — Kestrel Vale NHS Foundation Trust (2018–2021)
+- Led the rollout of self check-in kiosks across four hospital sites; trained 300 staff.
+- Worked with the UX team on discovery interviews with patients and receptionists.
+
+EDUCATION
+BSc Biomedical Science — University of Reading
+Professional Scrum Product Owner I (PSPO I)
+
+SKILLS
+Product ownership · Scrum · User stories · Acceptance criteria · GA4 · Looker · SQL · Roadmaps & outcome metrics · Clinician engagement · DCB0160 · DSPT · WCAG 2.2 · Supplier and contract management · Discovery research
