@@ -21,6 +21,7 @@
 
 import { createHash, randomBytes } from "crypto"
 import { sendEmail } from "@/lib/email"
+import { agencyNoticeFrom } from "@/lib/email-senders"
 import { getAppOrigin } from "@/lib/site-url"
 import { buildIcs } from "@/lib/ics"
 import { agencyAdmin, writeAudit, type AgencyClient } from "./db"
@@ -567,7 +568,7 @@ export async function sendBookingInvite(
       minutes,
       url,
     }),
-    from: `${agencyName} via Tailr <notices@gettailr.com>`,
+    from: agencyNoticeFrom(agencyName),
     replyTo: (agency?.notice_reply_to as string) || undefined,
     attachments: [{ filename: "interview.ics", content: ics, contentType: "text/calendar" }],
   })
@@ -653,7 +654,7 @@ export async function sendSelfBookingInvite(
     to: candidate.email as string,
     subject: company ? `Choose your interview time with ${company}` : "Choose your interview time",
     html: selfBookingHtml({ candidateName: first, agencyName, company, url }),
-    from: `${agencyName} via Tailr <notices@gettailr.com>`,
+    from: agencyNoticeFrom(agencyName),
     replyTo: (agency?.notice_reply_to as string) || undefined,
   })
   return { sent: result.sent, reason: result.error ?? result.skipped }

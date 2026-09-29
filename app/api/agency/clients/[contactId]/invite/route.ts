@@ -29,6 +29,7 @@ import {
   revokeClientInvite,
 } from "@/lib/agency/client-auth"
 import { sendEmail } from "@/lib/email"
+import { b2bFrom } from "@/lib/email-senders"
 import { inviteEmailHtml } from "@/lib/agency/client-invite-email"
 import { getBusinessOrigin } from "@/lib/site-url"
 import { anonRateLimitId, checkRateLimit } from "@/lib/rate-limit"
@@ -112,7 +113,7 @@ export async function POST(
     let emailed = false
     if (invite?.contactEmail) {
       const agencyLabel = invite.agencyName || "Your recruitment partner"
-      const sent = await sendEmail({
+      const sent = await sendEmail({ from: b2bFrom(),
         to: invite.contactEmail,
         subject: `${agencyLabel} has invited you to their hiring workspace on Tailr`,
         html: inviteEmailHtml({

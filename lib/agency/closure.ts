@@ -24,6 +24,7 @@
  */
 
 import { sendEmail } from "@/lib/email"
+import { agencyNoticeFrom } from "@/lib/email-senders"
 import { getAppOrigin } from "@/lib/site-url"
 import { writeAudit, type AgencyClient } from "./db"
 
@@ -224,7 +225,7 @@ export async function sendClosureNotices(
           ? `${getAppOrigin()}/rights/${candidate.rights_token}`
           : "",
       }),
-      from: `${agencyName} via Tailr <notices@gettailr.com>`,
+      from: agencyNoticeFrom(agencyName),
       replyTo: (agency?.notice_reply_to as string) || undefined,
     })
 

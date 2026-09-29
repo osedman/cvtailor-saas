@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { addReferee, listReferences, requestReference, markReferenceNoticeSent, removeReferee } from "@/lib/agency/references"
 import { sendEmail } from "@/lib/email"
+import { agencyNoticeFrom } from "@/lib/email-senders"
 import { getAppOrigin } from "@/lib/site-url"
 
 export const maxDuration = 20
@@ -100,7 +101,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
 
     const request = await requestReference(auth.ctx, referenceId)
     const url = `${getAppOrigin()}/reference/${request.rawToken}`
-    const sent = await sendEmail({
+    const sent = await sendEmail({ from: agencyNoticeFrom(request.agencyName),
       to: request.refereeEmail,
       subject:
         request.kind === "hr"

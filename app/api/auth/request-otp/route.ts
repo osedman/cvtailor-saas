@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/server"
 import { sendEmail } from "@/lib/email"
+import { b2bFrom } from "@/lib/email-senders"
 import { checkRateLimit, anonRateLimitId, limitedResponse } from "@/lib/rate-limit"
 // One definition of the open-redirect guard for the whole auth flow. It used
 // to live here as a private copy; two copies of a security check is how one of
@@ -107,6 +108,8 @@ export async function POST(request: Request) {
       : ""
 
     const sent = await sendEmail({
+      // The business door signs in from the agency domain once it is verified.
+      from: door === "business" ? b2bFrom() : undefined,
       to: email,
       subject: "Sign in to Tailr",
       html: `<div style="font-family:Georgia,serif;color:#1e1813;max-width:480px;margin:0 auto;padding:24px;">

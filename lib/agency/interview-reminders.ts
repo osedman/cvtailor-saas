@@ -19,6 +19,7 @@
 import { agencyAdmin, writeAudit, type AgencyClient } from "./db"
 import { mintBookingToken, sendSelfBookingInvite } from "./booking"
 import { sendEmail } from "@/lib/email"
+import { agencyNoticeFrom } from "@/lib/email-senders"
 import { CHASE_AFTER_HOURS } from "./cohort-status"
 
 /** How long after the last contact a nudge may go again. */
@@ -178,7 +179,7 @@ async function sendPreReminder(admin: AgencyClient, row: RoundRow): Promise<bool
       minutes: row.duration_minutes ?? 45,
       meetingUrl: row.meeting_url || "",
     }),
-    from: `${agencyName} via Tailr <notices@gettailr.com>`,
+    from: agencyNoticeFrom(agencyName),
     replyTo: (agency?.notice_reply_to as string) || undefined,
   })
   return result.sent

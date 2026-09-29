@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { requestCapture } from "@/lib/agency/consent"
 import { sendEmail } from "@/lib/email"
+import { agencyNoticeFrom } from "@/lib/email-senders"
 import { getAppOrigin } from "@/lib/site-url"
 import { errorMessage } from "@/lib/error-message"
 
@@ -119,7 +120,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
       })
     }
 
-    const sent = await sendEmail({
+    const sent = await sendEmail({ from: agencyNoticeFrom(auth.ctx.agencyName ?? ""),
       to: request.candidateEmail,
       subject: `Your interview with ${auth.ctx.agencyName || "our client"} — one thing to decide first`,
       replyTo: undefined,

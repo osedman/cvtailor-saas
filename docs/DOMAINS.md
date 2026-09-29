@@ -210,7 +210,8 @@ DNS and Framer/Webflow accounts cannot be created from this repo — those steps
 > | `NEXT_PUBLIC_BUSINESS_URL=https://staging.tailrecruit.com` | Preview, **branch `staging` only** (overrides the all-preview value) | ✅ 29 Sep |
 > | `DOMAIN_SPLIT_ENABLED=true` | Preview, **branch `staging` only** | ✅ 29 Sep |
 > | Supabase **staging** → Auth → Redirect URLs: `https://staging.tailrecruit.com/**` | Supabase dashboard (Ose) | ✅ 29 Sep — verified: generate_link accepted against `staging.tailrecruit.com/auth/confirm` 16:58 UTC, `/verify` login 200 at 16:59 |
-> | Resend: verify `tailrecruit.com`, then move the B2B senders | Resend + DNS in Vercel (Ose) + `lib/email.ts`, `notices.ts` | ⬜ — also the fix for lean-frame's Workspace filtering @gettailr.com sign-in mail (seen 29 Sep: gmail received, lean-frame did not) |
+> | Resend: verify `tailrecruit.com` (add domain in Resend, copy its records into Vercel DNS) | Resend + Vercel DNS (Ose) | ⬜ — also the fix for lean-frame's Workspace filtering @gettailr.com sign-in mail (seen 29 Sep: gmail received, lean-frame did not) |
+> | Agency senders read `B2B_MAIL_DOMAIN` (`lib/email-senders.ts`); unset = gettailr.com as before | code | ✅ 29 Sep — set `B2B_MAIL_DOMAIN=tailrecruit.com` (Preview, branch `staging`) only AFTER Resend shows Verified |
 > | Domain **auto-renew** | Vercel → Domains → tailrecruit.com (was OFF at purchase) | ⬜ |
 > | `tailrecruit.com` apex → production | After the agencies prod port, Ose's call | ⬜ |
 >

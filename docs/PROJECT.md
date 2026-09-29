@@ -7782,3 +7782,15 @@ which now carries a status table).
 while everything else looks fine; verify tailrecruit.com in Resend so agency
 mail stops sending from @gettailr.com; turn **auto-renew on** (it was off at
 purchase).
+
+**29 Sep, later — agency mail is ready to move domains.** Every agency sender
+now comes from `lib/email-senders.ts`: `b2bFrom()` ("Tailr for Agencies
+<hello@…>") for sign-in on the business door, team and client invites and
+notifications; `agencyNoticeFrom(name)` ("{Agency} via Tailr <notices@…>") for
+notices, bookings, reminders, references, consent and closure. The domain is
+`B2B_MAIL_DOMAIN`, defaulting to gettailr.com — Resend refuses an unverified
+sender, so the default must stay the verified one. A guardrail test fails the
+build on any hardcoded sender in the agency trees. Auto-renew on (Ose).
+Resend verification of tailrecruit.com is Ose's: the connector cannot reach
+Resend and can only replace the whole Vercel DNS zone, not add a record.
+2,019 tests green, tsc clean.

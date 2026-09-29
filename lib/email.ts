@@ -216,3 +216,4 @@ export function winBackEmailHtml(
 <p style="font-size:12px;color:#a8a29e;margin:28px 0 0;line-height:1.5;">You are receiving this because you signed up for Tailr at ${marketingHost}. Reply with the word UNSUBSCRIBE and we will remove you.</p>
 </div></body></html>`
 }
+

@@ -29,6 +29,7 @@
  */
 
 import { sendEmail } from "@/lib/email"
+import { b2bFrom } from "@/lib/email-senders"
 import { createAdminClient } from "@/lib/supabase/server"
 import { getBusinessOrigin } from "@/lib/site-url"
 import { writeAudit, type AgencyClient } from "./db"
@@ -173,7 +174,7 @@ async function notifyInner(admin: AgencyClient, input: NotifyInput): Promise<Not
   const failures: string[] = []
 
   for (const target of wanted) {
-    const result = await sendEmail({ to: target.email, subject, html })
+    const result = await sendEmail({ from: b2bFrom(), to: target.email, subject, html })
     if (result.sent) sent += 1
     else failures.push(result.error ?? result.skipped ?? "unknown")
   }

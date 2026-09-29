@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/server"
 import { sendEmail } from "@/lib/email"
+import { b2bFrom } from "@/lib/email-senders"
 import { agencyAdmin, requireAgencyContext, writeAudit } from "@/lib/agency/db"
 import { getBusinessOrigin } from "@/lib/site-url"
 import { errorMessage } from "@/lib/error-message"
@@ -160,7 +161,7 @@ export async function POST(req: NextRequest) {
     // the calling request happened to arrive (a preview host, an internal
     // hostname, an apex redirect).
     const origin = getBusinessOrigin()
-    const mail = await sendEmail({
+    const mail = await sendEmail({ from: b2bFrom(),
       to: email,
       subject: `You have been added to ${agencyRow?.name ?? "an agency"} on Tailr`,
       html: `<div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fffdfa;color:#1e1813;padding:32px 28px;"><p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#dc4f33;font-weight:700;">Tailr for Agencies</p><h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;">You are on the team.</h1><p style="margin:0 0 16px;line-height:1.6;">${escapeHtml(agencyRow?.name ?? "An agency")} has added you as a ${role} on Tailr. There is no password. Sign in with this email address and a login link arrives in your inbox.</p><p style="margin:0 0 16px;"><a href="${origin}/login" style="display:inline-block;background:#1e1813;color:#fffdfa;border-radius:8px;padding:10px 16px;font-weight:600;text-decoration:none;">Sign in to Tailr</a></p></div>`,
