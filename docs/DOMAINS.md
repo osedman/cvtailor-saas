@@ -200,52 +200,64 @@ DNS and Framer/Webflow accounts cannot be created from this repo — those steps
 
 ## Mail authentication (SPF, DKIM, DMARC)
 
-**Read out of DNS on 29 Sep 2026** — from the records themselves, not from the
-Resend dashboard:
+**Read out of DNS — from the records themselves, not the Resend dashboard.
+State as of 29 Sep 2026, after the DMARC record went in:**
 
 | Record | gettailr.com | tailrecruit.com |
 |---|---|---|
 | DKIM (`resend._domainkey`) | ✅ present | ✅ present |
 | SPF (`send.<domain>`) | ✅ `v=spf1 include:amazonses.com ~all` | ✅ same |
 | Bounce MX (`send.<domain>`) | ✅ `feedback-smtp.eu-west-1.amazonses.com` | ✅ same |
-| **DMARC (`_dmarc.<domain>`)** | ❌ **absent** | ✅ `v=DMARC1; p=none;` (no `rua`) |
+| DMARC (`_dmarc.<domain>`) | ✅ `v=DMARC1; p=none; rua=mailto:ose@lean-frame.com` — added 29 Sep | ✅ `v=DMARC1; p=none;` (**no `rua`**) |
+| DMARC report authorisation | ⬜ **missing** — see below | ⬜ missing |
 
-The absent DMARC on gettailr.com is the most likely reason Google **Workspace**
-filters its sign-in mail while consumer Gmail takes it — the split seen on
-29 Sep, gmail received and lean-frame did not. Workspace is stricter with a
-domain that publishes no DMARC at all, and Google and Yahoo now both expect one
-from bulk senders. SPF and DKIM alone no longer clear that bar.
+gettailr.com previously published no DMARC at all, which is the most likely
+reason Google **Workspace** filtered its sign-in mail while consumer Gmail took
+it — the split seen on 29 Sep, gmail received and lean-frame did not. Workspace
+is stricter with a domain publishing no DMARC, and Google and Yahoo now both
+expect one from bulk senders; SPF and DKIM alone no longer clear that bar.
 
-### The record to add
+**This is not a same-day fix.** DMARC buys reputation over days and weeks as
+receivers see consistent authenticated mail. It does not flip a switch, and it
+does not retrieve a message already sitting in someone's spam folder.
 
-`gettailr.com` sits on Vercel nameservers (`ns1`/`ns2.vercel-dns.com`), so this
-is Vercel → Domains → gettailr.com → DNS:
+### Verified live, 29 Sep 2026
 
-| Name | Type | Value |
-|---|---|---|
-| `_dmarc` | TXT | `v=DMARC1; p=none; rua=mailto:ose@lean-frame.com` |
+`_dmarc.gettailr.com` returns the same answer from the authoritative
+nameserver (`ns1.vercel-dns.com`) and from Cloudflare, Google and the system
+resolver, so it is published and propagated rather than only saved in the
+Vercel UI:
 
-`p=none` is monitoring only. It changes no delivery decision and cannot break
-mail — which is the point of starting there. Do **not** move to `quarantine` or
-`reject` until reports show every legitimate sender passing, or you will bounce
-your own mail.
+```
+v=DMARC1; p=none; rua=mailto:ose@lean-frame.com
+```
 
-**Reports need a second record, on the receiving domain.** gettailr.com has no
-MX and cannot receive its own reports, so `rua` has to point off-domain — and
-RFC 7489 §7.1 makes the receiving domain authorise that, or most reporters
-quietly decline to send:
+DKIM, the `send.` SPF and bounce MX, and the `app.gettailr.com` A records were
+re-checked after the edit and are undisturbed.
+
+`p=none` is monitoring only: it changes no delivery decision and cannot break
+mail, which is the point of starting there. Do **not** raise it to `quarantine`
+or `reject` until the reports show every legitimate sender passing — doing that
+early bounces your own mail.
+
+### Still outstanding — the reports do not flow yet
+
+`gettailr.com._report._dmarc.lean-frame.com` is NXDOMAIN as of 29 Sep. Without
+it most reporters decline to send, because gettailr.com has no MX and cannot
+receive its own reports, so `rua` points off-domain and RFC 7489 §7.1 makes the
+receiving domain authorise that:
 
 | Where | Name | Type | Value |
 |---|---|---|---|
 | lean-frame.com — Google Cloud DNS, **not** Vercel | `gettailr.com._report._dmarc` | TXT | `v=DMARC1` |
 
-Skipping it costs only the reports; the policy still applies. If the second
-record is unwanted, publish `v=DMARC1; p=none` with no `rua` and accept that
-there is no visibility.
+Until it exists the policy still applies and nothing breaks; there is simply no
+visibility into who sends as gettailr.com or whether they pass. That failure
+mode reads as "DMARC is set up" indefinitely, which is why it is recorded here
+rather than assumed done.
 
-`tailrecruit.com` has a DMARC record but no `rua` either, so it is publishing a
-policy nobody reports on. The same pair of records gives it reporting when its
-turn comes.
+`tailrecruit.com` publishes a policy with no `rua` at all — nobody reports on
+it. The same pair of records gives it reporting when its turn comes.
 
 ## The B2B domain (separate, not a subdomain)
 
