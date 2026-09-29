@@ -200,6 +200,25 @@ DNS and Framer/Webflow accounts cannot be created from this repo — those steps
 
 ## The B2B domain (separate, not a subdomain)
 
+> **STATUS (29 Sep 2026): bought — `tailrecruit.com` — and live on STAGING only.**
+> Ose chose "staging first": production has no agency code or migrations yet,
+> so the bare domain waits for the agencies prod port.
+>
+> | What | Where | Set |
+> |---|---|---|
+> | `staging.tailrecruit.com` | Vercel project domain, bound to git branch `staging` | ✅ 29 Sep |
+> | `NEXT_PUBLIC_BUSINESS_URL=https://staging.tailrecruit.com` | Preview, **branch `staging` only** (overrides the all-preview value) | ✅ 29 Sep |
+> | `DOMAIN_SPLIT_ENABLED=true` | Preview, **branch `staging` only** | ✅ 29 Sep |
+> | Supabase **staging** → Auth → Redirect URLs: `https://staging.tailrecruit.com/auth/confirm` and `/auth/callback` | Supabase dashboard (Ose) | ⬜ |
+> | Resend: verify `tailrecruit.com`, then move the B2B senders | Resend + DNS in Vercel (Ose) + `lib/email.ts`, `notices.ts` | ⬜ |
+> | Domain **auto-renew** | Vercel → Domains → tailrecruit.com (was OFF at purchase) | ⬜ |
+> | `tailrecruit.com` apex → production | After the agencies prod port, Ose's call | ⬜ |
+>
+> With the split on for the staging branch only the business-host rules
+> activate there; the consumer rules key on gettailr.com hosts, which a
+> preview never serves, and the staging branch URL keeps serving everything.
+
+
 **Decided 22 Aug 2026.** A distinct domain is the honest answer to the
 objection an agency actually raises — that their candidate data sits with a
 vendor who also runs a candidate platform. A subdomain does not answer it.

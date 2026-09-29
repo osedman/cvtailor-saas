@@ -7765,3 +7765,20 @@ absolute bubble had widened 375 by 47px).
 10/6/3/8/4/2 → 0 at 375 and ≤1 at 1440 (the sidebar Sign out, fixed after the
 run), CLS 0 throughout. 2,013 tests green (13 new in `hm-polish.test.ts`),
 tsc and build clean. Still not clicked by a person.
+
+## 🌐 tailrecruit.com — the B2B domain, on staging first (29 September 2026)
+
+Ose bought **tailrecruit.com** in Vercel and chose "staging first": production
+has no agency code or migrations, so the bare domain waits for the agencies
+prod port. Set via the Vercel connector, all scoped to the `staging` branch
+only: project domain `staging.tailrecruit.com` (verified), and Preview env
+`NEXT_PUBLIC_BUSINESS_URL=https://staging.tailrecruit.com` +
+`DOMAIN_SPLIT_ENABLED=true`. No code change — `getBusinessOrigin()` and the
+proxy's business-host rules were built for exactly this (docs/DOMAINS.md,
+which now carries a status table).
+
+**Owed by Ose:** Supabase **staging** redirect URLs for the new host
+(`/auth/confirm`, `/auth/callback`) — without them B2B sign-in there fails
+while everything else looks fine; verify tailrecruit.com in Resend so agency
+mail stops sending from @gettailr.com; turn **auto-renew on** (it was off at
+purchase).
