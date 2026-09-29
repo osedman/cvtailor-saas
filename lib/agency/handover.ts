@@ -32,6 +32,7 @@ import {
   SPONSORSHIP_LABEL,
 } from "./compliance-vocab"
 import type { AgencyContext, Strength } from "./types"
+import { readFinalChoice } from "./final-choice"
 
 export const HANDOVER_ENGINE = "handover-1"
 
@@ -80,6 +81,14 @@ export interface HandoverSnapshot {
     noticePeriod: string
     employerNotice: string
   } | null
+  /**
+   * The client's stated choice, in their words (Figma board 33, band C) —
+   * present only when THIS candidate is who the hiring manager chose. Quoted,
+   * dated and attributed; never the agency's paraphrase. Absent on packs
+   * frozen before 29 Sep 2026 and when the hire came without a stated
+   * choice; the renderers skip it then, so a pack is never padded.
+   */
+  clientChoice?: { by: string; company: string; at: string; reason: string } | null
   generated_at: string
   footer: string
 }
@@ -269,6 +278,27 @@ export async function generateHandoverPack(
       }
     : null
 
+  // The client's choice travels verbatim — only for the person chosen.
+  let clientChoice: HandoverSnapshot["clientChoice"] = null
+  try {
+    const choice = await readFinalChoice(admin, ctx.agencyId, input.roleId)
+    if (choice && choice.action === "chosen" && choice.candidateId === input.candidateId && choice.reason.trim()) {
+      const { data: by } = choice.byContactId
+        ? await admin.from("client_contacts").select("full_name, company").eq("id", choice.byContactId).eq("agency_id", ctx.agencyId).maybeSingle()
+        : { data: null }
+      clientChoice = {
+        by: (by?.full_name as string) ?? "",
+        company: (by?.company as string) ?? ((role.company as string) ?? ""),
+        at: choice.at,
+        reason: choice.reason,
+      }
+    }
+  } catch {
+    // A missing choices table (migration not yet run) must not block a pack:
+    // the section is simply absent, as it is for a hire with no stated choice.
+    clientChoice = null
+  }
+
   const snapshot: HandoverSnapshot = {
     role: {
       ref: (role.ref as string) ?? "",
@@ -286,6 +316,7 @@ export async function generateHandoverPack(
     rounds,
     references,
     gaps,
+    clientChoice,
     generated_at: new Date().toISOString(),
     footer: HANDOVER_FOOTER,
   }

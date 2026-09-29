@@ -85,6 +85,11 @@ export interface RoleFacts {
    * the derived rung with nothing to clean up.
    */
   decisionsCompleteAt: string | null
+  /**
+   * The client's open request for another round (Figma board 33), or null.
+   * A request, not a round: it waits on the recruiter to add or answer it.
+   */
+  roundRequest?: { at: string; refs: string[]; roundNumber: number | null } | null
   submission: {
     generatedAt: string
     /** 'document' | 'email' | 'portal' — how it left, if it left at all. */
@@ -128,6 +133,7 @@ export type SubStateKey =
   | "ready-to-send"
   | "with-the-client"
   | "take-to-close-out"
+  | "round-requested"
   | "round-to-book"
   | "windows-to-offer"
   | "write-up-due"
@@ -311,6 +317,26 @@ export function deriveSubState(f: RoleFacts, now: Date = new Date()): SubState {
    * The derived rung is untouched underneath. A role whose client never
    * presses the button behaves exactly as it did before.
    */
+  /**
+   * THE CLIENT ASKED FOR ANOTHER ROUND (board 33, 29 Sep 2026). The newest
+   * thing they have said, so it outranks both "take to close-out" rungs: a
+   * manager who asked for round 3 has not finished deciding, whatever the
+   * plan or an earlier "that's all" said. It waits on the recruiter, who
+   * adds the round or answers another way.
+   */
+  if (f.roundRequest) {
+    const refs = f.roundRequest.refs
+    return {
+      key: "round-requested",
+      chip: "ROUND REQUESTED",
+      party: "recruiter",
+      since: f.roundRequest.at,
+      candidateRef: refs.length === 1 ? refs[0] : refs.length === 2 ? `${refs[0]} and ${refs[1]}` : `${refs.length} candidates`,
+      roundNumber: f.roundRequest.roundNumber ?? f.plannedRounds + 1,
+      n: refs.length,
+    }
+  }
+
   if (f.decisionsCompleteAt) {
     const done = pick("close-out")
     return {
@@ -502,6 +528,10 @@ export function nextAction(f: RoleFacts, hat: Hat, roleId: string, now: Date = n
       return R
         ? { ...base, mode: "wait", title: `${who.label} has ${ref} on hold`, detail: `Held after round ${rn}. Their call to advance or decline.`, cta: { label: "Open interviews", href: interviews } }
         : { ...base, mode: "act", title: `${ref} is on hold after round ${rn}`, detail: "Advance or decline when you are ready.", cta: { label: "Decide", href: clientLoop } }
+    case "round-requested":
+      return R
+        ? { ...base, mode: "act", title: `${client} asked for round ${rn}`, detail: `With ${ref}. Add the round, or answer them another way.`, cta: { label: "Open close-out", href: closeOut } }
+        : { ...base, mode: "wait", title: `You asked for round ${rn}`, detail: "Your recruiter plans the round and books it from your diary.", cta: null }
     case "take-to-close-out":
       return R
         ? { ...base, mode: "act", title: `Take ${ref} to close-out`, detail: `Advanced after round ${rn} of ${f.plannedRounds} planned.`, cta: { label: "Open close-out", href: closeOut } }
@@ -607,6 +637,8 @@ export function handoffFor(f: RoleFacts, hat: Hat, roleId: string): Handoff | nu
       return { confirmed: `Round ${sub.roundNumber ?? 1} with ${sub.candidateRef ?? "the candidate"} has happened.`, owner, nextTask: task, then: "The write-up unlocks the round decision." }
     case "decision-due":
       return { confirmed: `Round ${sub.roundNumber ?? 1} written up.`, owner, nextTask: task, then: "Advancing sends the next round's invitation; the last advance goes to close-out." }
+    case "round-requested":
+      return { confirmed: `${client} asked for round ${sub.roundNumber ?? "another"} with ${sub.candidateRef ?? "the people taken forward"}.`, owner, nextTask: task, then: "Adding the round invites them from the client's offered times." }
     case "take-to-close-out":
       // Two ways in, and the receipt must not claim the wrong one. With no
       // candidateRef the client SAID they were finished; with one, it was

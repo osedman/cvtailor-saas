@@ -105,6 +105,18 @@ export default function HandoverStage({ params }: { params: Promise<{ roleId: st
             )}
           </section>
 
+          {pack.clientChoice && (
+            <section className="hm-pack-section">
+              <h3>Your choice</h3>
+              <p>
+                Chosen by {pack.clientChoice.by || "you"} on{" "}
+                {new Date(pack.clientChoice.at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}:
+              </p>
+              <blockquote className="hm-pack-quote">{pack.clientChoice.reason}</blockquote>
+              <p className="ag-quiet">In your own words, as sent. Not edited by the agency.</p>
+            </section>
+          )}
+
           <section className="hm-pack-section">
             <h3>References</h3>
             {pack.references.length === 0 ? (

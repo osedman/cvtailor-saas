@@ -23,6 +23,7 @@
 
 import { createAdminClient } from "@/lib/supabase/server"
 import { latestCompletions } from "./decision-completions"
+import { openRequestsForRoles } from "./round-requests"
 import { agencyAdmin } from "./db"
 import type { AgencyContext } from "./types"
 import { derivePhase } from "./phases"
@@ -241,6 +242,7 @@ export async function getRoleFactsBatch(
   // One read for the batch, not one per role — see the note at the top of
   // this file about the N+1 this module exists to prevent.
   const completions = await latestCompletions(admin, ctx.agencyId, ids)
+  const roundRequests = await openRequestsForRoles(admin, ctx.agencyId, ids)
 
   for (const role of roleRows) {
     const roleId = role.id as string
@@ -341,6 +343,9 @@ export async function getRoleFactsBatch(
       reviewed: reviewed.length,
       undecided,
       decisionsCompleteAt: completions.get(roleId) ?? null,
+      roundRequest: roundRequests.get(roleId)
+        ? { at: roundRequests.get(roleId)!.at, refs: roundRequests.get(roleId)!.candidateRefs, roundNumber: roundRequests.get(roleId)!.roundNumber }
+        : null,
       submission: submissionFacts,
       openWindows: openSlots.length,
       lastWindowOfferedAt,

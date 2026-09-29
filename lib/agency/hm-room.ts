@@ -83,7 +83,7 @@ export function owedOn(r: HiringRound, now: number): "write-up" | "decision" | n
   return null
 }
 
-const LATE_KEYS = new Set(["take-to-close-out", "pack-generated", "handed-over", "closed", "loop-ended"])
+const LATE_KEYS = new Set(["take-to-close-out", "round-requested", "pack-generated", "handed-over", "closed", "loop-ended"])
 
 /**
  * The stage a role is at. A delivered pack is the handover; the ladder saying

@@ -7823,3 +7823,40 @@ link holders; the allow-list strips both. 2,029 tests green (10 new in
 `snapshot-disclosure.test.ts`; the hiring-disclosure guardrail now points at
 the shared module), tsc and build clean. No UI frame needed: withheld
 states follow the existing "withheld, not absent" pattern (board 24).
+
+## 🔁 Another round, asked for — and the client's reason in the pack (board 33, 29 September 2026)
+
+Board 33 drawn and approved. Closes board 31's two loose ends.
+
+**Asking (band A).** Decision stage: "Not ready to choose? Ask for another
+round" opens a form in place — who with (everyone taken forward, ticked) and
+what you still need to find out (required: it is the brief for the round).
+Sent, the page reads "You asked for round 3 with Tomasz and Amara", the ask
+quoted, with "Take the request back". Asking books nothing and tells no
+candidate. `components/agency/hm-round-request.tsx`.
+
+**Answering (band B).** A new ladder rung, `round-requested`, above both
+"take to close-out" rungs — the newest thing the client said, so it outranks
+even "that's all my decisions". Recruiter: act, "Meridian Health asked for
+round 3"; client: wait. On close-out, `RoundRequestCard`: **Add round 3**
+raises `job_roles.planned_rounds` by one in the same audited operation, so
+the existing wave flow invites the people asked for; **Reply instead**
+closes it without a round.
+
+**The pack (band C).** `HandoverSnapshot.clientChoice` — frozen at
+generation, only when this candidate is who the hiring manager chose:
+"Chosen by {name}, {company}, on {date}:" + the reason verbatim + "In the
+hiring manager's own words, as sent. Not edited by the agency." Inside the
+Interview history section (no renumbering); in the hiring manager's pack view
+as "Your choice". Older packs and hires with no stated choice skip it.
+
+**Data.** New append-only, audit-coupled `agency.round_requests`
+(migration `20260929120000_round_requests.sql`): an 'asked' row opens a
+request; 'withdrawn' / 'added' / 'replied' rows close it via request_id.
+Null-safe shape constraint; service_role granted explicitly. Only people the
+manager took forward can be named; only one request open at a time. Writer
+`lib/agency/round-requests.ts`; routes `/api/hiring/roles/[id]/round-request`
+and `/api/agency/roles/[id]/round-request`.
+
+2,043 tests green (14 new), tsc and build clean. **Migration must run on
+STAGING before this is pushed.**

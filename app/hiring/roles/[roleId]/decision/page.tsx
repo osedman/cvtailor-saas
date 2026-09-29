@@ -47,7 +47,7 @@ export default function DecisionStage({ params }: { params: Promise<{ roleId: st
           than a receipt that said "You took 2 forward" and stopped. */}
       {forward.length > 0 && (
         <section className="agd-band">
-          <FinalChoice roleId={roleId} finalists={forward} rounds={room.rounds} cases={cases} onSent={setChoiceSent} />
+          <FinalChoice roleId={roleId} finalists={forward} rounds={room.rounds} cases={cases} onSent={setChoiceSent} agencyName={room.agencyCount === 1 ? room.agencyName : ""} />
         </section>
       )}
 

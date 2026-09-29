@@ -38,6 +38,7 @@ import type { HandoverSnapshot } from "@/lib/agency/handover"
 import type { Stage } from "@/lib/agency/stage"
 import { RoundTrail } from "@/components/agency/round-trail"
 import { ArrowRight, Info } from "lucide-react"
+import { RoundRequestCard } from "@/components/agency/round-request-card"
 
 interface Candidate {
   id: string
@@ -398,6 +399,15 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
 
           {error && <p className="ag-banner" role="alert">{error}</p>}
 
+          {/* Board 33, band B: the client asked for another round. Above the
+              hire, because a request means the client has not finished. */}
+          <RoundRequestCard
+            roleId={roleId}
+            company={role?.company ?? ""}
+            nameOf={(ref) => candidates.find((c) => c.ref === ref)?.full_name ?? ref}
+            onAnswered={() => void loadRole()}
+          />
+
           {/* 1. Who was chosen — suggested from the loop, confirmed by a person */}
           <section className="ag-card ag-print-hide" style={{ padding: "20px 24px", marginTop: 8 }}>
             {inLoop.length === 0 ? (
@@ -694,6 +704,19 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                           </p>
                         ))}
                         {pack.rounds.length === 0 && <p className="ag-doc-empty">No interviews were held through Tailr.</p>}
+                        {/* Board 33, band C: the client's choice, verbatim. */}
+                        {pack.clientChoice && (
+                          <div className="ag-doc-choice">
+                            <p className="ag-doc-choice-head">The client&apos;s choice</p>
+                            <p className="ag-doc-choice-by">
+                              Chosen by {pack.clientChoice.by || "the hiring manager"}
+                              {pack.clientChoice.company ? `, ${pack.clientChoice.company}` : ""}, on{" "}
+                              {new Date(pack.clientChoice.at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}:
+                            </p>
+                            <blockquote className="ag-doc-choice-quote">{pack.clientChoice.reason}</blockquote>
+                            <p className="ag-doc-sec-note">In the hiring manager&apos;s own words, as sent. Not edited by the agency.</p>
+                          </div>
+                        )}
                       </section>
 
                       <section className="ag-doc-sec" aria-label="References">

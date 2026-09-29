@@ -15,6 +15,7 @@ import { displayName, withheldSentence, type SubmittedCases } from "@/components
 import { CandidateDetail } from "@/components/agency/hm-candidate"
 import { DECISION_LABEL } from "@/components/agency/hm-shared"
 import { HINTS, Hint } from "@/components/agency/hint"
+import { RoundRequestForm, RoundRequestSent, useRoundRequest } from "@/components/agency/hm-round-request"
 import type { HiringRound } from "@/lib/agency/types"
 
 interface Choice {
@@ -47,6 +48,7 @@ export function FinalChoice({
   rounds,
   cases,
   onSent,
+  agencyName = "",
 }: {
   roleId: string
   finalists: string[]
@@ -54,6 +56,8 @@ export function FinalChoice({
   cases: SubmittedCases
   /** Told whether a live choice exists, so the page can show what comes after it. */
   onSent?: (sent: boolean) => void
+  /** Names the recruiter in the "ask for another round" form. */
+  agencyName?: string
 }) {
   const [live, setLive] = useState<ChoiceState>({ state: "loading" })
   const [editing, setEditing] = useState(false)
@@ -62,6 +66,8 @@ export function FinalChoice({
   const [open, setOpen] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [asking, setAsking] = useState(false)
+  const rr = useRoundRequest(roleId)
 
   const load = useCallback(async () => {
     try {
@@ -158,6 +164,18 @@ export function FinalChoice({
         </div>
         {error && <p className="ag-banner" role="alert">{error}</p>}
       </div>
+    )
+  }
+
+  // ── Board 33 · a request for another round is open ──────────────────────
+  if (rr.live.state === "ready" && rr.live.request && !editing) {
+    return (
+      <RoundRequestSent
+        roleId={roleId}
+        request={rr.live.request}
+        nameOf={nameOf}
+        onChange={(r) => rr.setLive({ state: "ready", request: r })}
+      />
     )
   }
 
@@ -305,14 +323,34 @@ export function FinalChoice({
       )}
       {error && <p className="ag-banner" role="alert">{error}</p>}
 
-      <p className="hm-final-alt">
-        <span>Not ready to choose?</span> Ask your recruiter for another round — they can add one.{" "}
-        {picked !== "neither" && (
-          <button className="hm-linkbtn" onClick={() => setPicked("neither")}>
-            Neither of them →
+      {asking ? (
+        <RoundRequestForm
+          roleId={roleId}
+          finalists={finalists}
+          nameOf={nameOf}
+          agencyName={agencyName}
+          onSent={(r) => {
+            setAsking(false)
+            rr.setLive({ state: "ready", request: r })
+          }}
+          onCancel={() => setAsking(false)}
+        />
+      ) : (
+        <p className="hm-final-alt">
+          <span>Not ready to choose?</span>{" "}
+          <button className="hm-linkbtn" onClick={() => setAsking(true)}>
+            Ask for another round
           </button>
-        )}
-      </p>
+          {picked !== "neither" && (
+            <>
+              {" · "}
+              <button className="hm-linkbtn" onClick={() => setPicked("neither")}>
+                Neither of them
+              </button>
+            </>
+          )}
+        </p>
+      )}
     </div>
   )
 }
