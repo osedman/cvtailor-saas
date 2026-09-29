@@ -27,7 +27,7 @@ export async function GET() {
 
     const { data, error } = await auth.db
       .from("client_contacts")
-      .select("id, company, email, full_name, created_at")
+      .select("id, company, email, full_name, created_at, user_id")
       .eq("agency_id", auth.ctx.agencyId)
       // Archived contacts leave the address book and every picker (22 Sep
       // 2026). They are not deleted: interview_rounds and handover_packs
@@ -36,7 +36,11 @@ export async function GET() {
       .order("company")
     if (error) throw error
 
-    return NextResponse.json({ contacts: data ?? [] })
+    // Whether the contact has a hiring workspace (board 34: the submission
+    // screen says who will see it straight away and who gets an invite). The
+    // boolean only — the linked auth user id never leaves the server.
+    const contacts = (data ?? []).map(({ user_id, ...c }) => ({ ...c, has_workspace: Boolean(user_id) }))
+    return NextResponse.json({ contacts })
   } catch (error) {
     return NextResponse.json(
       { error: errorMessage(error) },

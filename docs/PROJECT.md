@@ -7915,3 +7915,57 @@ audit row.
 
 **Figma board 34** (`625:2`), "Send to the client: the workspace first, files
 as options", is up for sign-off. It redesigns step 07 around that rule.
+
+## 📨 Step 07 rebuilt: the shortlist goes to their workspace, files are extras (board 34, 29 September 2026)
+
+Built from Figma board 34 (`625:2`), which Ose approved.
+
+**One send, to named people.**
+- "Who gets it" comes first. The role's own client contact is ticked on arrival.
+- Each person says whether they "have a workspace" or will get an invite.
+- The Document/Email/Portal switch is gone.
+- The preview is the hiring manager's real shortlist view: same cards, same
+  words, same disclosure line. The fake portal mock with its inert "Accept for
+  interview" buttons is gone.
+
+**Sidebar.**
+- A ready-to-send check. It warns when two shortlisted rows are the same
+  person.
+- The six "what they see" switches.
+- Optional extras: an email summary (on by default), a PDF (print-to-save of
+  the unchanged document, footer and known gaps included), and a personal link.
+- Held and not-shortlisted people fold into "Stays with you".
+
+**Server.**
+- A contact with no workspace always gets an invite (`createClientInvite`)
+  inside one email with the shortlist.
+- Others get the summary email only when asked. The new template
+  `lib/agency/shortlist-email.ts` is a pointer: names, one line each, and a
+  button. No evidence, scores or CV.
+- The response now reports delivery per person.
+- `/api/agency/contacts` exposes `has_workspace` (a boolean, never the user
+  id).
+
+**After sending.**
+- The screen becomes a receipt: delivered, opened, people chosen, times
+  offered, first interview. The data comes from the new
+  `/submission/progress`, which returns counts and timestamps only.
+- Opening the shortlist in the workspace now stamps `first_opened_at` and
+  `last_opened_at`, which only the portal link did before.
+- After a reload the page reads back the frozen snapshot, so the note and the
+  preview show what was actually sent.
+
+**Moved.** Close role (it still asks first) and the audit trail moved to a new
+⋯ menu on the role header.
+
+**Fixed while measuring.** The phase rail was wider than a 375px phone (81px
+of sideways page scroll). It now scrolls inside itself.
+
+**Deviation from the board.** The preview follows the viewer's theme rather
+than always drawing dark, because the client's workspace follows theirs.
+
+**Verified.**
+- 17 new tests; 2066 green; tsc and the production build are clean.
+- Rendered locally with fixture data at 1440 and 375, before and after the
+  send: 0px overflow and no page errors.
+- Not yet clicked on staging: the container cannot reach it.

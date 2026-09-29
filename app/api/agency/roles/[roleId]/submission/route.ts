@@ -1,7 +1,7 @@
 /**
  * Client submission generation.
  *
- * POST { format: 'document'|'email'|'portal', recipients?: [{contact_id}], expires_days? }
+ * POST { format: 'document'|'email'|'portal', recipients?: [{contact_id}], extras?: { email?: boolean }, expires_days? }
  *
  * The scores in the snapshot are recomputed server-side HERE, at generation
  * time, from current database state — no score supplied by any client is ever
@@ -22,7 +22,11 @@ import {
   writeAudit,
 } from "@/lib/agency/db"
 import { checkRepresentGate } from "@/lib/agency/represent"
-import { getAppOrigin } from "@/lib/site-url"
+import { getAppOrigin, getBusinessOrigin } from "@/lib/site-url"
+import { createClientInvite } from "@/lib/agency/client-auth"
+import { sendEmail } from "@/lib/email"
+import { agencyNoticeFrom } from "@/lib/email-senders"
+import { shortlistEmailHtml, shortlistEmailSubject } from "@/lib/agency/shortlist-email"
 import { recomputeAndStore } from "@/lib/agency/rescore"
 import { probeAreasForClient } from "@/lib/agency/probes"
 import { errorMessage } from "@/lib/error-message"
@@ -316,18 +320,20 @@ export async function POST(
 
     // One token per recipient, raw value returned exactly once.
     const links: Array<{ contact_id: string; url: string; expires_at: string }> = []
+    const contactsById = new Map<string, { id: string; user_id: string | null; email: string | null; full_name: string | null; company: string | null }>()
     if (recipientIds.length > 0) {
       const days = Math.min(MAX_EXPIRY_DAYS, Math.max(1, Number(body?.expires_days) || DEFAULT_EXPIRY_DAYS))
       const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString()
       for (const contactId of recipientIds) {
         const { data: contact } = await admin
           .from("client_contacts")
-          .select("id, agency_id")
+          .select("id, agency_id, user_id, email, full_name, company")
           .eq("id", contactId)
           .maybeSingle()
         if (!contact || contact.agency_id !== auth.ctx.agencyId) {
           throw new AgencyAccessError("contact not found in caller's agency")
         }
+        contactsById.set(contactId, contact)
         const raw = randomBytes(24).toString("base64url")
         const { error: recError } = await admin.from("submission_recipients").insert({
           agency_id: auth.ctx.agencyId,
@@ -351,6 +357,63 @@ export async function POST(
       }
     }
 
+    // DELIVERY (board 34). The workspace row above is the delivery; mail is
+    // how they hear about it. A contact with no workspace yet cannot reach
+    // the shortlist at all without an invitation, so theirs is always sent
+    // and carries the invite; a contact who has one is emailed only when the
+    // recruiter asked for the summary. The email is a pointer — names and a
+    // button — never the shortlist itself.
+    const emailSummary = body?.extras?.email === true
+    const delivery: Array<{ contact_id: string; name: string; workspace: boolean; invited: boolean; emailed: boolean }> = []
+    if (contactsById.size > 0) {
+      const { data: agencyRow } = await admin.from("agencies").select("name").eq("id", auth.ctx.agencyId).maybeSingle()
+      const agencyName = (agencyRow?.name as string | undefined) ?? ""
+      const {
+        data: { user },
+      } = await auth.db.auth.getUser()
+      const replyTo = typeof user?.email === "string" && user.email.includes("@") ? user.email : undefined
+      // The same line every door draws: a withheld name travels as the ref.
+      const people = entries.map((e) => ({
+        name: e.redacted || !e.full_name ? e.ref : e.full_name,
+        title: e.current_title ?? "",
+      }))
+      for (const contactId of recipientIds) {
+        const contact = contactsById.get(contactId)
+        if (!contact) continue
+        const workspace = Boolean(contact.user_id)
+        let invited = false
+        let emailed = false
+        let url = `${getBusinessOrigin()}/hiring/roles/${roleId}/shortlist`
+        let inviteExpiresAt: string | undefined
+        if (!workspace) {
+          const invite = await createClientInvite(auth.ctx, contactId)
+          invited = true
+          url = `${getBusinessOrigin()}/hiring/invite/${encodeURIComponent(invite.rawToken)}`
+          inviteExpiresAt = invite.expiresAt
+        }
+        if ((emailSummary || !workspace) && contact.email) {
+          const sent = await sendEmail({
+            from: agencyNoticeFrom(agencyName),
+            to: contact.email,
+            subject: shortlistEmailSubject({ roleTitle: role.title, count: people.length }),
+            html: shortlistEmailHtml({
+              agencyName,
+              company: role.company,
+              roleTitle: role.title,
+              intro,
+              people,
+              url,
+              invite: !workspace,
+              inviteExpiresAt,
+            }),
+            ...(replyTo ? { replyTo } : {}),
+          })
+          emailed = sent.sent
+        }
+        delivery.push({ contact_id: contactId, name: contact.full_name || contact.company || "Client contact", workspace, invited, emailed })
+      }
+    }
+
     await writeAudit(admin, {
       agencyId: auth.ctx.agencyId,
       roleId,
@@ -358,10 +421,16 @@ export async function POST(
       entityType: "submission",
       entityRef: role.ref,
       action: "generated",
-      toValue: { format, shortlisted: entries.length, recipients: links.length },
+      toValue: {
+        format,
+        shortlisted: entries.length,
+        recipients: links.length,
+        invited: delivery.filter((d) => d.invited).length,
+        emailed: delivery.filter((d) => d.emailed).length,
+      },
     })
 
-    return NextResponse.json({ submission: { ...submission, snapshot }, links }, { status: 201 })
+    return NextResponse.json({ submission: { ...submission, snapshot }, links, delivery }, { status: 201 })
   } catch (error) {
     if (error instanceof AgencyAccessError) {
       return NextResponse.json({ error: error.message }, { status: 403 })

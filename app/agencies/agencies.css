@@ -2612,6 +2612,115 @@ a.ag-rh-next:hover { opacity: 0.86; }
 
 @media (prefers-reduced-motion: reduce) { .ag-brief-chip { transition: none; } }
 
+/* ── Step 07 · send to the client — Figma board 34 (29 Sep 2026) ──────────
+ * One send, to named people, in their workspace. Tokens only: the preview
+ * follows the viewer's theme because the client's workspace does too. */
+.ag-linkbtn { background: none; border: none; padding: 0; font: inherit; font-size: var(--t-small); font-weight: 500; color: var(--ag-coral-text); cursor: pointer; text-align: left; }
+.ag-linkbtn:hover { text-decoration: underline; }
+.ag-linkbtn:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; border-radius: var(--r-xs); }
+
+.ag-who-row { display: flex; align-items: center; gap: 12px; cursor: pointer; min-width: 0; }
+.ag-who-row input { width: 16px; height: 16px; accent-color: var(--ag-coral); flex: none; }
+.ag-who-name { display: block; font-size: var(--t-body); font-weight: 600; color: var(--ag-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-who-state { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex: none; text-align: right; }
+.ag-who-chip { font-size: var(--t-caption); font-weight: 500; padding: 2px 9px; border-radius: 999px; background: var(--ag-bg-2); color: var(--ag-ink-2); }
+.ag-who-chip[data-tone="new"] { background: var(--ag-tint-1); color: var(--ag-coral-text); }
+.ag-who-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+
+.ag-ready { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ag-ready li { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; font-size: var(--t-small); color: var(--ag-ink); font-weight: 500; }
+.ag-ready li::before { content: "✓"; color: var(--ag-calm); font-weight: 600; grid-row: span 2; }
+.ag-ready li[data-ok="false"]::before { content: "!"; color: var(--ag-warn); }
+.ag-ready small { grid-column: 2; font-size: var(--t-caption); font-weight: 400; color: var(--ag-ink-3); line-height: 1.45; }
+
+.ag-extra-row { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.ag-extra-row input { width: 15px; height: 15px; margin-top: 2px; accent-color: var(--ag-coral); flex: none; }
+.ag-extra-title { display: block; font-size: var(--t-small); font-weight: 600; color: var(--ag-ink); }
+
+.ag-stays > summary { cursor: pointer; list-style: none; }
+.ag-stays > summary::-webkit-details-marker { display: none; }
+.ag-stays > summary::after { content: "›"; margin-left: 8px; color: var(--ag-ink-3); transition: transform 0.15s; }
+.ag-stays[open] > summary::after { transform: rotate(90deg); }
+
+/* The hiring manager's view, framed as a window onto their workspace. */
+.ag-hmp { background: var(--ag-bg-2); border: 1px solid var(--ag-line-2); border-radius: var(--r-md); padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.ag-hmp-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.ag-hmp-eyebrow { margin: 0 0 4px; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ag-coral-text); }
+.ag-hmp-title { margin: 0; font-size: var(--t-lead); font-weight: 600; color: var(--ag-ink); line-height: 1.35; }
+.ag-hmp-chip { font-size: var(--t-caption); padding: 3px 10px; border-radius: 999px; border: 1px solid var(--ag-line-2); color: var(--ag-ink-2); background: var(--ag-paper); white-space: nowrap; }
+.ag-hmp-intro { margin: 0; padding: 12px 14px; border-left: 3px solid var(--ag-coral); background: var(--ag-paper); border-radius: var(--r-sm); font-size: var(--t-small); line-height: 1.6; color: var(--ag-ink-2); }
+.ag-hmp-intro span { display: block; font-size: var(--t-caption); color: var(--ag-ink-3); margin-bottom: 4px; }
+.ag-hmp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ag-hmp-card { background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.ag-hmp-card-head { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; }
+.ag-hmp-name { font-size: var(--t-lead); font-weight: 600; color: var(--ag-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-hmp-state { font-size: var(--t-caption); color: var(--ag-ink-3); white-space: nowrap; }
+.ag-hmp-sub { margin: 0; font-size: var(--t-small); color: var(--ag-ink-3); }
+.ag-hmp-note { margin: 0; font-size: var(--t-small); line-height: 1.6; color: var(--ag-ink-2); }
+.ag-hmp-evidence { margin: 0; font-size: var(--t-small); line-height: 1.55; color: var(--ag-ink-2); }
+.ag-hmp-evidence b { color: var(--ag-ink); font-weight: 600; }
+.ag-hmp-quiet { margin: 0; font-size: var(--t-caption); color: var(--ag-ink-3); line-height: 1.5; }
+.ag-hmp-more { align-self: flex-start; font-size: var(--t-small); font-weight: 500; color: var(--ag-coral-text); }
+.ag-hmp-handoff { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; font-size: var(--t-small); color: var(--ag-ink-2); padding-top: 4px; }
+.ag-hmp-cta { font-weight: 600; color: var(--ag-coral-text); white-space: nowrap; }
+
+/* The receipt: where the client is up to. */
+.ag-receipt { background: var(--ag-paper); border: 1px solid var(--ag-border); border-radius: var(--r-md); padding: 20px 22px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 16px; }
+.ag-receipt-top { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.ag-receipt-eyebrow { margin: 0 0 4px; font-family: var(--ag-mono); font-size: var(--t-micro); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ag-ink-3); }
+.ag-receipt-title { margin: 0; font-size: var(--t-title); font-weight: 600; color: var(--ag-ink); line-height: 1.3; }
+.ag-receipt-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.ag-receipt-step { border: 1px solid var(--ag-border); border-radius: var(--r-sm); padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; background: var(--ag-cream); min-width: 0; }
+.ag-receipt-step[data-state="now"] { border-color: var(--ag-coral); background: var(--ag-tint-1); }
+.ag-receipt-step-label { font-size: var(--t-small); font-weight: 600; color: var(--ag-ink); }
+.ag-receipt-step[data-state="todo"] .ag-receipt-step-label { color: var(--ag-ink-3); }
+.ag-receipt-step-sub { font-size: var(--t-caption); color: var(--ag-ink-3); overflow-wrap: anywhere; }
+.ag-receipt-delivery { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--t-small); color: var(--ag-ink-2); }
+.ag-receipt-extras { display: flex; gap: 18px; flex-wrap: wrap; }
+@media (max-width: 900px) {
+  .ag-receipt-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ag-who-form { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .ag-who-row { flex-wrap: wrap; }
+  .ag-who-state { align-items: flex-start; text-align: left; flex-basis: 100%; padding-left: 62px; }
+  .ag-receipt-steps { grid-template-columns: 1fr; }
+}
+
+/* A sentence under a label — sans, never the mono of .ag-meta, which is
+   for refs and machine data (the typography rule). */
+.ag-prose-note { display: block; font-size: var(--t-caption); line-height: 1.5; color: var(--ag-ink-3); }
+
+/* The phase rail was wider than a phone on its own (found measuring board
+   34 at 375px: 81px of sideways page scroll). It scrolls inside itself. */
+@media (max-width: 520px) {
+  .ag-phase-rail { flex: 1 1 100%; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .ag-phase-rail::-webkit-scrollbar { display: none; }
+}
+
+/* The role menu — closing and the audit trail left step 07 for here. */
+.ag-rh-menu { position: relative; flex: none; }
+.ag-rh-menu-btn { width: 32px; height: 32px; border-radius: 999px; border: 1px solid var(--ag-line-2); background: var(--ag-paper); color: var(--ag-ink-2); font-size: 16px; line-height: 1; cursor: pointer; }
+.ag-rh-menu-btn:hover, .ag-rh-menu-btn[aria-expanded="true"] { border-color: var(--ag-ink-3); color: var(--ag-ink); }
+.ag-rh-menu-btn:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; }
+.ag-rh-menu-list { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 180px; background: var(--ag-paper); border: 1px solid var(--ag-line-2); border-radius: var(--r-sm); padding: 6px; display: flex; flex-direction: column; box-shadow: 0 8px 24px rgba(30, 24, 19, 0.12); }
+.ag-rh-menu-item { display: block; text-align: left; padding: 8px 10px; border-radius: var(--r-xs); background: none; border: none; font: inherit; font-size: var(--t-small); color: var(--ag-ink); cursor: pointer; text-decoration: none; }
+.ag-rh-menu-item:hover, .ag-rh-menu-item:focus-visible { background: var(--ag-bg-2); outline: none; }
+.ag-rh-menu-item[data-tone="warn"] { color: var(--ag-warn); }
+.ag-rh-ask { margin-top: 12px; padding: 14px 16px; border: 1px solid var(--ag-warn); border-radius: var(--r-sm); background: var(--ag-paper); }
+.ag-rh-ask-title { margin: 0 0 6px; font-weight: 600; color: var(--ag-ink); }
+.ag-rh-ask-body { margin: 0 0 12px; font-size: var(--t-small); line-height: 1.6; color: var(--ag-ink-2); max-width: 70ch; }
+.ag-rh-ask-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.ag-rh-note { margin: 10px 0 0; font-size: var(--t-small); color: var(--ag-ink-2); }
+
+/* The printable document: mounted at <body>, invisible until printed. */
+.ag-print-portal { display: none; }
+@media print {
+  body.ag-printing-shortlist > *:not(.ag-print-portal) { display: none !important; }
+  body.ag-printing-shortlist > .ag-print-portal { display: block; }
+  body.ag-printing-shortlist .ag-cfp-cand { break-inside: avoid-page; }
+}
+
 /* ── Hints — board 32, band A (29 Sep 2026) ───────────────────────────────
  * A pill that carries a number or a state explains itself: one sentence,
  * on hover, focus or tap. The dot is the affordance. See components/agency/hint.tsx. */

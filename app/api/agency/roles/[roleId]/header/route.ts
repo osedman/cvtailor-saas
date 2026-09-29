@@ -29,7 +29,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
 
     const sub = deriveSubState(facts)
     return NextResponse.json({
-      role: { id: facts.roleId, ref: facts.ref, title: facts.title, company: facts.company, ownerId: facts.ownerId, ownerName: facts.ownerName },
+      role: { id: facts.roleId, ref: facts.ref, title: facts.title, company: facts.company, ownerId: facts.ownerId, ownerName: facts.ownerName, status: facts.status },
       client: facts.clientName,
       phase: facts.phase,
       subState: { key: sub.key, chip: sub.chip },

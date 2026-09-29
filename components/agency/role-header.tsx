@@ -22,7 +22,7 @@
  * in flight would tell a recruiter in handover that they were at the start.
  */
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { PhaseRail } from "./phase-rail"
 import { HandoffReceipt } from "./handoff-receipt"
@@ -37,7 +37,7 @@ export function announceRoleChanged() {
 }
 
 interface HeaderPayload {
-  role: { id: string; ref: string; title: string; company: string; ownerId?: string | null; ownerName?: string | null; recruiterName?: string | null }
+  role: { id: string; ref: string; title: string; company: string; ownerId?: string | null; ownerName?: string | null; recruiterName?: string | null; status?: string }
   client?: string | null
   phase: PhaseKey | null
   subState: { key: string; chip: string }
@@ -120,6 +120,67 @@ export function RoleHeader({ roleId, hat }: { roleId: string; hat: "recruiter" |
     }
   }
 
+  // The role menu (board 34): closing and the audit trail left step 07,
+  // where they sat under the send as if they were part of it. Closing is
+  // still a consequential act — it starts the retention clock and tells the
+  // unsuccessful candidates — so it asks first, in words, every time.
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [closeAsk, setCloseAsk] = useState(false)
+  const [statusNote, setStatusNote] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false)
+    }
+    document.addEventListener("mousedown", onDown)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onDown)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [menuOpen])
+
+  async function setStatus(status: "open" | "closed") {
+    setBusy(true)
+    setError(null)
+    setStatusNote(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not change the role.")
+        return
+      }
+      setCloseAsk(false)
+      if (status === "closed") {
+        const c = body?.closure as { sent: number; failed: number; deferred: number } | null | undefined
+        setStatusNote(
+          c
+            ? c.sent > 0
+              ? `Closed. ${c.sent} candidate${c.sent === 1 ? " was" : "s were"} told the role has closed${c.failed ? `, ${c.failed} email${c.failed === 1 ? "" : "s"} failed` : ""}${c.deferred ? `, ${c.deferred} still to go — close again to send the rest` : ""}.`
+              : "Closed. Nobody needed telling — everyone had already been told, or was never contacted about this role."
+            : "Closed. The retention clock is running."
+        )
+      } else {
+        setStatusNote("Reopened. The retention clock has stopped.")
+      }
+      announceRoleChanged()
+      await load()
+    } catch {
+      setError("Could not change the role.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (!data) return null
 
   const { role, next, subState, handoff } = data
@@ -152,7 +213,59 @@ export function RoleHeader({ roleId, hat }: { roleId: string; hat: "recruiter" |
         </span>
         <span className="ag-grow" />
         <PhaseRail current={data.phase} roleId={roleId} subState={subState.chip} />
+        {hat === "recruiter" && (
+          <div className="ag-rh-menu" ref={menuRef}>
+            <button
+              className="ag-rh-menu-btn"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label="Role options"
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              ⋯
+            </button>
+            {menuOpen && (
+              <div className="ag-rh-menu-list" role="menu">
+                <Link role="menuitem" className="ag-rh-menu-item" href="/agencies/audit" onClick={() => setMenuOpen(false)}>
+                  Audit trail
+                </Link>
+                {data.callerRole !== "viewer" &&
+                  (role.status === "closed" ? (
+                    <button role="menuitem" className="ag-rh-menu-item" disabled={busy} onClick={() => { setMenuOpen(false); void setStatus("open") }}>
+                      Reopen role
+                    </button>
+                  ) : (
+                    <button role="menuitem" className="ag-rh-menu-item" data-tone="warn" onClick={() => { setMenuOpen(false); setCloseAsk(true) }}>
+                      Close role…
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+      {closeAsk && (
+        <div className="ag-rh-ask" role="alertdialog" aria-labelledby="rh-close-h">
+          <p className="ag-rh-ask-title" id="rh-close-h">Close {role.ref}?</p>
+          <p className="ag-rh-ask-body">
+            Closing starts the retention clock on every candidate attached to it: their CV data is erased once the window
+            passes. Anyone not hired is told the role has closed. It is recorded against your name, and you can reopen it.
+          </p>
+          <div className="ag-rh-ask-actions">
+            <button className="ag-btn ag-btn-primary" disabled={busy} onClick={() => void setStatus("closed")}>
+              {busy ? "Closing…" : "Close role and start retention"}
+            </button>
+            <button className="ag-btn ag-btn-secondary" disabled={busy} onClick={() => setCloseAsk(false)}>
+              Keep it open
+            </button>
+          </div>
+        </div>
+      )}
+      {statusNote && (
+        <p className="ag-rh-note" role="status">
+          {statusNote}
+        </p>
+      )}
       <h1 className="ag-rh-title">{role.title}</h1>
       <div className="ag-rh-strip">
         <div className="ag-rh-cell">

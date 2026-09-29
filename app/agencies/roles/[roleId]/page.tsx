@@ -24,7 +24,16 @@ import { RecommendationPanel } from "@/components/agency/recommendation-panel"
 import { useRecommendation } from "@/components/agency/use-recommendation"
 import { DecisionSlot } from "@/components/agency/decision-slot"
 import { ShortlistRail, ShortlistBar, type ShortlistEntry } from "@/components/agency/shortlist-rail"
-import { countWord } from "@/components/agency/count-word"
+import { countWord, countWordCap } from "@/components/agency/count-word"
+import {
+  PrintPortal,
+  SubmissionDocument,
+  SubmissionPreview,
+  SubmissionProgress,
+  printShortlistDocument,
+  type DeliveryRow,
+  type SubmissionRow,
+} from "@/components/agency/submission-parts"
 import { roleLandingPath, type PhaseKey } from "@/lib/agency/phases"
 import {
   ArrowUpRight, Banknote, Briefcase, ChevronUp, FileText,
@@ -49,12 +58,6 @@ interface Candidate { id: string; ref: string; full_name: string; current_title:
  * used to be declared and rebuilt inside the submission pane's IIFE, which
  * meant every keystroke in the introduction rebuilt every row.
  */
-type SubmissionRow = {
-  key: string; ref: string; name: string; title: string; years: number | null; location: string
-  overall: number; confidence: number; reviewed: boolean; narrative: string
-  musts: Array<{ text: string; strength: string; quote: string | null }>
-  gaps: string[]; probes: string[]; comp: string; availability: string
-}
 
 interface Score {
   candidate_id: string; overall: number; must_have_hit: number; must_have_total: number
@@ -165,12 +168,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   /** Which of the three phases this role is in. null until loaded — the rail
    *  renders nothing rather than guessing "Shortlist" mid-fetch. */
   const [phase, setPhase] = useState<PhaseKey | null>(null)
-  /** Sourcing is a phase-one question. Once the shortlist has gone to the
-   *  client the card stops asking and folds away — but it never disappears,
-   *  because a rejected pool or a fall-off is exactly when you need an
-   *  eleventh candidate, and a locked door there would fight how recruiting
-   *  actually goes. Opening it again is one click and changes nothing else. */
-  const [closureNote, setClosureNote] = useState<string | null>(null)
+  /** Step 07's optional extras (board 34). The workspace delivery is not
+   *  one of them — it always happens. The summary email is on by default. */
+  const [extras, setExtras] = useState({ email: true, pdf: false, link: false })
+  const [addingContact, setAddingContact] = useState(false)
   // Removing a candidate added in error. Confirmed, because it is a real
   // erasure and not a hide (22 Aug walk-through).
   const [removing, setRemoving] = useState<string | null>(null)
@@ -180,8 +181,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [resendAsk, setResendAsk] = useState(false)
   const [jdUrl, setJdUrl] = useState("")
   const [extractResult, setExtractResult] = useState<{ requirements: number; constraints: number; filled: string[] } | null>(null)
-  const [submissionResult, setSubmissionResult] = useState<{ format: string; entries: number; links: Array<{ url: string }>; snapshot: Snapshot | null } | null>(null)
-  const [contacts, setContacts] = useState<Array<{ id: string; company: string; email: string; full_name: string }>>([])
+  const [submissionResult, setSubmissionResult] = useState<{ format: string; entries: number; links: Array<{ url: string; contact_id?: string }>; delivery: DeliveryRow[] | null; snapshot: Snapshot | null } | null>(null)
+  const [contacts, setContacts] = useState<Array<{ id: string; company: string; email: string; full_name: string; has_workspace?: boolean }>>([])
   const [chosenContacts, setChosenContacts] = useState<string[]>([])
   const [newContact, setNewContact] = useState({ company: "", email: "", full_name: "" })
   const [agencyName, setAgencyName] = useState("Your agency")
@@ -426,7 +427,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   }, [])
   const pasteRef = useRef("")
   const [pasteLen, setPasteLen] = useState(0)
-  const [previewFormat, setPreviewFormat] = useState<"document" | "email" | "portal">("document")
   // The compare board advertises S / H / R in the handoff; they act on the
   // card under the pointer or keyboard focus, falling back to the top ranked
   // candidate with no decision yet.
@@ -686,37 +686,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       setError("Could not remove that candidate.")
     } finally {
       setRemoveBusy(false)
-    }
-  }
-
-  async function setRoleStatus(status: string) {
-    const res = await fetch(`/api/agency/roles/${roleId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    })
-    if (res.ok) {
-      const body = await res.json()
-      patchRole({ status: body.role.status })
-      // Closing tells the unsuccessful candidates the loop ended. Say what
-      // happened — a count the recruiter can repeat to the client, and the
-      // absence of one when nobody was eligible.
-      if (body.closure) {
-        const c = body.closure as {
-          sent: number; suppressed: number; noContact: number; failed: number; deferred: number
-        }
-        const extra = [
-          c.failed > 0 ? `${c.failed} email${c.failed === 1 ? "" : "s"} failed` : "",
-          // Deferred is not a failure and must not read like one: those people
-          // keep their null stamp and the next close reaches them.
-          c.deferred > 0 ? `${c.deferred} still to go — close again to send the rest` : "",
-        ].filter(Boolean).join(" · ")
-        setClosureNote(
-          c.sent > 0
-            ? `${c.sent} candidate${c.sent === 1 ? " was" : "s were"} told the role has closed.${extra ? ` ${extra}.` : ""}`
-            : "Nobody needed telling — everyone in the process had already been told, or was never contacted about this role."
-        )
-      }
     }
   }
 
@@ -1074,10 +1043,17 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     void applyDecisions(undo.previous, { undoable: false })
   }
 
-  async function generateSubmission(format: string, representOverride = false) {
-    if (format === "portal" && chosenContacts.length === 0) {
-      return setError("Choose at least one recipient. Portal links are personal, one per named person.")
+  /**
+   * One send (board 34): to the chosen people, in their workspace. The
+   * format column still records how it was ALSO delivered — email when the
+   * summary goes, portal otherwise — but it no longer decides whether the
+   * client can act on it; see the route.
+   */
+  async function generateSubmission(representOverride = false) {
+    if (chosenContacts.length === 0) {
+      return setError("Choose who gets it. The shortlist goes to named people, in their workspace.")
     }
+    const format = extras.email ? "email" : "portal"
     setBusy("submission")
     setError(null)
     if (representOverride) setRepresentAsk(null)
@@ -1089,8 +1065,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
           format,
           disclosure,
           intro: introRef.current,
+          recipients: chosenContacts.map((id) => ({ contact_id: id })),
+          extras: { email: extras.email },
           ...(representOverride ? { representOverride: true } : {}),
-          ...(format === "portal" ? { recipients: chosenContacts.map((id) => ({ contact_id: id })) } : {}),
         }),
       })
       const body = await res.json()
@@ -1107,21 +1084,74 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         format,
         entries: body.submission?.snapshot?.shortlisted?.length ?? 0,
         links: body.links ?? [],
+        delivery: Array.isArray(body.delivery) ? (body.delivery as DeliveryRow[]) : null,
         // The whole immutable snapshot, so the preview renders exactly what
         // the client will get rather than a re-derivation of it.
         snapshot: body.submission?.snapshot ?? null,
       })
-      setPreviewFormat(format as "document" | "email" | "portal")
       // Phase one is over at this exact moment. The server derives the same
       // thing from the submission row on next load; this keeps the rail honest
       // without a refetch. Never moves backwards for a role already further on.
       setPhase((p) => (p === null || p === "shortlist" ? "interviews" : p))
+      // The PDF extra: the document is already mounted for print; give React
+      // a beat to swap in the frozen snapshot first.
+      if (extras.pdf) setTimeout(printShortlistDocument, 300)
     } catch (err) {
       setError(errorMessage(err))
     } finally {
       setBusy(null)
     }
   }
+
+  /** The plain-text version, for a recruiter who wants to write their own email. */
+  function copyEmailText() {
+    if (!role) return
+    const snapIntro = submissionResult?.snapshot?.intro
+    const d = submissionResult?.snapshot?.disclosure ?? disclosure
+    const text = [
+      `Shortlist: ${role.title} — ${submissionRows.length} candidate${submissionRows.length === 1 ? "" : "s"}`, "",
+      snapIntro ?? introRef.current, "",
+      ...submissionRows.flatMap((r, i) => [
+        `${i + 1}. ${r.redacted ? r.ref : r.name}${r.title ? ` — ${r.title}` : ""}${d.scores ? ` (fit ${Math.round(r.overall)})` : ""}`,
+        d.notes ? r.narrative : "",
+        d.probes && r.probes[0] ? `To probe: ${r.probes[0]}` : "",
+        "",
+      ]),
+      "The full shortlist, with the evidence and CVs, is in your Tailr workspace.", "",
+      "Best,", agencyName,
+    ].filter((line, i, all) => line !== "" || all[i - 1] !== "").join("\n")
+    void navigator.clipboard?.writeText(text)
+  }
+
+  // After a reload the frozen snapshot is not in memory, so a role that has
+  // already gone out showed a live preview and an editable note — a guess at
+  // what the client holds. Read back what was actually sent (board 34).
+  const snapshotLoaded = useRef(false)
+  useEffect(() => {
+    if (step !== "submission" || phase === null || phase === "shortlist" || submissionResult || snapshotLoaded.current) return
+    snapshotLoaded.current = true
+    fetch(`/api/agency/roles/${roleId}/submission`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b: { submissions?: Array<{ format: string; snapshot: Snapshot | null }> } | null) => {
+        const latest = b?.submissions?.[0]
+        if (!latest?.snapshot) return
+        setSubmissionResult((prev) =>
+          prev ?? { format: latest.format, entries: latest.snapshot?.shortlisted?.length ?? 0, links: [], delivery: null, snapshot: latest.snapshot }
+        )
+      })
+      .catch(() => {})
+  }, [step, phase, submissionResult, roleId])
+
+  // The role's own client contact is who the shortlist is for unless the
+  // recruiter says otherwise: ticked on arrival, once.
+  const recipientSeeded = useRef(false)
+  useEffect(() => {
+    if (recipientSeeded.current || !role?.contact_id || contacts.length === 0) return
+    recipientSeeded.current = true
+    if (contacts.some((c) => c.id === role.contact_id)) {
+      setChosenContacts((prev) => (prev.length > 0 ? prev : [role.contact_id as string]))
+    }
+  }, [role?.contact_id, contacts])
 
   const initials = (name: string) =>
     name.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?"
@@ -1245,6 +1275,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             gaps: e.gaps.map((g) => g.requirement),
             probes: e.probe_areas ?? [],
             comp: e.salary_confirm ?? "", availability: e.availability ?? "",
+            mustHit: e.must_have_hit ?? null, mustTotal: e.must_have_total ?? null,
+            redacted: e.redacted === true,
           }))
         : submissionShortlisted.map((c) => {
             const sc = scores[c.id]
@@ -1265,6 +1297,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     .filter((r) => r.weight !== "nice" && ["missing", "partial"].includes(effectiveStrength(c.id, r.id)))
                     .map((r) => r.text),
               comp: c.salary_text ?? "", availability: rv?.availability ?? "",
+              mustHit: sc?.must_have_hit ?? null, mustTotal: sc?.must_have_total ?? null,
+              redacted: false,
             }
           }),
     [submissionSnap, submissionShortlisted, submissionMusts, requirements, scores, reviews, effectiveStrength, evidenceAt]
@@ -2759,16 +2793,43 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
              * The phase survives the reload; both are consulted.
              */
             const alreadySent = Boolean(snap) || (phase !== null && phase !== "shortlist")
+            const company = role.company || "the client"
+            const noWorkspace = recipients.filter((c) => !c.has_workspace)
+            const passed = notShortlisted.filter((c) => decisions[c.id] !== "hold")
+            // Two shortlisted rows that are the same person (ingest's
+            // duplicate_of) would reach the client as two people.
+            const shortlistedIds = new Set(shortlistedList.map((c) => c.id))
+            const twins = shortlistedList.filter((c) => c.duplicate_of && shortlistedIds.has(c.duplicate_of))
+            const introShown = snap ? snap.intro ?? "" : intro
+            const sendLabel =
+              recipients.length === 0
+                ? "Choose who gets it"
+                : `Send to ${recipients.length === 1 ? (recipients[0].full_name || "1 person") : `${recipients.length} people`} at ${role.company || "the client"} →`
 
             return (
               <>
+                {/* The document, for print only (board 34: files are extras).
+                    Mounted at <body> so printing it hides the app. */}
+                <PrintPortal>
+                  <div className="ag-print-doc">
+                    <SubmissionDocument
+                      rows={rows}
+                      disclosure={snap?.disclosure ?? disclosure}
+                      intro={introShown}
+                      roleTitle={role.title}
+                      company={role.company}
+                      stats={{ reviewed: candidates.length, shortlisted: rows.length, musts: musts.length, held: decisionCounts.hold }}
+                    />
+                  </div>
+                </PrintPortal>
+
                 <div className="ag-screen-head">
                   <div>
                     <h1 className="ag-title">
-                      {shortlisted} candidate{shortlisted === 1 ? "" : "s"},<br />with the reasoning attached.
+                      {countWordCap(shortlisted)} candidate{shortlisted === 1 ? "" : "s"}, ready for {company}.
                     </h1>
                     <p className="ag-sub">
-                      Choose what the client sees. Your reasoning travels with the shortlist, so the hiring manager can audit every judgement instead of trusting a number.
+                      They open it in their Tailr workspace, where they choose who to meet and offer the times they can do. Your reasoning travels with it.
                     </p>
                   </div>
                   {/* A COMPLETED STATE MUST NOT BE ARMED (13 Sep 2026).
@@ -2782,8 +2843,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
 
                       Once it has gone, the primary stops existing. What
                       replaces it is a fact, and the only primary left on the
-                      screen is the handoff card's "Go to interviews". */}
-                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      screen is the receipt's "Go to interviews". */}
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                     <button className="ag-btn" onClick={() => setStep("compare")}>Back to compare</button>
                     {alreadySent ? (
                       <>
@@ -2803,39 +2864,31 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     ) : (
                       <button
                         className="ag-btn ag-btn-primary"
-                        onClick={() => generateSubmission(previewFormat)}
-                        disabled={shortlisted === 0 || busy !== null}
+                        onClick={() => generateSubmission()}
+                        disabled={shortlisted === 0 || recipients.length === 0 || busy !== null}
                       >
-                        {busy === "submission" ? <><span className="ag-spin" /> Sending</> : "Send to client"}
+                        {busy === "submission" ? <><span className="ag-spin" /> Sending</> : sendLabel}
                       </button>
                     )}
                   </div>
                 </div>
 
-                {/* Shown from the derived phase as well as this session's send, so
-                    the completion survives a reload. A recruiter who comes back
-                    tomorrow should still be told phase one is closed rather than
-                    seeing a bare "Send to client" as though nothing happened. */}
+                {/* Shown from the derived phase as well as this session's send,
+                    so the completion survives a reload: a recruiter who comes
+                    back tomorrow sees where the client is up to, not a bare
+                    send button. */}
                 {alreadySent && (
-                  <div className="ag-handoff" role="status">
-                    <div className="ag-handoff-body">
-                      <p className="ag-handoff-title">
-                        Shortlist workflow complete — the client has the shortlist.
-                      </p>
-                      <p className="ag-handoff-sub">
-                        What they saw is frozen into the snapshot and cannot change now. The
-                        interview loop is next: they offer times from their own workspace, you book
-                        who meets them. Nothing here closes the role, and you can still add a
-                        candidate if this pool does not land.
-                      </p>
-                    </div>
-                    <button
-                      className="ag-btn ag-btn-primary"
-                      onClick={() => router.push(`/agencies/roles/${roleId}/interviews`)}
-                    >
-                      Go to interviews →
-                    </button>
-                  </div>
+                  <SubmissionProgress
+                    roleId={roleId}
+                    company={role.company}
+                    delivery={submissionResult?.delivery ?? null}
+                    links={submissionResult?.links ?? []}
+                    showLinks={extras.link}
+                    onGoInterviews={() => router.push(`/agencies/roles/${roleId}/interviews`)}
+                    onPdf={printShortlistDocument}
+                    onCopyEmail={copyEmailText}
+                    whoHasIt={<SentLinks roleId={roleId} />}
+                  />
                 )}
 
                 {resendAsk && (
@@ -2846,15 +2899,15 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       </div>
                       <p className="ag-note" style={{ margin: "0 0 6px" }}>
                         Sending again does not replace what they have. It generates a second
-                        snapshot from today&apos;s evidence, mints fresh portal links, and emails
-                        your recipients a second time. The copy they already hold stays exactly as
-                        it was. This is recorded against your name.
+                        snapshot from today&apos;s evidence, mints fresh portal links, and puts a
+                        second copy in your recipients&apos; workspace. The copy they already hold
+                        stays exactly as it was. This is recorded against your name.
                       </p>
                       <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
                         <button
                           className="ag-btn ag-btn-primary"
-                          disabled={busy !== null}
-                          onClick={() => { setResendAsk(false); void generateSubmission(previewFormat) }}
+                          disabled={busy !== null || recipients.length === 0}
+                          onClick={() => { setResendAsk(false); void generateSubmission() }}
                         >
                           Send a second submission
                         </button>
@@ -2862,6 +2915,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           Cancel
                         </button>
                       </div>
+                      {recipients.length === 0 && (
+                        <p className="ag-prose-note" style={{ margin: "10px 0 0" }}>Choose who gets it first.</p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2882,7 +2938,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         <button
                           className="ag-btn ag-btn-primary"
                           disabled={busy !== null}
-                          onClick={() => generateSubmission(representAsk.format, true)}
+                          onClick={() => generateSubmission(true)}
                         >
                           Send anyway — recorded against my name
                         </button>
@@ -2903,435 +2959,233 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 ) : (
                   <div className="ag-sub-grid">
                     <div className="ag-stack" style={{ minWidth: 0 }}>
-                      <div className="ag-card">
-                        <div className="ag-card-head">
-                          <span className="ag-card-title">Client-facing preview</span>
-                          <div className="ag-seg">
-                            {(["document", "email", "portal"] as const).map((f) => (
-                              <button key={f} aria-pressed={previewFormat === f} className={previewFormat === f ? "on" : ""} onClick={() => setPreviewFormat(f)}>
-                                {f === "portal" ? "Portal link" : f === "email" ? "Email" : "Document"}
-                              </button>
-                            ))}
-                          </div>
-                          <span className="ag-meta">{(role.company || "client").toUpperCase()} · {role.ref}</span>
-                        </div>
-                        <div className="ag-card-body ag-stack" style={{ gap: 16 }}>
-                          {snap && (
-                            <div className="ag-frozen-note">
-                              Frozen copy · generated as {submissionResult!.format} on{" "}
-                              {new Date(snap.generated_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Later changes do not rewrite it.
-                            </div>
-                          )}
-
-                          {previewFormat === "document" ? (
-                            <div className="ag-cfp-head">
-                              <div className="ag-portal-eyebrow">Shortlist · {role.title}</div>
-                              <div className="ag-cfp-company">{role.company || "Your client"}</div>
-                              {snap ? (
-                                <p className="ag-cfp-intro-frozen">{snap.intro || "No introduction was written."}</p>
-                              ) : (
-                                <textarea
-                                  className="ag-cfp-intro"
-                                  rows={3}
-                                  aria-label="Submission introduction"
-                                  defaultValue={introRef.current}
-                                  onChange={(e) => onIntroChange(e.target.value)}
-                                />
-                              )}
-                              <div className="ag-cfp-stats">
-                                <span><span className="ag-cfp-stat-k">Reviewed</span><span className="ag-cfp-stat-v">{candidates.length}</span></span>
-                                <span><span className="ag-cfp-stat-k">Shortlisted</span><span className="ag-cfp-stat-v">{rows.length}</span></span>
-                                <span><span className="ag-cfp-stat-k">Must-haves</span><span className="ag-cfp-stat-v">{musts.length}</span></span>
-                                <span><span className="ag-cfp-stat-k">Held</span><span className="ag-cfp-stat-v">{decisionCounts.hold}</span></span>
-                              </div>
-                            </div>
-                          ) : (
-                            /* Email and portal carry the greeting in their own
-                             * chrome, so the dark cover would be a second header
-                             * stacked on the one they already have. */
-                            <div className="ag-intro-strip">
-                              <span className="ag-field-label">Your introduction</span>
-                              {snap ? (
-                                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>{snap.intro || "No introduction was written."}</p>
-                              ) : (
-                                <textarea
-                                  className="ag-textarea"
-                                  style={{ minHeight: 68 }}
-                                  aria-label="Submission introduction"
-                                  defaultValue={introRef.current}
-                                  onChange={(e) => onIntroChange(e.target.value)}
-                                />
-                              )}
-                            </div>
-                          )}
-
-                          {previewFormat === "document" && rows.map((r, i) => (
-                            <article className="ag-cfp-cand" key={r.key}>
-                              <div className="ag-cfp-cand-head">
-                                <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
-                                  <div className="ag-avatar" style={{ width: 38, height: 38 }}>{initials(r.name)}</div>
-                                  <div style={{ minWidth: 0 }}>
-                                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                                      <span className="ag-meta">{String(i + 1).padStart(2, "0")}</span>
-                                      <span style={{ fontSize: 14.5, fontWeight: 600 }}>{r.name}</span>
-                                      {r.reviewed && <span className="ag-reviewed inline">Call done</span>}
-                                    </div>
-                                    <span className="ag-meta">{[r.title, r.years ? `${r.years} yrs` : ""].filter(Boolean).join(" · ")}</span>
-                                  </div>
-                                </div>
-                                {disclosure.scores && (
-                                  <div style={{ display: "flex", gap: 10, alignItems: "center", flex: "none" }}>
-                                    <span className="ag-conf-bars" title={`Confidence ${r.confidence} of 4`}>
-                                      {[1, 2, 3, 4].map((n) => (
-                                        <span key={n} className="ag-conf-bar" data-on={n <= r.confidence} style={{ height: 4 + n * 3 }} />
-                                      ))}
-                                    </span>
-                                    <span className={`ag-score ${tier(r.overall)}`} style={{ fontSize: 15 }}>{Math.round(r.overall)}</span>
-                                  </div>
-                                )}
-                              </div>
-                              <div className="ag-cfp-body">
-                                {r.narrative ? (
-                                  <p style={{ margin: 0, fontSize: 13, lineHeight: 1.65 }}>{r.narrative}</p>
-                                ) : (
-                                  <p className="ag-note ag-note-quiet">
-                                    No narrative yet. Your call notes from screening become this candidate&apos;s write up.
-                                  </p>
-                                )}
-                                {disclosure.evidence && r.musts.length > 0 && (
-                                  <div>
-                                    <div className="ag-field-label">Must-have evidence</div>
-                                    <div className="ag-stack" style={{ gap: 6 }}>
-                                      {r.musts.map((m, j) => (
-                                        <div key={j} className="ag-cfp-ev">
-                                          <span className={`ag-dot ${m.strength}`} style={{ marginTop: 4 }} />
-                                          <span style={{ fontWeight: 500, flex: "none", maxWidth: "40%" }}>{m.text}</span>
-                                          {m.quote && <span className="ag-cfp-quote">— &ldquo;{m.quote}&rdquo;</span>}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                {disclosure.evidence && r.gaps.length > 0 && (
-                                  <div>
-                                    <div className="ag-field-label" style={{ color: "var(--ag-warn)" }}>Known gaps, stated plainly</div>
-                                    <ul className="ag-cfp-probes">
-                                      {r.gaps.slice(0, 4).map((g, j) => <li key={j}>{g}</li>)}
-                                    </ul>
-                                  </div>
-                                )}
-                                {disclosure.probes && r.probes.length > 0 && (
-                                  <div>
-                                    <div className="ag-field-label">What to probe at interview</div>
-                                    <ul className="ag-cfp-probes">
-                                      {r.probes.slice(0, 3).map((p, j) => <li key={j}>{p}</li>)}
-                                    </ul>
-                                  </div>
-                                )}
-                                {disclosure.cv && (
-                                  <p className="ag-meta">Their CV travels with this submission — as text, with phone, email and links removed. Opening it is recorded.</p>
-                                )}
-                                {disclosure.logistics && (r.comp || r.location || r.availability) && (
-                                  <div className="ag-cfp-logistics">
-                                    {r.comp && <span><span className="ag-field-label" style={{ marginBottom: 2 }}>Comp</span>{r.comp}</span>}
-                                    {r.location && <span><span className="ag-field-label" style={{ marginBottom: 2 }}>Location</span>{r.location}</span>}
-                                    <span><span className="ag-field-label" style={{ marginBottom: 2 }}>Availability</span>{r.availability || "To confirm"}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </article>
-                          ))}
-
-                          {previewFormat === "document" && (
-                            <p className="ag-doc-legal">
-                              This shortlist was prepared with AI-assisted evidence matching, and every score traces back to source CV content or to a recruiter override recorded against a named person. No candidate was rejected automatically. Final hiring decisions remain with {role.company || "the client"}. This document is confidential.
-                            </p>
-                          )}
-
-                          {previewFormat === "email" && (
-                            <div className="ag-cfp-cand">
-                              <div className="ag-cfp-body">
-                                <div className="ag-mail-head">
-                                  <span className="ag-meta">To</span>
-                                  <span>{recipients.length > 0 ? recipients.map((c) => c.email).join(", ") : "the hiring contact"}</span>
-                                  <span className="ag-meta">Subject</span>
-                                  <b>Shortlist: {role.title} — {rows.length} candidate{rows.length === 1 ? "" : "s"}</b>
-                                </div>
-                                <div className="ag-mail-body">
-                                  <p style={{ marginTop: 0 }}>{snap?.intro || intro}</p>
-                                  {rows.map((r, i) => (
-                                    <div key={r.key} className="ag-mail-cand">
-                                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                                        {i + 1}. {r.name}{r.title ? <> — <span style={{ color: "var(--ag-ink-2)", fontWeight: 500 }}>{r.title}</span></> : null}
-                                        {disclosure.scores && <span className="ag-meta"> · fit {Math.round(r.overall)}</span>}
-                                      </div>
-                                      {r.narrative && <p style={{ margin: "4px 0 8px" }}>{r.narrative}</p>}
-                                      <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>
-                                        {disclosure.evidence && r.musts.filter((m) => m.strength === "strong").length > 0 && (
-                                          <><b>Strengths:</b> {r.musts.filter((m) => m.strength === "strong").slice(0, 2).map((m) => m.text).join("; ")}.<br /></>
-                                        )}
-                                        {disclosure.probes && r.probes[0] && <><b>To probe:</b> {r.probes[0]}</>}
-                                      </div>
-                                    </div>
-                                  ))}
-                                  <p>Happy to walk through the ranking, or arrange next steps directly.</p>
-                                  <p style={{ marginBottom: 0 }}>Best,<br />{agencyName}</p>
-                                </div>
-                                <button
-                                  className="ag-btn ag-btn-secondary"
-                                  style={{ marginTop: 14 }}
-                                  onClick={() => {
-                                    const text = [
-                                      `Shortlist: ${role.title} — ${rows.length} candidate${rows.length === 1 ? "" : "s"}`, "",
-                                      snap?.intro || intro, "",
-                                      ...rows.flatMap((r, i) => [
-                                        `${i + 1}. ${r.name}${r.title ? ` — ${r.title}` : ""}${disclosure.scores ? ` (fit ${Math.round(r.overall)})` : ""}`,
-                                        r.narrative,
-                                        disclosure.probes && r.probes[0] ? `To probe: ${r.probes[0]}` : "",
-                                        "",
-                                      ]),
-                                      "Happy to walk through the ranking, or arrange next steps directly.", "",
-                                      "Best,", agencyName,
-                                    ].filter(Boolean).join("\n")
-                                    navigator.clipboard?.writeText(text)
-                                  }}
-                                >
-                                  Copy email text
-                                </button>
-                              </div>
-                            </div>
-                          )}
-
-                          {previewFormat === "portal" && (
-                            <div className="ag-stack" style={{ gap: 12 }}>
-                              {submissionResult && submissionResult.links.length > 0 ? (
-                                submissionResult.links.map((l) => (
-                                  <div className="ag-link-row" key={l.url}>
-                                    <span className="ag-meta">LINK</span>
-                                    {/* Absolute, from the server. It used to be
-                                        relative and prefixed with
-                                        window.location.origin here, which after
-                                        the product split would have handed the
-                                        client a portal link on the recruiter's
-                                        own domain. */}
-                                    <code className="ag-link-url">{l.url}</code>
-                                    <button className="ag-btn ag-btn-secondary" onClick={() => navigator.clipboard?.writeText(l.url)}>Copy</button>
-                                  </div>
-                                ))
-                              ) : (
-                                <p className="ag-meta" style={{ margin: 0 }}>
-                                  {recipients.length === 0
-                                    ? "Choose recipients on the right. Portal links are personal, one per named person."
-                                    : `${recipients.length} link${recipients.length === 1 ? "" : "s"} will be minted when you send, one per recipient, each revocable on its own.`}
-                                </p>
-                              )}
-                              <div className="ag-portal-mock">
-                                <div className="ag-portal-top">
-                                  <div>
-                                    <div className="ag-portal-eyebrow">Shortlist · {role.company || "client"}</div>
-                                    <div className="ag-portal-role">{role.title}</div>
-                                  </div>
-                                  <div className="ag-portal-mark">T</div>
-                                </div>
-                                <div className="ag-portal-glance">
-                                  <div className="ag-field-label">At a glance</div>
-                                  <div className="ag-portal-glance-grid">
-                                    {rows.map((r, i) => (
-                                      <div className="ag-portal-glance-card" key={r.key}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                          <div className="ag-avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{initials(r.name)}</div>
-                                          <div>
-                                            <div style={{ fontWeight: 500, fontSize: 13 }}>{r.name.split(" ")[0]}</div>
-                                            <div className="ag-meta">#{i + 1}</div>
-                                          </div>
-                                        </div>
-                                        {disclosure.scores && <span className={`ag-score ${tier(r.overall)}`} style={{ fontSize: 15, textAlign: "center" }}>{Math.round(r.overall)}</span>}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                                {rows.map((r) => (
-                                  <div className="ag-portal-cand" key={r.key}>
-                                    <div className="ag-portal-cand-head">
-                                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                                        <div className="ag-avatar" style={{ width: 44, height: 44, fontSize: 15 }}>{initials(r.name)}</div>
-                                        <div>
-                                          <div style={{ fontWeight: 600, fontSize: 16 }}>{r.name}</div>
-                                          <div style={{ color: "var(--ag-ink-2)", fontSize: 13 }}>{[r.title, r.years ? `${r.years} years` : ""].filter(Boolean).join(" · ")}</div>
-                                        </div>
-                                      </div>
-                                      {disclosure.scores && <span className={`ag-score ${tier(r.overall)}`}>{Math.round(r.overall)}</span>}
-                                    </div>
-                                    {r.narrative && <p style={{ margin: "0 0 12px", fontSize: 13, lineHeight: 1.6 }}>{r.narrative}</p>}
-                                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                                      <span className="ag-btn ag-btn-coral" style={{ fontSize: 12 }}>Accept for interview</span>
-                                      <span className="ag-btn ag-btn-secondary" style={{ fontSize: 12 }}>Ask a question</span>
-                                      <span className="ag-btn" style={{ fontSize: 12 }}>See evidence map</span>
-                                    </div>
-                                  </div>
-                                ))}
-                                <div className="ag-portal-foot">
-                                  <span>Powered by Tailr · evidence first matching</span>
-                                  <span className="ag-meta">{recipients[0]?.full_name ? `V. ${recipients[0].full_name.toUpperCase()}` : "PER RECIPIENT"}</span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {notShortlisted.filter((c) => decisions[c.id] !== "hold").length > 0 && (
-                        <div className="ag-card">
+                      {!alreadySent && (
+                        <section className="ag-card" aria-labelledby="who-h">
                           <div className="ag-card-head">
-                            <span className="ag-card-title">Not shortlisted (internal record)</span>
-                            <span className="ag-meta">never sent to the client</span>
+                            <span className="ag-card-title" id="who-h">Who gets it</span>
+                            <span className="ag-meta">in their workspace</span>
                           </div>
                           <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
-                            {notShortlisted.filter((c) => decisions[c.id] !== "hold").map((c) => (
-                              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                <div className="ag-avatar" style={{ width: 28, height: 28, fontSize: 11 }}>{initials(c.full_name)}</div>
-                                <div className="ag-grow">
-                                  <div style={{ fontSize: 13, fontWeight: 500 }}>{c.full_name}</div>
-                                  <div className="ag-meta">{c.current_title || c.ref}</div>
+                            {contacts.length === 0 && (
+                              <p className="ag-note" style={{ margin: 0 }}>
+                                No client contacts yet. Add the hiring manager and the shortlist goes to them.
+                              </p>
+                            )}
+                            {contacts.map((contact) => {
+                              const checked = chosenContacts.includes(contact.id)
+                              return (
+                                <label key={contact.id} className="ag-who-row">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => setChosenContacts((prev) => (e.target.checked ? [...prev, contact.id] : prev.filter((id) => id !== contact.id)))}
+                                  />
+                                  <span className="ag-avatar" style={{ width: 34, height: 34, fontSize: 12 }} aria-hidden="true">
+                                    {initials(contact.full_name || contact.company || "?")}
+                                  </span>
+                                  <span className="ag-grow" style={{ minWidth: 0 }}>
+                                    <span className="ag-who-name">{contact.full_name || contact.email}</span>
+                                    <span className="ag-prose-note">
+                                      {contact.company}
+                                      {contact.id === role.contact_id ? " · this role's contact" : ""}
+                                    </span>
+                                  </span>
+                                  <span className="ag-who-state">
+                                    <span className="ag-who-chip" data-tone={contact.has_workspace ? "ok" : "new"}>
+                                      {contact.has_workspace ? "Has a workspace" : "No account yet"}
+                                    </span>
+                                    <span className="ag-prose-note">
+                                      {contact.has_workspace ? "Sees it the moment you send" : "Gets an invite with the shortlist"}
+                                    </span>
+                                  </span>
+                                </label>
+                              )
+                            })}
+                            {addingContact ? (
+                              <div className="ag-stack" style={{ gap: 8, borderTop: "1px solid var(--ag-border)", paddingTop: 12 }}>
+                                <div className="ag-who-form">
+                                  <input className="ag-input" placeholder="Name" aria-label="Name" value={newContact.full_name} onChange={(e) => setNewContact({ ...newContact, full_name: e.target.value })} />
+                                  <input className="ag-input" placeholder="Email" aria-label="Email" type="email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} />
+                                  <input className="ag-input" placeholder="Company" aria-label="Company" value={newContact.company} onChange={(e) => setNewContact({ ...newContact, company: e.target.value })} />
                                 </div>
-                                {scores[c.id] && <span className={`ag-score ${tier(scores[c.id].overall)}`} style={{ fontSize: 14 }}>{Math.round(scores[c.id].overall)}</span>}
-                                <span className="ag-pill">{({ shortlist: "shortlisted", hold: "on hold", reject: "passed" } as Record<string, string>)[decisions[c.id] ?? ""] ?? "undecided"}</span>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  <button className="ag-btn ag-btn-secondary" onClick={() => void createContact().then(() => setAddingContact(false))}>Add and include</button>
+                                  <button className="ag-btn" onClick={() => setAddingContact(false)}>Cancel</button>
+                                </div>
                               </div>
-                            ))}
-                            <p className="ag-meta" style={{ margin: 0 }}>
-                              These candidates, and the reason each was not submitted, stay in the audit log. Nothing about them reaches the client.
-                            </p>
+                            ) : (
+                              <button
+                                className="ag-linkbtn"
+                                style={{ alignSelf: "flex-start" }}
+                                onClick={() => {
+                                  setNewContact((n) => ({ ...n, company: n.company || role.company || "" }))
+                                  setAddingContact(true)
+                                }}
+                              >
+                                + Add someone from {role.company || "the client"}
+                              </button>
+                            )}
                           </div>
-                        </div>
+                        </section>
                       )}
+
+                      <section className="ag-card" aria-labelledby="note-h">
+                        <div className="ag-card-head">
+                          <span className="ag-card-title" id="note-h">Your note to them</span>
+                          <span className="ag-meta">{snap ? "as sent" : "optional"}</span>
+                        </div>
+                        <div className="ag-card-body">
+                          {snap ? (
+                            <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6 }}>{snap.intro || "No introduction was written."}</p>
+                          ) : (
+                            <textarea
+                              className="ag-textarea"
+                              style={{ minHeight: 76 }}
+                              aria-label="Submission introduction"
+                              defaultValue={introRef.current}
+                              onChange={(e) => onIntroChange(e.target.value)}
+                            />
+                          )}
+                        </div>
+                      </section>
+
+                      <SubmissionPreview
+                        rows={rows}
+                        disclosure={snap?.disclosure ?? disclosure}
+                        intro={introShown}
+                        roleTitle={role.title}
+                        agencyName={agencyName}
+                      />
                     </div>
 
                     <div className="ag-sub-side">
+                      {!alreadySent && (
+                        <div className="ag-card">
+                          <div className="ag-card-head"><span className="ag-card-title">Ready to send</span></div>
+                          <div className="ag-card-body">
+                            <ul className="ag-ready">
+                              <li data-ok="true">
+                                <span>{shortlisted} shortlisted{heldList.length > 0 ? `, ${heldList.length} held back` : ""}</span>
+                                <small>Held and passed stay with you. Nothing about them is sent.</small>
+                              </li>
+                              <li data-ok={recipients.length > 0}>
+                                <span>{recipients.length > 0 ? `Going to ${recipients.length === 1 ? "1 person" : `${recipients.length} people`}` : "Nobody chosen yet"}</span>
+                                {recipients.length === 0 && <small>Tick who gets it on the left.</small>}
+                              </li>
+                              {recipients.length > 0 && (
+                                <li data-ok={noWorkspace.length === 0}>
+                                  <span>
+                                    {noWorkspace.length === 0
+                                      ? recipients.length === 1 ? "They have a workspace" : "They all have a workspace"
+                                      : `${noWorkspace.length} will be invited first`}
+                                  </span>
+                                  <small>
+                                    {noWorkspace.length === 0
+                                      ? "Sent to their account. Nobody has to find an email."
+                                      : "The invite and the shortlist arrive in one email."}
+                                  </small>
+                                </li>
+                              )}
+                              {twins.map((c) => (
+                                <li key={c.id} data-ok="false">
+                                  <span>{c.ref} looks like {candidates.find((o) => o.id === c.duplicate_of)?.ref ?? "another candidate"}</span>
+                                  <small>Both are shortlisted. They would reach the client as two people.</small>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="ag-card">
-                        <div className="ag-card-head"><span className="ag-card-title">What the client sees</span></div>
+                        <div className="ag-card-head"><span className="ag-card-title">What they see</span></div>
                         <div className="ag-card-body ag-stack" style={{ gap: 0 }}>
                           {([
                             ["scores", "Fit scores"],
                             ["evidence", "Must-have evidence"],
-                            ["probes", "Probe areas"],
+                            ["probes", "What to probe at interview"],
                             ["notes", "Your call notes"],
                             ["logistics", "Comp and logistics"],
                             // The CV itself (22 Sep 2026): on by default, the
                             // recruiter's to withhold. The E2E found it
                             // freezing ON with no switch and no mention.
-                            ["cv", "The CV (contact details removed)"],
-                          ] as const).map(([key, label]) => (
-                            <button
-                              key={key}
-                              role="switch"
-                              aria-checked={disclosure[key]}
-                              className="ag-toggle-row"
-                              disabled={Boolean(snap)}
-                              onClick={() => setDisclosure((d) => ({ ...d, [key]: !d[key] }))}
-                            >
-                              <span style={{ fontSize: 12.5 }}>{label}</span>
-                              <span className="ag-switch" data-on={disclosure[key]}><span className="ag-switch-knob" /></span>
-                            </button>
-                          ))}
+                            ["cv", "The CV, contact details removed"],
+                          ] as const).map(([key, label]) => {
+                            const value = (snap?.disclosure ?? disclosure)[key]
+                            return (
+                              <button
+                                key={key}
+                                role="switch"
+                                aria-checked={value}
+                                className="ag-toggle-row"
+                                disabled={Boolean(snap) || alreadySent}
+                                onClick={() => setDisclosure((d) => ({ ...d, [key]: !d[key] }))}
+                              >
+                                <span style={{ fontSize: 12.5 }}>{label}</span>
+                                <span className="ag-switch" data-on={value}><span className="ag-switch-knob" /></span>
+                              </button>
+                            )
+                          })}
                           <p className="ag-meta" style={{ margin: "10px 0 0" }}>
-                            {snap
+                            {alreadySent
                               ? "Locked. These choices were written into the submission when you sent it."
                               : "Written into the submission when you send, so what the client received can never change afterwards."}
                           </p>
                         </div>
                       </div>
 
-                      {heldList.length > 0 && (
+                      {!alreadySent && (
                         <div className="ag-card">
-                          <div className="ag-card-head"><span className="ag-card-title">Held back</span></div>
+                          <div className="ag-card-head">
+                            <span className="ag-card-title">Also deliver as</span>
+                            <span className="ag-meta">optional</span>
+                          </div>
+                          <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
+                            {([
+                              ["email", "Email them a summary", "Names, one line each, and a button back to the workspace. Never the whole shortlist in an inbox."],
+                              ["pdf", "PDF for their files", "The printable document, with the confidentiality footer and known gaps stated plainly. Opens to save when you send."],
+                              ["link", "A link for someone without an account", "Personal, expires in 30 days, revocable on its own. Shown once after you send."],
+                            ] as const).map(([key, title, sub]) => (
+                              <label key={key} className="ag-extra-row">
+                                <input
+                                  type="checkbox"
+                                  checked={extras[key]}
+                                  onChange={(e) => setExtras((x) => ({ ...x, [key]: e.target.checked }))}
+                                />
+                                <span>
+                                  <span className="ag-extra-title">{title}</span>
+                                  <span className="ag-prose-note">{sub}</span>
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {(heldList.length > 0 || passed.length > 0) && (
+                        <details className="ag-card ag-stays">
+                          <summary className="ag-card-head">
+                            <span className="ag-card-title">Stays with you</span>
+                            <span className="ag-meta">
+                              {[heldList.length > 0 ? `${heldList.length} held` : "", passed.length > 0 ? `${passed.length} not shortlisted` : ""].filter(Boolean).join(" · ")}
+                            </span>
+                          </summary>
                           <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
-                            {heldList.map((c) => (
+                            {[...heldList, ...passed].map((c) => (
                               <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
                                 <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                                   <span className="ag-avatar" style={{ width: 22, height: 22, fontSize: 9 }}>{initials(c.full_name)}</span>
                                   <span style={{ fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.full_name}</span>
                                 </span>
-                                {scores[c.id] && <span className="ag-audit-val">{Math.round(scores[c.id].overall)}</span>}
+                                <span className="ag-pill">{decisions[c.id] === "hold" ? "on hold" : decisions[c.id] === "reject" ? "passed" : "undecided"}</span>
                               </div>
                             ))}
                             <p className="ag-note">
-                              Held candidates stay in the role, visible to you only.
+                              Never sent to the client. The reason each was not submitted stays in the audit log.
                             </p>
                           </div>
-                        </div>
+                        </details>
                       )}
-
-                      <div className="ag-card">
-                        <div className="ag-card-head">
-                          <span className="ag-card-title">Who is receiving this</span>
-                          <span className="ag-meta">portal only</span>
-                        </div>
-                        <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
-                          {contacts.length === 0 && (
-                            <span style={{ fontSize: 12.5, color: "var(--ag-ink-3)" }}>No client contacts yet. Add the hiring manager below.</span>
-                          )}
-                          {contacts.map((contact) => (
-                            <label key={contact.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                              <input
-                                type="checkbox"
-                                checked={chosenContacts.includes(contact.id)}
-                                onChange={(e) => setChosenContacts((prev) => (e.target.checked ? [...prev, contact.id] : prev.filter((id) => id !== contact.id)))}
-                              />
-                              <span className="ag-grow" style={{ fontSize: 12.5, minWidth: 0 }}>
-                                {contact.full_name || contact.email}
-                                <span className="ag-meta" style={{ display: "block" }}>{contact.company}</span>
-                              </span>
-                            </label>
-                          ))}
-                          <div className="ag-stack" style={{ gap: 8, borderTop: "1px solid var(--ag-border)", paddingTop: 10 }}>
-                            <input className="ag-input" placeholder="Company" value={newContact.company} onChange={(e) => setNewContact({ ...newContact, company: e.target.value })} />
-                            <input className="ag-input" placeholder="Name" value={newContact.full_name} onChange={(e) => setNewContact({ ...newContact, full_name: e.target.value })} />
-                            <input className="ag-input" placeholder="Email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} />
-                            <button className="ag-btn ag-btn-secondary" onClick={createContact}>Add contact</button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Links already out in the world. Separate from the
-                          recipient picker above, which is about the NEXT send:
-                          this is the only place a shortlist that reached the
-                          wrong inbox can be pulled back. */}
-                      <SentLinks roleId={roleId} />
-
-                      <div className="ag-card">
-                        <div className="ag-card-head"><span className="ag-card-title">Audit trail</span></div>
-                        <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
-                          <div><div className="ag-field-label">Role</div><div className="ag-audit-val">{role.ref}</div></div>
-                          <div><div className="ag-field-label">Recruiter</div><div className="ag-audit-val">You</div></div>
-                          <div><div className="ag-field-label">Requirements</div><div className="ag-audit-val">{requirements.length}</div></div>
-                          <div><div className="ag-field-label">Overrides</div><div className="ag-audit-val">{candidates.reduce((n, c) => n + Object.keys(overrides[c.id] ?? {}).length, 0)}</div></div>
-                          <p className="ag-note">
-                            Every score, override and decision on this role is logged against your name.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="ag-card">
-                        <div className="ag-card-head">
-                          <span className="ag-card-title">Close this role</span>
-                          <span className="ag-pill">{role.status}</span>
-                        </div>
-                        <div className="ag-card-body">
-                          <p style={{ fontSize: 12.5, color: "var(--ag-ink-2)", margin: 0 }}>
-                            Closing starts the retention clock on every candidate attached to it. Their CV data is erased once the window passes, and the closure is audit logged. Reopening clears the clock.
-                          </p>
-                          <div style={{ marginTop: 12 }}>
-                            {closureNote && (
-                              <p className="ag-note" role="status">{closureNote}</p>
-                            )}
-                            {role.status === "closed" ? (
-                              <button className="ag-btn ag-btn-secondary" onClick={() => setRoleStatus("open")}>Reopen role</button>
-                            ) : (
-                              <button className="ag-btn ag-btn-primary" onClick={() => setRoleStatus("closed")}>Close role and start retention</button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 )}
