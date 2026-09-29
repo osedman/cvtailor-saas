@@ -9,7 +9,7 @@
  * placement, and closing the role stays theirs.
  */
 
-import { use } from "react"
+import { use, useState } from "react"
 import { HandOff, HmFrame, RoomHeader, useRoom } from "@/components/agency/hm-room"
 import { DecisionsComplete } from "@/components/agency/hm-shared"
 import { displayName, useSubmittedCases } from "@/components/agency/hm-case"
@@ -20,6 +20,7 @@ export default function DecisionStage({ params }: { params: Promise<{ roleId: st
   const { roleId } = use(params)
   const room = useRoom(roleId)
   const { cases } = useSubmittedCases(roleId)
+  const [choiceSent, setChoiceSent] = useState(false)
   const nameOf = (ref: string) => displayName(cases.state === "ready" ? cases.byRef.get(ref) : undefined, ref)
   const planned = plannedFor(room.rounds)
   const outcomes = [...outcomeByRef(room.rounds).entries()].sort((a, b) => a[0].localeCompare(b[0]))
@@ -46,7 +47,7 @@ export default function DecisionStage({ params }: { params: Promise<{ roleId: st
           than a receipt that said "You took 2 forward" and stopped. */}
       {forward.length > 0 && (
         <section className="agd-band">
-          <FinalChoice roleId={roleId} finalists={forward} rounds={room.rounds} cases={cases} />
+          <FinalChoice roleId={roleId} finalists={forward} rounds={room.rounds} cases={cases} onSent={setChoiceSent} />
         </section>
       )}
 
@@ -77,7 +78,9 @@ export default function DecisionStage({ params }: { params: Promise<{ roleId: st
         )}
       </section>
 
-      {outcomes.length > 0 && pending === 0 && (
+      {/* One question at a time (board 32, band D): while a final choice is
+          still owed, "That's all my decisions" waits until it is sent. */}
+      {outcomes.length > 0 && pending === 0 && (forward.length === 0 || choiceSent) && (
         <section className="agd-band">
           <DecisionsComplete roleId={roleId} />
         </section>

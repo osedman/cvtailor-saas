@@ -26,6 +26,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { hiringNavFor, showsHiringRail } from "./hm-shared"
 import { SignOut } from "./sign-out"
+import { ThemeToggle } from "./theme-toggle"
 
 export function HiringSidebar() {
   const pathname = usePathname() ?? ""
@@ -65,6 +66,13 @@ export function HiringSidebar() {
 
       <div className="hm-rail-foot">
         <SignOut door="consumer" />
+      </div>
+
+      {/* Board 32, band D: on phones the theme switch rides the rail's top
+          strip instead of floating over the last button. The shell's fixed
+          copy is hidden at that width (hiring.css), so there is only one. */}
+      <div className="hm-rail-theme">
+        <ThemeToggle />
       </div>
     </aside>
   )

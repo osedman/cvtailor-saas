@@ -22,6 +22,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { CandidateDetail } from "@/components/agency/hm-candidate"
+import { HINTS, Hint } from "@/components/agency/hint"
 import type { ShortlistDisclosure, ShortlistEntry } from "@/lib/agency/client-shortlist"
 
 export type SubmittedCases =
@@ -83,11 +84,14 @@ export function CaseSummary({
   refId,
   cases,
   quotes = 3,
+  hideWho = false,
 }: {
   roleId: string
   refId: string
   cases: SubmittedCases
   quotes?: number
+  /** The card head already names them (board 32): show the numbers only. */
+  hideWho?: boolean
 }) {
   const [open, setOpen] = useState(false)
 
@@ -122,15 +126,21 @@ export function CaseSummary({
   return (
     <div className="hm-case">
       <div className="hm-case-who">
-        <div className="ag-grow" style={{ minWidth: 0 }}>
-          <p className="hm-case-name">{name}</p>
-          {entry.currentTitle && <p className="hm-case-title">{entry.currentTitle}</p>}
-        </div>
-        {entry.overall !== null && <span className="hm-case-pill hm-case-fit">Fit {Math.round(entry.overall)}</span>}
+        {!hideWho && (
+          <div className="ag-grow" style={{ minWidth: 0 }}>
+            <p className="hm-case-name">{name}</p>
+            {entry.currentTitle && <p className="hm-case-title">{entry.currentTitle}</p>}
+          </div>
+        )}
+        {entry.overall !== null && (
+          <Hint text={HINTS.fit} tone="fit">
+            Fit {Math.round(entry.overall)}
+          </Hint>
+        )}
         {entry.mustHaveHit !== null && entry.mustHaveTotal !== null && (
-          <span className="hm-case-pill">
+          <Hint text={HINTS.mustHaves}>
             {entry.mustHaveHit} of {entry.mustHaveTotal} must-haves
-          </span>
+          </Hint>
         )}
       </div>
 

@@ -2600,6 +2600,63 @@ a.ag-rh-next:hover { opacity: 0.86; }
 
 @media (prefers-reduced-motion: reduce) { .ag-brief-chip { transition: none; } }
 
+/* ── Hints — board 32, band A (29 Sep 2026) ───────────────────────────────
+ * A pill that carries a number or a state explains itself: one sentence,
+ * on hover, focus or tap. The dot is the affordance. See components/agency/hint.tsx. */
+.ag-hint { position: relative; display: inline-flex; }
+.ag-hint-pill { display: inline-flex; align-items: center; gap: 6px; cursor: help; font: inherit; font-family: var(--ag-mono); line-height: 1.3; min-height: 24px; }
+.ag-hint-pill:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; }
+/* The pill keeps its 24px look; the hit area behind it is 32px, 44px on touch
+ * (same trick the theme toggle uses). */
+.ag-hint-pill { position: relative; }
+.ag-hint-pill::before { content: ""; position: absolute; inset: -4px 0; }
+@media (pointer: coarse) { .ag-hint-pill::before { inset: -10px -4px; } }
+.ag-hint-pill.tone-fit { background: var(--ag-tint-1); border-color: var(--ag-tint-2); color: var(--ag-coral-text); }
+.ag-hint-pill.tone-warn { background: var(--ag-tint-1); border-color: var(--ag-coral); color: var(--ag-coral-deep); }
+.ag-hint-pill.tone-coral { color: var(--ag-coral-text); border-color: var(--ag-tint-2); }
+.ag-hint-pill.tone-muted { color: var(--ag-ink-3); }
+.ag-hint-dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.5; flex: none; }
+.ag-hint-bubble {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 45;
+  width: max-content; max-width: 280px;
+  padding: 9px 12px; border-radius: var(--r-sm);
+  background: var(--ag-ink); color: var(--ag-cream);
+  font-family: var(--ag-sans); font-size: var(--t-small); font-weight: 400; line-height: 1.45;
+  text-transform: none; letter-spacing: 0;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  /* Stays in the DOM while hidden so aria-describedby always resolves. But a
+   * hidden absolutely-positioned bubble still widens the page at 375 and puts
+   * a horizontal scrollbar under every card — so, when closed, it is 0 wide
+   * and clipped; its real width returns only while open. */
+  opacity: 0; visibility: hidden; transform: translateY(-2px);
+  width: 0; overflow: hidden; white-space: nowrap;
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0s linear 0.12s;
+  pointer-events: none;
+}
+.ag-hint.is-flip .ag-hint-bubble { left: auto; right: 0; }
+.ag-hint.is-open .ag-hint-bubble { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; width: max-content; overflow: visible; white-space: normal; }
+@media (max-width: 480px) { .ag-hint-bubble { max-width: min(280px, calc(100vw - 32px)); } }
+@media (prefers-reduced-motion: reduce) { .ag-hint-bubble { transition: none; } }
+[data-ag-theme="dark"] .ag-app.ag-themed .ag-hint-bubble { background: var(--ag-paper); color: var(--ag-ink); border: 1px solid var(--ag-border); }
+
+/* ── Buttons hug their label; a disabled one says why — board 32, band B ─
+ * .agd-tbtn (secondary) and .primary already exist above; these add the
+ * accent (one decisive send per page) and the "why disabled" line. */
+.agd-tbtn { min-height: 36px; padding: 7px 14px; border-radius: 999px; }
+.agd-tbtn.accent { background: var(--ag-coral); border-color: var(--ag-coral); color: #fff; }
+.agd-tbtn.accent:hover:not(:disabled) { background: var(--ag-coral-deep); border-color: var(--ag-coral-deep); }
+.agd-tbtn:disabled { opacity: 0.4; }
+.agd-tbtn:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; }
+.agd-tbtn-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.agd-tbtn-why { margin: 0; font-size: var(--t-small); color: var(--ag-ink-3); }
+@media (pointer: coarse) { .agd-tbtn { min-height: 44px; padding: 10px 16px; } }
+
+/* The theme switch leaves the floating corner on phones — it covered card
+ * text and the last button (board 32, band D) — and sits at the foot of
+ * the sidebar menu instead. */
+/* (The hiring rail carries its own copy of the switch on phones — see
+ * .hm-rail-theme in hiring.css.) */
+
 /* ============================================================
    STEP 05 · THE SHORTLIST RAIL AND THE ONE VERB — Figma board 26,
    node 528:2, signed off 24 Sep 2026.

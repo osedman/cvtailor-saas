@@ -88,21 +88,22 @@ export default function RoundStage({ params }: { params: Promise<{ roleId: strin
                 Write up what you saw, then decide.{" "}
                 {n >= planned ? "This is the last planned round — advancing puts them in your final choice." : `Advancing invites them to round ${n + 1}.`}
               </p>
+              {/* Information, not a gate: the write-up is still offered. Said
+                  once for the section, not above every card (board 32). */}
+              {owed.some((r) => r.status === "scheduled") && (
+                <p className="ag-note">
+                  Your recruiter has not confirmed {owed.filter((r) => r.status === "scheduled").length === 1 ? "this interview" : "these interviews"} took place yet — you can still write {owed.filter((r) => r.status === "scheduled").length === 1 ? "it" : "them"} up.
+                </p>
+              )}
               <div className="ag-stack" style={{ gap: 12 }}>
                 {owed.map((r) => (
-                  <div key={r.id} className="ag-stack" style={{ gap: 6 }}>
-                    {/* Information, not a gate: the write-up is still offered. */}
-                    {r.status === "scheduled" && (
-                      <p className="ag-note">
-                        Your recruiter has not confirmed this interview took place yet — you can still write it up.
-                      </p>
-                    )}
-                    <RoundActions
-                      round={r}
-                      onDone={() => void room.reload()}
-                      caseSlot={<CaseSummary roleId={roleId} refId={r.candidate_ref} cases={cases} />}
-                    />
-                  </div>
+                  <RoundActions
+                    key={r.id}
+                    round={r}
+                    onDone={() => void room.reload()}
+                    who={{ name: nameOf(r.candidate_ref), title: cases.state === "ready" ? cases.byRef.get(r.candidate_ref)?.currentTitle : null }}
+                    caseSlot={<CaseSummary roleId={roleId} refId={r.candidate_ref} cases={cases} hideWho />}
+                  />
                 ))}
               </div>
             </section>

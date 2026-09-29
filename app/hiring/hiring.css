@@ -271,8 +271,14 @@
  * (§5.5, "no artifact, no progression"). The decision buttons only appear once
  * something has been written — the sequence IS the rule. */
 .hm-round { padding: 18px 20px; }
-.hm-round-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
-.hm-round-when { margin: 4px 0 0; font-size: var(--t-small); color: var(--ag-ink-3); }
+/* Board 32, band C: the person first. Name leads, round/time/ref one quiet
+ * line, status pill top right; the pills wrap under the name at 375. */
+.hm-round-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.hm-round-name { margin: 0; font-size: var(--t-lead); font-weight: 600; color: var(--ag-ink); }
+.hm-round-title { margin: 2px 0 0; font-size: var(--t-small); color: var(--ag-ink-3); }
+.hm-round-when { margin: 2px 0 0; font-size: var(--t-small); color: var(--ag-ink-3); }
+.hm-round-state { flex: none; margin-left: auto; }
+@media (max-width: 640px) { .hm-round-state { margin-left: 0; width: 100%; } }
 .hm-round .hm-field { margin: 12px 0 10px; }
 .hm-round .ag-textarea { min-height: 90px; }
 /* Equal weight: advancing and declining are both just what the client thinks. */
@@ -380,6 +386,7 @@
 .hm-rail-item.on { background: var(--ag-tint-1); color: var(--ag-coral-text); font-weight: 500; }
 
 .hm-rail-foot { margin-top: auto; border-top: 1px solid var(--ag-border); padding: 14px 8px 0; }
+.hm-rail-theme { display: none; }
 
 /* Below the tablet break the rail stops being a column and rides along the
  * top, scrolling sideways in ITSELF rather than making the page do it. A
@@ -392,7 +399,11 @@
     border-right: none; border-bottom: 1px solid var(--ag-border);
   }
   .hm-rail .ag-brand, .hm-rail-foot { display: none; }
-  .hm-rail-nav { flex-direction: row; gap: 4px; overflow-x: auto; }
+  .hm-rail-nav { flex-direction: row; gap: 4px; overflow-x: auto; flex: 1 1 auto; min-width: 0; }
+  /* The rail's own theme switch shows; the shell's floating one goes. */
+  .hm-rail-theme { display: block; flex: none; margin-left: auto; }
+  .hm-rail-theme .ag-theme-toggle { position: static; box-shadow: none; padding: 2px; }
+  .ag-app:has(.hm-rail) > .ag-theme-toggle { display: none; }
   .hm-rail-item { white-space: nowrap; padding: 8px 12px; }
 }
 
@@ -779,6 +790,9 @@
 .hm-back:hover { color: var(--ag-ink); }
 .hm-room-title { margin: 2px 0 0; }
 .hm-stagebar ol { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 10px 0 0; padding: 0; }
+/* Room under the stage bar (board 32, band D): headings no longer sit on it. */
+.hm-stagebar { margin-bottom: 24px; }
+.hm-stage-hint.ag-pill { font-family: var(--ag-sans); text-transform: none; letter-spacing: 0; font-size: var(--t-small); padding: 6px 12px; }
 .hm-stagebar li { display: flex; align-items: center; gap: 6px; }
 .hm-stagebar li + li::before { content: "→"; color: var(--ag-ink-3); font-size: var(--t-small); }
 .hm-stage {
@@ -1103,3 +1117,15 @@ a.hm-stage:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2
 .hm-final-reason blockquote { margin: 6px 0 0; font-size: var(--t-body); line-height: 1.55; color: var(--ag-ink); white-space: pre-wrap; }
 .hm-room-onward { display: inline-block; margin-top: 10px; text-decoration: none; }
 @media (prefers-reduced-motion: reduce) { .hm-finalist { transition: none; } }
+
+/* "Sign out" never breaks across two lines (board 32, band D). */
+.agd-topbar .hm-signout, .agd-topbar button, .agd-topbar a { white-space: nowrap; }
+
+/* Tap targets: the way back and sign out reach 32px tall on every width
+ * (board 32; WCAG 2.5.5 wants 44 on touch, which the coarse-pointer rule in
+ * agencies.css gives the buttons). */
+.hm-back, .agd-topbar .ag-signout-trigger { display: inline-flex; align-items: center; min-height: 32px; }
+/* Names in the quiet lists fill their row height, so a tap lands. */
+.hm-quiet-list a { display: inline-flex; align-items: center; min-height: 32px; }
+.hm-linkbtn { display: inline-flex; align-items: center; min-height: 32px; }
+.agd-topbar .ag-signout-trigger, .hm-rail-foot .ag-signout-trigger { min-height: 32px; display: inline-flex; align-items: center; }

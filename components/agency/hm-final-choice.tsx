@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react"
 import { displayName, withheldSentence, type SubmittedCases } from "@/components/agency/hm-case"
 import { CandidateDetail } from "@/components/agency/hm-candidate"
 import { DECISION_LABEL } from "@/components/agency/hm-shared"
+import { HINTS, Hint } from "@/components/agency/hint"
 import type { HiringRound } from "@/lib/agency/types"
 
 interface Choice {
@@ -45,11 +46,14 @@ export function FinalChoice({
   finalists,
   rounds,
   cases,
+  onSent,
 }: {
   roleId: string
   finalists: string[]
   rounds: HiringRound[]
   cases: SubmittedCases
+  /** Told whether a live choice exists, so the page can show what comes after it. */
+  onSent?: (sent: boolean) => void
 }) {
   const [live, setLive] = useState<ChoiceState>({ state: "loading" })
   const [editing, setEditing] = useState(false)
@@ -72,6 +76,9 @@ export function FinalChoice({
   useEffect(() => {
     void load()
   }, [load])
+  useEffect(() => {
+    onSent?.(live.state === "ready" && live.choice !== null)
+  }, [live, onSent])
 
   const entry = (ref: string) => (cases.state === "ready" ? cases.byRef.get(ref) : undefined)
   const nameOf = (ref: string) => displayName(entry(ref), ref)
@@ -192,11 +199,15 @@ export function FinalChoice({
               </div>
               {e && (e.overall !== null || e.mustHaveTotal !== null) && (
                 <div className="hm-final-row">
-                  {e.overall !== null && <span className="hm-case-pill hm-case-fit">Fit {Math.round(e.overall)}</span>}
+                  {e.overall !== null && (
+                    <Hint text={HINTS.fit} tone="fit">
+                      Fit {Math.round(e.overall)}
+                    </Hint>
+                  )}
                   {e.mustHaveHit !== null && e.mustHaveTotal !== null && (
-                    <span className="hm-case-pill">
+                    <Hint text={HINTS.mustHaves}>
                       {e.mustHaveHit} of {e.mustHaveTotal} must-haves
-                    </span>
+                    </Hint>
                   )}
                 </div>
               )}
@@ -238,7 +249,7 @@ export function FinalChoice({
               )}
               <div className="hm-final-row">
                 <button
-                  className={on ? "hm-final-pick" : "agd-tbtn"}
+                  className={on ? "hm-final-pick" : "agd-tbtn primary"}
                   role="radio"
                   aria-checked={on}
                   onClick={() => setPicked(ref)}
@@ -275,7 +286,7 @@ export function FinalChoice({
           </label>
           <div className="hm-final-row">
             <button
-              className="hm-final-send"
+              className="agd-tbtn accent"
               disabled={busy || !reason.trim()}
               onClick={() => void send(picked === "neither" ? "neither" : "chosen")}
             >

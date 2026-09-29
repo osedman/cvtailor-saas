@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { HINTS, Hint } from "@/components/agency/hint"
 import Link from "next/link"
 import { SignOut } from "@/components/agency/sign-out"
 import { EmptyBand } from "@/components/agency/hm-shared"
@@ -198,7 +199,13 @@ export function StageBar({ roleId, stages, current, here, roundNames = [] }: { r
           return (
             <li key={stageId(s)} data-state={state} data-here={isHere || undefined}>
               {state === "next" ? (
-                <span className="hm-stage">{label}</span>
+                s.key === "handover" ? (
+                  <Hint text={HINTS.handoverLocked} tone="muted" className="hm-stage hm-stage-hint">
+                    {label}
+                  </Hint>
+                ) : (
+                  <span className="hm-stage">{label}</span>
+                )
               ) : (
                 <Link className="hm-stage" href={stageHref(roleId, s)} aria-current={isHere ? "page" : undefined}>
                   {label}

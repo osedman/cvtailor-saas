@@ -20,6 +20,7 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { HiringLink, HiringRound, HiringSlot, RoundDecision } from "@/lib/agency/types"
+import { HINTS, Hint } from "@/components/agency/hint"
 
 // ── Formatters (locale-honest: client components so the reader's own zone wins) ──
 
@@ -213,6 +214,7 @@ export function RoundActions({
   round,
   onDone,
   caseSlot,
+  who,
 }: {
   round: HiringRound
   onDone: () => void
@@ -221,6 +223,8 @@ export function RoundActions({
    * fetched here so one shortlist read serves every card on the page.
    */
   caseSlot?: ReactNode
+  /** Name and title for the head (board 32, band C: the person first). Ref when unknown. */
+  who?: { name: string; title?: string | null }
 }) {
   const [notes, setNotes] = useState("")
   const [justWritten, setJustWritten] = useState(false)
@@ -307,27 +311,39 @@ export function RoundActions({
     <article className="agd-card hm-static hm-round">
       <div className="hm-round-head">
         <div className="ag-grow" style={{ minWidth: 0 }}>
-          <p className="agd-eyebrow">
-            {round.role_title} · round {round.round_number} · {round.candidate_ref}
-          </p>
+          <h3 className="hm-round-name">{who?.name ?? round.candidate_ref}</h3>
+          {who?.title && <p className="hm-round-title">{who.title}</p>}
           <p className="hm-round-when">
-            {round.scheduled_at ? fmtWhen(round.scheduled_at) : "No time set"} ·{" "}
-            {round.duration_minutes} min
+            Round {round.round_number} · {round.scheduled_at ? fmtWhen(round.scheduled_at) : "No time set"} ·{" "}
+            {round.duration_minutes} min · {round.candidate_ref}
           </p>
         </div>
-        {decided ? (
-          <span className="ag-pill">{DECISION_LABEL[decided]}</span>
-        ) : (
-          <span className="ag-pill warn">
-            {canWrite
-              ? written
-                ? "Needs your decision"
-                : "Needs your write-up"
-              : inProgress
-                ? "Happening now"
-                : "Scheduled"}
-          </span>
-        )}
+        <span className="hm-round-state">
+          {decided ? (
+            <Hint
+              text={
+                decided === "advance"
+                  ? round.round_number >= round.planned_rounds
+                    ? HINTS.takenForward
+                    : HINTS.advance
+                  : decided === "hold"
+                    ? HINTS.hold
+                    : HINTS.decline
+              }
+              tone={decided === "advance" ? "coral" : "muted"}
+            >
+              {DECISION_LABEL[decided]}
+            </Hint>
+          ) : canWrite ? (
+            <Hint text={written ? HINTS.needsDecision : HINTS.needsWriteUp} tone="warn">
+              {written ? "Needs your decision" : "Needs your write-up"}
+            </Hint>
+          ) : (
+            <Hint text={inProgress ? HINTS.happeningNow : HINTS.scheduled} tone="muted">
+              {inProgress ? "Happening now" : "Scheduled"}
+            </Hint>
+          )}
+        </span>
       </div>
 
       {caseSlot}
@@ -347,13 +363,17 @@ export function RoundActions({
             />
           </label>
           {!written ? (
-            <button
-              className="agd-tbtn primary"
-              onClick={saveDebrief}
-              disabled={!notes.trim() || busy === "debrief"}
-            >
-              {busy === "debrief" ? "Saving…" : "Save the write-up"}
-            </button>
+            <div className="agd-tbtn-row">
+              <button
+                className="agd-tbtn primary"
+                onClick={saveDebrief}
+                disabled={!notes.trim() || busy === "debrief"}
+              >
+                {busy === "debrief" ? "Saving…" : "Save the write-up"}
+              </button>
+              {/* A disabled button says why (board 32, band B). */}
+              {!notes.trim() && <p className="agd-tbtn-why">Write what happened first — even a line.</p>}
+            </div>
           ) : (
             <>
               <p className="agd-aside">Write-up saved. Now your decision.</p>

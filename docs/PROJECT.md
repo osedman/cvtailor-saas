@@ -7722,3 +7722,46 @@ The reason is not yet printed in the handover pack.
 
 2,000 tests green, tsc and build clean. **Migration must run on STAGING
 before this is pushed**; not on prod (the agencies prod port is Ose's call).
+
+## ✨ Polish for the hiring manager — tooltips, one button hierarchy, the person first (board 32, 29 September 2026)
+
+Ose, 29 Sep: "improve the design a little bit more, things like tooltips,
+buttons — let's use a skill". Audited the real round, Decision and Shortlist
+screens at 1440 and 375 with the frontend-design and accessibility-review
+skills (loaded from their upstream repos; the plugins were enabled on the
+account but had not attached to the running session). Board 32 drawn in
+Noto Sans, approved, built.
+
+**Performance first, measured, left alone.** Playwright against the local
+production build with board-31-shaped mock data: zero layout shift, no
+horizontal overflow, DOM ready 90–350ms on every page. Nothing to fix there;
+what the audit found was hierarchy and explanation.
+
+**Hints (band A).** `components/agency/hint.tsx`: a pill that carries a number
+or a state is a button with an `aria-describedby` sentence, opening on hover,
+focus and tap, closing on Esc or a tap elsewhere, flipping at the right edge.
+`HINTS` holds the sentences in one place — Fit, must-haves, needs write-up /
+decision, scheduled, happening now, hold, advance, taken forward, decline,
+handover locked. Fit's says it is "not a prediction about the person".
+
+**Buttons (band B).** `.agd-tbtn` is a pill hugging its label; `.primary` ink,
+`.accent` coral for the one decisive send per page, default outline. A
+disabled save keeps its shape at 40% with "Write what happened first — even a
+line" beside it (`.agd-tbtn-why`), replacing the full-width grey slab.
+
+**The round card (band C).** Name leads; title; then "Round 2 · time · 45 min
+· CAN-07" as one quiet line; status pill (with its hint) top right and full
+width at 375. "Your recruiter has not confirmed…" once per section.
+
+**Smaller (band D).** 24px under the stage bar; the phone theme switch rides
+the rail's top strip (`.hm-rail-theme`) instead of floating over the last
+button — the first attempt kept the 44px hit pseudo inside a 32px box and
+widened every phone page by 3px, caught by the measurer; "That's all my
+decisions" waits until the final choice is sent; Sign out and link-buttons
+carry a 32px hit area; the closed hint bubble is zero-width (a hidden
+absolute bubble had widened 375 by 47px).
+
+**Measured after:** overflow false on all six pages, small tap targets
+10/6/3/8/4/2 → 0 at 375 and ≤1 at 1440 (the sidebar Sign out, fixed after the
+run), CLS 0 throughout. 2,013 tests green (13 new in `hm-polish.test.ts`),
+tsc and build clean. Still not clicked by a person.
