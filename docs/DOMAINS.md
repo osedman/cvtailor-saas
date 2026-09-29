@@ -209,8 +209,8 @@ DNS and Framer/Webflow accounts cannot be created from this repo — those steps
 > | `staging.tailrecruit.com` | Vercel project domain, bound to git branch `staging` | ✅ 29 Sep |
 > | `NEXT_PUBLIC_BUSINESS_URL=https://staging.tailrecruit.com` | Preview, **branch `staging` only** (overrides the all-preview value) | ✅ 29 Sep |
 > | `DOMAIN_SPLIT_ENABLED=true` | Preview, **branch `staging` only** | ✅ 29 Sep |
-> | Supabase **staging** → Auth → Redirect URLs: `https://staging.tailrecruit.com/auth/confirm` and `/auth/callback` | Supabase dashboard (Ose) | ⬜ |
-> | Resend: verify `tailrecruit.com`, then move the B2B senders | Resend + DNS in Vercel (Ose) + `lib/email.ts`, `notices.ts` | ⬜ |
+> | Supabase **staging** → Auth → Redirect URLs: `https://staging.tailrecruit.com/**` | Supabase dashboard (Ose) | ✅ 29 Sep — verified: generate_link accepted against `staging.tailrecruit.com/auth/confirm` 16:58 UTC, `/verify` login 200 at 16:59 |
+> | Resend: verify `tailrecruit.com`, then move the B2B senders | Resend + DNS in Vercel (Ose) + `lib/email.ts`, `notices.ts` | ⬜ — also the fix for lean-frame's Workspace filtering @gettailr.com sign-in mail (seen 29 Sep: gmail received, lean-frame did not) |
 > | Domain **auto-renew** | Vercel → Domains → tailrecruit.com (was OFF at purchase) | ⬜ |
 > | `tailrecruit.com` apex → production | After the agencies prod port, Ose's call | ⬜ |
 >
