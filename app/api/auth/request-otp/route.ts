@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/server"
 import { sendEmail } from "@/lib/email"
 import { b2bFrom } from "@/lib/email-senders"
+import { EMAIL_SANS } from "@/lib/email-style"
 import { checkRateLimit, anonRateLimitId, limitedResponse } from "@/lib/rate-limit"
 // One definition of the open-redirect guard for the whole auth flow. It used
 // to live here as a private copy; two copies of a security check is how one of
@@ -112,7 +113,7 @@ export async function POST(request: Request) {
       from: door === "business" ? b2bFrom() : undefined,
       to: email,
       subject: "Sign in to Tailr",
-      html: `<div style="font-family:Georgia,serif;color:#1e1813;max-width:480px;margin:0 auto;padding:24px;">
+      html: `<div style="font-family:${EMAIL_SANS};color:#1e1813;max-width:480px;margin:0 auto;padding:24px;">
   <h2 style="font-size:20px;margin:0 0 12px;">Sign in to Tailr</h2>
   <p style="font-size:15px;line-height:1.5;margin:0 0 20px;color:#5c534c;">Click the button below to continue. On your phone, open the link and tap Continue.</p>
   <p style="margin:0 0 8px;"><a href="${confirmUrl}" style="display:inline-block;background:#dc4f33;color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:12px 22px;border-radius:10px;">Sign in to Tailr</a></p>

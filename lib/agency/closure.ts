@@ -24,6 +24,7 @@
  */
 
 import { sendEmail } from "@/lib/email"
+import { EMAIL_SANS } from "@/lib/email-style"
 import { agencyNoticeFrom } from "@/lib/email-senders"
 import { getAppOrigin } from "@/lib/site-url"
 import { writeAudit, type AgencyClient } from "./db"
@@ -259,7 +260,7 @@ export function closureHtml(opts: {
 }): string {
   const firstName = opts.candidateName.split(" ")[0] || "there"
   return `
-<div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fffdfa;color:#1e1813;padding:32px 28px;">
+<div style="max-width:560px;margin:0 auto;font-family:${EMAIL_SANS};background:#fffdfa;color:#1e1813;padding:32px 28px;">
   <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#dc4f33;font-weight:700;">An update</p>
   <h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;">The ${escapeHtml(opts.roleTitle)} role has closed, ${escapeHtml(firstName)}.</h1>
   <p style="margin:0 0 16px;line-height:1.6;">${escapeHtml(opts.agencyName)} is no longer recruiting for it, so you will not hear more about this one. You deserved to know rather than to be left wondering.</p>

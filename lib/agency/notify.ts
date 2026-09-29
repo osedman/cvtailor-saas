@@ -29,6 +29,7 @@
  */
 
 import { sendEmail } from "@/lib/email"
+import { EMAIL_SANS } from "@/lib/email-style"
 import { b2bFrom } from "@/lib/email-senders"
 import { createAdminClient } from "@/lib/supabase/server"
 import { getBusinessOrigin } from "@/lib/site-url"
@@ -449,7 +450,7 @@ function copyFor(input: NotifyInput): Copy {
  * inline styles, brand tokens, dash-free prose. */
 function shell(o: { eyebrow: string; heading: string; body: string; ctaLabel: string; ctaUrl: string }): string {
   return `
-<div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fffdfa;color:#1e1813;padding:32px 28px;">
+<div style="max-width:560px;margin:0 auto;font-family:${EMAIL_SANS};background:#fffdfa;color:#1e1813;padding:32px 28px;">
   <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#dc4f33;font-weight:700;">${esc(o.eyebrow)}</p>
   <h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;">${esc(o.heading)}</h1>
   <p style="margin:0 0 20px;line-height:1.6;">${o.body}</p>
