@@ -7871,10 +7871,25 @@ Meridian Health. It is a draft with 2 rounds and carries the full JD. R01–R10
 are entered from the JD: 6 must, 4 nice, origin `recruiter` (honest: not
 parsed). There are 11 SEEDED FIXTURE audit rows with a NULL actor.
 
-Next, on Ose's Mac:
-`scripts/seed-candidates.ts --role ROL-2421 --dir scripts/seed-content/po-role`
-(`--dry` first). Then publish for matching so both of Ose's accounts are
-scanned.
+**Seeded: 20 candidates, CAN-01 to CAN-20.** The cloud session has no
+Anthropic key, so the assessments (profile, calibration and one quote per
+requirement) were written in-session by four sub-agents. They were then run
+through the app's real post-model steps: `sanitizeDeep`, the clamp, the
+verbatim-quote downgrade rule, `computeScore`, `inputsHash` and
+`identityHash`. The resulting rows went in through SQL, one transaction per
+five candidates. Each candidate has its evidence, score breakdown, identity,
+Art 14 notice (+7d), ingestion job and audit row, plus a `candidates_seeded`
+SEEDED FIXTURE row on the role.
+
+Verified:
+- All 20 `md5(cv_text)` match the files.
+- No quote falls outside its CV.
+- CAN-19 is `duplicate_of` CAN-01.
+- CAN-20 is redacted with no email.
+- Scores: six strong at 88–97, seven middling at 69–82, five weak at 36–50.
+
+Next: Ose publishes the role for matching in the app. The scan runs there with
+the real model against both of Ose's opted-in accounts.
 
 **Kept as a standing test fixture until Ose says otherwise.** This covers the
 role, its candidates and Ose's two matching accounts. Retention can't erase

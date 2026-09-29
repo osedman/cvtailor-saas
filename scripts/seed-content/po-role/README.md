@@ -12,7 +12,10 @@ exercise the duplicate banner, and po-20 carries no contact details at all
 **On staging the role already exists: `ROL-2421`** (Halcyon Search, contact
 Meridian Health, draft, 2 rounds). It was created in SQL on 29 Sep 2026 with
 R01–R10 entered from the JD (origin `recruiter`, not parsed) and a SEEDED
-FIXTURE audit row. Use `ROL-2421` for `ROL-XXXX` below. Anywhere else, create
+FIXTURE audit row. **Seeded 29 Sep 2026: CAN-01 to CAN-20 are already in** (assessed in-session
+without an API key, scored with the real `computeScore` and `inputsHash`, so the
+hashes verify). Don't run the script again against ROL-2421. Use `ROL-XXXX`
+below only for a fresh role. Anywhere else, create
 the role by pasting `00-job-description.txt` at Step 01 · Role intake.
 
 **Standing test fixture — keep until Ose says otherwise.** ROL-2421, its
