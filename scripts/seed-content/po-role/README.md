@@ -9,10 +9,18 @@ po-01 (older, shorter CV from three years earlier, same name and email) to
 exercise the duplicate banner, and po-20 carries no contact details at all
 (name and location only) to exercise the no-contact-details notice path.
 
-Create the role first by pasting `00-job-description.txt` at Step 01 · Role
-intake, and check at Step 02 that the parser pulled out all ten requirements.
-The role gets a ref (`ROL-XXXX` below) when it is created; use that ref in the
-commands.
+**On staging the role already exists: `ROL-2421`** (Halcyon Search, contact
+Meridian Health, draft, 2 rounds). It was created in SQL on 29 Sep 2026 with
+R01–R10 entered from the JD (origin `recruiter`, not parsed) and a SEEDED
+FIXTURE audit row. Use `ROL-2421` for `ROL-XXXX` below. Anywhere else, create
+the role by pasting `00-job-description.txt` at Step 01 · Role intake.
+
+**Standing test fixture — keep until Ose says otherwise.** ROL-2421, its
+candidates, and Ose's two consumer accounts (gmail and lean-frame, both opted
+in to matching) are the test set. Do not close or discard ROL-2421: closing
+starts the retention clock (`retention_expires_at`), and the nightly
+`purge_expired()` then erases the candidates. Do not delete, withdraw or
+re-seed them.
 
 Seed the candidates through the real ingest path with
 `scripts/seed-candidates.ts`, dry-run first:

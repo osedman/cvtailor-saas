@@ -7860,3 +7860,24 @@ and `/api/agency/roles/[id]/round-request`.
 
 2,043 tests green (14 new), tsc and build clean. **Migration must run on
 STAGING before this is pushed.**
+
+## 🧪 A standing test role — ROL-2421, Product Owner at Meridian Health (29 September 2026)
+
+Created on staging in SQL on Ose's request, because the app's parse step needs
+the Anthropic key, which the cloud session doesn't have. The role is
+"Product Owner — Digital Patient Services", Halcyon Search, client contact
+Meridian Health. It is a draft with 2 rounds and carries the full JD. R01–R10
+are entered from the JD: 6 must, 4 nice, origin `recruiter` (honest: not
+parsed). There are 11 SEEDED FIXTURE audit rows with a NULL actor.
+
+Next, on Ose's Mac:
+`scripts/seed-candidates.ts --role ROL-2421 --dir scripts/seed-content/po-role`
+(`--dry` first). Then publish for matching so both of Ose's accounts are
+scanned.
+
+**Kept as a standing test fixture until Ose says otherwise.** This covers the
+role, its candidates and Ose's two matching accounts. Retention can't erase
+them while the role is open: the purge clock starts only at close. So the rule
+is to never close or discard ROL-2421. It is written into CLAUDE.md and the
+seed README so every agent sees it.
+
