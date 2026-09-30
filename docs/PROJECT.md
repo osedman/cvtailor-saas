@@ -8091,3 +8091,50 @@ post-login, landing and invite accept.
 - 15 older tests re-anchored from `export async function X` to
   `async function X` / `X_handler`.
 - 2085 tests green; the build is clean.
+
+### Database security + speed pass (30 Sep 2026)
+
+From the Supabase advisors on tailr-staging. Two migrations, **applied to
+staging and verified by effect**; production still to run.
+
+- `supabase/migrations/20260930120000_harden_public.sql`
+- `supabase/migrations/20260930120100_harden_agency.sql` (run after the
+  agency schema is on prod)
+
+**Holes closed:**
+- **Users could edit their own `plan`, `tailors_used` and `email`** through
+  the REST API. This was flagged on 15 Aug and never fixed. The only
+  user-scoped profile write in the app is `cv_template`. The grant is now
+  `full_name, country, cv_template, updated_at`.
+- **`increment_tailors_used(user_id)` took any id**, so anyone could run up
+  anyone's counter. It now counts only the caller, and anon can't call it.
+- **`consume_rate_limit` was callable by anon**, so anyone could burn another
+  user's limit and lock them out of tailoring and sign-in codes. It is now
+  service-role only, which is how the app calls it.
+- Trigger functions and the agency policy helpers are no longer RPC
+  endpoints for anon.
+- `search_path` is pinned on 4 functions.
+
+**Speed:**
+- 38 consumer row policies now evaluate `auth.uid()` once per query instead
+  of once per row.
+- 85 foreign keys are now indexed.
+
+**Verified on staging**, as a real user and as anon, inside a transaction
+that was rolled back:
+- plan, usage and email writes are denied.
+- A cv_template write succeeds.
+- Counting your own usage adds 1; counting another user's adds 0.
+- anon is denied on the rate limiter, the counter and `has_role`.
+- The service role can still use the rate limiter.
+- A recruiter still sees their roles (5) and candidates (57).
+- Advisors: 0 per-row policies left, 0 unindexed foreign keys left.
+
+**Left as-is, deliberately:**
+- 3 `SECURITY DEFINER` functions stay callable by signed-in users, because
+  the policies need them and the counter is self-only.
+- 12 "RLS on, no policy" tables are server-only by design.
+- 17 "unused index" findings: staging traffic is too low to judge.
+- Leaked-password check: the app has no password sign-in.
+
+Guard: `lib/__tests__/db-hardening.test.ts`. 2092 tests pass.
