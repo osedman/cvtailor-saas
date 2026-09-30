@@ -12,7 +12,7 @@ import { readFileSync } from "fs"
 import { join } from "path"
 
 const cookieGet = vi.fn()
-const authGetUser = vi.fn()
+const authGetClaims = vi.fn()
 const membersRows = { data: [] as unknown[], error: null as unknown }
 const agencyRows = { data: [] as unknown[], error: null as unknown }
 
@@ -22,7 +22,7 @@ vi.mock("next/headers", () => ({
 
 vi.mock("@supabase/ssr", () => ({
   createServerClient: () => ({
-    auth: { getUser: authGetUser },
+    auth: { getClaims: authGetClaims },
     from(table: string) {
       const result = table === "members" ? membersRows : agencyRows
       const chain: Record<string, unknown> = {}
@@ -45,10 +45,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://x.supabase.co"
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon"
-  authGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+  authGetClaims.mockResolvedValue({ data: { claims: { sub: "user-1" } } })
   membersRows.data = [
-    { agency_id: ALPHA, role: "owner", created_at: "2025-01-01T00:00:00Z" },
-    { agency_id: BETA, role: "recruiter", created_at: "2026-01-01T00:00:00Z" },
+    // Names arrive embedded in the one members query (30 Sep 2026).
+    { agency_id: ALPHA, role: "owner", created_at: "2025-01-01T00:00:00Z", agencies: { name: "Alpha Search" } },
+    { agency_id: BETA, role: "recruiter", created_at: "2026-01-01T00:00:00Z", agencies: { name: "Beta Talent" } },
   ]
   membersRows.error = null
   agencyRows.data = [
@@ -115,7 +116,7 @@ describe("requireAgencyContext", () => {
   })
 
   it("fails closed when there is no session", async () => {
-    authGetUser.mockResolvedValue({ data: { user: null } })
+    authGetClaims.mockResolvedValue({ data: null })
     const res = await requireAgencyContext()
     expect(res.ok).toBe(false)
     if (res.ok) return

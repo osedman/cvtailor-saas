@@ -7994,3 +7994,36 @@ than always drawing dark, because the client's workspace follows theirs.
   1–3 but the UI says "of 4".
 - **4, B2B_MAIL_DOMAIN:** not set. The Vercel connector now lists no projects
   in the team, so Ose has to set it.
+
+## ⚡ Speed, round one: stop paying for Auth on every request (30 September 2026)
+
+Ose: "screens loading or submitting on buttons is too slow."
+
+**What the database said.** Staging is in eu-west-1 and Vercel in dub1, so
+they share a region. pg_stat_statements shows no slow app queries; the slow
+ones are Supabase's own dashboard queries. The advisors flag 38
+`auth_rls_initplan` policies (all consumer tables) and 85 unindexed foreign
+keys. Both are minor at this data size and were not the cause.
+
+**What the code said.** Every request paid for network calls before doing any
+work:
+- `getUser()` in `proxy.ts` on every page and API request.
+- `getUser()` again in `requireAgencyContext` / `requireHiringContext`.
+- Then two lookups in series: memberships, then agency names.
+- The dashboard added a third `getUser()` just to show an email.
+
+**Fix.**
+- `getClaims()` everywhere on that path. It verifies the token locally with
+  the project's cached public keys, and falls back to `getUser` by itself if
+  the project signs with a shared secret, so it is never slower. It does not
+  see a session revoked in the last hour; the token's own expiry bounds that.
+- Memberships and contacts now arrive with their agency names in one query.
+- The dashboard starts `getHatsHeld` alongside its main queries.
+- The role page asks for the role and its candidates together.
+- Guard tests: `lib/__tests__/request-speed.test.ts`.
+
+**Not yet done.**
+- 51 consumer API routes still call `getUser()` themselves.
+- Per-button timing: nothing measured on staging, because the container cannot
+  reach it. Next, add Server-Timing headers so the slow buttons show
+  themselves in DevTools.

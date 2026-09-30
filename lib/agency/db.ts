@@ -93,37 +93,45 @@ export async function requireAgencyContext(): Promise<
   | { ok: false; failure: ContextFailure }
 > {
   const db = await agencyDb()
-  const {
-    data: { user },
-  } = await db.auth.getUser()
-  if (!user) return { ok: false, failure: "unauthenticated" }
+  // SPEED (30 Sep 2026): getClaims, not getUser. getUser is a network round
+  // trip to Supabase Auth on EVERY API call — and the proxy had already made
+  // one for the same request. getClaims verifies the token's signature
+  // locally against the project's cached public keys, and falls back to
+  // getUser by itself when the project signs with a shared secret, so it is
+  // never slower and never less checked. What it does not see is a session
+  // revoked in the last hour: the token's own expiry bounds that.
+  const { data: claimsData } = await db.auth.getClaims()
+  const userId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : null
+  if (!userId) return { ok: false, failure: "unauthenticated" }
 
-  const { data: rows, error } = await db
-    .from("members")
-    .select("agency_id, role, created_at")
-    .eq("user_id", user.id)
-    .eq("status", "active")
-    .order("created_at", { ascending: true })
+  // Memberships and their agency names in ONE query (they were two, in
+  // series). Names come from agency.agencies, which members may read.
+  const [{ data: rows, error }, cookieStore] = await Promise.all([
+    db
+      .from("members")
+      .select("agency_id, role, created_at, agencies(name)")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .order("created_at", { ascending: true }),
+    cookies(),
+  ])
 
   if (error || !rows || rows.length === 0) {
     return { ok: false, failure: "no_agency" }
   }
 
-  // Names come from agency.agencies, which members may read under RLS.
-  const ids = rows.map((r) => r.agency_id as string)
-  const { data: named } = await db.from("agencies").select("id, name").in("id", ids)
-  const nameById = new Map<string, string>(
-    (named ?? []).map((a) => [a.id as string, (a.name as string) ?? ""])
-  )
+  const nameOf = (r: { agencies?: unknown }) => {
+    const a = r.agencies as { name?: string } | Array<{ name?: string }> | null | undefined
+    return (Array.isArray(a) ? a[0]?.name : a?.name) ?? ""
+  }
 
   const memberships = rows.map((r) => ({
     agencyId: r.agency_id as string,
-    agencyName: nameById.get(r.agency_id as string) ?? "",
+    agencyName: nameOf(r),
     role: r.role as MemberRole,
   }))
 
   // Preference, then the long-standing default of the oldest membership.
-  const cookieStore = await cookies()
   const preferred = cookieStore.get(AGENCY_COOKIE)?.value
   const active = memberships.find((m) => m.agencyId === preferred) ?? memberships[0]
 
@@ -133,7 +141,7 @@ export async function requireAgencyContext(): Promise<
     ctx: {
       agencyId: active.agencyId,
       agencyName: active.agencyName,
-      userId: user.id,
+      userId,
       role: active.role,
       memberships,
     },

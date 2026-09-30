@@ -113,7 +113,10 @@ export async function proxy(request: NextRequest) {
 
   // Refresh session — rotates the refresh token and writes new cookies so the
   // user stays signed in across visits without another magic link.
-  await supabase.auth.getUser()
+  // getClaims (30 Sep 2026): it refreshes an expired session exactly as
+  // getUser did (both go through getSession), but verifies the token locally
+  // instead of a network call to Supabase Auth on every page and API request.
+  await supabase.auth.getClaims()
 
   return supabaseResponse
 }

@@ -58,6 +58,9 @@ export async function GET() {
         { status: auth.failure === "unauthenticated" ? 401 : 403 }
       )
     }
+    // Independent of everything below; started now rather than awaited in
+    // series at the end (30 Sep 2026).
+    const hatsHeld = getHatsHeld(auth.ctx.userId).catch(() => null)
     const { db, ctx } = auth
     const now = Date.now()
 
@@ -173,9 +176,10 @@ export async function GET() {
 
     // Caller identity for the signed-in card. Email only, and only the
     // caller's own — members has no name column.
-    const {
-      data: { user: caller },
-    } = await db.auth.getUser()
+    // From the verified token's claims, not a second round trip to Supabase
+    // Auth (30 Sep 2026) — the context helper already verified this session.
+    const { data: claimsData } = await db.auth.getClaims()
+    const caller = { email: typeof claimsData?.claims?.email === "string" ? claimsData.claims.email : null }
 
     const roles = rolesRes.data ?? []
     const candidates = candidatesRes.data ?? []
@@ -563,7 +567,7 @@ export async function GET() {
       // "which doors exist for this account" — no agency data. Without it a
       // multi-hat person has no route to /hiring, which is how this dashboard
       // came to be mistaken for the hiring-manager one.
-      also_hiring_manager: (await getHatsHeld(ctx.userId)).hiringManager,
+      also_hiring_manager: (await hatsHeld)?.hiringManager ?? false,
       needs_you: {
         client_actions: (actionsRes.data ?? []).slice(0, 8).map((a) => ({
           id: a.id,

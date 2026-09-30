@@ -191,22 +191,27 @@ export async function requireHiringContext(): Promise<
     }
   )
 
-  const {
-    data: { user },
-  } = await sessionClient.auth.getUser()
-  if (!user) return { ok: false, failure: "unauthenticated" }
+  // getClaims, not getUser — see requireAgencyContext in db.ts (30 Sep 2026).
+  const { data: claimsData } = await sessionClient.auth.getClaims()
+  const claims = claimsData?.claims
+  const userId = typeof claims?.sub === "string" ? claims.sub : null
+  if (!userId) return { ok: false, failure: "unauthenticated" }
 
   const admin = agencyAdmin()
+  // Contacts and their agency names in one query, not two in series.
   const { data: contacts, error } = await admin
     .from("client_contacts")
-    .select("id, agency_id, company, full_name")
-    .eq("user_id", user.id)
+    .select("id, agency_id, company, full_name, agencies(name)")
+    .eq("user_id", userId)
   if (error) throw error
   if (!contacts || contacts.length === 0) return { ok: false, failure: "not_linked" }
 
-  const names = await agencyNames(admin, [
-    ...new Set(contacts.map((c) => c.agency_id as string)),
-  ])
+  const names = new Map<string, string>(
+    contacts.map((c) => {
+      const a = (c as { agencies?: unknown }).agencies as { name?: string } | Array<{ name?: string }> | null
+      return [c.agency_id as string, (Array.isArray(a) ? a[0]?.name : a?.name) ?? ""]
+    })
+  )
 
   const links: HiringLink[] = contacts
     .map((c) => ({
@@ -222,10 +227,10 @@ export async function requireHiringContext(): Promise<
   return {
     ok: true,
     ctx: {
-      userId: user.id,
+      userId,
       // The email on the session, not the contact row: the two matched at
       // accept time and the session is the live truth about this person.
-      email: normaliseEmail(user.email),
+      email: normaliseEmail(typeof claims?.email === "string" ? claims.email : null),
       links,
     },
   }

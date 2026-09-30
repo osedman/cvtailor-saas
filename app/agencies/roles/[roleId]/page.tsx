@@ -481,6 +481,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
 
   useEffect(() => {
     ;(async () => {
+      // The role and its candidates load together (30 Sep 2026): the list
+      // does not depend on the role payload, and waiting for one before
+      // asking for the other added a whole round trip to every open.
+      const candidatesLoad = loadCandidates()
       const res = await fetch(`/api/agency/roles/${roleId}`)
       if (res.status === 401) return router.push("/agencies")
       if (!res.ok) return setError("Role not found in your agency")
@@ -516,7 +520,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
           setMinScoreDraft(m.matching.minScore ?? 70)
         })
         .catch(() => {})
-      const count = (await loadCandidates()) ?? 0
+      const count = (await candidatesLoad) ?? 0
       // The dashboard deep links into a specific step (?step=screening).
       // Read it off the URL rather than useSearchParams so this page needs
       // no Suspense boundary. An unknown value falls back to the auto pick.
