@@ -60,6 +60,13 @@ const PRESETS: Record<string, Rule[]> = {
     { key: 'share:min', limit: 10, windowSeconds: 60 },
     { key: 'share:day', limit: 60, windowSeconds: DAY },
   ],
+  // An owner inviting teammates. Each new address creates a Tailr account and
+  // sends an email, so a loop would create accounts for strangers
+  // (30 Sep 2026 access audit).
+  team_invite: [
+    { key: 'team_invite:min', limit: 10, windowSeconds: 60 },
+    { key: 'team_invite:day', limit: 50, windowSeconds: DAY },
+  ],
   // File uploads to private buckets (the job description on a brief). Each
   // call can store 10 MB and uploading never changes a version, so nothing
   // else would notice a loop; this does.

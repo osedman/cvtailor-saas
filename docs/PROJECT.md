@@ -8206,3 +8206,53 @@ only, pushed to staging, no migration. **Not on production.**
 Guard: `lib/__tests__/access-audit.test.ts` (32 tests). One older test
 pinned the vulnerable slot tie and was updated. 2124 tests pass; the build
 is clean.
+
+### API access audit, round two (30 Sep 2026)
+
+Ose: "yes revoking should cut access, fix the rest too". Staging only.
+**Not on production.** One migration, applied to staging and verified by
+effect: `20260930130000_client_contact_link_guard.sql`.
+
+- **Revoking a shortlist now removes the role on every path**
+  (`lib/agency/revocation.ts`).
+  - A contact whose every recipient row for a role is revoked loses:
+    - the header, today, cohort, interview settings and live shortlist;
+    - round decisions and debriefs;
+    - the brief, final choice, round requests and decision completion;
+    - that role's entries on their dashboard.
+  - Their other roles are untouched.
+  - Sending the shortlist again restores access.
+- **Rights links now have the same rate limits as the consent and reference
+  links.**
+  - They stay stored in plain text on purpose. The same link is re-sent in
+    the Art 14 notice and the closure notice, so a hash would mean rotating
+    it and breaking links people already hold.
+  - Expiry is the data itself: the link dies when the candidate row is
+    purged, which is the correct lifetime for GDPR rights.
+- **`parse-cv` and `scrape-job` are now rate limited.**
+  - They still work before sign-in, because the tailor page takes a CV and a
+    job link before it asks you to sign in.
+  - The limit is per user when signed in, per network otherwise
+    (`lib/public-tool-limit.ts`).
+- **Accepting a hiring invite now requires a confirmed email address.**
+- **`client_contacts.user_id` can no longer be set through the API** by any
+  signed-in role. A trigger blocks it; the invite flow (service role) is
+  unaffected.
+  - Verified on staging: a recruiter linking a contact is refused, a
+    recruiter editing other fields still works, and the service path still
+    works.
+- **Team invites are rate limited** (10 a minute, 50 a day). Re-inviting an
+  existing member is logged as "changed", with the before value.
+- **Interview settings only accept a real UUID as the role id** in their
+  filter.
+- **Bug: recruiters can now save interview defaults.** The owner-only save
+  now runs only when owner fields are sent.
+- **Bug: the consumer pool now reads recommendations by the published
+  role's id.** Before, every recommendation and state came back null.
+- **Left as-is:** the viewer "recommendation" call is a legitimate read and
+  is already rate limited per user.
+
+Tests: new `revocation.test.ts` (behaviour) and 15 more checks in
+`access-audit.test.ts`. Three fixtures were updated because they used a
+non-UUID role id, an unconfirmed session user, or had no revocation table.
+2143 tests pass; the build is clean.

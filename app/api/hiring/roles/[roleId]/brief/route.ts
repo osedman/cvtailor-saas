@@ -14,6 +14,7 @@ import { roleBriefStatus } from "@/lib/agency/search-briefs"
 import { normaliseBrief } from "@/lib/agency/brief-options"
 import { errorMessage } from "@/lib/error-message"
 import { withTiming } from "@/lib/server-timing"
+import { revokedPairs, isCut } from "@/lib/agency/revocation"
 
 export const maxDuration = 30
 
@@ -31,6 +32,10 @@ async function GET_handler(_req: NextRequest, { params }: { params: Promise<{ ro
     if (!role) return NextResponse.json({ error: "No such role" }, { status: 404 })
     const mine = auth.ctx.links.some((l) => l.agencyId === role.agency_id && l.contactId === role.contact_id)
     if (!mine) return NextResponse.json({ error: "Not your role" }, { status: 404 })
+    // A revoked shortlist ends the role for this contact (lib/agency/revocation.ts).
+    if (isCut(await revokedPairs([role.contact_id as string]), roleId, role.contact_id as string)) {
+      return NextResponse.json({ error: "Not your role" }, { status: 404 })
+    }
     const status = await roleBriefStatus(role.agency_id as string, roleId)
     // Round names for the stage bar, from the copied plan — not from the
     // live brief, which may have moved on.

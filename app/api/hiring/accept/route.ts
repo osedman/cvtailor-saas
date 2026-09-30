@@ -47,6 +47,16 @@ async function POST_handler(req: NextRequest) {
         { status: 401 }
       )
     }
+    // The session is only mailbox proof if the address was confirmed. Were
+    // sign-up ever allowed without confirmation, someone holding a forwarded
+    // link could register the invitee's address and take the seat
+    // (30 Sep 2026 access audit).
+    if (!user.email_confirmed_at) {
+      return NextResponse.json(
+        { error: "Confirm your email address first: open the sign-in link we sent you, then accept this invitation." },
+        { status: 403 }
+      )
+    }
 
     // Per signed-in user at the strict tier: a hijacked or throwaway account
     // must not be able to grind links. Then the doorway limit — a loose flood

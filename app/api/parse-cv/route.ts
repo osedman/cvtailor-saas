@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { errorMessage } from '@/lib/error-message'
 import { withTiming } from "@/lib/server-timing"
+import { checkPublicToolLimit } from "@/lib/public-tool-limit"
 
 export const maxDuration = 30
 
@@ -24,6 +25,8 @@ async function extractDocxText(buffer: Buffer): Promise<string> {
 
 async function POST_handler(req: NextRequest) {
   try {
+    const limited = await checkPublicToolLimit(req, "parse-cv")
+    if (limited) return limited
     const formData = await req.formData()
     const file = formData.get('file') as File | null
 

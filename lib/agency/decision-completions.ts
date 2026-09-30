@@ -30,6 +30,7 @@
  */
 
 import { agencyAdmin, writeAudit, AgencyAccessError } from "./db"
+import { assertNotRevoked } from "./revocation"
 import type { HiringContext } from "./types"
 
 export type CompletionAction = "completed" | "withdrawn"
@@ -101,6 +102,7 @@ export async function recordDecisionCompletion(
     (l) => l.agencyId === role.agency_id && l.contactId === (role.contact_id as string | null)
   )
   if (!link) throw new AgencyAccessError("role not found")
+  await assertNotRevoked(roleId, link.contactId)
 
   const { data: saved, error: insertError } = await admin
     .from("role_decision_completions")
@@ -155,6 +157,7 @@ export async function completionForHiringRole(
     (l) => l.agencyId === role.agency_id && l.contactId === (role.contact_id as string | null)
   )
   if (!link) throw new AgencyAccessError("role not found")
+  await assertNotRevoked(roleId, link.contactId)
 
   const map = await latestCompletions(admin, role.agency_id as string, [roleId])
   return { completeAt: map.get(roleId) ?? null }

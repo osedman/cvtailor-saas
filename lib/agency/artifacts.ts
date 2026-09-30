@@ -17,6 +17,7 @@
  */
 
 import { agencyAdmin, writeAudit, AgencyAccessError } from "./db"
+import { assertNotRevoked } from "./revocation"
 import { notify } from "./notify"
 import type { AgencyContext, HiringContext } from "./types"
 
@@ -82,6 +83,7 @@ export async function recordDebrief(
     if (!link || link.agencyId !== round.agency_id) {
       throw new AgencyAccessError("round not found")
     }
+    await assertNotRevoked(round.role_id as string, round.contact_id as string)
   } else if ((ctx as AgencyContext).agencyId !== round.agency_id) {
     throw new AgencyAccessError("round not found in your agency")
   }

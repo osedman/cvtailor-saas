@@ -117,3 +117,81 @@ describe("tracker bodies cannot set server-owned columns", () => {
     expect(withoutOwnership([1])).toEqual({})
   })
 })
+
+/* ── round two: "revoking should cut access, fix the rest too" (Ose, 30 Sep) ── */
+
+describe("revoking the shortlist ends the role on every door", () => {
+  it("the tie list drops a cut pair whatever tied it", () => {
+    const src = read("lib/agency/client-header.ts")
+    expect(src).toMatch(/revokedPairs\(contactIds\)/)
+    expect(src).toMatch(/isCut\(cut, roleId, contactId\)/)
+  })
+
+  it.each([
+    ["lib/agency/rounds.ts", "decideRound"],
+    ["lib/agency/artifacts.ts", "recordDebrief"],
+    ["lib/agency/round-requests.ts", "linkedRole"],
+    ["lib/agency/final-choice.ts", "linkedRole"],
+  ])("%s checks it in %s", (file, fn) => {
+    const src = read(file)
+    const body = src.slice(src.indexOf(`function ${fn}`))
+    expect(body.slice(0, 3000)).toMatch(/assertNotRevoked\(/)
+  })
+
+  it("decision completions check it on both paths, and the brief and dashboard too", () => {
+    expect((read("lib/agency/decision-completions.ts").match(/assertNotRevoked\(roleId, link\.contactId\)/g) ?? []).length).toBe(2)
+    expect(read("app/api/hiring/roles/[roleId]/brief/route.ts")).toMatch(/isCut\(await revokedPairs/)
+    expect(read("lib/agency/client-auth.ts")).toMatch(/const cut = await revokedPairs\(contactIds\)/)
+  })
+
+  it("a re-send restores access: only ALL-revoked pairs are cut", () => {
+    const src = read("lib/agency/revocation.ts")
+    expect(src).toMatch(/for \(const k of revoked\) if \(!live\.has\(k\)\) cut\.add\(k\)/)
+  })
+})
+
+describe("the rest of the audit", () => {
+  it("rights links are rate limited like the other doorways", () => {
+    const src = read("app/api/rights/[token]/route.ts")
+    expect((src.match(/checkDoorwayLimit\("rights"/g) ?? []).length).toBe(2)
+    expect(src).toMatch(/checkDoorwayWriteLimit\("rights", token\)/)
+  })
+
+  it("the tailor page's CV reader and job fetcher are rate limited", () => {
+    expect(read("app/api/parse-cv/route.ts")).toMatch(/checkPublicToolLimit\(req, "parse-cv"\)/)
+    expect(read("app/api/scrape-job/route.ts")).toMatch(/checkPublicToolLimit\(req, "scrape-job"\)/)
+  })
+
+  it("accepting an invite needs a confirmed address", () => {
+    const src = read("app/api/hiring/accept/route.ts")
+    expect(src).toMatch(/if \(!user\.email_confirmed_at\)/)
+    expect(src.indexOf("email_confirmed_at")).toBeLessThan(src.indexOf("acceptInvite(token"))
+  })
+
+  it("a recruiter cannot link a hiring manager around the invite", () => {
+    const sql = readFileSync(join(process.cwd(), "supabase/migrations/20260930130000_client_contact_link_guard.sql"), "utf8")
+    expect(sql).toMatch(/current_user in \('authenticated', 'anon'\)/)
+    expect(sql).toMatch(/before insert or update on agency\.client_contacts/)
+  })
+
+  it("team invites are rate limited and a re-invite is logged as a change", () => {
+    const src = read("app/api/agency/team/route.ts")
+    expect(src).toMatch(/checkRateLimit\(auth\.ctx\.userId, "team_invite"\)/)
+    expect(src).toMatch(/action: current \? "changed" : "invited"/)
+  })
+
+  it("a recruiter can save interview defaults without touching owner settings", () => {
+    const src = read("app/api/agency/settings/route.ts")
+    expect(src).toMatch(/touchesOwnerSettings\s*\?\s*await updateAgencySettings/)
+  })
+
+  it("the consumer pool reads recommendations by the published role's id", () => {
+    const src = read("lib/agency/consumer-pool.ts")
+    expect(src).not.toMatch(/\.eq\("published_role_id", roleId\)/)
+    expect(src).toMatch(/\.in\("published_role_id", publishedIds\)/)
+  })
+
+  it("interview settings never interpolate a non-uuid into the filter", () => {
+    expect(read("lib/agency/interview-settings.ts")).toMatch(/const safeRole = UUID\.test\(roleId\) \? roleId : null/)
+  })
+})

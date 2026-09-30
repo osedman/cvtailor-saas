@@ -13,6 +13,7 @@
  */
 
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
+import { assertNotRevoked } from "./revocation"
 import { getClientShortlist } from "./client-shortlist"
 import { hasAdvanceDecision } from "./placements"
 import type { AgencyContext, HiringContext } from "./types"
@@ -117,6 +118,7 @@ async function linkedRole(ctx: HiringContext, roleId: string) {
   if (!role) throw new AgencyAccessError("role not found")
   const link = ctx.links.find((l) => l.agencyId === role.agency_id && l.contactId === (role.contact_id as string | null))
   if (!link) throw new AgencyAccessError("role not found")
+  await assertNotRevoked(roleId, link.contactId)
   return { admin, role }
 }
 

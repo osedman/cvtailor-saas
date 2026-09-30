@@ -21,6 +21,7 @@
  */
 
 import { agencyAdmin } from "./db"
+import { revokedPairs, isCut } from "./revocation"
 import { getRoleFacts, getRoleFactsBatch, type RoleHeaderFacts } from "./role-facts"
 import { deriveSubState, handoffFor, nextAction, type Handoff, type NextAction } from "./next-action"
 import type { HiringContext } from "./types"
@@ -37,7 +38,7 @@ export async function listClientRoles(ctx: HiringContext): Promise<ClientRoleTie
   const contactIds = ctx.links.map((l) => l.contactId)
   if (contactIds.length === 0) return []
   const admin = agencyAdmin()
-  const [roles, briefs, recipients, rounds] = await Promise.all([
+  const [roles, briefs, recipients, rounds, cut] = await Promise.all([
     // A discarded role is not a role; a revoked recipient link is not a tie
     // (23 Sep 2026 E2E — a revoked contact still saw the role and could
     // release a wave through /cohort).
@@ -45,6 +46,9 @@ export async function listClientRoles(ctx: HiringContext): Promise<ClientRoleTie
     admin.from("role_briefs").select("role_id, agency_id, contact_id").in("contact_id", contactIds).not("role_id", "is", null),
     admin.from("submission_recipients").select("agency_id, contact_id, submissions!inner(role_id)").in("contact_id", contactIds).is("revoked_at", null),
     admin.from("interview_rounds").select("role_id, agency_id, contact_id").in("contact_id", contactIds),
+    // Revoking the shortlist ends the role for that contact on every tie,
+    // not only this one (lib/agency/revocation.ts).
+    revokedPairs(contactIds),
   ])
   // A failed read must not become "no roles" — To do would say "Nothing
   // needs you" over a database error.
@@ -53,7 +57,7 @@ export async function listClientRoles(ctx: HiringContext): Promise<ClientRoleTie
   const add = (roleId: unknown, agencyId: unknown, contactId: unknown) => {
     if (typeof roleId !== "string" || typeof agencyId !== "string" || typeof contactId !== "string") return
     const link = ctx.links.find((l) => l.contactId === contactId && l.agencyId === agencyId)
-    if (!link || ties.has(roleId)) return
+    if (!link || ties.has(roleId) || isCut(cut, roleId, contactId)) return
     ties.set(roleId, { roleId, agencyId, contactId })
   }
   for (const r of roles.data ?? []) add(r.id, r.agency_id, r.contact_id)

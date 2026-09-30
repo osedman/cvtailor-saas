@@ -26,7 +26,7 @@ import { tsCode } from "./helpers/source-scan"
 
 /* ── an in-memory consume_rate_limit(), and a swappable session ─────────── */
 const counters = new Map<string, number>()
-let sessionUser: { id: string; email: string } | null = null
+let sessionUser: { id: string; email: string; email_confirmed_at?: string } | null = null
 vi.mock("@/lib/supabase/server", () => ({
   createAdminClient: () => ({
     rpc: async (
@@ -132,7 +132,7 @@ const preview = (token: string) => {
   return PREVIEW(req as never)
 }
 const accept = (token: string, userId: string) => {
-  sessionUser = { id: userId, email: "invitee@example.test" }
+  sessionUser = { id: userId, email: "invitee@example.test", email_confirmed_at: "2026-09-01T00:00:00Z" }
   return ACCEPT(
     new Request("https://doorway.invalid/api/hiring/accept", {
       method: "POST",

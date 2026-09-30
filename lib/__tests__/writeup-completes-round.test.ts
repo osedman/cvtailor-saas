@@ -56,6 +56,8 @@ vi.mock("@/lib/agency/db", () => {
   return { agencyAdmin: () => ({ from: table }), writeAudit: vi.fn(), AgencyAccessError: class extends Error {} }
 })
 vi.mock("@/lib/agency/notify", () => ({ notify: vi.fn() }))
+// Revocation is its own concern (access-audit.test.ts); this contact is live.
+vi.mock("@/lib/agency/revocation", () => ({ assertNotRevoked: async () => {}, revokedPairs: async () => new Set(), isCut: () => false }))
 
 import { recordDebrief } from "@/lib/agency/artifacts"
 

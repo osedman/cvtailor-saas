@@ -33,6 +33,7 @@ import { mintBookingToken, sendBookingInvite } from "./booking"
 // Recruiter-only, and in its own module on purpose — see round-debrief.ts.
 import { readDebriefs, type RoundDebrief } from "./round-debrief"
 import { listClientRoles } from "./client-header"
+import { assertNotRevoked } from "./revocation"
 import type {
   AgencyContext,
   HiringContext,
@@ -643,6 +644,7 @@ export async function decideRound(
   // The HM may only decide rounds run with them.
   const link = linkFor(ctx, round.contact_id as string)
   if (round.agency_id !== link.agencyId) throw new AgencyAccessError("round not found")
+  await assertNotRevoked(round.role_id as string, round.contact_id as string)
 
   const { data: candidate } = await admin
     .from("candidates")

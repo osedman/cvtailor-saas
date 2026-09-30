@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { agencyAdmin, writeAudit } from "@/lib/agency/db"
 import { answerRepresent } from "@/lib/agency/represent"
 import { withTiming } from "@/lib/server-timing"
+import { checkDoorwayLimit, checkDoorwayWriteLimit } from "@/lib/rate-limit"
 
 export const maxDuration = 15
 
@@ -37,12 +38,19 @@ async function resolve(token: string) {
   return { admin, candidate: data }
 }
 
+/** Same ceilings as the consent and reference doorways (30 Sep 2026 access audit). */
+function ipOf(req: NextRequest): string {
+  return (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown"
+}
+
 async function GET_handler(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
     const { token } = await params
+    const limited = await checkDoorwayLimit("rights", ipOf(req), token)
+    if (limited) return limited
     const resolved = await resolve(token)
     if (!resolved) {
       return NextResponse.json({ error: "This link is no longer valid" }, { status: 404 })
@@ -96,6 +104,8 @@ async function POST_handler(
 ) {
   try {
     const { token } = await params
+    const limited = (await checkDoorwayLimit("rights", ipOf(req), token)) ?? (await checkDoorwayWriteLimit("rights", token))
+    if (limited) return limited
     const resolved = await resolve(token)
     if (!resolved) {
       return NextResponse.json({ error: "This link is no longer valid" }, { status: 404 })

@@ -58,15 +58,20 @@ function fromRow(row: Record<string, unknown>): InterviewSettings {
  * `saved` is kept for callers that only ask "has anyone set this at all", and
  * is true for either layer.
  */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export async function getInterviewSettings(
   agencyId: string,
   roleId: string
 ): Promise<{ settings: InterviewSettings; saved: boolean; source: SettingsSource }> {
+  // roleId arrives from a URL and is written into a PostgREST filter string;
+  // anything but a uuid reads only the agency default (30 Sep 2026 audit).
+  const safeRole = UUID.test(roleId) ? roleId : null
   const { data, error } = await agencyAdmin()
     .from("interview_settings")
     .select("*")
     .eq("agency_id", agencyId)
-    .or(`role_id.eq.${roleId},role_id.is.null`)
+    .or(safeRole ? `role_id.eq.${safeRole},role_id.is.null` : "role_id.is.null")
   if (error) throw error
 
   const { row, source } = resolveSettingsRows(

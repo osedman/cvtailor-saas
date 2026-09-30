@@ -56,12 +56,18 @@ async function PATCH_handler(req: NextRequest) {
     if (!auth.ok) return authFail(auth.failure)
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
-    const settings = await updateAgencySettings(auth.ctx, {
-      retentionDays:
-        typeof body.retentionDays === "number" ? body.retentionDays : undefined,
-      noticeDelayDays:
-        typeof body.noticeDelayDays === "number" ? body.noticeDelayDays : undefined,
-    })
+    // Retention and notice timing are owner-only; interview defaults are for
+    // any writer. The owner-only save ran unconditionally first, so a
+    // recruiter sending only interview defaults was refused (30 Sep 2026).
+    const touchesOwnerSettings = typeof body.retentionDays === "number" || typeof body.noticeDelayDays === "number"
+    const settings = touchesOwnerSettings
+      ? await updateAgencySettings(auth.ctx, {
+          retentionDays:
+            typeof body.retentionDays === "number" ? body.retentionDays : undefined,
+          noticeDelayDays:
+            typeof body.noticeDelayDays === "number" ? body.noticeDelayDays : undefined,
+        })
+      : await getAgencySettings(auth.ctx)
     /*
      * Interview defaults are optional on this PATCH and handled separately,
      * because they are a different object with its own validator and its own

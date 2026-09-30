@@ -134,6 +134,11 @@ export async function listConsumerPool(
   if (users.length === 0) return { people: [], requirements }
 
   const ids = users.map((u: { id: string }) => u.id)
+  // Recommendations point at the PUBLISHED role's id, not the agency's role
+  // id — filtering by the agency id matched nothing, so every person's
+  // recommendation and state read as null (found 30 Sep 2026).
+  const { data: published } = await pub.from("published_roles").select("id").eq("role_id", roleId)
+  const publishedIds = (published ?? []).map((p: { id: string }) => p.id)
   const [{ data: arcs }, { data: evidence }, { data: recs }] = await Promise.all([
     pub.from("career_profiles").select("user_id, sections").in("user_id", ids),
     // `hidden` is the person's own control over what a recruiter reads. It is
@@ -143,10 +148,9 @@ export async function listConsumerPool(
       .select("user_id, claim, rephrased_text, source_role, category")
       .in("user_id", ids)
       .eq("hidden", false),
-    pub
-      .from("role_recommendations")
-      .select("id, user_id, state")
-      .eq("published_role_id", roleId),
+    publishedIds.length > 0
+      ? pub.from("role_recommendations").select("id, user_id, state").in("published_role_id", publishedIds).in("user_id", ids)
+      : Promise.resolve({ data: [] as Array<{ id: string; user_id: string; state: string }> }),
   ])
 
   const arcByUser = new Map<string, string>()

@@ -22,6 +22,7 @@ import { agencyAdmin, requireAgencyContext, writeAudit } from "@/lib/agency/db"
 import { getBusinessOrigin } from "@/lib/site-url"
 import { errorMessage } from "@/lib/error-message"
 import { withTiming } from "@/lib/server-timing"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export const maxDuration = 30
 
@@ -86,6 +87,8 @@ async function POST_handler(req: NextRequest) {
     if (auth.ctx.role !== "owner") {
       return NextResponse.json({ error: "Only owners can invite teammates" }, { status: 403 })
     }
+    const limited = await checkRateLimit(auth.ctx.userId, "team_invite")
+    if (limited) return limited
 
     const body = await req.json()
     const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
@@ -143,13 +146,16 @@ async function POST_handler(req: NextRequest) {
     )
     if (memberError) throw memberError
 
+    // Inviting someone who is already a member changes them; the log says so
+    // rather than recording a fresh invite (30 Sep 2026 access audit).
     await writeAudit(admin, {
       agencyId: auth.ctx.agencyId,
       actorId: auth.ctx.userId,
       entityType: "member",
       entityRef: userId,
-      action: "invited",
-      toValue: { role },
+      action: current ? "changed" : "invited",
+      fromValue: current ? { role: current.role, status: current.status } : undefined,
+      toValue: { role, status: "active" },
     })
 
     const { data: agencyRow } = await admin

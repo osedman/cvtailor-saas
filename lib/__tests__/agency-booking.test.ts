@@ -134,7 +134,7 @@ function seed(overrides: Row = {}) {
     {
       id: "round-1",
       agency_id: "a1",
-      role_id: "role-1",
+      role_id: "00000000-0000-4000-8000-000000000001",
       candidate_id: "cand-1",
       contact_id: "contact-1",
       round_number: 2,
@@ -302,7 +302,7 @@ describe("the agency default reaches the doorway", () => {
 
   it("the role's own rule beats the agency default", async () => {
     seed({ candidate_response: "confirmed", scheduled_at: inFiveHours() })
-    store.interviewSettings = [row(null, 24), row("role-1", 0)]
+    store.interviewSettings = [row(null, 24), row("00000000-0000-4000-8000-000000000001", 0)]
     const view = await peekBooking(TOKEN)
     expect(view.reschedule.allowed).toBe(true)
   })

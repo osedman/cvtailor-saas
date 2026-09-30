@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { normalizeJobUrl } from '@/lib/job-url'
 import { errorMessage } from '@/lib/error-message'
 import { withTiming } from "@/lib/server-timing"
+import { checkPublicToolLimit } from "@/lib/public-tool-limit"
 
 export const maxDuration = 30
 
@@ -79,6 +80,8 @@ async function scrapeGeneric(url: URL): Promise<string | null> {
 
 async function POST_handler(req: NextRequest) {
   try {
+    const limited = await checkPublicToolLimit(req, "scrape-job")
+    if (limited) return limited
     const { url } = await req.json()
 
     if (!url || typeof url !== 'string') {

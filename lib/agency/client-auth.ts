@@ -49,6 +49,7 @@ import { createHash, randomBytes } from "crypto"
 import { cookies } from "next/headers"
 import { createServerClient } from "@supabase/ssr"
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError, type AgencyClient } from "./db"
+import { revokedPairs, isCut } from "./revocation"
 import { notify } from "./notify"
 import type {
   AgencyContext,
@@ -767,9 +768,12 @@ export async function getHiringDashboard(ctx: HiringContext): Promise<HiringDash
   if (slotsResult.error) throw slotsResult.error
   if (roundsResult.error) throw roundsResult.error
 
-  const briefRows = briefsResult.data ?? []
-  const slotRows = slotsResult.data ?? []
-  const roundRows = roundsResult.data ?? []
+  // A role whose shortlist was revoked for this contact leaves their
+  // dashboard too (lib/agency/revocation.ts).
+  const cut = await revokedPairs(contactIds)
+  const briefRows = (briefsResult.data ?? []).filter((b) => !isCut(cut, b.role_id as string | null, b.contact_id as string))
+  const slotRows = (slotsResult.data ?? []).filter((s) => !isCut(cut, s.role_id as string | null, s.contact_id as string))
+  const roundRows = (roundsResult.data ?? []).filter((r) => !isCut(cut, r.role_id as string | null, r.contact_id as string))
 
   // A slot is booked iff a round references it (§5.5 — there is no booked
   // column to drift). Only slot_id is read here.
