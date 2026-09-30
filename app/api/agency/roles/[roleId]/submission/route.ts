@@ -30,6 +30,8 @@ import { shortlistEmailHtml, shortlistEmailSubject } from "@/lib/agency/shortlis
 import { recomputeAndStore } from "@/lib/agency/rescore"
 import { probeAreasForClient } from "@/lib/agency/probes"
 import { errorMessage } from "@/lib/error-message"
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 60
 
@@ -43,7 +45,7 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   )
 }
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ roleId: string }> }
 ) {
@@ -69,7 +71,7 @@ export async function GET(
   }
 }
 
-export async function POST(
+async function POST_handler(
   req: NextRequest,
   { params }: { params: Promise<{ roleId: string }> }
 ) {
@@ -368,9 +370,7 @@ export async function POST(
     if (contactsById.size > 0) {
       const { data: agencyRow } = await admin.from("agencies").select("name").eq("id", auth.ctx.agencyId).maybeSingle()
       const agencyName = (agencyRow?.name as string | undefined) ?? ""
-      const {
-        data: { user },
-      } = await auth.db.auth.getUser()
+      const user = await sessionUser(auth.db)
       const replyTo = typeof user?.email === "string" && user.email.includes("@") ? user.email : undefined
       // The same line every door draws: a withheld name travels as the ref.
       const people = entries.map((e) => ({
@@ -441,3 +441,7 @@ export async function POST(
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]/submission", "GET", GET_handler)
+export const POST = withTiming("/api/agency/roles/[roleId]/submission", "POST", POST_handler)

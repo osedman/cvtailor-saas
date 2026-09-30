@@ -8,11 +8,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireHiringContext } from "@/lib/agency/client-auth"
 import { busyBetween, CalendarReauthRequired } from "@/lib/calendar/connections"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 const MAX_DAYS = 31
 
-export async function GET(req: NextRequest) {
+async function GET_handler(req: NextRequest) {
   try {
     const auth = await requireHiringContext()
     if (!auth.ok) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
@@ -34,3 +35,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/calendar/busy", "GET", GET_handler)

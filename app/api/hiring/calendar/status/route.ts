@@ -10,8 +10,9 @@ import { getConnection } from "@/lib/calendar/connections"
 import { PROVIDERS } from "@/lib/calendar/providers"
 import { tokenStorageConfigured } from "@/lib/calendar/tokens"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
-export async function GET() {
+async function GET_handler() {
   try {
     const auth = await requireHiringContext()
     if (!auth.ok) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
@@ -30,7 +31,7 @@ export async function GET() {
   }
 }
 
-export async function DELETE() {
+async function DELETE_handler() {
   try {
     const auth = await requireHiringContext()
     if (!auth.ok) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
@@ -41,3 +42,7 @@ export async function DELETE() {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/calendar/status", "GET", GET_handler)
+export const DELETE = withTiming("/api/hiring/calendar/status", "DELETE", DELETE_handler)

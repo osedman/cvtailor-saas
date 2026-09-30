@@ -14,8 +14,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAgencyContext } from "@/lib/agency/db"
 import { getCaptureState } from "@/lib/agency/recordings"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ roundId: string }> }
 ) {
@@ -36,3 +37,6 @@ export async function GET(
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/rounds/[roundId]/capture", "GET", GET_handler)

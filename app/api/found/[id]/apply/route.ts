@@ -22,6 +22,8 @@ import { createClient } from "@/lib/supabase/server"
 import { applyToRole, getApplyManifest } from "@/lib/matching/apply"
 import { checkRateLimit, anonRateLimitId } from "@/lib/rate-limit"
 import { errorMessage } from "@/lib/error-message"
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -44,13 +46,11 @@ const REASON_COPY: Record<string, string> = {
 
 async function requireUser() {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await sessionUser(supabase)
   return user
 }
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -72,7 +72,7 @@ export async function GET(
   }
 }
 
-export async function POST(
+async function POST_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -96,3 +96,7 @@ export async function POST(
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/found/[id]/apply", "GET", GET_handler)
+export const POST = withTiming("/api/found/[id]/apply", "POST", POST_handler)

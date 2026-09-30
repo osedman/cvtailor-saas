@@ -13,6 +13,8 @@ import { profileHash } from '@/lib/matching/scan-core'
 import { computeRoleMatch, decideRoleMatch, sha256, type RoleMatch } from '@/lib/matching/role-match'
 import type { EvidenceRow } from '@/lib/career-arc-ledger'
 import { errorMessage } from '@/lib/error-message'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
@@ -262,11 +264,11 @@ ${jobDescription}`,
 
 // ── Route ────────────────────────────────────────────────────────────────
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     // 1. Authenticate
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     }
@@ -557,3 +559,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg || 'Failed to tailor CV. Please try again.' }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/tailor", "POST", POST_handler)

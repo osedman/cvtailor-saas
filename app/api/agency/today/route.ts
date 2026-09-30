@@ -15,10 +15,11 @@ import { requireAgencyContext } from "@/lib/agency/db"
 import { getRoleFactsBatch } from "@/lib/agency/role-facts"
 import { deriveSubState, nextAction } from "@/lib/agency/next-action"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 60
 
-export async function GET() {
+async function GET_handler() {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) {
@@ -74,3 +75,6 @@ export async function GET() {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/today", "GET", GET_handler)

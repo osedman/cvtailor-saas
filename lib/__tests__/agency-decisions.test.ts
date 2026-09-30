@@ -373,7 +373,7 @@ describe("the single route", () => {
 
 describe("the bulk route", () => {
   it("is a PATCH on the role that shares the single route's writer", () => {
-    expect(bulk).toContain("export async function PATCH(")
+    expect(bulk).toContain("async function PATCH_handler(")
     expect(bulk).toMatch(/import \{[^}]*applyDecision[^}]*\} from "@\/lib\/agency\/decisions"/)
     expect(bulk).toMatch(/applyDecision\(auth\.ctx, change\.candidateId, change\.decision, \{[\s\S]{0,60}roleId,[\s\S]{0,60}source: "bulk"/)
     expect(bulk).not.toContain("recruiter_reviews")

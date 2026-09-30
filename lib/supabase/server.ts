@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies, headers } from 'next/headers'
 import { withAuthCookieOptions } from '@/lib/supabase/cookie-options'
+import { timedFetch } from '@/lib/server-timing'
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -14,6 +15,8 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Counted per request into Server-Timing (lib/server-timing.ts).
+      global: { fetch: timedFetch },
       cookies: {
         getAll() {
           return cookieStore.getAll()
@@ -38,6 +41,6 @@ export function createAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
+    { auth: { autoRefreshToken: false, persistSession: false }, global: { fetch: timedFetch } }
   )
 }

@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { AGENCY_COOKIE, requireAgencyContext } from "@/lib/agency/db"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 10
 
@@ -36,13 +37,13 @@ function authFail(failure: "unauthenticated" | "no_agency") {
  * agency name it selects is visible in the switcher. Deliberately requires no
  * session: the whole point is to clear state when there is no longer one.
  */
-export async function DELETE() {
+async function DELETE_handler() {
   const res = NextResponse.json({ cleared: true })
   res.cookies.set(AGENCY_COOKIE, "", { path: "/", maxAge: 0 })
   return res
 }
 
-export async function GET() {
+async function GET_handler() {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -63,7 +64,7 @@ export async function GET() {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -99,3 +100,8 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const DELETE = withTiming("/api/agency/session", "DELETE", DELETE_handler)
+export const GET = withTiming("/api/agency/session", "GET", GET_handler)
+export const POST = withTiming("/api/agency/session", "POST", POST_handler)

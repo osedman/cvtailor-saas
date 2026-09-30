@@ -29,10 +29,11 @@ import {
   type KnownCandidate,
 } from "@/lib/agency/decisions"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
-export async function PATCH(
+async function PATCH_handler(
   req: NextRequest,
   { params }: { params: Promise<{ roleId: string }> }
 ) {
@@ -113,3 +114,6 @@ export async function PATCH(
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const PATCH = withTiming("/api/agency/roles/[roleId]/decisions", "PATCH", PATCH_handler)

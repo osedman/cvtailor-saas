@@ -81,7 +81,7 @@ describe("the hiring invite routes use the doorway limit, not a per-network stri
 
   it("the preview reads the token, then limits, then looks the invite up", () => {
     const src = read(PREVIEW_ROUTE)
-    const fn = src.slice(src.indexOf("export async function GET"))
+    const fn = src.slice(src.indexOf("async function GET"))
     const token = fn.indexOf('searchParams.get("token")')
     const limit = fn.indexOf("checkDoorwayLimit(")
     const empty = fn.indexOf("if (!token) return deadLink()")
@@ -103,7 +103,7 @@ describe("the hiring invite routes use the doorway limit, not a per-network stri
 
   it("accept checks the session, then both limits, then binds", () => {
     const src = read(ACCEPT_ROUTE)
-    const fn = src.slice(src.indexOf("export async function POST"))
+    const fn = src.slice(src.indexOf("async function POST"))
     const session = fn.indexOf("auth.getUser()")
     const perUser = fn.indexOf('checkRateLimit(user.id, "auth")')
     const doorway = fn.indexOf("checkDoorwayLimit(")

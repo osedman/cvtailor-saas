@@ -7,10 +7,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { inviteMatchedPerson, withdrawMatchedInvite } from "@/lib/agency/matched-people"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function POST_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
  * The card on their /found page goes; the match itself stays, because they
  * still match and still chose to be seen. Refused once they have applied.
  */
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function DELETE_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -47,3 +48,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ r
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/agency/roles/[roleId]/matching/invite", "POST", POST_handler)
+export const DELETE = withTiming("/api/agency/roles/[roleId]/matching/invite", "DELETE", DELETE_handler)

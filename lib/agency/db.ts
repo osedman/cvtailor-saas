@@ -16,6 +16,7 @@
  *    an explicit agency ownership assertion (assertAgencyRow / ctx checks).
  */
 
+import { timedFetch } from "@/lib/server-timing"
 import { cookies } from "next/headers"
 import { createServerClient } from "@supabase/ssr"
 import { createClient as createSupabaseJs, type SupabaseClient } from "@supabase/supabase-js"
@@ -37,6 +38,7 @@ export async function agencyDb(): Promise<AgencyClient> {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       db: { schema: "agency" },
+      global: { fetch: timedFetch },
       cookies: {
         getAll() {
           return cookieStore.getAll()
@@ -58,6 +60,7 @@ export function agencyAdmin(): AgencyClient {
     {
       db: { schema: "agency" },
       auth: { autoRefreshToken: false, persistSession: false },
+      global: { fetch: timedFetch },
     }
   )
 }

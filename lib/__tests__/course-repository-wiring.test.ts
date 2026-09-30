@@ -54,7 +54,8 @@ describe('course repository wiring', () => {
 
   it('offers a browser-friendly sync only to a signed-in admin', () => {
     const route = read('app/api/admin/course-sync/route.ts')
-    expect(route).toContain('supabase.auth.getUser()')
+    // The session's verified token (sessionUser → getClaims, 30 Sep 2026).
+    expect(route).toContain('sessionUser(supabase)')
     expect(route).toContain('isAdminEmail(user.email)')
     expect(route).toContain("searchParams.get('confirm')")
     expect(route).toContain('createAdminClient()')

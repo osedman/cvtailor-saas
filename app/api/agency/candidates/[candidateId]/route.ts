@@ -12,10 +12,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAgencyContext } from "@/lib/agency/db"
 import { derivePhase } from "@/lib/agency/phases"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
 ) {
@@ -73,3 +74,6 @@ export async function GET(
     return NextResponse.json({ error: errorMessage(e) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/candidates/[candidateId]", "GET", GET_handler)

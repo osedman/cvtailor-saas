@@ -26,6 +26,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAgencyContext, AgencyAccessError } from "@/lib/agency/db"
 import { createUploadTicket, confirmUpload, ALLOWED_AUDIO } from "@/lib/agency/recordings"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -56,7 +57,7 @@ async function withContext<T>(fn: (ctx: Awaited<ReturnType<typeof requireAgencyC
   return fn(ctx)
 }
 
-export async function POST(
+async function POST_handler(
   req: NextRequest,
   { params }: { params: Promise<{ roundId: string }> }
 ) {
@@ -84,7 +85,7 @@ export async function POST(
   }
 }
 
-export async function PUT(
+async function PUT_handler(
   req: NextRequest,
   { params }: { params: Promise<{ roundId: string }> }
 ) {
@@ -111,3 +112,7 @@ export async function PUT(
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/agency/rounds/[roundId]/recording", "POST", POST_handler)
+export const PUT = withTiming("/api/agency/rounds/[roundId]/recording", "PUT", PUT_handler)

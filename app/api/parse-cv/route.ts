@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { errorMessage } from '@/lib/error-message'
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -21,7 +22,7 @@ async function extractDocxText(buffer: Buffer): Promise<string> {
   return result.value
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const formData = await req.formData()
     const file = formData.get('file') as File | null
@@ -72,3 +73,6 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/parse-cv", "POST", POST_handler)

@@ -14,21 +14,21 @@ import { createClient } from "@/lib/supabase/server"
 import { setFoundState, type FoundTransition } from "@/lib/matching/found"
 import { checkRateLimit, anonRateLimitId } from "@/lib/rate-limit"
 import { errorMessage } from "@/lib/error-message"
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 10
 
 const ALLOWED: FoundTransition[] = ["seen", "dismissed"]
 
-export async function PATCH(
+async function PATCH_handler(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
     const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
 
     const limited = await checkRateLimit(anonRateLimitId(`found:${user.id}`), "auth")
@@ -51,3 +51,6 @@ export async function PATCH(
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const PATCH = withTiming("/api/found/[id]", "PATCH", PATCH_handler)

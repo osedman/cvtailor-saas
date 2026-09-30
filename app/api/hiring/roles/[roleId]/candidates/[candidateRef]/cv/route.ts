@@ -27,6 +27,7 @@ import { getClientShortlist } from "@/lib/agency/client-shortlist"
 import { agencyAdmin, writeAudit } from "@/lib/agency/db"
 import { redactContactDetails, anythingRemoved, CV_REDACTION_VERSION } from "@/lib/agency/cv-disclosure"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -37,7 +38,7 @@ function authFail(failure: HiringFailure) {
   )
 }
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ roleId: string; candidateRef: string }> }
 ) {
@@ -132,3 +133,6 @@ export async function GET(
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/roles/[roleId]/candidates/[candidateRef]/cv", "GET", GET_handler)

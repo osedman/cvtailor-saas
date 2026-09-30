@@ -45,7 +45,8 @@ describe("consent cannot be recorded for someone else", () => {
   it("takes the user from the session, never from the request body", () => {
     // A route that accepted a user id would be a route that could record one
     // person's consent against another's account.
-    expect(route).toMatch(/auth\.getUser\(\)/)
+    // The session's verified token (sessionUser → getClaims, 30 Sep 2026).
+    expect(route).toMatch(/sessionUser\(supabase\)|auth\.getUser\(\)/)
     expect(route).not.toMatch(/body\??\.\s*userId/)
     expect(route).not.toMatch(/body\??\.\s*user_id/)
   })

@@ -12,6 +12,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { loadTailorBrief } from "@/lib/matching/tailor-brief"
 import { errorMessage } from "@/lib/error-message"
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 const STATUS: Record<string, number> = {
   not_found: 404,
@@ -25,16 +27,14 @@ const REASON_COPY: Record<string, string> = {
   not_live: "This role is no longer live, so there is nothing to tailor against.",
 }
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
     const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
 
     const result = await loadTailorBrief(supabase, id)
@@ -49,3 +49,6 @@ export async function GET(
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/found/[id]/tailor-brief", "GET", GET_handler)

@@ -13,6 +13,8 @@ import { sanitizeDeep } from '@/lib/sanitize'
 import { splitByEffort } from '@/lib/career-path-compute'
 import { addItems, setItemStatus, loadItems, type StoredRoadmapItem } from '@/lib/roadmap-store'
 import { errorMessage } from '@/lib/error-message'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
@@ -64,10 +66,10 @@ function coerceItem(raw: unknown): CareerRoadmapItem | null {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
@@ -197,10 +199,10 @@ export async function POST(req: NextRequest) {
 
 /** Cycle a quick win's status. Shares one store with the career path, so a
  *  skill closed here is closed everywhere. */
-export async function PATCH(req: NextRequest) {
+async function PATCH_handler(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
@@ -216,3 +218,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/upskill", "POST", POST_handler)
+export const PATCH = withTiming("/api/upskill", "PATCH", PATCH_handler)

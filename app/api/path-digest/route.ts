@@ -6,6 +6,7 @@ import { errMessage } from "@/lib/err"
 import { forecastReadyDate, daysSinceLastStitch, readinessFromTargetSkills, type TargetSkill } from "@/lib/career-path-compute"
 import type { CareerRoadmapItem } from "@/lib/anthropic"
 import { loadItems } from "@/lib/roadmap-store"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
@@ -21,7 +22,7 @@ function unsubscribeSig(userId: string): string {
   return createHmac("sha256", secret).update(`digest-unsub:${userId}`).digest("hex").slice(0, 32)
 }
 
-export async function GET(req: NextRequest) {
+async function GET_handler(req: NextRequest) {
   const auth = req.headers.get("authorization") || ""
   const secret = process.env.CRON_SECRET
   if (!secret || auth !== `Bearer ${secret}`) {
@@ -107,3 +108,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: errMessage(err) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/path-digest", "GET", GET_handler)

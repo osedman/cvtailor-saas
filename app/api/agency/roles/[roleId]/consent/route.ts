@@ -17,6 +17,7 @@ import { sendEmail } from "@/lib/email"
 import { agencyNoticeFrom } from "@/lib/email-senders"
 import { getAppOrigin } from "@/lib/site-url"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 20
 
@@ -88,7 +89,7 @@ function consentEmailHtml(opts: {
 </div>`
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function POST_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     await params
     const auth = await requireAgencyContext()
@@ -148,3 +149,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/agency/roles/[roleId]/consent", "POST", POST_handler)

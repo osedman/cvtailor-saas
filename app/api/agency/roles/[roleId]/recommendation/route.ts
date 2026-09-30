@@ -50,6 +50,7 @@ import {
 } from "@/lib/agency/recommendation"
 import type { Strength, Weight } from "@/lib/agency/types"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
@@ -115,7 +116,7 @@ Where a CV line and a call answer sit differently, say both stand and that they 
 
 HOUSE STYLE. A recruiter is scanning fifty of these, so each reason is ONE sentence — two at the very most, and under 300 characters. Name requirement refs (R04) but never write trace ids such as cv:R04 or [call:R04] in the prose: the ids go in the traces array and the screen renders them separately. Do not restate every requirement; lead with the thing that decides the grouping.`
 
-export async function POST(
+async function POST_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ roleId: string }> }
 ) {
@@ -324,3 +325,6 @@ export async function POST(
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/agency/roles/[roleId]/recommendation", "POST", POST_handler)

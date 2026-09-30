@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { agencyAdmin, writeAudit } from "@/lib/agency/db"
 import { answerRepresent } from "@/lib/agency/represent"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
@@ -36,7 +37,7 @@ async function resolve(token: string) {
   return { admin, candidate: data }
 }
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
@@ -89,7 +90,7 @@ export async function GET(
   }
 }
 
-export async function POST(
+async function POST_handler(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
@@ -165,3 +166,7 @@ export async function POST(
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/rights/[token]", "GET", GET_handler)
+export const POST = withTiming("/api/rights/[token]", "POST", POST_handler)

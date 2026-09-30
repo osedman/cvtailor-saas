@@ -10,6 +10,8 @@ import {
   type ShareSettings,
 } from '@/lib/career-arc-share'
 import { errorMessage } from '@/lib/error-message'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 /**
  * Owner-side management of the Career Arc share link (rebuild stage 3).
@@ -54,7 +56,7 @@ const SHARE_COLUMNS = 'token, claim_redactions, first_name_only, hide_employers,
 
 async function requireUser() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await sessionUser(supabase)
   if (!user) return { supabase, user: null, res: NextResponse.json({ error: 'Unauthorised' }, { status: 401 }) }
   if (!(await isCareerPathBeta(user.email))) {
     return { supabase, user: null, res: NextResponse.json(BETA_LOCKED, { status: 403 }) }
@@ -62,7 +64,7 @@ async function requireUser() {
   return { supabase, user, res: null }
 }
 
-export async function GET() {
+async function GET_handler() {
   try {
     const { supabase, user, res } = await requireUser()
     if (!user) return res
@@ -78,7 +80,7 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+async function POST_handler() {
   try {
     const { supabase, user, res } = await requireUser()
     if (!user) return res
@@ -113,7 +115,7 @@ export async function POST() {
   }
 }
 
-export async function PATCH(req: NextRequest) {
+async function PATCH_handler(req: NextRequest) {
   try {
     const { supabase, user, res } = await requireUser()
     if (!user) return res
@@ -197,3 +199,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: errorMessage(err) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/career-arc-share", "GET", GET_handler)
+export const POST = withTiming("/api/career-arc-share", "POST", POST_handler)
+export const PATCH = withTiming("/api/career-arc-share", "PATCH", PATCH_handler)

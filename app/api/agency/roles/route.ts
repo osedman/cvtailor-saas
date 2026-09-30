@@ -6,6 +6,7 @@ import {
   requireAgencyContext,
 } from "@/lib/agency/db"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -20,7 +21,7 @@ const FIELD_LIMITS = {
   recruiter_notes: 8000,
 } as const
 
-export async function GET() {
+async function GET_handler() {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) {
@@ -39,7 +40,7 @@ export async function GET() {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) {
@@ -68,3 +69,7 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles", "GET", GET_handler)
+export const POST = withTiming("/api/agency/roles", "POST", POST_handler)

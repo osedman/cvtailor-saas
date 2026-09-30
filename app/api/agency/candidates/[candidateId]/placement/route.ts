@@ -25,6 +25,7 @@ import {
 } from "@/lib/agency/placements"
 import { agencyAdmin } from "@/lib/agency/db"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 async function auth() {
   const result = await requireAgencyContext()
@@ -41,7 +42,7 @@ async function auth() {
 const num = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
 ) {
@@ -74,7 +75,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
+async function PUT_handler(
   req: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
 ) {
@@ -124,7 +125,7 @@ export async function PUT(
  * career into an audited table. The row survives, out of every number, with
  * the reason on the record. See voidPlacement().
  */
-export async function DELETE(req: NextRequest) {
+async function DELETE_handler(req: NextRequest) {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) {
@@ -149,3 +150,8 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/candidates/[candidateId]/placement", "GET", GET_handler)
+export const PUT = withTiming("/api/agency/candidates/[candidateId]/placement", "PUT", PUT_handler)
+export const DELETE = withTiming("/api/agency/candidates/[candidateId]/placement", "DELETE", DELETE_handler)

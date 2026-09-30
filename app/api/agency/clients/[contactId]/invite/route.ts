@@ -34,6 +34,8 @@ import { inviteEmailHtml } from "@/lib/agency/client-invite-email"
 import { getBusinessOrigin } from "@/lib/site-url"
 import { anonRateLimitId, checkRateLimit } from "@/lib/rate-limit"
 import { errorMessage } from "@/lib/error-message"
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -69,7 +71,7 @@ async function readInviteId(req: NextRequest): Promise<string> {
 }
 
 
-export async function POST(
+async function POST_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ contactId: string }> }
 ) {
@@ -105,9 +107,7 @@ export async function POST(
     // The recruiter's own address, so a reply lands with the person who
     // invited them rather than in Tailr's inbox. From stays WELCOME_FROM:
     // gettailr.com is the only verified Resend sender.
-    const {
-      data: { user },
-    } = await auth.db.auth.getUser()
+    const user = await sessionUser(auth.db)
     const replyTo = typeof user?.email === "string" && user.email.includes("@") ? user.email : undefined
 
     let emailed = false
@@ -152,7 +152,7 @@ export async function POST(
   }
 }
 
-export async function DELETE(
+async function DELETE_handler(
   req: NextRequest,
   { params }: { params: Promise<{ contactId: string }> }
 ) {
@@ -190,3 +190,7 @@ export async function DELETE(
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/agency/clients/[contactId]/invite", "POST", POST_handler)
+export const DELETE = withTiming("/api/agency/clients/[contactId]/invite", "DELETE", DELETE_handler)

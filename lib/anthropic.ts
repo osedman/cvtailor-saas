@@ -1,9 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { courseProviderPrompt } from '@/lib/course-sources/registry'
 import type { RoleMatch } from '@/lib/matching/role-match'
+import { timedFetch } from '@/lib/server-timing'
 
 export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
+  // AI calls show up as `ai` in Server-Timing and the [slow] log.
+  fetch: timedFetch,
 })
 
 // ── Two-pass pipeline types ─────────────────────────────────────────────

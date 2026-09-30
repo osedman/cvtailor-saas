@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isAdminEmail } from '@/lib/admin'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { errMessage } from '@/lib/err'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 60
 
@@ -23,10 +25,10 @@ function gate(email: string | undefined | null) {
 }
 
 /** Pending candidates, newest first. */
-export async function GET() {
+async function GET_handler() {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!gate(user?.email)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const admin = createAdminClient()
@@ -62,10 +64,10 @@ export async function GET() {
 }
 
 /** Act on a selection: approve into the catalogue, or reject. */
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!gate(user?.email)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await req.json().catch(() => ({}))
@@ -137,3 +139,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: errMessage(err) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/admin/course-candidates", "GET", GET_handler)
+export const POST = withTiming("/api/admin/course-candidates", "POST", POST_handler)

@@ -32,7 +32,7 @@ describe("the invite says whether the email went", () => {
 
 describe("the lines the frame holds", () => {
   it("suspend, never delete — no DELETE handler, no remove button", () => {
-    expect(route).not.toMatch(/export async function DELETE/)
+    expect(route).not.toMatch(/async function DELETE/)
     expect(screen).not.toMatch(/method: "DELETE"/)
     expect(screen).not.toMatch(/>\s*Remove/)
   })

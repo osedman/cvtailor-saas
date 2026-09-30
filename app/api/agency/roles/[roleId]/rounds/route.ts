@@ -21,6 +21,7 @@ import {
   setRoundStatus,
 } from "@/lib/agency/rounds"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
@@ -41,7 +42,7 @@ function fail(error: unknown, fallbackStatus = 500) {
   )
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function GET_handler(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -56,7 +57,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function POST_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function PATCH_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     await params
     const auth = await requireAgencyContext()
@@ -111,3 +112,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ro
     return fail(error)
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]/rounds", "GET", GET_handler)
+export const POST = withTiming("/api/agency/roles/[roleId]/rounds", "POST", POST_handler)
+export const PATCH = withTiming("/api/agency/roles/[roleId]/rounds", "PATCH", PATCH_handler)

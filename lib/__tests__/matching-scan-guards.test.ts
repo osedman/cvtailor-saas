@@ -114,7 +114,7 @@ describe("a scan cannot be silently lost, or doubly run", () => {
     expect(route).toMatch(/after\(/)
     // The scan import is for the after() callback only; the handler body
     // must not await it before the response.
-    const post = route.slice(route.indexOf("export async function POST"))
+    const post = route.slice(route.indexOf("async function POST"))
     const beforeAfter = post.slice(0, post.indexOf("after("))
     expect(beforeAfter).not.toMatch(/await runMatchScan/)
   })

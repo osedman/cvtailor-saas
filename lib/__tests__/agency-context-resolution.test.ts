@@ -139,12 +139,12 @@ describe("the agency preference is cleared on sign-out", () => {
 
   it("exposes a DELETE that expires the cookie without needing a session", () => {
     const source = read("app/api/agency/session/route.ts")
-    expect(source).toMatch(/export async function DELETE/)
-    const handler = source.slice(source.indexOf("export async function DELETE"))
+    expect(source).toMatch(/async function DELETE/)
+    const handler = source.slice(source.indexOf("async function DELETE"))
     expect(handler).toMatch(/maxAge:\s*0/)
     // No auth gate inside DELETE: clearing state when the session is already
     // gone is the entire point, so requiring one would make it a no-op.
-    const body = handler.slice(0, handler.indexOf("export async function GET"))
+    const body = handler.slice(0, handler.indexOf("async function GET"))
     expect(body).not.toMatch(/requireAgencyContext/)
   })
 

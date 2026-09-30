@@ -162,18 +162,18 @@ describe("a referee who has been written to is withdrawn, not deleted", () => {
 
 describe("archiving a contact keeps the attribution", () => {
   it("never deletes the row", () => {
-    const fn = contacts.slice(contacts.indexOf("export async function DELETE"))
+    const fn = contacts.slice(contacts.indexOf("async function DELETE"))
     expect(fn).toMatch(/archived_at/)
     expect(fn).not.toMatch(/\.delete\(\)/)
   })
 
   it("does not silently revoke their access", () => {
-    const fn = contacts.slice(contacts.indexOf("export async function DELETE"))
+    const fn = contacts.slice(contacts.indexOf("async function DELETE"))
     expect(fn).not.toMatch(/revoked_at|client_invites|client_links/)
   })
 
   it("leaves the address book read", () => {
-    expect(contacts.slice(contacts.indexOf("export async function GET"), contacts.indexOf("export async function POST")))
+    expect(contacts.slice(contacts.indexOf("async function GET"), contacts.indexOf("async function POST")))
       .toMatch(/\.is\("archived_at", null\)/)
   })
 })

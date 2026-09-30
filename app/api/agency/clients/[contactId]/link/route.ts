@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { unlinkClientContact } from "@/lib/agency/client-auth"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
@@ -33,7 +34,7 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   )
 }
 
-export async function DELETE(
+async function DELETE_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ contactId: string }> }
 ) {
@@ -62,3 +63,6 @@ export async function DELETE(
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const DELETE = withTiming("/api/agency/clients/[contactId]/link", "DELETE", DELETE_handler)

@@ -156,7 +156,7 @@ describe("what tailor-first must never do", () => {
   })
 
   it("the brief route is read-only — entering role mode shares nothing", () => {
-    expect(briefRoute).toMatch(/export async function GET/)
+    expect(briefRoute).toMatch(/async function GET/)
     expect(briefRoute).not.toMatch(/export async function (POST|PATCH|PUT|DELETE)/)
   })
 

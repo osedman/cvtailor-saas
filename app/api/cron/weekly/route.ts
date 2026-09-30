@@ -11,6 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
@@ -19,7 +20,7 @@ const JOBS: Record<number, string> = {
   1: "/api/path-digest",
 }
 
-export async function GET(req: NextRequest) {
+async function GET_handler(req: NextRequest) {
   const secret = process.env.CRON_SECRET
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
@@ -39,3 +40,6 @@ export async function GET(req: NextRequest) {
   const body = await res.json().catch(() => ({}))
   return NextResponse.json({ ran: path, status: res.status, result: body }, { status: res.ok ? 200 : 502 })
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/cron/weekly", "GET", GET_handler)

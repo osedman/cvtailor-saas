@@ -4,6 +4,8 @@ import { isAdminViewer } from '@/lib/admin'
 import { buildAdminInsights, type CourseOpsInput } from '@/lib/admin-insights'
 import type { MetricsRun } from '@/lib/admin-metrics'
 import { errorMessage } from '@/lib/error-message'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -104,10 +106,10 @@ async function loadCourseOps(
   }
 }
 
-export async function GET() {
+async function GET_handler() {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user || !isAdminViewer(user.email)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -233,3 +235,6 @@ export async function GET() {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/admin/insights", "GET", GET_handler)

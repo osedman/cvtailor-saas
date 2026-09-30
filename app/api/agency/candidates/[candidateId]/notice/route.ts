@@ -23,6 +23,7 @@ import {
 } from "@/lib/agency/db"
 import { sendOneNotice } from "@/lib/agency/notices"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 60
 
@@ -54,7 +55,7 @@ async function loadNotice(candidateId: string, agencyId: string) {
   return { admin, candidate, notice }
 }
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
 ) {
@@ -75,7 +76,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
+async function PATCH_handler(
   req: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
 ) {
@@ -167,3 +168,7 @@ export async function PATCH(
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/candidates/[candidateId]/notice", "GET", GET_handler)
+export const PATCH = withTiming("/api/agency/candidates/[candidateId]/notice", "PATCH", PATCH_handler)

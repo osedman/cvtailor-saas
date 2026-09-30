@@ -16,10 +16,11 @@ import { createServerClient } from "@supabase/ssr"
 import { resolveLandingPath } from "@/lib/hat-routing"
 import { DOOR_FALLBACK } from "@/lib/auth-paths"
 import { doorFromHost } from "@/lib/site-url"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 10
 
-export async function GET(request: NextRequest) {
+async function GET_handler(request: NextRequest) {
   // The door is the host the sign-in actually happened on, so a recruiter who
   // came in at the business domain lands in the recruiter product rather than
   // the consumer app. It decides where someone goes, never what they may see.
@@ -51,3 +52,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ path: DOOR_FALLBACK[door] })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/auth/landing", "GET", GET_handler)

@@ -18,18 +18,18 @@ import { checkRateLimit, anonRateLimitId } from "@/lib/rate-limit"
 import { CONSENT_SUBJECTS, type ConsentSubject } from "@/lib/matching/limits"
 import { getConsentState, listConsentEvents, setConsent } from "@/lib/matching/preferences"
 import { errorMessage } from "@/lib/error-message"
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 10
 
 async function requireUser() {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await sessionUser(supabase)
   return user
 }
 
-export async function GET() {
+async function GET_handler() {
   try {
     const user = await requireUser()
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
@@ -46,7 +46,7 @@ export async function GET() {
 }
 
 /** Body: { subject: 'matching' | 'enrichment', granted: boolean } */
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const user = await requireUser()
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
@@ -82,3 +82,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/matching/preferences", "GET", GET_handler)
+export const POST = withTiming("/api/matching/preferences", "POST", POST_handler)

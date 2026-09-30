@@ -21,6 +21,7 @@ import { b2bFrom } from "@/lib/email-senders"
 import { agencyAdmin, requireAgencyContext, writeAudit } from "@/lib/agency/db"
 import { getBusinessOrigin } from "@/lib/site-url"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -31,7 +32,7 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   )
 }
 
-export async function GET() {
+async function GET_handler() {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -78,7 +79,7 @@ export async function GET() {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -179,7 +180,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function PATCH(req: NextRequest) {
+async function PATCH_handler(req: NextRequest) {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -240,3 +241,8 @@ export async function PATCH(req: NextRequest) {
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/team", "GET", GET_handler)
+export const POST = withTiming("/api/agency/team", "POST", POST_handler)
+export const PATCH = withTiming("/api/agency/team", "PATCH", PATCH_handler)

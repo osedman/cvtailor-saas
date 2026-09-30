@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, agencyAdmin, getJobRole, requireAgencyContext } from "@/lib/agency/db"
 import { connectRoleToBrief, disconnectRoleFromBrief, listBriefsForCompany, roleBriefStatus } from "@/lib/agency/search-briefs"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 type P = { params: Promise<{ roleId: string }> }
@@ -20,7 +21,7 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   return NextResponse.json({ error: failure === "unauthenticated" ? "Unauthorised" : "No agency membership" }, { status: failure === "unauthenticated" ? 401 : 403 })
 }
 
-export async function GET(_req: NextRequest, { params }: P) {
+async function GET_handler(_req: NextRequest, { params }: P) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -37,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: P) {
   }
 }
 
-export async function POST(req: NextRequest, { params }: P) {
+async function POST_handler(req: NextRequest, { params }: P) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest, { params }: P) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: P) {
+async function DELETE_handler(_req: NextRequest, { params }: P) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -66,3 +67,8 @@ export async function DELETE(_req: NextRequest, { params }: P) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]/brief", "GET", GET_handler)
+export const POST = withTiming("/api/agency/roles/[roleId]/brief", "POST", POST_handler)
+export const DELETE = withTiming("/api/agency/roles/[roleId]/brief", "DELETE", DELETE_handler)

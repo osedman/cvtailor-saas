@@ -14,12 +14,13 @@ import { AgencyAccessError } from "@/lib/agency/db"
 import { requireHiringContext } from "@/lib/agency/client-auth"
 import { decideRound } from "@/lib/agency/rounds"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
 const DECISIONS = new Set(["advance", "hold", "decline"])
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const auth = await requireHiringContext()
     if (!auth.ok) {
@@ -61,3 +62,6 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/hiring/rounds", "POST", POST_handler)

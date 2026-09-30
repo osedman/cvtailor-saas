@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError } from "@/lib/agency/db"
 import { requireHiringContext } from "@/lib/agency/client-auth"
 import { offerSlot, withdrawSlot } from "@/lib/agency/rounds"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
@@ -25,7 +26,7 @@ function authFail(failure: "unauthenticated" | "not_linked") {
   )
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const auth = await requireHiringContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
+async function DELETE_handler(req: NextRequest) {
   try {
     const auth = await requireHiringContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -81,3 +82,7 @@ export async function DELETE(req: NextRequest) {
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/hiring/availability", "POST", POST_handler)
+export const DELETE = withTiming("/api/hiring/availability", "DELETE", DELETE_handler)

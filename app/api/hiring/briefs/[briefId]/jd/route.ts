@@ -20,6 +20,7 @@ import { getBriefForClient } from "@/lib/agency/search-briefs"
 import { storeBriefJd, briefJdContentType, BRIEF_JD_LIMIT_BYTES } from "@/lib/agency/brief-files"
 import { errorMessage } from "@/lib/error-message"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 60
 type P = { params: Promise<{ briefId: string }> }
@@ -32,7 +33,7 @@ function fail(error: unknown) {
   return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
 }
 
-export async function POST(req: NextRequest, { params }: P) {
+async function POST_handler(req: NextRequest, { params }: P) {
   try {
     const { briefId } = await params
     const auth = await requireHiringContext()
@@ -67,3 +68,6 @@ export async function POST(req: NextRequest, { params }: P) {
     return fail(error)
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/hiring/briefs/[briefId]/jd", "POST", POST_handler)

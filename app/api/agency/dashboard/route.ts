@@ -26,6 +26,7 @@ import { computeScore, type ScoringBaselines } from "@/lib/agency/scoring"
 import type { Strength, Weight } from "@/lib/agency/types"
 import { getHatsHeld } from "@/lib/hat-routing"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -49,7 +50,7 @@ function overlap(a: Set<string>, b: Set<string>): number {
   return hit / Math.min(a.size, b.size)
 }
 
-export async function GET() {
+async function GET_handler() {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) {
@@ -613,3 +614,6 @@ export async function GET() {
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/dashboard", "GET", GET_handler)

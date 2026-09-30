@@ -23,6 +23,8 @@ import {
   loadItems, replaceItems, addItems, setItemStatus, removeSkill as storeRemoveSkill,
   expireStaleUpskillItems, type StoredRoadmapItem,
 } from '@/lib/roadmap-store'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
@@ -83,10 +85,10 @@ function calibration(cv: string, intention: string): string {
 /** Surface real messages from Supabase/Postgrest errors, which are plain
  * objects (not Error instances) — otherwise String(err) yields "[object Object]". */
 
-export async function GET() {
+async function GET_handler() {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
@@ -146,12 +148,12 @@ export async function GET() {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   const t0 = Date.now()
   let bodyMode = 'unknown'
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
@@ -760,10 +762,10 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function PATCH(req: NextRequest) {
+async function PATCH_handler(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
@@ -796,3 +798,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/career-path", "GET", GET_handler)
+export const POST = withTiming("/api/career-path", "POST", POST_handler)
+export const PATCH = withTiming("/api/career-path", "PATCH", PATCH_handler)

@@ -11,10 +11,11 @@ import { requireAgencyContext } from "@/lib/agency/db"
 import { getRoleFacts } from "@/lib/agency/role-facts"
 import { deriveSubState, handoffFor, nextAction } from "@/lib/agency/next-action"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function GET_handler(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -42,3 +43,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]/header", "GET", GET_handler)

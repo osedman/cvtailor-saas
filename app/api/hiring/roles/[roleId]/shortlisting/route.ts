@@ -11,6 +11,7 @@ import { requireHiringContext } from "@/lib/agency/client-auth"
 import type { HiringFailure } from "@/lib/agency/client-auth"
 import { getShortlisting } from "@/lib/agency/client-shortlisting"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -23,7 +24,7 @@ function authFail(failure: HiringFailure) {
   )
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function GET_handler(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireHiringContext()
@@ -38,3 +39,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
     return NextResponse.json({ error: errorMessage(error) }, { status: 500, headers: NO_STORE })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/roles/[roleId]/shortlisting", "GET", GET_handler)

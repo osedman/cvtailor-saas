@@ -8,10 +8,11 @@ import { NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { listConsumerPool } from "@/lib/agency/consumer-pool"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 60
 
-export async function GET(_req: Request, { params }: { params: Promise<{ roleId: string }> }) {
+async function GET_handler(_req: Request, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -27,3 +28,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ roleId:
     return NextResponse.json({ error: errorMessage(e) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]/matching/pool", "GET", GET_handler)

@@ -14,6 +14,7 @@ import { listClientRoles } from "@/lib/agency/client-header"
 import { getInterviewSettings, setInterviewSettings } from "@/lib/agency/interview-settings"
 import { AgencyAccessError } from "@/lib/agency/db"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -24,7 +25,7 @@ function authFail(failure: HiringFailure) {
   )
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function GET_handler(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireHiringContext()
@@ -37,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function PATCH_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireHiringContext()
@@ -52,3 +53,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ro
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/roles/[roleId]/interview-settings", "GET", GET_handler)
+export const PATCH = withTiming("/api/hiring/roles/[roleId]/interview-settings", "PATCH", PATCH_handler)

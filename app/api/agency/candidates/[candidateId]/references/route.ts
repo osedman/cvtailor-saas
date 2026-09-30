@@ -15,6 +15,7 @@ import { addReferee, listReferences, requestReference, markReferenceNoticeSent, 
 import { sendEmail } from "@/lib/email"
 import { agencyNoticeFrom } from "@/lib/email-senders"
 import { getAppOrigin } from "@/lib/site-url"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 20
 
@@ -51,7 +52,7 @@ function refereeEmailHtml(o: {
 </div>`
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ candidateId: string }> }) {
+async function GET_handler(_req: NextRequest, { params }: { params: Promise<{ candidateId: string }> }) {
   try {
     const { candidateId } = await params
     const auth = await requireAgencyContext()
@@ -65,7 +66,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ can
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ candidateId: string }> }) {
+async function POST_handler(req: NextRequest, { params }: { params: Promise<{ candidateId: string }> }) {
   try {
     const { candidateId } = await params
     const auth = await requireAgencyContext()
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ can
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ candidateId: string }> }) {
+async function PATCH_handler(req: NextRequest, { params }: { params: Promise<{ candidateId: string }> }) {
   try {
     await params
     const auth = await requireAgencyContext()
@@ -135,7 +136,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
  * response says which happened, so the screen can tell the truth about it
  * rather than claim a deletion that did not occur. See removeReferee().
  */
-export async function DELETE(req: NextRequest) {
+async function DELETE_handler(req: NextRequest) {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) {
@@ -155,3 +156,9 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Could not remove that referee" }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/candidates/[candidateId]/references", "GET", GET_handler)
+export const POST = withTiming("/api/agency/candidates/[candidateId]/references", "POST", POST_handler)
+export const PATCH = withTiming("/api/agency/candidates/[candidateId]/references", "PATCH", PATCH_handler)
+export const DELETE = withTiming("/api/agency/candidates/[candidateId]/references", "DELETE", DELETE_handler)

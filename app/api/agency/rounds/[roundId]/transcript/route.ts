@@ -21,6 +21,7 @@ import { NextRequest, NextResponse, after } from "next/server"
 import { requireAgencyContext, AgencyAccessError } from "@/lib/agency/db"
 import { queueTranscription, verifyTranscript, runTranscription } from "@/lib/agency/transcription"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -60,7 +61,7 @@ async function auth() {
   }
 }
 
-export async function POST(
+async function POST_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ roundId: string }> }
 ) {
@@ -95,7 +96,7 @@ export async function POST(
   }
 }
 
-export async function PUT(
+async function PUT_handler(
   req: NextRequest,
   { params }: { params: Promise<{ roundId: string }> }
 ) {
@@ -118,3 +119,7 @@ export async function PUT(
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/agency/rounds/[roundId]/transcript", "POST", POST_handler)
+export const PUT = withTiming("/api/agency/rounds/[roundId]/transcript", "PUT", PUT_handler)

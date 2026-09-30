@@ -11,10 +11,11 @@ import { errorMessage } from "@/lib/error-message"
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { buildDossier } from "@/lib/agency/dossier"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 20
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ roleId: string; candidateId: string }> }
 ) {
@@ -38,3 +39,6 @@ export async function GET(
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]/candidates/[candidateId]/dossier", "GET", GET_handler)

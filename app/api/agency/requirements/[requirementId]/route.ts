@@ -13,6 +13,7 @@ import {
 } from "@/lib/agency/db"
 import type { Weight } from "@/lib/agency/types"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
@@ -23,7 +24,7 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   )
 }
 
-export async function PATCH(
+async function PATCH_handler(
   req: NextRequest,
   { params }: { params: Promise<{ requirementId: string }> }
 ) {
@@ -59,7 +60,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
+async function DELETE_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ requirementId: string }> }
 ) {
@@ -79,3 +80,7 @@ export async function DELETE(
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const PATCH = withTiming("/api/agency/requirements/[requirementId]", "PATCH", PATCH_handler)
+export const DELETE = withTiming("/api/agency/requirements/[requirementId]", "DELETE", DELETE_handler)

@@ -11,10 +11,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, assertWriter, requireAgencyContext } from "@/lib/agency/db"
 import { applyDecision, parseDecision } from "@/lib/agency/decisions"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
-export async function PATCH(
+async function PATCH_handler(
   req: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
 ) {
@@ -49,3 +50,6 @@ export async function PATCH(
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const PATCH = withTiming("/api/agency/candidates/[candidateId]/decision", "PATCH", PATCH_handler)

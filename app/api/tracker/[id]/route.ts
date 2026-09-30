@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 10
 
 type Ctx = { params: Promise<{ id: string }> }
 
-export async function PATCH(req: NextRequest, { params }: Ctx) {
+async function PATCH_handler(req: NextRequest, { params }: Ctx) {
   try {
     const { id } = await params
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
     const body = await req.json()
@@ -28,11 +30,11 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: Ctx) {
+async function DELETE_handler(_req: NextRequest, { params }: Ctx) {
   try {
     const { id } = await params
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
     const { error } = await supabase
@@ -47,3 +49,7 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const PATCH = withTiming("/api/tracker/[id]", "PATCH", PATCH_handler)
+export const DELETE = withTiming("/api/tracker/[id]", "DELETE", DELETE_handler)

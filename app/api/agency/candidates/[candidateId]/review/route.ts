@@ -20,6 +20,7 @@ import {
 import { applyOverrides, loadScoringState, recomputeAndStore } from "@/lib/agency/rescore"
 import type { Strength } from "@/lib/agency/types"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -37,7 +38,7 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   )
 }
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
 ) {
@@ -70,7 +71,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
+async function PATCH_handler(
   req: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
 ) {
@@ -161,7 +162,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
+async function DELETE_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
 ) {
@@ -201,3 +202,8 @@ export async function DELETE(
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/candidates/[candidateId]/review", "GET", GET_handler)
+export const PATCH = withTiming("/api/agency/candidates/[candidateId]/review", "PATCH", PATCH_handler)
+export const DELETE = withTiming("/api/agency/candidates/[candidateId]/review", "DELETE", DELETE_handler)

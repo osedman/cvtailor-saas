@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { agencyAdmin, getJobRole, requireAgencyContext } from "@/lib/agency/db"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 function authFail(failure: "unauthenticated" | "no_agency") {
   return NextResponse.json(
@@ -25,7 +26,7 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   )
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function GET_handler(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -122,3 +123,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]/submission/progress", "GET", GET_handler)

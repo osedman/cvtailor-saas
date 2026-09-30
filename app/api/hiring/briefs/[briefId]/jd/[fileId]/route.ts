@@ -16,6 +16,7 @@ import { AgencyAccessError } from "@/lib/agency/db"
 import { getBriefForClient } from "@/lib/agency/search-briefs"
 import { readBriefJd, attachmentHeaders } from "@/lib/agency/brief-files"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 type P = { params: Promise<{ briefId: string; fileId: string }> }
@@ -28,7 +29,7 @@ function fail(error: unknown) {
   return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
 }
 
-export async function GET(_req: NextRequest, { params }: P) {
+async function GET_handler(_req: NextRequest, { params }: P) {
   try {
     const { briefId, fileId } = await params
     const auth = await requireHiringContext()
@@ -44,3 +45,6 @@ export async function GET(_req: NextRequest, { params }: P) {
     return fail(error)
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/briefs/[briefId]/jd/[fileId]", "GET", GET_handler)

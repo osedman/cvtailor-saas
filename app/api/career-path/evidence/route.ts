@@ -7,6 +7,8 @@ import { checkRateLimit } from "@/lib/rate-limit"
 import { sanitizeDeep } from "@/lib/sanitize"
 import { errMessage } from "@/lib/err"
 import { extractFileText } from "@/lib/extract-file-text"
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
@@ -19,10 +21,10 @@ export const maxDuration = 300
  *
  * `dry=1` judges without persisting anything (used for verification).
  */
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
@@ -121,3 +123,6 @@ ${rawText}`,
     return NextResponse.json({ error: errMessage(err) }, { status })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/career-path/evidence", "POST", POST_handler)

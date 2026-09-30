@@ -10,6 +10,7 @@ import type { HiringFailure } from "@/lib/agency/client-auth"
 import { AgencyAccessError } from "@/lib/agency/db"
 import { RoundRequestInputError, recordHiringRoundRequest, requestForHiringRole } from "@/lib/agency/round-requests"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -30,7 +31,7 @@ function fail(error: unknown) {
 const publicShape = (r: Awaited<ReturnType<typeof requestForHiringRole>>) =>
   r && { candidateRefs: r.candidateRefs, note: r.note, roundNumber: r.roundNumber, at: r.at }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function GET_handler(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireHiringContext()
@@ -41,7 +42,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function POST_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireHiringContext()
@@ -57,3 +58,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
     return fail(error)
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/roles/[roleId]/round-request", "GET", GET_handler)
+export const POST = withTiming("/api/hiring/roles/[roleId]/round-request", "POST", POST_handler)

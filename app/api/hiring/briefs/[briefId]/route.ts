@@ -14,6 +14,7 @@ import type { HiringFailure } from "@/lib/agency/client-auth"
 import { AgencyAccessError } from "@/lib/agency/db"
 import { clientAmend, clientApprove, getBriefForClient } from "@/lib/agency/search-briefs"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 type P = { params: Promise<{ briefId: string }> }
@@ -34,7 +35,7 @@ function forClient(brief: Awaited<ReturnType<typeof getBriefForClient>>) {
   return { ...rest, connectedRoles: connectedRoles.map((r) => ({ title: r.title, version: r.version })) }
 }
 
-export async function GET(_req: NextRequest, { params }: P) {
+async function GET_handler(_req: NextRequest, { params }: P) {
   try {
     const { briefId } = await params
     const auth = await requireHiringContext()
@@ -47,7 +48,7 @@ export async function GET(_req: NextRequest, { params }: P) {
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: P) {
+async function PATCH_handler(req: NextRequest, { params }: P) {
   try {
     const { briefId } = await params
     const auth = await requireHiringContext()
@@ -59,7 +60,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
   }
 }
 
-export async function POST(req: NextRequest, { params }: P) {
+async function POST_handler(req: NextRequest, { params }: P) {
   try {
     const { briefId } = await params
     const auth = await requireHiringContext()
@@ -73,3 +74,8 @@ export async function POST(req: NextRequest, { params }: P) {
     return fail(error)
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/briefs/[briefId]", "GET", GET_handler)
+export const PATCH = withTiming("/api/hiring/briefs/[briefId]", "PATCH", PATCH_handler)
+export const POST = withTiming("/api/hiring/briefs/[briefId]", "POST", POST_handler)

@@ -21,10 +21,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { acceptInvite } from "@/lib/agency/client-auth"
 import { checkDoorwayLimit, checkRateLimit } from "@/lib/rate-limit"
 import { createClient } from "@/lib/supabase/server"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     let token = ""
     try {
@@ -89,3 +90,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/hiring/accept", "POST", POST_handler)

@@ -15,8 +15,9 @@ import { NextResponse } from "next/server"
 import { requireHiringContext } from "@/lib/agency/client-auth"
 import { getInterviewRoom } from "@/lib/agency/interview-room"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
-export async function GET(
+async function GET_handler(
   _req: Request,
   { params }: { params: Promise<{ roleId: string; candidateRef: string }> }
 ) {
@@ -36,3 +37,6 @@ export async function GET(
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/roles/[roleId]/rounds/[candidateRef]", "GET", GET_handler)

@@ -125,7 +125,7 @@ describe("the token doorways use the doorway limit, not the sign-in tier", () =>
       // The limit needs the token, so params are read first — and the limit
       // still runs before any lookup.
       for (const verb of ["GET", "POST"]) {
-        const fn = src.slice(src.indexOf(`export async function ${verb}`))
+        const fn = src.slice(src.indexOf(`async function ${verb}_handler`))
         const params = fn.indexOf("await params")
         const limit = fn.indexOf("checkDoorwayLimit(")
         const lookup = fn.search(/await (peek|claim|record|respond|reschedule)\w*\(/)
@@ -157,14 +157,14 @@ describe("the token doorways use the doorway limit, not the sign-in tier", () =>
 
   it("the consent answer (it emails recruiters) also takes the per-link write ceiling", () => {
     const src = read("app/api/consent/[token]/route.ts")
-    const post = src.slice(src.indexOf("export async function POST"))
+    const post = src.slice(src.indexOf("async function POST"))
     const doorway = post.indexOf("checkDoorwayLimit(")
     const write = post.indexOf('checkDoorwayWriteLimit("consent", token)')
     const record = post.indexOf("await recordDecision(")
     expect(write).toBeGreaterThan(doorway)
     expect(record).toBeGreaterThan(write)
     // Reads are not writes: GET never spends the write allowance.
-    const get = src.slice(src.indexOf("export async function GET"), src.indexOf("export async function POST"))
+    const get = src.slice(src.indexOf("async function GET"), src.indexOf("async function POST"))
     expect(get).not.toMatch(/checkDoorwayWriteLimit/)
   })
 })

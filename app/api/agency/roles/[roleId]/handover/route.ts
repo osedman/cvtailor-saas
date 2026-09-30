@@ -12,6 +12,7 @@ import { errorMessage } from "@/lib/error-message"
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { generateHandoverPack, deliverHandoverPack, voidHandoverPack } from "@/lib/agency/handover"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -29,7 +30,7 @@ function fail(e: unknown) {
   )
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function POST_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function PATCH_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     await params
     const auth = await requireAgencyContext()
@@ -81,7 +82,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ro
  * existing pack rather than minting twins, so without this the mistake IS
  * the record. A delivered pack is refused: the client has it.
  */
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function DELETE_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     await params
     const auth = await requireAgencyContext()
@@ -106,3 +107,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ r
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/agency/roles/[roleId]/handover", "POST", POST_handler)
+export const PATCH = withTiming("/api/agency/roles/[roleId]/handover", "PATCH", PATCH_handler)
+export const DELETE = withTiming("/api/agency/roles/[roleId]/handover", "DELETE", DELETE_handler)

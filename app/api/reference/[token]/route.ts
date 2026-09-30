@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { peekReference, recordReference, type RefereeAnswer } from "@/lib/agency/references"
 import { checkDoorwayLimit } from "@/lib/rate-limit"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
@@ -21,7 +22,7 @@ function callerIp(req: NextRequest): string {
   return (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown"
 }
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+async function GET_handler(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
     const limited = await checkDoorwayLimit("reference", callerIp(req), token)
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+async function POST_handler(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
     const limited = await checkDoorwayLimit("reference", callerIp(req), token)
@@ -56,3 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/reference/[token]", "GET", GET_handler)
+export const POST = withTiming("/api/reference/[token]", "POST", POST_handler)

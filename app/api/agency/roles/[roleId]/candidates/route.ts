@@ -15,6 +15,7 @@ import { getStagesForRoles } from "@/lib/agency/stages"
 import { liveChoice } from "@/lib/agency/final-choice"
 import { CV_TEXT_LIMIT, extractFileText, ingestCandidate } from "@/lib/agency/ingest"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
@@ -38,7 +39,7 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024
  */
 const MAX_CANDIDATES_PER_ROLE = 50
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ roleId: string }> }
 ) {
@@ -121,7 +122,7 @@ export async function GET(
   }
 }
 
-export async function POST(
+async function POST_handler(
   req: NextRequest,
   { params }: { params: Promise<{ roleId: string }> }
 ) {
@@ -228,7 +229,7 @@ export async function POST(
  * they are being considered, and the honest path is the decision trail, not a
  * deletion that makes the message they already received unaccountable.
  */
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function DELETE_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -298,3 +299,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ r
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]/candidates", "GET", GET_handler)
+export const POST = withTiming("/api/agency/roles/[roleId]/candidates", "POST", POST_handler)
+export const DELETE = withTiming("/api/agency/roles/[roleId]/candidates", "DELETE", DELETE_handler)

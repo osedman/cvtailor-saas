@@ -13,10 +13,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAgencyContext } from "@/lib/agency/db"
 import { listAuditEntries, AUDIT_GROUPS } from "@/lib/agency/audit-view"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 20
 
-export async function GET(req: NextRequest) {
+async function GET_handler(req: NextRequest) {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) {
@@ -47,3 +48,6 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/audit", "GET", GET_handler)

@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { listRecipientsForRole, revokeRecipient } from "@/lib/agency/recipients"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
@@ -24,7 +25,7 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   )
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function GET_handler(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -43,7 +44,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function POST_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     await params
     const auth = await requireAgencyContext()
@@ -70,3 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]/recipients", "GET", GET_handler)
+export const POST = withTiming("/api/agency/roles/[roleId]/recipients", "POST", POST_handler)

@@ -16,6 +16,7 @@ import {
   getAgencyInterviewDefaults,
   setAgencyInterviewDefaults,
 } from "@/lib/agency/interview-settings"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
@@ -26,7 +27,7 @@ function authFail(f: "unauthenticated" | "no_agency") {
   )
 }
 
-export async function GET() {
+async function GET_handler() {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -49,7 +50,7 @@ export async function GET() {
   }
 }
 
-export async function PATCH(req: NextRequest) {
+async function PATCH_handler(req: NextRequest) {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -83,3 +84,7 @@ export async function PATCH(req: NextRequest) {
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/settings", "GET", GET_handler)
+export const PATCH = withTiming("/api/agency/settings", "PATCH", PATCH_handler)

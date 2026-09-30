@@ -15,6 +15,7 @@ import type { HiringFailure } from "@/lib/agency/client-auth"
 import { AgencyAccessError } from "@/lib/agency/db"
 import { FinalChoiceInputError, finalChoiceForHiringRole, recordFinalChoice } from "@/lib/agency/final-choice"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -37,7 +38,7 @@ function fail(error: unknown) {
   return NextResponse.json({ error: "That did not save. Try again." }, { status: 500 })
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function GET_handler(_req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireHiringContext()
@@ -49,7 +50,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rol
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function POST_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireHiringContext()
@@ -65,3 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
     return fail(error)
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/roles/[roleId]/final-choice", "GET", GET_handler)
+export const POST = withTiming("/api/hiring/roles/[roleId]/final-choice", "POST", POST_handler)

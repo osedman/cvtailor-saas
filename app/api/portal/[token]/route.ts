@@ -21,6 +21,7 @@ import { createHash } from "crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { agencyAdmin, writeAudit } from "@/lib/agency/db"
 import { disclosePortalSnapshot } from "@/lib/agency/snapshot-disclosure"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
@@ -41,7 +42,7 @@ async function resolveRecipient(token: string) {
   return { admin, recipient: data }
 }
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
@@ -90,7 +91,7 @@ export async function GET(
   }
 }
 
-export async function POST(
+async function POST_handler(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
@@ -169,3 +170,7 @@ export async function POST(
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/portal/[token]", "GET", GET_handler)
+export const POST = withTiming("/api/portal/[token]", "POST", POST_handler)

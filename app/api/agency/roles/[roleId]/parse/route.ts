@@ -32,6 +32,7 @@ import {
 import { createJob, extractFileText, finishJob } from "@/lib/agency/ingest"
 import type { Weight } from "@/lib/agency/types"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
@@ -152,7 +153,7 @@ async function fetchJdFromLink(raw: string): Promise<string> {
   return text.slice(0, JD_LIMIT)
 }
 
-export async function POST(
+async function POST_handler(
   req: NextRequest,
   { params }: { params: Promise<{ roleId: string }> }
 ) {
@@ -292,3 +293,6 @@ export async function POST(
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/agency/roles/[roleId]/parse", "POST", POST_handler)

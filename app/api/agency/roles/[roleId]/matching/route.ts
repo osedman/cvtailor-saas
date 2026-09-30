@@ -19,6 +19,7 @@ import { getMatchingStatus, pauseMatching, publishForMatching } from "@/lib/agen
 import { runMatchScan } from "@/lib/matching/scan"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -29,7 +30,7 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   )
 }
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ roleId: string }> }
 ) {
@@ -48,7 +49,7 @@ export async function GET(
 }
 
 /** Body: { enabled: true, minScore: number } to publish · { enabled: false } to pause. */
-export async function POST(
+async function POST_handler(
   req: NextRequest,
   { params }: { params: Promise<{ roleId: string }> }
 ) {
@@ -106,3 +107,7 @@ export async function POST(
     return NextResponse.json({ error: msg }, { status })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]/matching", "GET", GET_handler)
+export const POST = withTiming("/api/agency/roles/[roleId]/matching", "POST", POST_handler)

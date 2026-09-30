@@ -8059,3 +8059,35 @@ work:
     bubbles show the approved wording and sit fully on screen.
   - `lib/__tests__/recruiter-hints.test.ts` (7). 2078 tests green and the
     build is clean.
+
+## ⏱ Speed, round two: timing on every request, and the consumer routes (30 September 2026)
+
+**Timing.** `lib/server-timing.ts` wraps all 211 handlers in 132 API routes
+(`export const GET = withTiming(route, "GET", GET_handler)`).
+- Every Supabase client (user, admin, agency, hiring session) and the
+  Anthropic client is handed `timedFetch`. Each response therefore reports its
+  round trips with no per-route code:
+  `Server-Timing: db;desc="9 calls, summed";dur=212, auth;…, ai;…, total;dur=318`.
+- Any request over 1000ms also logs one line to the Vercel runtime logs:
+  `[slow] PATCH /api/agency/roles/[roleId] 1250ms · …`.
+- Only counts and durations are reported, never URLs, bodies or ids.
+
+**Where to look.**
+- Browser: DevTools → Network → click the request → Timing. Server-Timing is
+  at the bottom.
+- Vercel: Logs, search `[slow]`.
+
+**Consumer routes.** 47 `getUser()` calls across 34 route files now use
+`sessionUser()` (`lib/supabase/session-user.ts`, via getClaims). They only
+ever read id and email. Three sign-in routes keep `getUser()` on purpose:
+post-login, landing and invite accept.
+
+**Verified.**
+- Header present on a live dev server (e.g. `total;dur=11.3` on a 401), and
+  the `[slow]` line fires.
+- `lib/__tests__/server-timing.test.ts` (7): the header, the slow log, and
+  guards that every route stays wrapped, every client stays counted, and only
+  the three sign-in routes call `getUser()`.
+- 15 older tests re-anchored from `export async function X` to
+  `async function X` / `X_handler`.
+- 2085 tests green; the build is clean.

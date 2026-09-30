@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { getChecklist, resolveChecklistItem, type ChecklistItemKey, type ChecklistState } from "@/lib/agency/handover-checklist"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -18,7 +19,7 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   )
 }
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function GET_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ role
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function PATCH_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -52,3 +53,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ro
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]/handover/checklist", "GET", GET_handler)
+export const PATCH = withTiming("/api/agency/roles/[roleId]/handover/checklist", "PATCH", PATCH_handler)

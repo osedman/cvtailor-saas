@@ -19,6 +19,7 @@ import { NextResponse } from "next/server"
 import { requireAgencyContext } from "@/lib/agency/db"
 import { listClientAccess } from "@/lib/agency/client-auth"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
@@ -29,7 +30,7 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   )
 }
 
-export async function GET() {
+async function GET_handler() {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -44,3 +45,6 @@ export async function GET() {
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/clients", "GET", GET_handler)

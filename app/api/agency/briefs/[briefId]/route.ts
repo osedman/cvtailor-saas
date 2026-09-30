@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
 import { discardDraft, getBriefForRecruiter, recruiterAmend, recruiterApprove, sendBrief } from "@/lib/agency/search-briefs"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 type P = { params: Promise<{ briefId: string }> }
@@ -24,7 +25,7 @@ function fail(error: unknown) {
   return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
 }
 
-export async function GET(_req: NextRequest, { params }: P) {
+async function GET_handler(_req: NextRequest, { params }: P) {
   try {
     const { briefId } = await params
     const auth = await requireAgencyContext()
@@ -37,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: P) {
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: P) {
+async function PATCH_handler(req: NextRequest, { params }: P) {
   try {
     const { briefId } = await params
     const auth = await requireAgencyContext()
@@ -53,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
   }
 }
 
-export async function POST(req: NextRequest, { params }: P) {
+async function POST_handler(req: NextRequest, { params }: P) {
   try {
     const { briefId } = await params
     const auth = await requireAgencyContext()
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest, { params }: P) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: P) {
+async function DELETE_handler(_req: NextRequest, { params }: P) {
   try {
     const { briefId } = await params
     const auth = await requireAgencyContext()
@@ -82,3 +83,9 @@ export async function DELETE(_req: NextRequest, { params }: P) {
     return fail(error)
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/briefs/[briefId]", "GET", GET_handler)
+export const PATCH = withTiming("/api/agency/briefs/[briefId]", "PATCH", PATCH_handler)
+export const POST = withTiming("/api/agency/briefs/[briefId]", "POST", POST_handler)
+export const DELETE = withTiming("/api/agency/briefs/[briefId]", "DELETE", DELETE_handler)

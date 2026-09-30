@@ -11,15 +11,15 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { listFound } from "@/lib/matching/found"
 import { errorMessage } from "@/lib/error-message"
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 10
 
-export async function GET() {
+async function GET_handler() {
   try {
     const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
 
     const result = await listFound(supabase)
@@ -28,3 +28,6 @@ export async function GET() {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/found", "GET", GET_handler)

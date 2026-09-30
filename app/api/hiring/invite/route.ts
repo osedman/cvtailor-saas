@@ -38,6 +38,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { peekInvite } from "@/lib/agency/client-auth"
 import { checkDoorwayLimit } from "@/lib/rate-limit"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
@@ -66,7 +67,7 @@ function maskEmail(email: string): string {
   return `${local.slice(0, 1)}•••@${domain}`
 }
 
-export async function GET(req: NextRequest) {
+async function GET_handler(req: NextRequest) {
   try {
     // The token is read (not looked up) first, because the per-link half of
     // the limit is keyed on it. The limit is still charged before any lookup
@@ -101,3 +102,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/invite", "GET", GET_handler)

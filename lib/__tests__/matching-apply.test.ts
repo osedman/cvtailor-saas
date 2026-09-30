@@ -125,7 +125,7 @@ describe("what the apply path must never do", () => {
   })
 
   it("the POST accepts no body fields — the server recomputes the payload", () => {
-    const post = route.slice(route.indexOf("export async function POST"))
+    const post = route.slice(route.indexOf("async function POST"))
     expect(post).not.toMatch(/req\.json\(\)/)
   })
 

@@ -22,7 +22,7 @@ const route = readFileSync(
   path.join(process.cwd(), "app/api/agency/roles/[roleId]/candidates/route.ts"),
   "utf8"
 )
-const DELETE = route.slice(route.indexOf("export async function DELETE"))
+const DELETE = route.slice(route.indexOf("async function DELETE"))
 const migration = readFileSync(
   path.join(process.cwd(), "supabase/migrations/20260805160000_agency_retention.sql"),
   "utf8"

@@ -105,7 +105,7 @@ describe("the hiring manager cannot start a role", () => {
     // The list route exists again (23 Sep 2026) and is GET-only: a client
     // reads briefs sent to them and cannot create one.
     const list = code("app/api/hiring/briefs/route.ts")
-    expect(list).toMatch(/export async function GET/)
+    expect(list).toMatch(/async function GET/)
     expect(list).not.toMatch(/export async function (POST|PUT|DELETE)/)
   })
 })

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { errorMessage } from '@/lib/error-message'
 import { applyTailoredCvEdit } from '@/lib/tailor-history-edit'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 10
 
@@ -21,14 +23,14 @@ const MAX_LETTER_CHARS = 20_000
  * download, tracker sync) sees the edit without changes. The AI's original is
  * stashed under `result.tailoredCVOriginal` the first time an edit lands.
  */
-export async function PATCH(
+async function PATCH_handler(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
     const body = await req.json()
@@ -110,14 +112,14 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
+async function DELETE_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
     const { error } = await supabase
@@ -133,3 +135,7 @@ export async function DELETE(
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const PATCH = withTiming("/api/history/[id]", "PATCH", PATCH_handler)
+export const DELETE = withTiming("/api/history/[id]", "DELETE", DELETE_handler)

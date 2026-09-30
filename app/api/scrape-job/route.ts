@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeJobUrl } from '@/lib/job-url'
 import { errorMessage } from '@/lib/error-message'
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -76,7 +77,7 @@ async function scrapeGeneric(url: URL): Promise<string | null> {
   return text.length >= 100 ? text : null
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const { url } = await req.json()
 
@@ -126,3 +127,6 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/scrape-job", "POST", POST_handler)

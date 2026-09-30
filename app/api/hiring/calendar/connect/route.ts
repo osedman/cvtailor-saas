@@ -11,8 +11,9 @@ import { requireHiringContext } from "@/lib/agency/client-auth"
 import { PROVIDERS, isProvider } from "@/lib/calendar/providers"
 import { tokenStorageConfigured } from "@/lib/calendar/tokens"
 import { safeNextPath } from "@/lib/auth-paths"
+import { withTiming } from "@/lib/server-timing"
 
-export async function GET(req: NextRequest) {
+async function GET_handler(req: NextRequest) {
   const auth = await requireHiringContext()
   if (!auth.ok) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
   const provider = req.nextUrl.searchParams.get("provider") ?? ""
@@ -27,3 +28,6 @@ export async function GET(req: NextRequest) {
   res.cookies.set("cal_nonce", nonce, { httpOnly: true, sameSite: "lax", secure: true, path: "/api/hiring/calendar", maxAge: 600 })
   return res
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/calendar/connect", "GET", GET_handler)

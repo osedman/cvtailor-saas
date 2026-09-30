@@ -19,6 +19,7 @@ import {
   type RtwSponsorship,
 } from "@/lib/agency/compliance"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 async function auth() {
   const result = await requireAgencyContext()
@@ -32,7 +33,7 @@ async function auth() {
   }
 }
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
 ) {
@@ -48,7 +49,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
+async function PUT_handler(
   req: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
 ) {
@@ -98,3 +99,7 @@ export async function PUT(
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/candidates/[candidateId]/compliance", "GET", GET_handler)
+export const PUT = withTiming("/api/agency/candidates/[candidateId]/compliance", "PUT", PUT_handler)

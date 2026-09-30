@@ -21,10 +21,11 @@ import { NextResponse } from "next/server"
 import { AgencyAccessError, agencyAdmin, requireAgencyContext } from "@/lib/agency/db"
 import { errorMessage } from "@/lib/error-message"
 import { getStagesForRoles } from "@/lib/agency/stages"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
-export async function GET() {
+async function GET_handler() {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) {
@@ -95,3 +96,6 @@ export async function GET() {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/candidates", "GET", GET_handler)

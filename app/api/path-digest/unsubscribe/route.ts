@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { createHmac, timingSafeEqual } from "crypto"
 import { createAdminClient } from "@/lib/supabase/server"
 import { errMessage } from "@/lib/err"
+import { withTiming } from "@/lib/server-timing"
 
 /** One-click digest unsubscribe from the email itself — no login, HMAC-signed.
  * If moving/stopping is frictionless it's planning; if it needs a login it's
  * nagging (spec, docs/PROJECT.md). */
-export async function GET(req: NextRequest) {
+async function GET_handler(req: NextRequest) {
   const uid = req.nextUrl.searchParams.get("uid") ?? ""
   const sig = req.nextUrl.searchParams.get("sig") ?? ""
   const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
@@ -29,3 +30,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: errMessage(err) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/path-digest/unsubscribe", "GET", GET_handler)

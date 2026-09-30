@@ -6,6 +6,8 @@ import { cleanString, isEvidenceCategory } from "@/lib/first-cv"
 import { sanitizeDeep } from "@/lib/sanitize"
 import { errMessage } from "@/lib/err"
 import { extractFileText } from "@/lib/extract-file-text"
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
@@ -33,10 +35,10 @@ const EXTRACT_TOOL = {
   },
 } as const
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
     const limited = await checkRateLimit(user.id, "ai")
     if (limited) return limited
@@ -70,3 +72,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: errMessage(error) }, { status })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/first-cv/extract", "POST", POST_handler)

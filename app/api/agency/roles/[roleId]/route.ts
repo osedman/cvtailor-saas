@@ -11,6 +11,7 @@ import { setRoleOwner } from "@/lib/agency/role-owner"
 import { derivePhase } from "@/lib/agency/phases"
 import { sendClosureNotices, type ClosureResult } from "@/lib/agency/closure"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -32,7 +33,7 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   )
 }
 
-export async function GET(
+async function GET_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ roleId: string }> }
 ) {
@@ -103,7 +104,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
+async function PATCH_handler(
   req: NextRequest,
   { params }: { params: Promise<{ roleId: string }> }
 ) {
@@ -233,7 +234,7 @@ export async function PATCH(
  * filled. Refused once anyone is on the role, with that explanation — see
  * discardJobRole().
  */
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function DELETE_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireAgencyContext()
@@ -247,3 +248,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ r
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]", "GET", GET_handler)
+export const PATCH = withTiming("/api/agency/roles/[roleId]", "PATCH", PATCH_handler)
+export const DELETE = withTiming("/api/agency/roles/[roleId]", "DELETE", DELETE_handler)

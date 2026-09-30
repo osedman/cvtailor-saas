@@ -18,6 +18,7 @@
 import { NextResponse } from "next/server"
 import { requireHiringContext } from "@/lib/agency/client-auth"
 import type { HiringFailure } from "@/lib/agency/client-auth"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
@@ -48,7 +49,7 @@ function serverError(tag: string, error: unknown) {
   return NextResponse.json({ error: "Something went wrong" }, { status: 500 })
 }
 
-export async function GET() {
+async function GET_handler() {
   try {
     const auth = await requireHiringContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -65,3 +66,6 @@ export async function GET() {
     return serverError("me", error)
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/me", "GET", GET_handler)

@@ -10,8 +10,9 @@ import { PROVIDERS, isProvider } from "@/lib/calendar/providers"
 import { saveConnection } from "@/lib/calendar/connections"
 import { safeNextPath } from "@/lib/auth-paths"
 import { getBusinessOrigin } from "@/lib/site-url"
+import { withTiming } from "@/lib/server-timing"
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
+async function GET_handler(req: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
   const { provider } = await params
   const origin = getBusinessOrigin()
   const fail = (reason: string, next = "/hiring") => NextResponse.redirect(`${origin}${next}?calendar=${encodeURIComponent(reason)}`)
@@ -44,3 +45,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   res.cookies.set("cal_nonce", "", { httpOnly: true, sameSite: "lax", secure: true, path: "/api/hiring/calendar", maxAge: 0 })
   return res
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/calendar/callback/[provider]", "GET", GET_handler)

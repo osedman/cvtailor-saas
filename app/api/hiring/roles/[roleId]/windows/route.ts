@@ -9,6 +9,7 @@ import { requireHiringContext } from "@/lib/agency/client-auth"
 import type { HiringFailure } from "@/lib/agency/client-auth"
 import { offerWindows } from "@/lib/agency/client-shortlist"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -19,7 +20,7 @@ function authFail(failure: HiringFailure) {
   )
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+async function POST_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
   try {
     const { roleId } = await params
     const auth = await requireHiringContext()
@@ -34,3 +35,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rol
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/hiring/roles/[roleId]/windows", "POST", POST_handler)

@@ -100,7 +100,7 @@ describe("one board, two hats", () => {
     // Visibility, not control: candidates book themselves, so there is no
     // POST here and nothing that writes a slot.
     const src = read("app/api/agency/roles/[roleId]/cohort/route.ts")
-    expect(src).not.toMatch(/export async function POST/)
+    expect(src).not.toMatch(/async function POST/)
     expect(src).not.toMatch(/slot_id/)
   })
 

@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAgencyContext } from "@/lib/agency/db"
 import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 15
 
@@ -20,7 +21,7 @@ function authFail(failure: "unauthenticated" | "no_agency") {
   )
 }
 
-export async function GET() {
+async function GET_handler() {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -49,7 +50,7 @@ export async function GET() {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
  * because a client mid-shortlist should not lose the page they are reading
  * because someone tidied the address book. The screen says so.
  */
-export async function DELETE(req: NextRequest) {
+async function DELETE_handler(req: NextRequest) {
   try {
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
@@ -137,3 +138,8 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/contacts", "GET", GET_handler)
+export const POST = withTiming("/api/agency/contacts", "POST", POST_handler)
+export const DELETE = withTiming("/api/agency/contacts", "DELETE", DELETE_handler)

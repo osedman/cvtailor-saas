@@ -26,16 +26,17 @@ import {
   listRecordingsDueForDeletion,
   markRecordingsDeleted,
 } from "@/lib/agency/artifacts"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
 const NOTICE_BATCH = 50
 
-export async function GET(req: NextRequest) {
+async function GET_handler(req: NextRequest) {
   return run(req)
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   return run(req)
 }
 
@@ -218,3 +219,7 @@ async function run(req: NextRequest) {
 
   return NextResponse.json(summary)
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/cron", "GET", GET_handler)
+export const POST = withTiming("/api/agency/cron", "POST", POST_handler)

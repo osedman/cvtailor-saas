@@ -9,6 +9,7 @@ import { checkRateLimit, anonRateLimitId, limitedResponse } from "@/lib/rate-lim
 // them quietly drifts permissive.
 import { safeNextPath } from "@/lib/hat-routing"
 import { doorFromHost, getAppOrigin, getBusinessOrigin } from "@/lib/site-url"
+import { withTiming } from "@/lib/server-timing"
 
 /**
  * Send magic-link / OTP via Resend, bypassing Supabase Auth's SMTP mailer.
@@ -18,7 +19,7 @@ import { doorFromHost, getAppOrigin, getBusinessOrigin } from "@/lib/site-url"
  * only allows the account-owner inbox until a verified domain From is used.
  * Admin generateLink does not send mail; we deliver ourselves.
  */
-export async function POST(request: Request) {
+async function POST_handler(request: Request) {
   let email = ""
   let next: string | null = null
   try {
@@ -142,3 +143,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Error sending magic link email" }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/auth/request-otp", "POST", POST_handler)
