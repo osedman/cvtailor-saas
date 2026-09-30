@@ -56,9 +56,18 @@ export const DOOR_FALLBACK: Record<AuthDoor, string> = {
 export function safeNextPath(raw: unknown): string | null {
   if (typeof raw !== "string") return null
   const next = raw.trim()
+  // Browsers drop tab, CR and LF while parsing a URL, so "/\t/evil.com" lands
+  // on //evil.com (30 Sep 2026 access audit). No route has a control char.
+  if (/[\u0000-\u001f\u007f]/.test(next)) return null
   if (!next.startsWith("/") || next.startsWith("//")) return null
   if (next.includes("\\")) return null
   if (next.includes("://")) return null
   if (next.length > 512) return null
+  // Belt and braces: whatever it is, it must resolve to the same origin.
+  try {
+    if (new URL(next, "https://tailr.invalid").origin !== "https://tailr.invalid") return null
+  } catch {
+    return null
+  }
   return next
 }

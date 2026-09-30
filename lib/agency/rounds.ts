@@ -32,6 +32,7 @@ import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
 import { mintBookingToken, sendBookingInvite } from "./booking"
 // Recruiter-only, and in its own module on purpose — see round-debrief.ts.
 import { readDebriefs, type RoundDebrief } from "./round-debrief"
+import { listClientRoles } from "./client-header"
 import type {
   AgencyContext,
   HiringContext,
@@ -85,6 +86,17 @@ export async function offerSlot(
   }
   if (ends.getTime() <= Date.now()) {
     throw new Error("that time has already passed")
+  }
+
+  // A window offered FOR a role only for a role this contact is already tied
+  // to by the agency (30 Sep 2026 access audit — any roleId used to be
+  // written as given, and the slot then counted as the tie).
+  if (input.roleId) {
+    const ties = await listClientRoles(ctx)
+    const tied = ties.some(
+      (t) => t.roleId === input.roleId && t.contactId === link.contactId && t.agencyId === link.agencyId
+    )
+    if (!tied) throw new AgencyAccessError("not your role")
   }
 
   const admin = agencyAdmin()

@@ -116,6 +116,31 @@ export function getBusinessOrigin(): string {
   return normaliseOrigin(process.env.NEXT_PUBLIC_BUSINESS_URL) ?? nonProductionOrigin() ?? BUSINESS_DEFAULT
 }
 
+/**
+ * A caller-supplied Origin, returned only if it is one of THIS deployment's
+ * own origins; otherwise null.
+ *
+ * 30 Sep 2026 access audit: /api/auth/request-otp built the emailed sign-in
+ * link from the request's Origin header. Anyone could POST with
+ * `Origin: https://evil.example` and a victim's address, and Tailr itself
+ * would email the victim a genuine link carrying their token to the
+ * attacker's site — one click, and the attacker has the session. Links a
+ * server sends must point only at origins the server was configured with.
+ */
+export function trustedOrigin(claimed: string | null | undefined): string | null {
+  const origin = normaliseOrigin(claimed ?? undefined)
+  if (!origin) return null
+  const own = [
+    getAppOrigin(),
+    getBusinessOrigin(),
+    normaliseOrigin(process.env.VERCEL_BRANCH_URL),
+    normaliseOrigin(process.env.VERCEL_URL),
+  ].filter((o): o is string => Boolean(o))
+  if (own.includes(origin)) return origin
+  if (process.env.NODE_ENV !== "production" && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return origin
+  return null
+}
+
 /** Absolute B2B URL, e.g. businessPath('/agencies') → https://agencies.gettailr.com/agencies */
 export function businessPath(path: string): string {
   const p = path.startsWith("/") ? path : `/${path}`

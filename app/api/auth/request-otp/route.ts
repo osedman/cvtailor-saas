@@ -8,7 +8,7 @@ import { checkRateLimit, anonRateLimitId, limitedResponse } from "@/lib/rate-lim
 // to live here as a private copy; two copies of a security check is how one of
 // them quietly drifts permissive.
 import { safeNextPath } from "@/lib/hat-routing"
-import { doorFromHost, getAppOrigin, getBusinessOrigin } from "@/lib/site-url"
+import { doorFromHost, getAppOrigin, getBusinessOrigin, trustedOrigin } from "@/lib/site-url"
 import { withTiming } from "@/lib/server-timing"
 
 /**
@@ -55,12 +55,13 @@ async function POST_handler(request: Request) {
     (await checkRateLimit(anonRateLimitId(`ip:${door}:${ip}`), "auth_net"))
   if (limited) return limited
 
-  // Origin header first (it already follows the calling host), then the
-  // configured origin for this door. The previous last resort was a hardcoded
-  // staging Vercel URL, which would have emailed a staging link from
-  // production the moment a caller arrived without an Origin header.
+  // The calling host when it is one of ours (it already follows the preview
+  // or domain the person is on), else the configured origin for this door.
+  // Never the raw Origin header: this link carries a sign-in token and Tailr
+  // sends it, so a forged Origin would email the victim a real link to the
+  // attacker's site (30 Sep 2026 access audit — see trustedOrigin).
   const origin =
-    request.headers.get("origin") ||
+    trustedOrigin(request.headers.get("origin")) ??
     (door === "business" ? getBusinessOrigin() : getAppOrigin())
   const redirectTo = `${origin.replace(/\/$/, "")}/auth/confirm`
 

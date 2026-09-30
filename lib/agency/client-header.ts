@@ -3,10 +3,16 @@
  * for one of them. Shared by /api/hiring/roles/[roleId]/header and
  * /api/hiring/today so the tie check and the coarsening cannot fork.
  *
- * A contact is tied to a role four ways — the brief they wrote, a submission
- * they received, a round they sit on, a window they offered — and any one
- * will do. All four are read with the service role and then checked against
- * the caller's own contact ids, never the other way round.
+ * A contact is tied to a role four ways — the role names them, the brief they
+ * wrote, a submission they received, a round they sit on — and any one will
+ * do. All are read with the service role and then checked against the
+ * caller's own contact ids, never the other way round.
+ *
+ * Every tie is a row the AGENCY wrote. A window the client offered is not a
+ * tie (30 Sep 2026 access audit): the client writes that row themselves, and
+ * `offerSlot` used to take any roleId — so offering one window on another
+ * client's role made it "theirs", opening its live shortlist (names), its
+ * wave release and its interview settings.
  *
  * In the shortlist phase the sub-state is coarsened to SHORTLIST IN
  * PROGRESS: the recruiter's counts (how many candidates, how many screened)
@@ -31,7 +37,7 @@ export async function listClientRoles(ctx: HiringContext): Promise<ClientRoleTie
   const contactIds = ctx.links.map((l) => l.contactId)
   if (contactIds.length === 0) return []
   const admin = agencyAdmin()
-  const [roles, briefs, recipients, rounds, slots] = await Promise.all([
+  const [roles, briefs, recipients, rounds] = await Promise.all([
     // A discarded role is not a role; a revoked recipient link is not a tie
     // (23 Sep 2026 E2E — a revoked contact still saw the role and could
     // release a wave through /cohort).
@@ -39,11 +45,10 @@ export async function listClientRoles(ctx: HiringContext): Promise<ClientRoleTie
     admin.from("role_briefs").select("role_id, agency_id, contact_id").in("contact_id", contactIds).not("role_id", "is", null),
     admin.from("submission_recipients").select("agency_id, contact_id, submissions!inner(role_id)").in("contact_id", contactIds).is("revoked_at", null),
     admin.from("interview_rounds").select("role_id, agency_id, contact_id").in("contact_id", contactIds),
-    admin.from("availability_slots").select("role_id, agency_id, contact_id").in("contact_id", contactIds).not("role_id", "is", null),
   ])
   // A failed read must not become "no roles" — To do would say "Nothing
   // needs you" over a database error.
-  for (const r of [roles, briefs, recipients, rounds, slots]) if (r.error) throw r.error
+  for (const r of [roles, briefs, recipients, rounds]) if (r.error) throw r.error
   const ties = new Map<string, ClientRoleTie>()
   const add = (roleId: unknown, agencyId: unknown, contactId: unknown) => {
     if (typeof roleId !== "string" || typeof agencyId !== "string" || typeof contactId !== "string") return
@@ -59,7 +64,6 @@ export async function listClientRoles(ctx: HiringContext): Promise<ClientRoleTie
     add(roleId, r.agency_id, r.contact_id)
   }
   for (const r of rounds.data ?? []) add(r.role_id, r.agency_id, r.contact_id)
-  for (const r of slots.data ?? []) add(r.role_id, r.agency_id, r.contact_id)
   return [...ties.values()]
 }
 

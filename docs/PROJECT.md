@@ -8138,3 +8138,71 @@ that was rolled back:
 - Leaked-password check: the app has no password sign-in.
 
 Guard: `lib/__tests__/db-hardening.test.ts`. 2092 tests pass.
+
+### API access audit (30 Sep 2026)
+
+All 132 API routes were reviewed for one user or agency reaching another's
+data. Every finding below was checked in the code before it was fixed. Code
+only, pushed to staging, no migration. **Not on production.**
+
+**Fixed:**
+- **HIGH: account takeover through the sign-in email.**
+  - `/api/auth/request-otp` built the emailed link from the request's
+    `Origin` header.
+  - A forged `Origin` made Tailr send a real sign-in link to a victim that
+    carried their token to the attacker's site. That works for admin
+    accounts too.
+  - Fix: only this deployment's own origins are allowed
+    (`trustedOrigin`, `lib/site-url.ts`).
+- **HIGH: a client could claim another client's role.** This was possible
+  within the same agency.
+  - Offering an interview window with any `roleId` wrote a slot, and the
+    slot counted as a tie to that role.
+  - That tie opened the role's live shortlist with names, its wave release,
+    its booking re-mints and its interview settings.
+  - Fix: slots no longer count as ties. `offerSlot` requires a tie the
+    agency made. `offerWindows` offers as the contact that is actually tied,
+    never `links[0]`.
+  - Staging check: no existing client relied on a slot-only tie.
+- **HIGH: another agency's matched people.**
+  - `listMatchedPeople` passed any role id to the service-role RPC, so a
+    recruiter could read another agency's matches and invite or withdraw
+    them.
+  - Fix: the role is checked against the caller's agency first.
+- **MEDIUM: open redirect after sign-in.**
+  - `safeNextPath` let `/\t/evil.com` through, because browsers drop tabs
+    and newlines when parsing URLs.
+  - Fix: control characters are rejected, and the path must resolve to the
+    same origin.
+- **MEDIUM: SSRF in the recruiter's "parse JD from link".**
+  - Only the hostname text was checked, and redirects were followed before
+    being checked.
+  - Fix: new `lib/net/public-fetch.ts` resolves every hop and refuses
+    private, loopback, link-local and metadata addresses.
+- **LOW, three fixes:**
+  - Viewers were refused only after the model call was paid for; they are
+    now refused before it.
+  - The tracker routes let the request body set `id`, `user_id` and the
+    timestamps. Those fields are now stripped.
+  - `/api/debug` now returns 404 on production.
+
+**Open, not fixed:**
+- **Needs a product call:** a revoked shortlist recipient who still sits on
+  a round keeps role access through that round. Should revoking the
+  recipient end that?
+- **Low hardening:**
+  - Rights tokens are stored in plain text, with no expiry and no rate
+    limit. This needs a migration.
+  - `scrape-job` and `parse-cv` need no sign-in.
+  - The owner's team invite creates confirmed accounts.
+  - Recruiters can write `client_contacts.user_id` through RLS, which only
+    matters inside their own agency.
+  - Hiring invite accept doesn't check `email_confirmed_at`.
+- **Functional bugs found in passing:**
+  - Recruiters can't save interview defaults, because the owner-only
+    setting is saved first.
+  - `consumer-pool.ts:149` filters by the wrong id.
+
+Guard: `lib/__tests__/access-audit.test.ts` (32 tests). One older test
+pinned the vulnerable slot tie and was updated. 2124 tests pass; the build
+is clean.

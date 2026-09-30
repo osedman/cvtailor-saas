@@ -23,6 +23,7 @@ import { checkRateLimit } from "@/lib/rate-limit"
 import { sanitizeDeep } from "@/lib/sanitize"
 import {
   AgencyAccessError,
+  assertWriter,
   getJobRole,
   agencyAdmin,
   requireAgencyContext,
@@ -33,6 +34,7 @@ import { createJob, extractFileText, finishJob } from "@/lib/agency/ingest"
 import type { Weight } from "@/lib/agency/types"
 import { errorMessage } from "@/lib/error-message"
 import { withTiming } from "@/lib/server-timing"
+import { fetchPublicUrl, BlockedUrlError } from "@/lib/net/public-fetch"
 
 export const maxDuration = 300
 
@@ -91,22 +93,6 @@ const JD_PARSE_TOOL = {
   },
 } as const
 
-function hostGuard(u: URL) {
-  if (!["http:", "https:"].includes(u.protocol)) {
-    throw new AgencyAccessError("Only http and https links can be fetched")
-  }
-  const host = u.hostname.toLowerCase()
-  if (
-    host === "localhost" ||
-    host.endsWith(".local") ||
-    host.endsWith(".internal") ||
-    /^[\d.]+$/.test(host) ||
-    host.includes(":")
-  ) {
-    throw new AgencyAccessError("That address cannot be fetched")
-  }
-}
-
 function htmlToText(html: string): string {
   return html
     .replace(/<(script|style|noscript|svg|head)[\s\S]*?<\/\1>/gi, " ")
@@ -130,18 +116,17 @@ async function fetchJdFromLink(raw: string): Promise<string> {
   } catch {
     throw new AgencyAccessError("That link is not a valid URL")
   }
-  hostGuard(u)
   let res: Response
   try {
-    res = await fetch(u, {
+    // Public addresses only, every redirect hop checked before it is fetched.
+    res = await fetchPublicUrl(u, {
       headers: { accept: "text/html,text/plain,*/*", "user-agent": "TailrAgencies/1.0 (+https://gettailr.com)" },
-      redirect: "follow",
       signal: AbortSignal.timeout(10_000),
     })
-  } catch {
+  } catch (e) {
+    if (e instanceof BlockedUrlError) throw new AgencyAccessError(e.message)
     throw new AgencyAccessError("The link did not answer in time. Paste the text instead.")
   }
-  hostGuard(new URL(res.url))
   if (!res.ok) {
     throw new AgencyAccessError(`The page answered ${res.status}. Paste the text instead.`)
   }
@@ -167,6 +152,13 @@ async function POST_handler(
         { error: auth.failure === "unauthenticated" ? "Unauthorised" : "No agency membership" },
         { status: auth.failure === "unauthenticated" ? 401 : 403 }
       )
+    }
+
+    // Viewers cannot save what this produces; refuse before spending a model call.
+    try {
+      assertWriter(auth.ctx)
+    } catch {
+      return NextResponse.json({ error: "Viewers cannot change a role" }, { status: 403 })
     }
 
     const limited = await checkRateLimit(auth.ctx.userId, "ai")

@@ -46,6 +46,19 @@ export interface MatchedList {
 
 export async function listMatchedPeople(ctx: AgencyContext, roleId: string): Promise<MatchedList> {
   const admin = agencyAdmin()
+  // The RPC runs as the service role and filters on the role alone, so the
+  // role must be proven to be this agency's first (30 Sep 2026 access audit —
+  // any agency's role id returned its matched people, and invite/withdraw
+  // trusted this list as their check).
+  const { data: role, error: roleError } = await admin
+    .from("job_roles")
+    .select("id")
+    .eq("id", roleId)
+    .eq("agency_id", ctx.agencyId)
+    .is("discarded_at", null)
+    .maybeSingle()
+  if (roleError) throw roleError
+  if (!role) throw new AgencyAccessError("role not found")
   const { data: rm } = await admin.from("role_matching").select("matched_bucket").eq("agency_id", ctx.agencyId).eq("role_id", roleId).maybeSingle()
   const { data, error } = await admin.rpc("matched_people", { p_role_id: roleId })
   if (error) throw error

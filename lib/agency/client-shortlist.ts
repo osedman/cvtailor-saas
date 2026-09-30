@@ -21,7 +21,8 @@
  * here hides a candidate from the recruiter.
  */
 
-import { agencyAdmin, writeAudit } from "./db"
+import { agencyAdmin, writeAudit, AgencyAccessError } from "./db"
+import { listClientRoles } from "./client-header"
 import { getInterviewSettings } from "./interview-settings"
 import { offerSlot } from "./rounds"
 import { discloseEntry, readDisclosure } from "./snapshot-disclosure"
@@ -265,8 +266,11 @@ export async function offerWindows(
   windows: Array<{ start: string; end: string }>
 ): Promise<{ offered: string[]; failed: { index: number; error: string } | null }> {
   const shortlist = await getClientShortlist(ctx, roleId)
-  const contactId = shortlist?.contactId ?? ctx.links[0]?.contactId
-  if (!contactId) throw new Error("no contact to offer as")
+  // Offer as the contact the agency tied to this role — never just the
+  // caller's first link, which may belong to a different client.
+  const tie = shortlist ? null : (await listClientRoles(ctx)).find((t) => t.roleId === roleId)
+  const contactId = shortlist?.contactId ?? tie?.contactId
+  if (!contactId) throw new AgencyAccessError("not your role")
   /**
    * A window inside the candidate's notice period is unbookable the moment
    * it is created.
@@ -287,7 +291,7 @@ export async function offerWindows(
    * usually "your notice period is longer than the times you picked" rather
    * than anything being broken.
    */
-  const { settings } = await getInterviewSettings(shortlist?.agencyId ?? ctx.links[0]?.agencyId ?? "", roleId)
+  const { settings } = await getInterviewSettings(shortlist?.agencyId ?? tie?.agencyId ?? "", roleId)
   const earliest = Date.now() + settings.minNoticeHours * 3_600_000
   const tooSoon = windows.filter((w) => Date.parse(w.start) < earliest)
   if (tooSoon.length > 0 && tooSoon.length === windows.length) {

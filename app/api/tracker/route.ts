@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sessionUser } from "@/lib/supabase/session-user"
 import { withTiming } from "@/lib/server-timing"
+import { withoutOwnership } from "@/lib/tracker-body"
 
 export const maxDuration = 10
 
@@ -31,7 +32,7 @@ async function POST_handler(req: NextRequest) {
     const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
-    const body = await req.json()
+    const body = withoutOwnership(await req.json())
 
     const { data, error } = await supabase
       .from('job_tracker')

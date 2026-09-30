@@ -26,10 +26,13 @@ describe("the recruiter's Today route", () => {
 
 describe("the client projection", () => {
   const src = read("lib/agency/client-header.ts")
-  it("ties a role to the caller through the four tables, checked against the caller's own ids", () => {
-    for (const t of ["role_briefs", "submission_recipients", "interview_rounds", "availability_slots"]) {
+  it("ties a role to the caller through agency-written tables only, checked against the caller's own ids", () => {
+    for (const t of ["job_roles", "role_briefs", "submission_recipients", "interview_rounds"]) {
       expect(src, t).toMatch(new RegExp(`from\\("${t}"\\)[\\s\\S]{0,160}\\.in\\("contact_id", contactIds\\)`))
     }
+    // A window the client offered is written by the client, so it proves
+    // nothing (30 Sep 2026 access audit — lib/__tests__/access-audit.test.ts).
+    expect(src).not.toMatch(/from\("availability_slots"\)/)
     expect(src).toMatch(/ctx\.links\.find\(\(l\) => l\.contactId === contactId && l\.agencyId === agencyId\)/)
   })
   it("coarsens the shortlist phase and projects for the client hat", () => {
