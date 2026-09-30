@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useRef, Suspense } from "react"
+import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -76,7 +76,7 @@ function RoleModeLoader({
       try {
         const res = await fetch(`/api/found/${rec}/tailor-brief`)
         const data = await readJson<{
-          brief: { recommendationId: string; jd: string; roleTitle: string; company: string; agencyName: string; roleRef: string; score?: number }
+          brief: { recommendationId: string; jd: string; roleTitle: string; company: string; agencyName: string; roleRef: string; score?: number; requirements?: Array<{ ref: string; text: string; weight: string }> }
         }>(res)
         const b = data.brief
         onBrief(
@@ -87,6 +87,7 @@ function RoleModeLoader({
             agencyName: b.agencyName,
             roleRef: b.roleRef,
             beforeScore: typeof b.score === "number" ? b.score : null,
+            requirements: Array.isArray(b.requirements) ? b.requirements : [],
           },
           b.jd
         )
@@ -156,6 +157,26 @@ export default function CVTailorPage() {
   /** The person hand-edited the tailored CV after it was scored: the after
    *  number no longer describes the document, and the fallback says so. */
   const [roleMatchStale, setRoleMatchStale] = useState(false)
+  /**
+   * ONE SCALE IN ROLE MODE (30 Sep 2026). The Gaps tab listed the free
+   * engine's own parse of the JD — its requirements, its strengths — beside a
+   * role score computed against the role's frozen requirements. Two different
+   * lists for one question. Once the role has scored this CV, the coverage the
+   * tabs read is the role's: its requirements, in its order, with the role
+   * engine's strength and verbatim quote. Advice stays as written.
+   */
+  const shownResults = useMemo<TailorResult | null>(() => {
+    if (!results || !roleMode || !roleMatch || roleMode.requirements.length === 0) return results
+    const byRef = new Map(roleMatch.evidence.map((e) => [e.requirement_ref, e]))
+    return {
+      ...results,
+      requirementsCoverage: roleMode.requirements.map((r) => {
+        const e = byRef.get(r.ref)
+        const strength = !e || e.strength === "missing" ? "none" : e.strength
+        return { requirement: r.text, type: r.weight === "must" ? "must" : "nice", keywords: [], strength, evidence: e?.quote ?? "" }
+      }),
+    }
+  }, [results, roleMode, roleMatch])
   const router = useRouter()
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
   const [resultsTab, setResultsTab] = useState<ResultTabName>("Tailored CV")
@@ -610,7 +631,7 @@ export default function CVTailorPage() {
               <div className={`relative z-10 ${enhanced ? "" : "bg-white"}`}>
                 <ResultsTabs
                   enhanced={enhanced}
-                  results={results}
+                  results={shownResults ?? results}
                   coverLetter={coverLetter}
                   loadingCoverLetter={loadingCoverLetter}
                   onGenerateCoverLetter={handleGenerateCoverLetter}
@@ -694,11 +715,14 @@ function RoleResultStrip({
             just tailored. Nothing has been shared; applying happens back on the role.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-          <Link className="ns-btn ns-btn-primary" href={`/found?rec=${role.recommendationId}`}>
-            Back to this role — apply when you&apos;re ready →
+        {/* At 375 the full label wrapped inside its pill (30 Sep 2026): the
+            phone gets the short label and full-width buttons, stacked. */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <Link className="ns-btn ns-btn-primary w-full justify-center whitespace-nowrap sm:w-auto" href={`/found?rec=${role.recommendationId}`}>
+            <span className="sm:hidden">Back to the role to apply →</span>
+            <span className="hidden sm:inline">Back to this role — apply when you&apos;re ready →</span>
           </Link>
-          <button type="button" className="ns-btn ns-btn-secondary" onClick={() => onNavigate("Tailored CV")}>
+          <button type="button" className="ns-btn ns-btn-secondary w-full justify-center whitespace-nowrap sm:w-auto" onClick={() => onNavigate("Tailored CV")}>
             Open tailored CV
           </button>
         </div>

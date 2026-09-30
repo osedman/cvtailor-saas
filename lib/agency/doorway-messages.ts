@@ -20,6 +20,10 @@ export type DoorwayLoadState =
   | { kind: "dead" }
   | { kind: "busy"; title: string; body: string; retryInSeconds: number }
   | { kind: "retry"; title: string; body: string }
+  /** A long wait (the limiter's day bucket). No countdown and no automatic
+   *  retry: every minute's retry was refused again, under a card that kept
+   *  promising "in 60 seconds" (30 Sep 2026). */
+  | { kind: "later"; title: string; body: string }
 
 /** The longest a busy page waits before retrying on its own. The limiter's
  *  day bucket can answer with a Retry-After of hours; nobody watches a page
@@ -86,6 +90,13 @@ export function doorwayLoadState(input: {
   const { status, retryAfter } = input
   const what = input.what ?? "this page"
   if (status !== null && status >= 200 && status < 300) return null
+  if (status === 429 && retryAfter !== null && retryAfter > MAX_AUTO_RETRY_SECONDS) {
+    return {
+      kind: "later",
+      title: "This page needs a rest.",
+      body: `A lot of people on your connection have opened Tailr links recently. It will open again in ${waitPhrase(retryAfter)}. Your link is still valid, so keep this email.`,
+    }
+  }
   if (status === 429) {
     const n = autoRetryDelay(retryAfter)
     return { kind: "busy", title: BUSY_TITLE, body: busyBody(n), retryInSeconds: n }

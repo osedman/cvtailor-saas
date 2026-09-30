@@ -23,6 +23,11 @@ import { waitPhrase } from "./doorway-messages"
 export const TAKEN_MESSAGE =
   "That time has just been taken. The times below are the ones still free."
 
+/** The window slid inside the notice cutoff while the page sat open. It was
+ *  not taken by anyone, and saying so would be the 15 Sep lie again. */
+export const TOO_SOON_MESSAGE =
+  "That time is now too close to book. The times below are the ones you can still choose."
+
 export const NOT_SAVED_MESSAGE = "That did not save. Please try again."
 
 export function tooManyTriesMessage(retryAfter: number | null): string {
@@ -44,6 +49,7 @@ export function bookingChoiceMessage(input: {
   if (status === null) return NOT_SAVED_MESSAGE
   if (status === 429) return tooManyTriesMessage(retryAfter)
   if (status >= 500) return NOT_SAVED_MESSAGE
+  if (outcome === "too_soon") return TOO_SOON_MESSAGE
   if (outcome === "taken" || outcome === "not_open") return TAKEN_MESSAGE
   if (status >= 200 && status < 300) return null
   // 403 not_allowed (the booking it carries re-renders the reason) and any

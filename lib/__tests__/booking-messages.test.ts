@@ -50,11 +50,21 @@ describe("loading a doorway", () => {
   })
 
   it("busy never waits more than a minute to retry on its own", () => {
-    // The day bucket answers with hours; nobody watches that count down.
-    const s = doorwayLoadState({ status: 429, retryAfter: 80_000 })
+    const s = doorwayLoadState({ status: 429, retryAfter: 60 })
     expect(s?.kind === "busy" && s.retryInSeconds).toBe(60)
     expect(autoRetryDelay(0)).toBe(1)
     expect(autoRetryDelay(null)).toBeGreaterThan(0)
+  })
+
+  it("a day-long wait is 'later': no countdown, no retry every minute, the real time", () => {
+    // 30 Sep 2026: the day bucket clamped to a 60s countdown that was refused
+    // every time, under a card promising "in 60 seconds".
+    const s = doorwayLoadState({ status: 429, retryAfter: 80_000 })
+    expect(s?.kind).toBe("later")
+    if (s?.kind !== "later") return
+    expect(s.body).toMatch(/about 23 hours/)
+    expect(s.body).toMatch(/still valid/)
+    expect(s).not.toHaveProperty("retryInSeconds")
   })
 
   it("the countdown ends in words, not 'in 0 seconds'", () => {
@@ -166,5 +176,14 @@ describe("the pages use the mapping", () => {
     expect(card).toMatch(/setTimeout\(/)
     expect(card).toMatch(/onRetry\(\)/)
     expect(card).toMatch(/Try again now/)
+  })
+})
+
+describe("a window that slid inside the notice cutoff is not 'taken' (30 Sep 2026)", () => {
+  it("too_soon says too soon", async () => {
+    const { bookingChoiceMessage: m, TOO_SOON_MESSAGE, TAKEN_MESSAGE } = await import("@/lib/agency/booking-messages")
+    expect(m({ status: 200, outcome: "too_soon", retryAfter: null })).toBe(TOO_SOON_MESSAGE)
+    expect(m({ status: 200, outcome: "taken", retryAfter: null })).toBe(TAKEN_MESSAGE)
+    expect(TOO_SOON_MESSAGE).not.toMatch(/taken/)
   })
 })

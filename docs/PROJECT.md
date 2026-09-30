@@ -7969,3 +7969,28 @@ than always drawing dark, because the client's workspace follows theirs.
 - Rendered locally with fixture data at 1440 and 375, before and after the
   send: 0px overflow and no page errors.
 - Not yet clicked on staging: the container cannot reach it.
+
+## 🧹 Backlog sweep: 5 confirmed fixed, 7–12 done or on board 35 (30 September 2026)
+
+- **5, stale CV on apply: already fixed.** The restore reads through a ref,
+  and apply checks the tailored CV's source hash (14 Sep). No change needed.
+- **7a, /tailor Gaps in role mode:** now lists the role's frozen requirements,
+  with the role engine's strength and quote, once the role has scored the CV.
+  It no longer lists the free engine's parse. The brief already carried the
+  requirements.
+- **7b, /tailor role strip at 375:** a short label and stacked, full-width
+  buttons on phones.
+- **8a, recommendation eyebrow:** "N candidates' call answers", not "calls".
+- **8b, booking "not_open":** the claim now says why a window is gone.
+  Taken → "just been taken". Inside the notice cutoff → "now too close to
+  book". Otherwise not_open.
+- **9, busy card:** a wait over 60s is a new "later" state. It has no
+  countdown and no retry every minute, and states the real wait in words.
+  Frame on board 35 (A).
+- **11:** deleted the unused `RoundProgress`.
+- **12:** the "Stays with you" title keeps its line; the counts drop under it.
+- **10, recruiter hints:** drawn on **board 35 (B)** for sign-off. Not built.
+  The board also proposes three confidence bars, because the engine gives
+  1–3 but the UI says "of 4".
+- **4, B2B_MAIL_DOMAIN:** not set. The Vercel connector now lists no projects
+  in the team, so Ose has to set it.

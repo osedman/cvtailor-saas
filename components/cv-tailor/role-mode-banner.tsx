@@ -20,6 +20,9 @@ export interface RoleModeInfo {
   roleRef: string
   /** role_recommendations.score — the "N% match before tailoring" on /found. */
   beforeScore: number | null
+  /** The role's frozen requirements, from the published snapshot. The Gaps
+   *  tab lists THESE in role mode, not the free engine's parse of the JD. */
+  requirements: Array<{ ref: string; text: string; weight: string }>
 }
 
 export function RoleModeBanner({

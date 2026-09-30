@@ -232,7 +232,7 @@ export async function rescheduleBooking(rawToken: string, slotId: string): Promi
 
   const { windows: open } = await listOpenWindows(admin, round.agency_id as string, round.role_id as string)
   const window = open.find((w) => w.slotId === slotId)
-  if (!window) return "not_open"
+  if (!window) return whyNotOpen(admin, round.agency_id as string, round.role_id as string, slotId)
 
   const previousSlot = round.slot_id as string
   if (previousSlot === slotId) return "already_booked"
@@ -357,7 +357,33 @@ async function countWindowsOnRole(admin: AgencyClient, agencyId: string, roleId:
   return (data ?? []).filter((s) => !s.role_id || s.role_id === roleId).length
 }
 
-export type ClaimOutcome = "claimed" | "taken" | "gone" | "not_found" | "not_open" | "already_booked"
+export type ClaimOutcome = "claimed" | "taken" | "too_soon" | "gone" | "not_found" | "not_open" | "already_booked"
+
+/**
+ * Why a window the candidate chose is no longer on the list (30 Sep 2026).
+ * `not_open` used to cover all of it, and the doorway read every one as
+ * "just been taken" — including a window that had simply slid inside the
+ * minimum-notice cutoff while the page sat open. Narrowed the same way
+ * listOpenWindows narrows its empty state: held by someone → taken; still
+ * free but too near → too_soon; anything else (revoked, another role, too
+ * short) stays not_open.
+ */
+async function whyNotOpen(
+  admin: AgencyClient,
+  agencyId: string,
+  roleId: string,
+  slotId: string
+): Promise<"taken" | "too_soon" | "not_open"> {
+  const [{ data: slot }, { data: holder }] = await Promise.all([
+    admin.from("availability_slots").select("id, role_id, starts_at, revoked_at").eq("agency_id", agencyId).eq("id", slotId).maybeSingle(),
+    admin.from("interview_rounds").select("id").eq("agency_id", agencyId).eq("slot_id", slotId).neq("status", "cancelled").limit(1),
+  ])
+  if (!slot || slot.revoked_at || (slot.role_id && slot.role_id !== roleId)) return "not_open"
+  if ((holder ?? []).length > 0) return "taken"
+  const { settings } = await getInterviewSettings(agencyId, roleId)
+  const notFor = Date.now() + settings.minNoticeHours * 3_600_000
+  return Date.parse(slot.starts_at as string) <= notFor ? "too_soon" : "not_open"
+}
 
 /**
  * The candidate takes a time.
@@ -378,7 +404,7 @@ export async function claimBookingSlot(rawToken: string, slotId: string): Promis
 
   const { windows: open } = await listOpenWindows(admin, round.agency_id as string, round.role_id as string)
   const window = open.find((w) => w.slotId === slotId)
-  if (!window) return "not_open"
+  if (!window) return whyNotOpen(admin, round.agency_id as string, round.role_id as string, slotId)
 
   const { settings } = await getInterviewSettings(round.agency_id as string, round.role_id as string)
   const { data: claimedRows, error } = await admin

@@ -149,7 +149,7 @@ export function RecommendationPanel({
         <>
           <div className="ag-card ag-reco-reading">
             <span className="ag-field-label ag-reco-stamp">
-              Recommendation · Generated {new Date(result.generated_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} · From {result.items.length} CVs, {callsLogged} call{callsLogged === 1 ? "" : "s"} and {result.items.length} scores
+              Recommendation · Generated {new Date(result.generated_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} · From {result.items.length} CVs, {callsLogged === 1 ? "1 candidate's" : `${callsLogged} candidates'`} call answers and {result.items.length} scores
             </span>
             <h2 className="ag-reco-h">{takeForward(result.counts.recommended)}</h2>
             <p className="ag-sub ag-reco-reading-sub">

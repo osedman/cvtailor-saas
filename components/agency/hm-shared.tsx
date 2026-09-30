@@ -436,47 +436,6 @@ export function RoundActions({
   )
 }
 
-// ── Round progression (per candidate ref, per role) ─────────────────────────
-
-/**
- * Round 1 → round 2 → outcome for one candidate ref, on the client's side of
- * the wall. Same idea as the recruiter's loop lanes, built only from what a
- * client may see: refs, round status, their own decisions. A declined lane
- * stays visible — it is their signal on the round, not the person vanishing.
- */
-export function RoundProgress({ rounds, planned }: { rounds: HiringRound[]; planned: number }) {
-  const live = rounds.filter((r) => r.status !== "cancelled").sort((a, b) => a.round_number - b.round_number)
-  if (live.length === 0) return null
-  const lanes = Math.max(planned, live[live.length - 1].round_number)
-  const byNumber = new Map(live.map((r) => [r.round_number, r]))
-  return (
-    <span className="ag-loop-lanes">
-      {Array.from({ length: lanes }, (_, i) => i + 1).map((n) => {
-        const r = byNumber.get(n)
-        const state = !r
-          ? "todo"
-          : r.status === "scheduled"
-            ? "booked"
-            : r.latest_decision
-              ? r.latest_decision === "decline" ? "declined" : "advanced"
-              : "waiting"
-        const label = !r
-          ? `R${n}`
-          : r.status === "scheduled"
-            ? `R${n} · ${fmtDate(r.scheduled_at ?? "")}`
-            : r.latest_decision
-              ? `R${n} ${r.latest_decision === "decline" ? "· not advancing" : "✓"}`
-              : `R${n} · yours to write up`
-        return (
-          <span key={n} className={`ag-loop-lane ${state}`}>
-            {label}
-          </span>
-        )
-      })}
-    </span>
-  )
-}
-
 /**
  * "That's all my decisions" — the client's own statement that they have
  * finished deciding on a role.

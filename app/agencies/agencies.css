@@ -2637,7 +2637,10 @@ a.ag-rh-next:hover { opacity: 0.86; }
 .ag-extra-row input { width: 15px; height: 15px; margin-top: 2px; accent-color: var(--ag-coral); flex: none; }
 .ag-extra-title { display: block; font-size: var(--t-small); font-weight: 600; color: var(--ag-ink); }
 
-.ag-stays > summary { cursor: pointer; list-style: none; }
+.ag-stays > summary { cursor: pointer; list-style: none; flex-wrap: wrap; row-gap: 2px; }
+/* The title keeps its line in a 300px column; the counts drop under it. */
+.ag-stays > summary .ag-card-title { white-space: nowrap; }
+.ag-stays > summary .ag-meta { flex: 1 1 auto; }
 .ag-stays > summary::-webkit-details-marker { display: none; }
 .ag-stays > summary::after { content: "›"; margin-left: 8px; color: var(--ag-ink-3); transition: transform 0.15s; }
 .ag-stays[open] > summary::after { transform: rotate(90deg); }
