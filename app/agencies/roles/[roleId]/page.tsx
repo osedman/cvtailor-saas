@@ -25,6 +25,8 @@ import { useRecommendation } from "@/components/agency/use-recommendation"
 import { DecisionSlot } from "@/components/agency/decision-slot"
 import { ShortlistRail, ShortlistBar, type ShortlistEntry } from "@/components/agency/shortlist-rail"
 import { countWord, countWordCap } from "@/components/agency/count-word"
+import { Hint, RECRUITER_HINTS } from "@/components/agency/hint"
+import { AdjustedPill, ConfidenceBars, ScoreBreakdown, StrengthKey } from "@/components/agency/score-parts"
 import {
   PrintPortal,
   SubmissionDocument,
@@ -110,14 +112,6 @@ interface Snapshot {
 // the order the client actually cares about.
 const WEIGHT_RANK = ["must", "important", "nice"]
 
-// Weighted category rows for the compare cards, handoff order.
-const FIT_ROWS: Array<{ key: keyof Score; label: string; weight: number }> = [
-  { key: "requirement_coverage", label: "Requirement coverage", weight: 45 },
-  { key: "evidence_strength", label: "Evidence strength", weight: 25 },
-  { key: "seniority_calibration", label: "Seniority calibration", weight: 10 },
-  { key: "context_fit", label: "Context fit", weight: 10 },
-  { key: "confidence_completeness", label: "Confidence / completeness", weight: 10 },
-]
 interface Review { candidate_id: string; status: string; communication: number | null; motivation: number | null; availability: string; salary_confirm: string; notice_period: string; notes: string; call_answers?: Record<string, string> }
 interface Evidence { candidate_id: string; requirement_id: string; strength: string; quote: string | null; source_cite?: string }
 
@@ -1928,13 +1922,17 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             <div className="ag-prof-row"><span className="ag-prof-key"><Highlighter size={16} />Evidence snippets</span><span className="ag-prof-val mono">{snippets} sourced</span></div>
                             <div className="ag-prof-row">
                               <span className="ag-prof-key"><Flame size={16} />Overall fit</span>
-                              {s ? <span className="ag-prof-fit">{Math.round(s.overall)} <ArrowUpRight size={13} strokeWidth={2} /></span> : <span className="ag-meta">Not scored yet</span>}
+                              {s ? <Hint bare text={RECRUITER_HINTS.fit} className="ag-prof-fit">{Math.round(s.overall)} <ArrowUpRight size={13} strokeWidth={2} /></Hint> : <span className="ag-meta">Not scored yet</span>}
                             </div>
                             <div className="ag-prof-row">
                               <span className="ag-prof-key"><Target size={16} />Must-have coverage</span>
                               <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                <span className="ag-prof-val mono">{s ? `${s.must_have_hit}/${s.must_have_total}` : "Pending"}</span>
-                                {delta !== 0 && <span className="ag-delta-pill">{Math.round(s!.original_overall!)} → {Math.round(s!.overall)}</span>}
+                                {s ? (
+                                  <Hint bare text={RECRUITER_HINTS.mustHaves} className="ag-prof-val mono">{`${s.must_have_hit}/${s.must_have_total}`}</Hint>
+                                ) : (
+                                  <span className="ag-prof-val mono">Pending</span>
+                                )}
+                                {delta !== 0 && s && <AdjustedPill original={s.original_overall} overall={s.overall} />}
                               </span>
                             </div>
                             <div className="ag-prof-row"><span className="ag-prof-key"><MapPin size={16} />Location</span><span className="ag-prof-val">{c.location || "Not parsed"}</span></div>
@@ -2323,40 +2321,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     <div className="ag-card">
                       <div className="ag-card-head"><span className="ag-card-title">Live score</span></div>
                       <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span className="ag-conf-bars" title={`Confidence ${activeScore.confidence_level} of 4`}>
-                            {[1, 2, 3, 4].map((n) => (
-                              <span key={n} className="ag-conf-bar" data-on={n <= activeScore.confidence_level} style={{ height: 4 + n * 3 }} />
-                            ))}
-                          </span>
-                          <span className="ag-meta">{["", "LOW", "MEDIUM", "HIGH", "HIGH"][activeScore.confidence_level] ?? "MEDIUM"} CONFIDENCE</span>
-                        </div>
-                        {activeScore.original_overall != null && Math.round(activeScore.original_overall) !== Math.round(activeScore.overall) && (
-                          <span className="ag-delta-pill">
-                            {Math.round(activeScore.original_overall)} → {Math.round(activeScore.overall)}{" "}
-                            {Math.round(activeScore.overall - activeScore.original_overall) > 0 ? "+" : ""}
-                            {Math.round(activeScore.overall - activeScore.original_overall)}
-                          </span>
-                        )}
-                        <div className="ag-nutrition-top">
-                          <span className="ag-field-label" style={{ marginBottom: 0, color: "var(--ag-ink-3)" }}>Overall fit</span>
-                          <span className="ag-nutrition-score">{Math.round(activeScore.overall)}</span>
-                        </div>
-                        <div className="ag-nutrition-rule" />
-                        {FIT_ROWS.map((row) => {
-                          const v = Math.round(Number(activeScore[row.key] ?? 0))
-                          return (
-                            <div key={row.key} className="ag-fit-row">
-                              <span className="ag-fit-label">{row.label}</span>
-                              <span className="ag-fit-num">{row.weight}% · <b>{v}</b></span>
-                              <div className="ag-bar"><div className="ag-bar-fill" style={{ width: `${v}%` }} /></div>
-                            </div>
-                          )
-                        })}
-                        <div className="ag-nutrition-foot">
-                          <span className="ag-fit-label">Must-have coverage</span>
-                          <span className="ag-fit-num"><b>{activeScore.must_have_hit}/{activeScore.must_have_total}</b></span>
-                        </div>
+                        <ConfidenceBars level={activeScore.confidence_level} />
+                        <AdjustedPill original={activeScore.original_overall} overall={activeScore.overall} signed />
+                        <ScoreBreakdown score={activeScore} />
                       </div>
                     </div>
                   )}
@@ -2552,10 +2519,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
 
                 <div className="ag-legend">
                   <span className="ag-field-label" style={{ marginBottom: 0, marginRight: 4 }}>Legend</span>
-                  <span><span className="ag-dot strong" /> Strong evidence — 1.0</span>
-                  <span><span className="ag-dot transferable" /> Transferable — 0.7</span>
-                  <span><span className="ag-dot partial" /> Partial — 0.4</span>
-                  <span><span className="ag-dot missing" /> Missing — 0.0</span>
+                  <StrengthKey strength="strong" label="Strong evidence — 1.0" />
+                  <StrengthKey strength="transferable" label="Transferable — 0.7" />
+                  <StrengthKey strength="partial" label="Partial — 0.4" />
+                  <StrengthKey strength="missing" label="Missing — 0.0" />
                   <span className="ag-legend-trailing">
                     <span className="ag-field-label" style={{ marginBottom: 0 }}>Sort</span>
                     <div className="ag-seg">
@@ -2607,39 +2574,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
                           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                             {reviews[c.id]?.status === "reviewed" && <span className="ag-reviewed inline">Call done</span>}
-                            {s?.original_overall != null && Math.round(s.original_overall) !== Math.round(s.overall) && (
-                              <span className="ag-delta-pill">{Math.round(s.original_overall)} → {Math.round(s.overall)}</span>
-                            )}
+                            {s && <AdjustedPill original={s.original_overall} overall={s.overall} />}
                           </div>
                           {s && (
                             <>
-                              <div className="ag-nutrition-top">
-                                <span className="ag-field-label" style={{ marginBottom: 0, color: "var(--ag-ink-3)" }}>Overall fit</span>
-                                <span className="ag-nutrition-score">{Math.round(s.overall)}</span>
-                              </div>
-                              <div className="ag-nutrition-rule" />
-                              {FIT_ROWS.map((row) => {
-                                const v = Math.round(Number(s[row.key] ?? 0))
-                                return (
-                                  <div key={row.key} className="ag-fit-row">
-                                    <span className="ag-fit-label">{row.label}</span>
-                                    <span className="ag-fit-num">{row.weight}% · <b>{v}</b></span>
-                                    <div className="ag-bar"><div className="ag-bar-fill" style={{ width: `${v}%` }} /></div>
-                                  </div>
-                                )
-                              })}
-                              <div className="ag-nutrition-foot">
-                                <span className="ag-fit-label">Must-have coverage</span>
-                                <span className="ag-fit-num"><b>{s.must_have_hit}/{s.must_have_total}</b></span>
-                              </div>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span className="ag-conf-bars" title={`Confidence ${s.confidence_level} of 4`}>
-                                  {[1, 2, 3, 4].map((n) => (
-                                    <span key={n} className="ag-conf-bar" data-on={n <= s.confidence_level} style={{ height: 4 + n * 3 }} />
-                                  ))}
-                                </span>
-                                <span className="ag-meta">{["", "LOW", "MEDIUM", "HIGH", "HIGH"][s.confidence_level] ?? "MEDIUM"} CONFIDENCE</span>
-                              </div>
+                              <ScoreBreakdown score={s} />
+                              <ConfidenceBars level={s.confidence_level} />
                             </>
                           )}
                           <div>

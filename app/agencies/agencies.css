@@ -2740,6 +2740,14 @@ a.ag-rh-next:hover { opacity: 0.86; }
 .ag-hint-pill.tone-coral { color: var(--ag-coral-text); border-color: var(--ag-tint-2); }
 .ag-hint-pill.tone-muted { color: var(--ag-ink-3); }
 .ag-hint-dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.5; flex: none; }
+/* Board 35: a hint on a value that already has its own look. The button is
+   reset so the badge or label inside keeps its styling; the dot and the
+   bubble are board 32's. */
+.ag-hint-bare { display: inline-flex; align-items: center; gap: 5px; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: left; cursor: help; position: relative; }
+.ag-hint-bare::before { content: ""; position: absolute; inset: -4px -2px; }
+@media (pointer: coarse) { .ag-hint-bare::before { inset: -10px -4px; } }
+.ag-hint-bare:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; border-radius: var(--r-xs); }
+.ag-hint-label { margin-bottom: 0; color: var(--ag-ink-3); }
 .ag-hint-bubble {
   position: absolute; top: calc(100% + 6px); left: 0; z-index: 45;
   width: max-content; max-width: 280px;

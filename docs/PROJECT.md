@@ -8027,3 +8027,35 @@ work:
 - Per-button timing: nothing measured on staging, because the container cannot
   reach it. Next, add Server-Timing headers so the slow buttons show
   themselves in DevTools.
+
+## 💡 Hints on the recruiter's numbers (board 35, approved 30 September 2026)
+
+- **One shared block.** Screening, compare and candidate detail each had
+  their own hand-drawn copy of the score block. All three now use
+  `components/agency/score-parts.tsx`: `ScoreBreakdown`, `ConfidenceBars`,
+  `AdjustedPill` and `StrengthKey`.
+- **Hints.** Every label in the block carries a board-35 hint:
+  - overall fit, with the real weights 45/25/10/10/10;
+  - each of the five categories;
+  - must-have coverage;
+  - confidence;
+  - the adjusted-score pill ("You changed this from 82…").
+  The compare legend explains each strength, and the step 03 list hints its
+  fit and must-have values.
+- **Wording.** All the sentences live in `RECRUITER_HINTS` next to board 32's
+  `HINTS`. They cover mechanics only and never describe the person.
+- **Confidence is three bars.** The engine only gives levels 1–3, but the UI
+  had four bars and "of 4".
+- **`Hint` variants.**
+  - New `bare` variant: the value keeps its own look via an inner span, with
+    board 32's dot and bubble.
+  - While open, the bubble is now positioned in viewport coordinates, and
+    closes on scroll or resize. Before, a scrolling ancestor clipped it: the
+    sticky Live score column cut it in half. This fixes it for board 32's
+    hiring-manager hints too.
+- **Verified.**
+  - Rendered compare and screening at 1440 and compare at 375: 0 overflow and
+    no errors. On compare, 164 hints render (20 candidates); the opened
+    bubbles show the approved wording and sit fully on screen.
+  - `lib/__tests__/recruiter-hints.test.ts` (7). 2078 tests green and the
+    build is clean.

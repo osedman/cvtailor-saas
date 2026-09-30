@@ -17,6 +17,7 @@ import { stepNumber } from "@/lib/agency/steps"
 import { RoleHeader } from "@/components/agency/role-header"
 import { CandidateCompliance } from "@/components/agency/candidate-compliance"
 import { CandidatePlacement } from "@/components/agency/candidate-placement"
+import { AdjustedPill, ConfidenceBars, ScoreBreakdown } from "@/components/agency/score-parts"
 
 interface Requirement { id: string; ref: string; text: string; weight: string; category?: string }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; salary_text?: string; redacted: boolean }
@@ -30,13 +31,6 @@ interface Score {
 interface Review { candidate_id: string; status: string; communication: number | null; motivation: number | null; availability: string; salary_confirm: string; notice_period: string; notes: string; call_answers?: Record<string, string> }
 interface Evidence { candidate_id: string; requirement_id: string; strength: string; quote: string | null; source_cite: string; origin: string }
 
-const CATEGORY_BARS: Array<{ key: keyof Score; label: string; weight: number }> = [
-  { key: "requirement_coverage", label: "Requirement coverage", weight: 45 },
-  { key: "evidence_strength", label: "Evidence strength", weight: 25 },
-  { key: "seniority_calibration", label: "Seniority calibration", weight: 10 },
-  { key: "context_fit", label: "Context fit", weight: 10 },
-  { key: "confidence_completeness", label: "Confidence", weight: 10 },
-]
 
 /**
  * The candidate's evidence record, rendered in two places.
@@ -186,7 +180,6 @@ export function CandidateDetail({
   const delta = score?.original_overall != null ? Math.round(score.overall - score.original_overall) : 0
   const strengthsList = requirements.filter((r) => effective(r.id) === "strong")
   const risksList = requirements.filter((r) => ["missing", "partial"].includes(effective(r.id)))
-  const confWord = ["", "LOW", "MEDIUM", "HIGH", "HIGH"][score?.confidence_level ?? 2] ?? "MEDIUM"
 
   return (
     <div className="ag-screen">
@@ -235,11 +228,7 @@ export function CandidateDetail({
                       <span className="ag-card-title">Recruiter narrative</span>
                       <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         {review?.status === "reviewed" && <span className="ag-reviewed inline">Call done</span>}
-                        {delta !== 0 && score?.original_overall != null && (
-                          <span className="ag-delta-pill">
-                            {Math.round(score.original_overall)} → {Math.round(score.overall)} {delta > 0 ? `+${delta}` : delta}
-                          </span>
-                        )}
+                        {score && <AdjustedPill original={score.original_overall} overall={score.overall} signed />}
                       </span>
                     </div>
                     <div className="ag-card-body ag-stack" style={{ gap: 14 }}>
@@ -452,29 +441,9 @@ export function CandidateDetail({
                     <div className="ag-card">
                       <div className="ag-card-head"><span className="ag-card-title">Score breakdown</span></div>
                       <div className="ag-card-body">
-                        <div className="ag-nutrition-top">
-                          <span className="ag-field-label" style={{ marginBottom: 0, color: "var(--ag-ink-3)" }}>Overall fit</span>
-                          <span className="ag-nutrition-score">{Math.round(score.overall)}</span>
-                        </div>
-                        <div className="ag-nutrition-rule" />
-                        {CATEGORY_BARS.map((bar) => (
-                          <div className="ag-fit-row" key={bar.key} style={{ marginBottom: 8 }}>
-                            <span className="ag-fit-label">{bar.label}</span>
-                            <span className="ag-fit-num">{bar.weight}% · <b>{Math.round(Number(score[bar.key]) || 0)}</b></span>
-                            <div className="ag-bar"><div className="ag-bar-fill" data-weak={(Number(score[bar.key]) || 0) < 60} style={{ width: `${Math.min(100, Number(score[bar.key]) || 0)}%` }} /></div>
-                          </div>
-                        ))}
-                        <div className="ag-nutrition-foot">
-                          <span className="ag-fit-label">Must-have coverage</span>
-                          <span className="ag-fit-num"><b>{score.must_have_hit}/{score.must_have_total}</b></span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
-                          <span className="ag-conf-bars" title={`Confidence ${score.confidence_level} of 4`}>
-                            {[1, 2, 3, 4].map((n) => (
-                              <span key={n} className="ag-conf-bar" data-on={n <= score.confidence_level} style={{ height: 4 + n * 3 }} />
-                            ))}
-                          </span>
-                          <span className="ag-meta">{confWord} confidence</span>
+                        <ScoreBreakdown score={score} markWeak />
+                        <div style={{ marginTop: 12 }}>
+                          <ConfidenceBars level={score.confidence_level} />
                         </div>
                         {delta !== 0 && (
                           <p className="ag-score-moved">

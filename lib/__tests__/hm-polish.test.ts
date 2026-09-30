@@ -21,7 +21,7 @@ describe("Hint", () => {
 
   it("is a button described by its sentence, so keyboard and screen readers get both", () => {
     expect(src).toMatch(/<button[\s\S]*aria-describedby=\{id\}/)
-    expect(src).toMatch(/role="tooltip" id=\{id\}/)
+    expect(src).toMatch(/role="tooltip"\s+id=\{id\}/)
   })
 
   it("opens on hover, focus AND tap — hover does not exist on a phone", () => {
