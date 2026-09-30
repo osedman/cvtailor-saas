@@ -8095,7 +8095,7 @@ post-login, landing and invite accept.
 ### Database security + speed pass (30 Sep 2026)
 
 From the Supabase advisors on tailr-staging. Two migrations, **applied to
-staging and verified by effect**; production still to run.
+staging and verified by effect**. **Production: do NOT run until Ose says so (30 Sep).**
 
 - `supabase/migrations/20260930120000_harden_public.sql`
 - `supabase/migrations/20260930120100_harden_agency.sql` (run after the
