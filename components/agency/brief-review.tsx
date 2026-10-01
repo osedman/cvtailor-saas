@@ -26,7 +26,10 @@ import { TierPill, fileSize, jdHref, type BriefFormSide, type BriefJdView } from
 
 /** The lines each tier shows, in reading order. Windows collapse to one line. */
 const TIER1_LINES: Array<keyof BriefConfig> = ["rounds", "decisionTurnaroundDays", "disclosure", "feedbackMode"]
-const TIER2_LINES: Array<keyof BriefConfig> = ["feePercent", "rebateWeeks", "ownershipMonths", "offerAuthorityContactId", "startTargetMonth", "shortlistSize", "referencesWanted"]
+// No commercial terms (fee, rebate, invoice, ownership): the brief is not the
+// contract (Ose, 1 Oct 2026). The keys stay in BriefConfig so stored versions
+// still parse, but no screen shows or edits them.
+const TIER2_LINES: Array<keyof BriefConfig> = ["offerAuthorityContactId", "startTargetMonth", "shortlistSize", "referencesWanted"]
 
 export function windowsLine(c: BriefConfig): string {
   return `${describe("interviewDays", c)} ${c.windowFrom}–${c.windowTo} · ${c.noticeHours}h notice · ${c.bufferMinutes} min buffer · ${c.maxPerDay} a day`

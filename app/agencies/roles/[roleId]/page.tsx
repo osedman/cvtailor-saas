@@ -1204,7 +1204,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // its own route, so the rail links out to it rather than switching a pane.
   // PANE_STEPS is that list, derived in lib/agency/steps.ts — not a second
   // copy kept here.
-  const detailTarget = activeCandidate ?? candidates[0]?.id ?? null
   const active = activeCandidate ? candidates.find((c) => c.id === activeCandidate) : null
   const activeScore = activeCandidate ? scores[activeCandidate] : null
   const activeReview = activeCandidate ? reviews[activeCandidate] : null
@@ -1339,22 +1338,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         <div className="ag-rail-group">
           <div className="ag-rail-label">Shortlist workflow</div>
           {WORKFLOW_STEPS.map((s) => {
-            if (s.key === "detail") {
-              return (
-                <button
-                  key={s.key}
-                  className={`ag-step${detailTarget ? "" : " locked"}`}
-                  disabled={!detailTarget}
-                  title={detailTarget ? "Open the evidence map for the active candidate" : "Add a candidate first"}
-                  onClick={() => detailTarget && router.push(`/agencies/roles/${roleId}/candidates/${detailTarget}`)}
-                >
-                  <span className={`ag-step-num${candidates.length > 0 ? " done" : ""}`}>
-                    {candidates.length > 0 ? "✓" : stepNumber(s.key)}
-                  </span>{" "}
-                  {s.label}
-                </button>
-              )
-            }
             const key = s.key as Step
             return (
               <button key={s.key} className={`ag-step${step === key ? " on" : ""}`} onClick={() => setStep(key)}>
@@ -1430,7 +1413,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         {busy === "extract" ? <><span className="ag-spin" /> Extracting</> : "Extract again"}
                       </button>
                       <button className="ag-btn ag-btn-primary" onClick={() => setStep("parse")} disabled={busy !== null}>
-                        Continue to parse review
+                        Continue to check requirements
                       </button>
                     </>
                   ) : (
@@ -1450,7 +1433,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       {extractResult.filled.length > 0
                         ? `Filled from the JD: ${extractResult.filled.map((f) => f.replace(/_/g, " ")).join(", ")}. Your typed fields and notes were left alone.`
                         : "Every intake field already had your own text, so nothing was overwritten."}
-                      {" "}Check the fields, then continue to parse review to adjust weights.
+                      {" "}Check the fields, then continue to check the requirements and adjust their weights.
                     </div>
                   </div>
                   <button className="ag-btn ag-btn-coral" onClick={() => setStep("parse")}>Continue</button>
@@ -2594,7 +2577,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             onDecide={(d) => decide(c.id, d)}
                           />
                           <button className="ag-btn ag-btn-secondary" style={{ width: "100%", justifyContent: "center" }} onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
-                            Open full profile
+                            View candidate
                           </button>
                         </div>
                       </div>

@@ -1,10 +1,11 @@
 "use client"
 
 /**
- * Step 06 as a PLACE: its own sidebar, its own role header, the seven-step
- * rail. The evidence itself lives in CandidateDetail, which this page and the
- * intercepting modal beside it both render — one component, one URL, two
- * entrances.
+ * Candidate detail as a PLACE, for a link, a refresh or a colleague: its own
+ * sidebar and the workflow rail. Inside the flow the same URL opens as a
+ * pop-up (the intercepting modal beside this). It is no longer a step in the
+ * rail (Ose, 1 Oct 2026), so no rail entry is marked current here. The
+ * evidence itself lives in CandidateDetail, which both entrances render.
  */
 
 import { use } from "react"
@@ -40,15 +41,7 @@ export default function CandidateDetailPage({
         <div className="ag-rail-group">
           <div className="ag-rail-label">Shortlist workflow</div>
           {WORKFLOW_STEPS.map((st) => (
-            <button
-              key={st.key}
-              className={`ag-step${st.key === "detail" ? " on" : ""}`}
-              aria-current={st.key === "detail" ? "page" : undefined}
-              onClick={() => {
-                if (st.key === "detail") return
-                router.push(workflowHref(roleId, st.key))
-              }}
-            >
+            <button key={st.key} className="ag-step" onClick={() => router.push(workflowHref(roleId, st.key))}>
               {/* No ticks here. This rail once hard-coded a ✓ on every step
                   but this one, so it claimed progress the role may not have
                   made (found 11 Sep 2026). The workflow page knows what is

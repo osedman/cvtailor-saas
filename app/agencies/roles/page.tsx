@@ -49,8 +49,7 @@ export default function RolesListPage() {
   const [closed, setClosed] = useState<ClosedRow[]>([])
   const [now, setNow] = useState<string>(() => new Date().toISOString())
   const [q, setQ] = useState("")
-  const [view, setView] = useState<"open" | "mine" | "waiting" | "closed">("open")
-  const [mine, setMine] = useState<Set<string>>(new Set())
+  const [view, setView] = useState<"open" | "closed">("open")
 
   useEffect(() => {
     let live = true
@@ -67,7 +66,6 @@ export default function RolesListPage() {
           const db = await d.json()
           const all = (db.roles ?? []) as DashboardRole[]
           setClosed(all.filter((r) => r.status === "closed"))
-          setMine(new Set(all.filter((r) => r.mine).map((r) => r.id)))
         }
         setState("ready")
       } catch {
@@ -83,11 +81,8 @@ export default function RolesListPage() {
     const needle = q.trim().toLowerCase()
     const match = (t: string) => !needle || t.toLowerCase().includes(needle)
     if (view === "closed") return closed.filter((r) => match(`${r.title} ${r.company} ${r.ref}`))
-    let list = rows
-    if (view === "mine") list = list.filter((r) => mine.has(r.role.id))
-    if (view === "waiting") list = list.filter((r) => r.next.mode === "wait")
-    return list.filter((r) => match(`${r.role.title} ${r.role.company} ${r.role.ref} ${r.role.ownerName ?? ""}`))
-  }, [rows, closed, view, q, mine])
+    return rows.filter((r) => match(`${r.role.title} ${r.role.company} ${r.role.ref} ${r.role.ownerName ?? ""}`))
+  }, [rows, closed, view, q])
 
   return (
     <>
@@ -122,8 +117,6 @@ export default function RolesListPage() {
           <div className="ag-crumbbar" style={{ marginTop: 8 }}>
             <div className="agd-seg" role="group" aria-label="Which roles">
               <button aria-pressed={view === "open"} onClick={() => setView("open")}>Open</button>
-              <button aria-pressed={view === "mine"} onClick={() => setView("mine")}>Mine</button>
-              <button aria-pressed={view === "waiting"} onClick={() => setView("waiting")}>Waiting on others</button>
               <button aria-pressed={view === "closed"} onClick={() => setView("closed")}>Closed</button>
             </div>
             <span className="ag-grow" />
@@ -138,7 +131,7 @@ export default function RolesListPage() {
             <div className="agd-today">
               <div className="agd-today-group">
                 <div className="agd-today-head">
-                  <span className="agd-today-title">{view === "mine" ? "Mine" : view === "waiting" ? "Waiting on others" : "Open"}</span>
+                  <span className="agd-today-title">Open</span>
                   <span className="agd-today-count">{shown.length}</span>
                 </div>
                 {shown.length === 0 && <div className="agd-today-empty">{q ? "Nothing matches." : "No roles here."}</div>}

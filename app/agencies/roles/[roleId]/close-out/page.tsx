@@ -514,7 +514,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
                     {chosen ? `Confirm ${chosen.full_name} as the hire` : "Pick who was hired"}
                     <ArrowRight size={16} aria-hidden="true" />
                   </button>
-                  <p>Opens references and the handover pack. The role stays open; the placement is recorded separately.</p>
+                  <p>Opens references and the handover pack. The role stays open until you close it.</p>
                 </div>
               </>
             )}
@@ -530,7 +530,7 @@ export default function CloseOutPage({ params }: { params: Promise<{ roleId: str
               <CandidateReferences candidateId={chosenId} onRefsChange={setRefs} />
               <section className="ag-card ag-print-hide" style={{ padding: "14px 22px" }}>
                 <p className="ag-note" style={{ margin: 0 }}>
-                  Right to work and the placement live on the{" "}
+                  Right to work lives on the{" "}
                   <button
                     className="ag-crumb-link"
                     style={{ font: "inherit", textDecoration: "underline" }}

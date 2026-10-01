@@ -432,19 +432,23 @@ export function MatchingWindow({
             )}
           </div>
 
-          {/* ── Who chose to be seen ────────────────────────────────────── */}
-          <p className="ag-field-label" style={{ marginTop: 26 }}>
-            Who chose to be seen{people.length > 0 ? ` · ${people.length}` : ""}
-          </p>
-          {matched === null ? (
-            <p className="ag-note">Loading…</p>
-          ) : people.length === 0 ? (
-            <p className="ag-note">
-              Nobody who matched has chosen to be seen yet. That is not the same as nobody matching
-              — people control whether recruiters can see them, and they can change it at any time.
+          {/* ── Who chose to be seen ──────────────────────────────────────
+              Each list shows only once it has somebody in it. An empty
+              section with a paragraph explaining its emptiness read as noise
+              in UAT (1 Oct 2026); one line covers the case where neither list
+              has anyone. Hiding an empty list discloses nothing the old copy
+              did not already say. */}
+          {matched !== null && pool !== null && people.length === 0 && pool.people.length === 0 && (
+            <p className="ag-note" style={{ marginTop: 26 }}>
+              Nobody who matched has chosen to be seen yet. People control whether recruiters can
+              see them, and can change it at any time.
             </p>
-          ) : (
+          )}
+          {people.length > 0 && (
             <>
+              <p className="ag-field-label" style={{ marginTop: 26 }}>
+                Who chose to be seen · {people.length}
+              </p>
               <div className="ag-matched-grid">
                 {people.map((p) => (
                   <MatchedCard
@@ -470,19 +474,11 @@ export function MatchingWindow({
               they have evidenced. Ordered by overlap, but ordering a list is
               not ranking people: every row here is selectable whatever the
               number says, and the switchers are the point. */}
-          <p className="ag-field-label" style={{ marginTop: 26 }}>
-            The pool{pool ? ` · ${pool.people.length}` : ""}
-          </p>
-          {pool === null ? (
-            <p className="ag-note">Reading the pool…</p>
-          ) : pool.people.length === 0 ? (
-            <p className="ag-note">
-              Nobody on Tailr has turned on both switches yet — &ldquo;let recruiters see me&rdquo;
-              and &ldquo;show me when a role matches&rdquo;. Until somebody does, there is no pool
-              to read.
-            </p>
-          ) : (
+          {pool !== null && pool.people.length > 0 && (
             <>
+              <p className="ag-field-label" style={{ marginTop: 26 }}>
+                The pool · {pool.people.length}
+              </p>
               <ul className="ag-pool">
                 {pool.people.map((p) => (
                   <li key={p.userId} className="ag-pool-row" data-switching={p.switching || undefined}>

@@ -31,17 +31,9 @@ import {
   FEEDBACK_DAYS,
   FEEDBACK_MODES,
   FEEDBACK_MODE_LABEL,
-  FEE_BASES,
-  FEE_BASIS_LABEL,
-  INVOICE_POINTS,
-  INVOICE_POINT_LABEL,
   MAX_PER_DAY,
   MAX_ROUNDS,
   NOTICE_HOURS,
-  OWNERSHIP_MONTHS,
-  REBATE_SHAPES,
-  REBATE_SHAPE_LABEL,
-  REBATE_WEEKS,
   ROUND_FORMATS,
   ROUND_FORMAT_LABEL,
   ROUND_PURPOSES,
@@ -618,19 +610,10 @@ export function BriefForm({
         </div>
       </Section>
 
-      <Section n={5} title="Commercial terms" tier={2} sub="Stated by the agency. The placement record inherits these.">
+      {/* No commercial terms here — fee, rebate, invoice point and candidate
+          ownership are the contract, not the brief (Ose, 1 Oct 2026). */}
+      <Section n={5} title="The offer" tier={2}>
         <div className="ag-brief-row">
-          <Select id="basis" label="Basis" value={config.feeBasis} options={FEE_BASES} onChange={(v) => set("feeBasis", v)} render={(v) => FEE_BASIS_LABEL[v]} />
-          <Stepper id="fee" label="Fee" value={config.feePercent} min={0} max={50} step={0.5} unit="%" onChange={(v) => set("feePercent", v)} hint="Steps of 0.5" />
-          <Stepper id="rebate" label="Rebate" value={config.rebateWeeks} min={REBATE_WEEKS.min} max={REBATE_WEEKS.max} unit="weeks" onChange={(v) => set("rebateWeeks", v)} />
-          <Select id="rshape" label="Rebate shape" value={config.rebateShape} options={REBATE_SHAPES} onChange={(v) => set("rebateShape", v)} render={(v) => REBATE_SHAPE_LABEL[v]} />
-          <Select id="invoice" label="Invoice" value={config.invoicePoint} options={INVOICE_POINTS} onChange={(v) => set("invoicePoint", v)} render={(v) => INVOICE_POINT_LABEL[v]} />
-        </div>
-      </Section>
-
-      <Section n={6} title="Ownership and offer" tier={2}>
-        <div className="ag-brief-row">
-          <Select id="own" label="Introduced candidates are yours for" value={config.ownershipMonths} options={OWNERSHIP_MONTHS} onChange={(v) => set("ownershipMonths", v)} render={(v) => `${v} months`} />
           <Select id="offer" label="Offer authority" value={config.offerAuthorityContactId ?? ""} options={["", ...contacts.map((c) => c.id)]} onChange={(v) => set("offerAuthorityContactId", v || null)} render={(v) => (v ? contactName(v) : "Not named")} hint="From the client's contacts." />
           <Stepper id="ceiling" label="Up to" value={config.offerCeiling ?? 0} min={0} max={500_000} step={1000} onChange={(v) => set("offerCeiling", v || null)} format={(v) => (v ? `£${v.toLocaleString("en-GB")}` : "Not set")} hint="Steps of £1,000." />
           <Select id="start" label="Start target" value={config.startTargetMonth ?? ""} options={["", ...monthOptions]} onChange={(v) => set("startTargetMonth", v || null)} render={monthLabel} />
@@ -638,7 +621,7 @@ export function BriefForm({
         </div>
       </Section>
 
-      <Section n={7} title="References" tier={2}>
+      <Section n={6} title="References" tier={2}>
         <Chips
           label="Every hire needs"
           options={["character", "hr"] as const}

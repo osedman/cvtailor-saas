@@ -8285,3 +8285,31 @@ Verified by use: within minutes Yemi had generated a recommendation, made
 decisions and generated a submission on CAN-01 to CAN-04. Submission
 generation refuses stale hashes, so it would not have run if the hashes
 were bad.
+
+### UAT round one: five changes from the Tailr for Agency UAT doc (1 Oct 2026)
+
+From Ose's UAT doc and notes; items numbered as in the review table.
+
+- **#2 "Parse review" renamed to "Check requirements"**: the step label, the
+  "Continue to …" button and the extraction banner.
+- **#7 Roles list**: the "Mine" and "Waiting on others" tabs are removed.
+  Open and Closed remain.
+- **#8 Matching window**: "Who chose to be seen" and "The pool" render only
+  when they have somebody in them. When both are empty, one short line says
+  so. Nothing new is disclosed; the old copy already said the same.
+- **#10 Contract terms out of the brief**: fee basis, fee %, rebate, rebate
+  shape, invoice point and candidate ownership are gone from the brief form,
+  the brief review (both sides) and the brief picker summary. The placement
+  form is removed from every screen (step 06, the candidate file, and the
+  readiness line). **Data kept**: the BriefConfig keys still parse, and the
+  `agency.placements` table and its API are untouched. No migration.
+- **#13 Candidate detail is no longer a step**: the workflow is six steps.
+  The candidate opens as the existing pop-up (frame 07's intercepting
+  modal), and the full-page route stays for links. "Open full profile" is
+  now "View candidate".
+
+All five are removals or copy changes against existing frames, so no new
+Figma frame was needed. **#1** (merge the client brief and role intake into
+one step) is a new layout and goes to Figma for sign-off before any code.
+
+Verified: tsc clean, 2143 tests pass.

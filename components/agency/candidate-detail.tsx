@@ -13,10 +13,8 @@ import { useRouter } from "next/navigation"
 import { resolveProbes } from "@/lib/agency/probes"
 import { strengthLabel, weightPointsLabel } from "@/lib/agency/strengths"
 import type { Strength, Weight } from "@/lib/agency/types"
-import { stepNumber } from "@/lib/agency/steps"
 import { RoleHeader } from "@/components/agency/role-header"
 import { CandidateCompliance } from "@/components/agency/candidate-compliance"
-import { CandidatePlacement } from "@/components/agency/candidate-placement"
 import { AdjustedPill, ConfidenceBars, ScoreBreakdown } from "@/components/agency/score-parts"
 
 interface Requirement { id: string; ref: string; text: string; weight: string; category?: string }
@@ -185,7 +183,7 @@ export function CandidateDetail({
     <div className="ag-screen">
           {!inModal && <RoleHeader roleId={roleId} hat="recruiter" />}
           {!inModal && (
-            <p className="ag-step-eyebrow">Step {stepNumber("detail")} · Candidate detail</p>
+            <p className="ag-step-eyebrow">Candidate detail</p>
           )}
 
           {error && <div className="ag-banner"><span style={{ color: "var(--ag-coral-deep)", fontSize: 12.5 }}>{error}</span></div>}
@@ -397,8 +395,6 @@ export function CandidateDetail({
                     handover pack.
                   </p>
                   <CandidateCompliance candidateId={candidateId} />
-
-                  <CandidatePlacement candidateId={candidateId} />
 
                   <div className="ag-card">
                     <div className="ag-card-head">

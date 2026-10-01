@@ -760,7 +760,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                       <button
                         className="ag-crumb-link ag-pick-name"
                         style={{ display: "block", textAlign: "left", font: "inherit", padding: 0 }}
-                        title="Open the candidate file — right to work, references, placement"
+                        title="Open the candidate file — right to work and references"
                         onClick={() => router.push(`/agencies/candidates/${r.candidateId}`)}
                       >
                         {r.candidateName}

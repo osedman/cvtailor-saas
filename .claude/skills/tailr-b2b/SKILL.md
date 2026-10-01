@@ -268,16 +268,24 @@ Still true and still unfixed: "role" means two things in recruiter body copy
 ("Close this role", "No candidates on this role yet"). §3 of the plan is the
 inventory if that is ever worth paying for.
 
-### THE WORKFLOW IS SEVEN STEPS, NOT SIX
+### THE WORKFLOW IS SIX STEPS (changed 1 Oct 2026, Ose)
 
 `lib/agency/steps.ts` is the single source of truth. Import it; never re-declare.
-01 intake · 02 parse · 03 candidates · 04 screening · 05 compare · 06 **candidate
-detail (own route)** · 07 submission. Step 06 fell out of a pane-derived rail
-once and went missing for four days.
+01 intake · 02 check requirements (key `parse`; "Parse review" was retired as
+jargon) · 03 candidates · 04 screening · 05 compare · 06 submission.
+**Candidate detail is no longer a step.** Ose removed it from the rail after
+UAT: it is a pop-up you open on a person (frame 07's intercepting-route modal,
+`@modal/(.)candidates/[candidateId]`), with the full-page route kept as the
+fallback for links and refreshes. Do not put it back in the rail.
+
+Same UAT round: the placement form (fee, rebate, start date) is removed from
+every screen, and the client brief no longer carries commercial terms (fee,
+rebate, invoice, ownership). The `agency.placements` table, its API and the
+BriefConfig keys are untouched — data was kept, only the UI went.
 
 **Interviews, close-out, dossier, clients, briefs, audit and settings are
-ADJUNCTS, not steps.** They hang off a role or the sidebar. Do not add an
-eighth step.
+ADJUNCTS, not steps.** They hang off a role or the sidebar. Do not add a
+seventh step.
 
 ## Design lineage
 

@@ -1,11 +1,12 @@
 /**
- * The shortlist workflow rail, exactly as the design handoff numbers it.
+ * The shortlist workflow rail.
  *
- * Seven steps, not six. Candidate detail is step 06 in the drawing and lives
- * on its own route here (it is per-candidate and deep linkable), which is why
- * it went missing from the rail for a while — the rail was built from the
- * steps the workflow page happened to render rather than from the workflow
- * itself. Both pages import this list so they can never disagree again.
+ * SIX steps (Ose, 1 Oct 2026). Candidate detail used to be step 06; it is no
+ * longer a step but a pop-up you open on a person from any step (frame 07's
+ * intercepting-route modal, which keeps its own URL and a full-page fallback
+ * for links). It is per-candidate, so it never belonged in a linear rail.
+ * Both the workflow page and the candidate route import this list so they can
+ * never disagree.
  */
 
 export type StepKey =
@@ -14,37 +15,31 @@ export type StepKey =
   | "candidates"
   | "screening"
   | "compare"
-  | "detail"
   | "submission"
 
 export const WORKFLOW_STEPS: Array<{ key: StepKey; label: string }> = [
   { key: "intake", label: "Role intake" },
-  { key: "parse", label: "Parse review" },
+  { key: "parse", label: "Check requirements" },
   { key: "candidates", label: "Add candidates" },
   { key: "screening", label: "Screening calls" },
   { key: "compare", label: "Compare" },
-  { key: "detail", label: "Candidate detail" },
   { key: "submission", label: "Client submission" },
 ]
 
 /**
- * The six steps the workflow page renders as panes. Candidate detail is the
- * seventh and has its own route, so Back / Next skip it. Derived from the
- * one list rather than declared beside it — the page kept its own filtered
- * copy for a while, which is how a second step list starts.
+ * The steps the workflow page renders as panes — every step, now that
+ * candidate detail is a pop-up rather than a route in the rail. Kept as its
+ * own name so callers that mean "a pane" still say so.
  */
-export type PaneStepKey = Exclude<StepKey, "detail">
-export const PANE_STEPS = WORKFLOW_STEPS.filter((s) => s.key !== "detail") as Array<{
-  key: PaneStepKey
-  label: string
-}>
+export type PaneStepKey = StepKey
+export const PANE_STEPS = WORKFLOW_STEPS
 
-/** "06" for the rail badge and the "Step 06 · Candidate detail" eyebrow. */
+/** "05" for the rail badge and the "Step 05 · Compare" eyebrow. */
 export function stepNumber(key: StepKey): string {
   return String(WORKFLOW_STEPS.findIndex((s) => s.key === key) + 1).padStart(2, "0")
 }
 
-/** "Candidate detail" for the eyebrow and the crumb. */
+/** "Compare" for the eyebrow and the crumb. */
 export function stepLabel(key: StepKey): string {
   return WORKFLOW_STEPS.find((s) => s.key === key)?.label ?? ""
 }

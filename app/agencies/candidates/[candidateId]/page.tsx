@@ -21,7 +21,6 @@ import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
 import { SignOut } from "@/components/agency/sign-out"
 import { CandidateCompliance } from "@/components/agency/candidate-compliance"
-import { CandidatePlacement } from "@/components/agency/candidate-placement"
 import { CandidateReferences } from "@/components/agency/candidate-references"
 import { PhaseRail } from "@/components/agency/phase-rail"
 import { type PhaseKey } from "@/lib/agency/phases"
@@ -61,15 +60,13 @@ export default function CandidateFilePage({
     rtw: boolean
     refsIn: number
     refsTotal: number
-    placement: boolean
   } | null>(null)
 
   const loadReadiness = useCallback(async () => {
     try {
-      const [comp, refs, plc] = await Promise.all([
+      const [comp, refs] = await Promise.all([
         fetch(`/api/agency/candidates/${candidateId}/compliance`).then((r) => (r.ok ? r.json() : null)),
         fetch(`/api/agency/candidates/${candidateId}/references`).then((r) => (r.ok ? r.json() : null)),
-        fetch(`/api/agency/candidates/${candidateId}/placement`).then((r) => (r.ok ? r.json() : null)),
       ])
       const rows = Array.isArray(refs?.references) ? refs.references : []
       setReady({
@@ -78,7 +75,6 @@ export default function CandidateFilePage({
           (comp?.compliance?.rtwSponsorship && comp.compliance.rtwSponsorship !== "not_asked"),
         refsIn: rows.filter((r: { status: string }) => r.status === "received").length,
         refsTotal: rows.length,
-        placement: Boolean(plc?.placement),
       })
     } catch {
       setReady(null)
@@ -130,7 +126,7 @@ export default function CandidateFilePage({
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>What this screen is</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>
-            The paperwork that travels with the person — right to work, references, the placement.
+            The paperwork that travels with the person — right to work and references.
             Everything recorded here joins the handover pack. Scoring stays in the workflow.
           </div>
         </div>
@@ -189,10 +185,6 @@ export default function CandidateFilePage({
                 <span className="ag-file-ready-dot" aria-hidden />
                 References · {ready.refsTotal === 0 ? "none named" : `${ready.refsIn} of ${ready.refsTotal} in`}
               </span>
-              <span className={`ag-file-ready-item ${ready.placement ? "done" : ""}`}>
-                <span className="ag-file-ready-dot" aria-hidden />
-                Placement · {ready.placement ? "recorded" : "not yet"}
-              </span>
             </div>
           )}
             </div>
@@ -204,7 +196,6 @@ export default function CandidateFilePage({
             <div className="ag-close-grid">
               <div className="ag-stack" style={{ gap: 20 }}>
                 <CandidateCompliance candidateId={candidateId} onSaved={loadReadiness} />
-                <CandidatePlacement candidateId={candidateId} onSaved={loadReadiness} />
               </div>
               <div className="ag-stack" style={{ gap: 20 }}>
                 <CandidateReferences candidateId={candidateId} onRefsChange={() => loadReadiness()} />
@@ -237,7 +228,7 @@ export default function CandidateFilePage({
           )}
 
           <p className="ag-note-quiet" style={{ marginTop: 28 }}>
-            Right to work, references and the placement all travel into the handover pack — complete
+            Right to work and references travel into the handover pack — complete
             them here and the pack carries them.
           </p>
         </div>

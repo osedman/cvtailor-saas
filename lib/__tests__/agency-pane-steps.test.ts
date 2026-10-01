@@ -1,7 +1,7 @@
 /**
- * The workflow page's six panes are derived from the seven steps, in
- * lib/agency/steps.ts, not kept as a second list on the page. Two lists on
- * one page is how step 06 went missing for four days.
+ * The workflow page's panes come from the one step list in
+ * lib/agency/steps.ts, not a second list on the page. Two lists on one page
+ * is how a step once went missing for four days.
  */
 import { describe, it, expect } from "vitest"
 import { readFileSync } from "fs"
@@ -9,18 +9,17 @@ import { join } from "path"
 import { tsCode } from "./helpers/source-scan"
 import { PANE_STEPS, WORKFLOW_STEPS, SOURCING_STEPS, isSourcingStep, stepLabel, stepNumber } from "../agency/steps"
 
-describe("PANE_STEPS", () => {
-  it("is the seven steps minus candidate detail, in order", () => {
-    expect(PANE_STEPS.map((s) => s.key)).toEqual(
-      WORKFLOW_STEPS.filter((s) => s.key !== "detail").map((s) => s.key)
-    )
-    expect(PANE_STEPS).toHaveLength(6)
+describe("the step list", () => {
+  it("is six steps, every one a pane (candidate detail is a pop-up, not a step)", () => {
+    expect(WORKFLOW_STEPS.map((s) => s.key)).toEqual(["intake", "parse", "candidates", "screening", "compare", "submission"])
+    expect(PANE_STEPS.map((s) => s.key)).toEqual(WORKFLOW_STEPS.map((s) => s.key))
   })
 
-  it("keeps the rail numbering of the full list", () => {
-    // Submission is 07 on the rail even though it is the sixth pane.
-    expect(stepNumber("submission")).toBe("07")
+  it("numbers submission 06 and names the steps in plain words", () => {
+    expect(stepNumber("submission")).toBe("06")
     expect(stepLabel("submission")).toBe("Client submission")
+    // "Parse review" was jargon a recruiter would not use (UAT, 1 Oct 2026).
+    expect(WORKFLOW_STEPS.map((s) => s.label).join(" ")).not.toMatch(/parse/i)
   })
 })
 

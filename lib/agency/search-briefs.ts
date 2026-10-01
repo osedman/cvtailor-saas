@@ -293,7 +293,6 @@ export async function listBriefsForCompany(
       `${c.rounds.length} round${c.rounds.length === 1 ? "" : "s"}`,
       `decide in ${c.decisionTurnaroundDays}d`,
       c.disclosure.cv ? "CV shown" : "CV withheld",
-      `${c.feePercent}% ${c.feeBasis}`,
     ].join(" · ")
     out.push({
       id: full.id,
