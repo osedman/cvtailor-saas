@@ -8256,3 +8256,32 @@ Tests: new `revocation.test.ts` (behaviour) and 15 more checks in
 `access-audit.test.ts`. Three fixtures were updated because they used a
 non-UUID role id, an unconfirmed session user, or had no revocation table.
 2143 tests pass; the build is clean.
+
+### Seeded ROL-2422 PMO Analyst with 20 candidates (30 Sep 2026)
+
+At Ose's request, CAN-01 to CAN-20 were seeded into Yemi's role ROL-2422
+(PMO Analyst, undergraduate placement, Halcyon Search) for shortlisting. The
+CVs are in `scripts/seed-content/pmo-role/` and are fictional.
+
+**The mix:**
+- 6 strong, scoring 82–97.
+- 7 middling, scoring 58–68.
+- 5 weak, scoring 25–37.
+- CAN-19 is a duplicate of CAN-01; the duplicate banner is set.
+- CAN-20 has no contact details.
+
+**How they were scored:** in-session, with the app's real `computeScore`,
+`inputsHash` and `identityHash`, using the same sanitising and
+"quote must be in the CV" rules as `ingestCandidate`.
+
+**Verified on staging:**
+- 20 candidates, each with:
+  - 10 evidence rows, with 0 quotes missing from the CV;
+  - a score with a hash;
+  - one Art 14 notice scheduled;
+  - one audit row.
+
+Verified by use: within minutes Yemi had generated a recommendation, made
+decisions and generated a submission on CAN-01 to CAN-04. Submission
+generation refuses stale hashes, so it would not have run if the hashes
+were bad.
