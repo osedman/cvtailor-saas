@@ -479,6 +479,7 @@ export function BriefForm({
   uploads,
   onUploaded,
   onUploadingChange,
+  hideJd = false,
 }: {
   config: BriefConfig
   onChange: (next: BriefConfig) => void
@@ -506,6 +507,10 @@ export function BriefForm({
    *  Approve / Undo while it is, so a version never leaves without the file
    *  the person is attaching, and a late upload never lands on a reset draft. */
   onUploadingChange?: (uploading: boolean) => void
+  /** Step 01 "Role & brief" (frame 36): the job description is the box
+   *  beside the terms, attached to the brief when it is sent — so the form
+   *  does not offer a second upload. */
+  hideJd?: boolean
 }) {
   // An upload resolves after the person may have changed another field;
   // the id goes onto the config as it is THEN, not as it was on click.
@@ -537,24 +542,26 @@ export function BriefForm({
 
   return (
     <fieldset className="ag-brief-form" disabled={disabled}>
-      <JdSection
-        side={side}
-        briefId={briefId}
-        fileId={config.jdFileId}
-        known={[...attached, ...(uploads ?? []), jd, previousJd]}
-        baseline={jd}
-        previousJd={previousJd}
-        amending={amending}
-        agencyName={agencyName}
-        contactName={briefContactName}
-        onPick={(id) => onChange({ ...latest.current, jdFileId: id })}
-        onError={onError}
-        onUploaded={(f) => {
-          setAttached((a) => [f, ...a])
-          onUploaded?.(f)
-        }}
-        onUploadingChange={onUploadingChange}
-      />
+      {!hideJd && (
+        <JdSection
+          side={side}
+          briefId={briefId}
+          fileId={config.jdFileId}
+          known={[...attached, ...(uploads ?? []), jd, previousJd]}
+          baseline={jd}
+          previousJd={previousJd}
+          amending={amending}
+          agencyName={agencyName}
+          contactName={briefContactName}
+          onPick={(id) => onChange({ ...latest.current, jdFileId: id })}
+          onError={onError}
+          onUploaded={(f) => {
+            setAttached((a) => [f, ...a])
+            onUploaded?.(f)
+          }}
+          onUploadingChange={onUploadingChange}
+        />
+      )}
 
       <Section n={1} title="The rounds" tier={1} sub="What each round is for, who is in it, how long. The room's stage bar, the wave planner and the diary read this; a decider can differ by round.">
         {config.rounds.map((r, i) => (

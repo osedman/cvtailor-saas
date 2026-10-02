@@ -271,7 +271,7 @@ inventory if that is ever worth paying for.
 ### THE WORKFLOW IS SIX STEPS (changed 1 Oct 2026, Ose)
 
 `lib/agency/steps.ts` is the single source of truth. Import it; never re-declare.
-01 intake · 02 check requirements (key `parse`; "Parse review" was retired as
+01 role & brief (key `intake`; frame 36, 2 Oct: the role's OWN brief is written here, one brief per role, and the role follows it — `startRoleBrief` / `followBrief`) · 02 check requirements (key `parse`; "Parse review" was retired as
 jargon) · 03 candidates · 04 screening · 05 compare · 06 submission.
 **Candidate detail is no longer a step.** Ose removed it from the rail after
 UAT: it is a pop-up you open on a person (frame 07's intercepting-route modal,

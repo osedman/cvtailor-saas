@@ -19,6 +19,7 @@ import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey, is
 import { STRENGTHS, strengthWeightLabel } from "@/lib/agency/strengths"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
 import { BriefChip, useBriefStatus, type BriefStatusPayload } from "@/components/agency/brief-chip"
+import { BriefEditor } from "@/components/agency/brief-editor"
 import { MatchingWindow, type PoolPerson } from "@/components/agency/matching-window"
 import { RecommendationPanel } from "@/components/agency/recommendation-panel"
 import { useRecommendation } from "@/components/agency/use-recommendation"
@@ -284,51 +285,24 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   }
   const [discarding, setDiscarding] = useState(false)
   /**
-   * The brief this role runs on, and the ones it could (frame 25, bands C
-   * and D). One fetch feeds the chip under the header and the connect card
-   * in intake. Refetched after connecting, because connecting rewrites the
-   * role's planned rounds, contact and interview rules.
+   * The role's own brief (frame 36, approved 2 Oct 2026): step 01 is "Role &
+   * brief", and the terms with the client sit beside the job. One fetch feeds
+   * the chip under the header and the terms card. Re-read after any brief
+   * write, because the role follows its brief — planned rounds and the
+   * interview rules change with it.
    */
   const briefStatusInitial = useBriefStatus(roleId, "recruiter")
   const [briefStatus, setBriefStatus] = useState<BriefStatusPayload | null | "error">(null)
-  const [available, setAvailable] = useState<Array<{ id: string; title: string; company: string; matchesRole: boolean; version: number; state: string; contactName: string; summary: string; approvedAt: string | null }>>([])
-  const [pickBrief, setPickBrief] = useState("")
-  const [connecting, setConnecting] = useState(false)
+  const [startingBrief, setStartingBrief] = useState(false)
   useEffect(() => {
-    if (briefStatusInitial && briefStatusInitial !== "error") {
-      setBriefStatus(briefStatusInitial)
-      setAvailable(((briefStatusInitial as unknown as { available?: typeof available }).available ?? []))
-    } else if (briefStatusInitial === "error") setBriefStatus("error")
+    if (briefStatusInitial) setBriefStatus(briefStatusInitial)
   }, [briefStatusInitial])
-  const onBrief = Boolean(briefStatus && briefStatus !== "error" && briefStatus.status)
-  useEffect(() => {
-    // Recognise the brief: an approved one at this client (or the only
-    // approved one, for a role with no company yet) is picked for the
-    // recruiter. They still press Connect; nothing is copied by itself.
-    if (onBrief || pickBrief) return
-    const approved = available.filter((b) => b.state === "approved")
-    const here = approved.filter((b) => b.matchesRole)
-    const pick = here.length === 1 ? here[0] : here.length === 0 && approved.length === 1 ? approved[0] : null
-    if (pick) setPickBrief(pick.id)
-  }, [available, onBrief, pickBrief])
-  async function connectBrief(briefIdOverride?: string) {
-    // `briefIdOverride` is for "Follow vN": setPickBrief in the same tick
-    // would not be visible here yet.
-    const target = briefIdOverride ?? pickBrief
-    if (!target) return
-    setConnecting(true)
-    setError(null)
+  const roleBriefId = briefStatus && briefStatus !== "error" ? (briefStatus.status?.briefId ?? null) : null
+  async function reloadBrief() {
     try {
-      const res = await fetch(`/api/agency/roles/${roleId}/brief`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ briefId: target }) })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) return setError(typeof body?.error === "string" ? body.error : "Could not connect the brief.")
       const again = await fetch(`/api/agency/roles/${roleId}/brief`)
-      if (again.ok) {
-        const b = (await again.json()) as BriefStatusPayload & { available?: typeof available }
-        setBriefStatus(b)
-        setAvailable(b.available ?? [])
-      }
-      // The role itself changed under us: planned rounds, contact and rules.
+      if (again.ok) setBriefStatus((await again.json()) as BriefStatusPayload)
+      // The role follows its brief: planned rounds and the rules move with it.
       const fresh = await fetch(`/api/agency/roles/${roleId}`)
       if (fresh.ok) {
         const b = await fresh.json()
@@ -336,9 +310,21 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       }
       announceRoleChanged()
     } catch {
-      setError("Could not connect the brief.")
+      /* the next load re-reads it */
+    }
+  }
+  async function startBrief() {
+    setStartingBrief(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/brief`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start" }) })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) return setError(typeof body?.error === "string" ? body.error : "Could not start the terms.")
+      await reloadBrief()
+    } catch {
+      setError("Could not start the terms.")
     } finally {
-      setConnecting(false)
+      setStartingBrief(false)
     }
   }
   /**
@@ -620,45 +606,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       }),
     })
     announceRoleChanged()
-    // The brief picker was loaded with whatever company the role had when
-    // the page opened — blank, for a role made moments ago. Re-ask now
-    // that the company may have a name.
-    void refreshBriefOptions()
-  }
-
-  async function disconnectBrief() {
-    if (!window.confirm("Take this role off its brief? Planned rounds, the client contact and the company go back to what they were before you connected.")) return
-    setConnecting(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/agency/roles/${roleId}/brief`, { method: "DELETE" })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) return setError(typeof body?.error === "string" ? body.error : "Could not take the role off the brief.")
-      setBriefStatus({ status: null } as BriefStatusPayload)
-      setPickBrief("")
-      const fresh = await fetch(`/api/agency/roles/${roleId}`)
-      if (fresh.ok) {
-        const b = await fresh.json()
-        if (b.role) setRole(b.role)
-      }
-      announceRoleChanged()
-      void refreshBriefOptions()
-    } catch {
-      setError("Could not take the role off the brief.")
-    } finally {
-      setConnecting(false)
-    }
-  }
-
-  async function refreshBriefOptions() {
-    try {
-      const res = await fetch(`/api/agency/roles/${roleId}/brief`)
-      if (!res.ok) return
-      const b = (await res.json()) as BriefStatusPayload & { available?: typeof available }
-      setAvailable(b.available ?? [])
-    } catch {
-      /* the next save re-asks */
-    }
   }
 
   async function removeCandidate(candidateId: string) {
@@ -1403,8 +1350,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             <>
               <div className="ag-screen-head">
                 <div>
-                  <h1 className="ag-title">Paste the brief.<br />We&apos;ll structure it with you.</h1>
-                  <p className="ag-sub">The job description and your notes are the input everything downstream is scored against.</p>
+                  <h1 className="ag-title">Set up the role, and agree how it runs.</h1>
+                  <p className="ag-sub">The job comes first: the description and your notes are what everything downstream is scored against. The terms beside it are what the client agrees to — send them when you are ready, and carry on while they read.</p>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                   {requirements.length > 0 ? (
@@ -1440,62 +1387,62 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 </div>
               )}
               <div className="ag-grid-2">
-                <div className="ag-card">
-                  <div className="ag-card-head">
-                    <span className="ag-card-title">Job description</span>
-                    <span className="ag-meta">{(role.jd_raw ?? "").length} chars · autosaved</span>
-                    <label className="ag-btn ag-btn-secondary" style={{ cursor: "pointer" }}>
-                      Upload the JD
-                      <input type="file" accept=".pdf,.docx,.txt" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) extract({ file: f }) }} />
-                    </label>
-                  </div>
-                  <div className="ag-card-body">
-                    {/* Board 28, band C: the file the brief carries, named,
-                        above the box its text landed in. Only when the
-                        version this role runs on has one. */}
-                    {briefStatus && briefStatus !== "error" && briefStatus.status?.jd && (
-                      <div className="ag-brief-jd-from-row">
-                        <span className="ag-field-label ag-brief-jd-from">From the brief · {briefStatus.status.jd.name}</span>
-                        <a className="ag-brief-jd-link" href={`/api/agency/briefs/${briefStatus.status.briefId}/jd/${briefStatus.status.jd.fileId}`} download aria-label={`Download ${briefStatus.status.jd.name}`}>
-                          Download
-                        </a>
-                      </div>
-                    )}
-                    <textarea className="ag-textarea jd" placeholder="Paste the client's job description here" value={role.jd_raw} onChange={(e) => patchRole({ jd_raw: e.target.value })} onBlur={() => void saveIntake()} />
-                    {/* The client's JD arrived with the brief. Accept copied
-                        it in; this line is the provenance, and the button is
-                        the way back to their exact text after edits. */}
-                    {briefJd && briefJd === role.jd_raw.trim() && (
-                      <p className="ag-note" style={{ marginTop: 8, color: "var(--ag-ink-3)" }}>
-                        This JD came with the client&rsquo;s brief — parse it, or edit first.
-                      </p>
-                    )}
-                    {briefJd && briefJd !== role.jd_raw.trim() && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
-                        <button
-                          className="ag-btn ag-btn-secondary"
-                          disabled={busy !== null}
-                          onClick={() => { patchRole({ jd_raw: briefJd }); void saveIntake({ jd_raw: briefJd }) }}
-                        >
-                          Use the JD from the client&rsquo;s brief
-                        </button>
-                        <span className="ag-note" style={{ color: "var(--ag-ink-3)" }}>
-                          Replaces the box with their exact text.
-                        </span>
-                      </div>
-                    )}
-                    <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-                      <input className="ag-input" placeholder="Or a link to the posting" value={jdUrl} onChange={(e) => setJdUrl(e.target.value)} />
-                      <button className="ag-btn ag-btn-secondary" onClick={() => jdUrl.trim() && extract({ url: jdUrl.trim() })} disabled={busy !== null || !jdUrl.trim()}>
-                        Fetch and extract
-                      </button>
-                    </div>
-                    <p className="ag-note" style={{ marginTop: 8 }}>
-                      Extraction fills any empty fields on the right from the JD. It never overwrites what you typed, and never touches your notes.
-                    </p>
-                  </div>
-                </div>
                 <div className="ag-stack">
+                  <div className="ag-card">
+                    <div className="ag-card-head">
+                      <span className="ag-card-title">Job description</span>
+                      <span className="ag-meta">{(role.jd_raw ?? "").length} chars · autosaved</span>
+                      <label className="ag-btn ag-btn-secondary" style={{ cursor: "pointer" }}>
+                        Upload the JD
+                        <input type="file" accept=".pdf,.docx,.txt" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) extract({ file: f }) }} />
+                      </label>
+                    </div>
+                    <div className="ag-card-body">
+                      {/* Board 28, band C: the file the brief carries, named,
+                          above the box its text landed in. Only when the
+                          version this role runs on has one. */}
+                      {briefStatus && briefStatus !== "error" && briefStatus.status?.jd && (
+                        <div className="ag-brief-jd-from-row">
+                          <span className="ag-field-label ag-brief-jd-from">From the brief · {briefStatus.status.jd.name}</span>
+                          <a className="ag-brief-jd-link" href={`/api/agency/briefs/${briefStatus.status.briefId}/jd/${briefStatus.status.jd.fileId}`} download aria-label={`Download ${briefStatus.status.jd.name}`}>
+                            Download
+                          </a>
+                        </div>
+                      )}
+                      <textarea className="ag-textarea jd" placeholder="Paste the client's job description here" value={role.jd_raw} onChange={(e) => patchRole({ jd_raw: e.target.value })} onBlur={() => void saveIntake()} />
+                      {/* The client's JD arrived with the brief. Accept copied
+                          it in; this line is the provenance, and the button is
+                          the way back to their exact text after edits. */}
+                      {briefJd && briefJd === role.jd_raw.trim() && (
+                        <p className="ag-note" style={{ marginTop: 8, color: "var(--ag-ink-3)" }}>
+                          This JD came with the client&rsquo;s brief — parse it, or edit first.
+                        </p>
+                      )}
+                      {briefJd && briefJd !== role.jd_raw.trim() && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+                          <button
+                            className="ag-btn ag-btn-secondary"
+                            disabled={busy !== null}
+                            onClick={() => { patchRole({ jd_raw: briefJd }); void saveIntake({ jd_raw: briefJd }) }}
+                          >
+                            Use the JD from the client&rsquo;s brief
+                          </button>
+                          <span className="ag-note" style={{ color: "var(--ag-ink-3)" }}>
+                            Replaces the box with their exact text.
+                          </span>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                        <input className="ag-input" placeholder="Or a link to the posting" value={jdUrl} onChange={(e) => setJdUrl(e.target.value)} />
+                        <button className="ag-btn ag-btn-secondary" onClick={() => jdUrl.trim() && extract({ url: jdUrl.trim() })} disabled={busy !== null || !jdUrl.trim()}>
+                          Fetch and extract
+                        </button>
+                      </div>
+                      <p className="ag-note" style={{ marginTop: 8 }}>
+                        Extraction fills any empty fields below from the JD. It never overwrites what you typed, and never touches your notes.
+                      </p>
+                    </div>
+                  </div>
                   <div className="ag-card">
                     <div className="ag-card-head"><span className="ag-card-title">Role &amp; client</span></div>
                     <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
@@ -1523,82 +1470,48 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         </select>
                         <p className="ag-note" style={{ marginTop: 6 }}>Naming them puts this role in their workspace and their name on the header. Add contacts under Client access.</p>
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                        <div>
-                          <label className="ag-label" htmlFor="role-rounds">Planned rounds</label>
-                          <select
-                            id="role-rounds"
-                            className="ag-input"
-                            value={role.planned_rounds ?? ""}
-                            onChange={(e) => { const v = e.target.value ? Number(e.target.value) : null; patchRole({ planned_rounds: v }); void saveIntake({ planned_rounds: v }) }}
-                          >
-                            <option value="">Not agreed</option>
-                            {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}
-                          </select>
-                          <p className="ag-note" style={{ marginTop: 6 }}>A plan, never a gate.</p>
-                        </div>
-                        <div><label className="ag-label">Start target</label><input className="ag-input" placeholder="e.g. early November" value={role.start_target ?? ""} onChange={(e) => patchRole({ start_target: e.target.value })} onBlur={() => void saveIntake()} /></div>
-                      </div>
+                      <div><label className="ag-label">Start target</label><input className="ag-input" placeholder="e.g. early November" value={role.start_target ?? ""} onChange={(e) => patchRole({ start_target: e.target.value })} onBlur={() => void saveIntake()} /></div>
                     </div>
                   </div>
+                  <div className="ag-card">
+                    <div className="ag-card-head"><span className="ag-card-title">Recruiter notes</span><span className="ag-pill">Private</span></div>
+                    <div className="ag-card-body">
+                      <textarea className="ag-textarea" placeholder="What the client said that never made the JD" value={role.recruiter_notes} onChange={(e) => patchRole({ recruiter_notes: e.target.value })} onBlur={() => void saveIntake()} />
+                      <p className="ag-note" style={{ marginTop: 8 }}>Notes feed the scoring and never reach the client.</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="ag-stack">
                   {/*
-                    Run this role on a brief (frame 25, band C). Only APPROVED
-                    briefs at this client are offered; an unsigned one is
-                    listed greyed with the reason so nobody hunts for it.
-                    Connecting COPIES the config and stamps the version.
+                    The terms with the client (frame 36, approved 2 Oct 2026):
+                    the role's own brief, beside the job. It is addressed to
+                    the hiring manager, so naming one comes first. The role
+                    runs on the draft at once — approval is not a gate.
                   */}
                   <div className="ag-card">
                     <div className="ag-card-head">
-                      <span className="ag-card-title">Run this role on a brief?</span>
+                      <span className="ag-card-title">Terms with the client</span>
                       <span className="ag-pill">Audit logged</span>
                     </div>
                     <div className="ag-card-body">
-                      {briefStatus && briefStatus !== "error" && briefStatus.status ? (
-                        <>
-                          <p className="ag-note" style={{ marginBottom: 10 }}>
-                            On <b>{briefStatus.status.title}</b> v{briefStatus.status.version}. Planned rounds, the client contact and the interview rules came from it{briefStatus.status.jd ? "; its job description is linked below" : ""} — carry on below.
-                            {briefStatus.status.movedOnTo ? ` The brief has since been approved as v${briefStatus.status.movedOnTo} — reconnect to follow it, or keep v${briefStatus.status.version}.` : ""}
-                          </p>
-                          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                            {briefStatus.status.movedOnTo && (
-                              <button className="ag-btn ag-btn-primary" onClick={() => void connectBrief(briefStatus.status!.briefId)} disabled={connecting}>
-                                {connecting ? "Connecting…" : `Follow v${briefStatus.status.movedOnTo}`}
-                              </button>
-                            )}
-                            <button className="ag-btn ag-btn-secondary" onClick={() => void disconnectBrief()} disabled={connecting}>
-                              Reverse — take the role off this brief
-                            </button>
-                          </div>
-                        </>
+                      {briefStatus === "error" ? (
+                        <p className="ag-note">Could not load the terms. Reload the page.</p>
+                      ) : briefStatus === null ? (
+                        <p className="ag-note">Loading…</p>
+                      ) : roleBriefId ? (
+                        <BriefEditor briefId={roleBriefId} embedded roleTitle={role.title} onChanged={() => void reloadBrief()} />
+                      ) : !role.contact_id ? (
+                        <p className="ag-note">
+                          Name the hiring manager under Role &amp; client first — the terms are addressed to them, and they agree them in their workspace.
+                        </p>
                       ) : (
                         <>
                           <p className="ag-note" style={{ marginBottom: 10 }}>
-                            {available.some((b) => b.state === "approved" && b.matchesRole) && role.company.trim()
-                              ? `The approved brief with ${role.company.trim()} is picked for you. `
-                              : available.some((b) => b.state === "approved")
-                                ? "Every approved brief on the agency is listed; connecting one names the company on the role. "
-                                : available.length > 0
-                                  ? "No brief is approved yet — an unsigned one is listed with the reason. "
-                                  : "No briefs yet. "}
-                            Connecting sets planned rounds, the client contact and the interview rules from the agreed terms.
+                            The rounds, how the client decides, what they are shown, the feedback promise, the offer and references — agreed once, by both sides. It starts from the last terms agreed with {role.company.trim() || "this client"}, or your defaults.
                           </p>
-                          <label className="ag-label" htmlFor="role-brief">Brief</label>
-                          <select id="role-brief" className="ag-input" value={pickBrief} onChange={(e) => setPickBrief(e.target.value)}>
-                            <option value="">{available.length > 0 ? "Choose a brief…" : "No briefs on this agency yet"}</option>
-                            {available.map((b) => (
-                              <option key={b.id} value={b.id} disabled={b.state !== "approved" || (!b.matchesRole && Boolean(role.company.trim()))}>
-                                {b.title || "Untitled"} · {b.company} · v{b.version} · {b.state !== "approved" ? (b.state === "draft" ? "draft — not sent yet" : b.state === "sent" ? `waiting on ${b.contactName} — cannot connect yet` : "waiting on you — cannot connect yet") : !b.matchesRole && role.company.trim() ? `approved — but this role is for ${role.company.trim()}` : `approved · ${b.summary}`}
-                              </option>
-                            ))}
-                          </select>
-                          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
-                            <button className="ag-btn ag-btn-primary" onClick={() => void connectBrief()} disabled={!pickBrief || connecting}>
-                              {connecting ? "Connecting…" : "Connect and apply"}
-                            </button>
-                            <button className="ag-btn ag-btn-secondary" onClick={() => router.push("/agencies/briefs")}>
-                              Start a new brief
-                            </button>
-                          </div>
+                          <button className="ag-btn ag-btn-primary" onClick={() => void startBrief()} disabled={startingBrief}>
+                            {startingBrief ? "Starting…" : "Start the terms"}
+                          </button>
                         </>
                       )}
                     </div>
@@ -1624,15 +1537,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       </button>
                     </div>
                   </div>
-
-                  <div className="ag-card">
-                    <div className="ag-card-head"><span className="ag-card-title">Recruiter notes</span><span className="ag-pill">Private</span></div>
-                    <div className="ag-card-body">
-                      <textarea className="ag-textarea" placeholder="What the client said that never made the JD" value={role.recruiter_notes} onChange={(e) => patchRole({ recruiter_notes: e.target.value })} onBlur={() => void saveIntake()} />
-                      <p className="ag-note" style={{ marginTop: 8 }}>Notes feed the scoring and never reach the client.</p>
-                    </div>
-                  </div>
-
                 </div>
               </div>
               <div className="ag-principle">

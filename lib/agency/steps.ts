@@ -18,7 +18,7 @@ export type StepKey =
   | "submission"
 
 export const WORKFLOW_STEPS: Array<{ key: StepKey; label: string }> = [
-  { key: "intake", label: "Role intake" },
+  { key: "intake", label: "Role & brief" },
   { key: "parse", label: "Check requirements" },
   { key: "candidates", label: "Add candidates" },
   { key: "screening", label: "Screening calls" },

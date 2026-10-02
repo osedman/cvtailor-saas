@@ -8313,3 +8313,34 @@ Figma frame was needed. **#1** (merge the client brief and role intake into
 one step) is a new layout and goes to Figma for sign-off before any code.
 
 Verified: tsc clean, 2143 tests pass.
+
+### UAT #1: step 01 is "Role & brief", one brief per role (frame 36, approved 2 Oct 2026)
+
+Ose approved frame 36 with three answers: the step is called "Role & brief",
+each role has one brief, and the client sees the job description on it.
+
+- **Step 01** has two columns. The job is on the left: JD, Role & client,
+  recruiter notes. **Terms with the client** is on the right: the role's own
+  brief, rendered by the new shared `components/agency/brief-editor.tsx`.
+  The "Run this role on a brief?" connect card is gone, and so is the
+  planned-rounds dropdown (the brief's rounds set it).
+- **Start the terms** (`POST /api/agency/roles/[roleId]/brief {action:"start"}`
+  → `startRoleBrief`): addressed to the role's hiring manager, who must be
+  named first. It starts from the last brief agreed with the same client,
+  or the defaults. The role is linked straight away, with a guarded write so
+  two clicks can't create two briefs.
+- **The role follows its brief** (`followBrief`) after every recruiter save,
+  send and amend, and after any approval. A client's amendment is followed
+  only once the recruiter approves it. Only interview terms that changed are
+  mapped onto interview settings, so a manual tweak survives. Approval is
+  not a gate.
+- **The JD on the brief**: when the version being sent has no file, the
+  role's JD text is attached as `job-description.txt`.
+- **One brief per role**: connecting a brief that already runs another role
+  is refused. Briefs shared by several roles before today keep the old
+  "brief has moved on" behaviour.
+- **Briefs screen**: now a list of every brief and whose move it is. "Start
+  a brief" is removed; briefs are written on the role.
+
+No migration. The writes were verified on staging as `service_role` in a
+rolled-back DO block (`linked rows=1`). tsc clean, 2150 tests pass.

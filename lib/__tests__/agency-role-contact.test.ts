@@ -32,10 +32,13 @@ describe("the role's contact", () => {
     // grouped by role once rather than read per role.
     expect(src).toMatch(/\(role\.contact_id as string \| null\) \?\? briefByRole\.get\(roleId\)/)
   })
-  it("intake names the hiring manager, the planned rounds and the start target", () => {
+  it("intake names the hiring manager and the start target; the brief sets the rounds", () => {
     const src = read("app/agencies/roles/[roleId]/page.tsx")
     expect(src).toMatch(/id="role-contact"/)
-    expect(src).toMatch(/id="role-rounds"/)
+    // The planned-rounds dropdown went with frame 36 (2 Oct 2026): the
+    // role's own brief names its rounds, and the role follows it.
+    expect(src).not.toMatch(/id="role-rounds"/)
+    expect(read("lib/agency/search-briefs.ts")).toMatch(/planned_rounds: c\.rounds\.length/)
     expect(src).toMatch(/Start target/)
     expect(src).toMatch(/fetch\("\/api\/agency\/clients"\)/)
   })

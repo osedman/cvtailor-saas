@@ -4,13 +4,15 @@
  * GET  → how the role stands against its brief (version, moved on, every
  *        difference, and status.jd — the job description's name and id on
  *        the version the role runs on) plus the briefs it COULD connect to
+ * POST { action: "start" } → write the role's own brief (step 01, frame 36)
  * POST { briefId } → connect: copies the approved config onto the role
+ *        (kept for re-following; a brief runs one role since 2 Oct 2026)
  * DELETE → the reverse: unlink and put back what connect overwrote
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { AgencyAccessError, agencyAdmin, getJobRole, requireAgencyContext } from "@/lib/agency/db"
-import { connectRoleToBrief, disconnectRoleFromBrief, listBriefsForCompany, roleBriefStatus } from "@/lib/agency/search-briefs"
+import { connectRoleToBrief, disconnectRoleFromBrief, listBriefsForCompany, roleBriefStatus, startRoleBrief } from "@/lib/agency/search-briefs"
 import { errorMessage } from "@/lib/error-message"
 import { withTiming } from "@/lib/server-timing"
 
@@ -44,6 +46,11 @@ async function POST_handler(req: NextRequest, { params }: P) {
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
+    if (body.action === "start") {
+      const started = await startRoleBrief(auth.ctx, roleId)
+      const status = await roleBriefStatus(auth.ctx.agencyId, roleId)
+      return NextResponse.json({ ...started, status })
+    }
     const briefId = typeof body.briefId === "string" ? body.briefId : ""
     if (!briefId) return NextResponse.json({ error: "briefId is required" }, { status: 400 })
     const result = await connectRoleToBrief(auth.ctx, roleId, briefId)

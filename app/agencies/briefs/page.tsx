@@ -27,13 +27,6 @@ interface Row {
   createdAt: string
   connectedRoles: number
 }
-interface Contact {
-  id: string
-  company: string
-  email: string
-  full_name: string
-}
-
 const STATE_WORD: Record<BriefState, string> = {
   draft: "Draft · not sent",
   sent: "Waiting on the client",
@@ -46,13 +39,10 @@ export default function BriefsPage() {
   const router = useRouter()
   const [rows, setRows] = useState<Row[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [starting, setStarting] = useState(false)
-  const [newContact, setNewContact] = useState("")
 
   const load = useCallback(async () => {
     try {
-      const [b, c] = await Promise.all([fetch("/api/agency/briefs"), fetch("/api/agency/contacts")])
+      const b = await fetch("/api/agency/briefs")
       if (!b.ok) {
         setRows(null)
         return setError(b.status === 401 ? "Sign in to see your briefs." : "Could not load your briefs. Reload the page.")
@@ -60,7 +50,6 @@ export default function BriefsPage() {
       const body = (await b.json()) as { briefs?: Row[] }
       setRows(Array.isArray(body.briefs) ? body.briefs : [])
       setError(null)
-      if (c.ok) setContacts(((await c.json()) as { contacts?: Contact[] }).contacts ?? [])
     } catch {
       setRows(null)
       setError("Could not load your briefs. Reload the page.")
@@ -69,26 +58,6 @@ export default function BriefsPage() {
   useEffect(() => {
     void load()
   }, [load])
-
-  async function startBrief() {
-    if (!newContact) return
-    setStarting(true)
-    setError(null)
-    try {
-      const res = await fetch("/api/agency/briefs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId: newContact, title: "" }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok || !body.briefId) return setError(typeof body?.error === "string" ? body.error : "Could not start a brief.")
-      router.push(`/agencies/briefs/${body.briefId}`)
-    } catch {
-      setError("Could not start a brief.")
-    } finally {
-      setStarting(false)
-    }
-  }
 
   const sorted = (rows ?? []).slice().sort((a, b) => {
     const pri = (r: Row) => (r.waitingOn === "recruiter" ? 0 : r.state === "draft" ? 1 : r.waitingOn === "client" ? 2 : 3)
@@ -110,7 +79,7 @@ export default function BriefsPage() {
         <SignOut />
         <div className="ag-sidebar-foot">
           <div className="ag-meta" style={{ marginBottom: 6 }}>Signed by both sides</div>
-          <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>A brief is the terms of a search. Nothing here changes a live role until the client signs.</div>
+          <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>A brief is the terms of a search, one per role. Both sides sign the same version.</div>
         </div>
       </aside>
       <main className="ag-main">
@@ -119,7 +88,7 @@ export default function BriefsPage() {
             <div className="ag-field-label">Briefs</div>
             <h1 className="ag-h1">The terms of each search</h1>
             <p className="ag-lead">
-              How a search runs — rounds, decisions, what the client sees, the money — agreed by both sides before a role runs on it. A role connects to an approved brief and inherits it.
+              How a search runs — rounds, decisions, what the client sees — agreed by both sides. Each role has its own brief, written on the role&rsquo;s first step, Role &amp; brief. This is every brief in one list, with whose move it is.
             </p>
           </div>
         </div>
@@ -130,31 +99,9 @@ export default function BriefsPage() {
           </p>
         )}
 
-        <section className="ag-card" style={{ marginBottom: 16 }}>
-          <div className="ag-card-head">
-            <span className="ag-card-title">Start a brief</span>
-          </div>
-          <div className="ag-card-body ag-brief-start">
-            <label className="ag-label" htmlFor="brief-contact">
-              Send to
-            </label>
-            <select id="brief-contact" className="ag-input" value={newContact} onChange={(e) => setNewContact(e.target.value)}>
-              <option value="">Choose the client contact…</option>
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.company} · {c.full_name || c.email}
-                </option>
-              ))}
-            </select>
-            <button className="ag-btn ag-btn-primary" onClick={() => void startBrief()} disabled={!newContact || starting}>
-              {starting ? "Starting…" : "Start from your defaults"}
-            </button>
-            <p className="ag-note">A brief is addressed to one person at the client; they sign for their side. Add people under Client access.</p>
-          </div>
-        </section>
 
         {rows === null && !error && <p className="ag-note">Loading…</p>}
-        {rows !== null && rows.length === 0 && <p className="ag-note">No briefs yet. Start one above — it opens pre-filled from your defaults.</p>}
+        {rows !== null && rows.length === 0 && <p className="ag-note">No briefs yet. Open a role and start its terms on step 01, Role &amp; brief.</p>}
         {sorted.length > 0 && (
           <ul className="ag-brief-list">
             {sorted.map((r) => (

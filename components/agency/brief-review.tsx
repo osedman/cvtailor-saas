@@ -46,6 +46,7 @@ export function BriefReview({
   briefId,
   jd,
   previousJd,
+  noJdText = "None attached",
 }: {
   config: BriefConfig
   previous: BriefConfig | null
@@ -61,6 +62,9 @@ export function BriefReview({
   jd: BriefJdView | null
   /** The file the version this one changed carried, for "was". */
   previousJd: BriefJdView | null
+  /** What an empty job-description line says. Step 01 says the role's own
+   *  text goes with the brief when it is sent. */
+  noJdText?: string
 }) {
   const changed = new Set(changedKeys)
   const jdChanged = changed.has("jdFileId")
@@ -79,7 +83,7 @@ export function BriefReview({
             )}
           </>
         ) : (
-          "None attached"
+          noJdText
         )}
       </span>
       {jdChanged && <span className="ag-brief-changed">Changed · was {previousJd?.name ?? "none attached"}</span>}

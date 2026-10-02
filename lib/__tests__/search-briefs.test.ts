@@ -105,7 +105,7 @@ describe("the tables are audit-coupled", () => {
     }
   })
   it("every write in the module writes an audit row", () => {
-    for (const m of ["createBrief", "sendBrief", "recruiterAmend", "recruiterApprove", "discardDraft", "clientAmend", "clientApprove", "connectRoleToBrief", "disconnectRoleFromBrief"]) {
+    for (const m of ["createBrief", "sendBrief", "recruiterAmend", "recruiterApprove", "discardDraft", "clientAmend", "clientApprove", "connectRoleToBrief", "disconnectRoleFromBrief", "startRoleBrief"]) {
       expect(fnBody(lib, `export async function ${m}`), m).toMatch(/writeAudit\(/)
     }
     // The one write that lives next door: attaching a job description.
@@ -126,5 +126,63 @@ describe("the tables are audit-coupled", () => {
     const list = migration.slice(migration.lastIndexOf("event_kind in ("))
     for (const k of ["brief_sent", "brief_changed", "brief_approved'"]) expect(list).not.toContain(`'${k}`)
     for (const k of ["brief_amended_by_client", "brief_approved_by_client"]) expect(list).toContain(`'${k}'`)
+  })
+})
+
+describe("one brief per role, written on step 01 (frame 36, 2 Oct 2026)", () => {
+  const helper = (name: string) => {
+    const start = lib.indexOf(`async function ${name}(`)
+    if (start === -1) throw new Error(`not found: ${name}`)
+    const next = lib.indexOf("\nasync function ", start + 10)
+    const exp = lib.indexOf("\nexport ", start + 10)
+    const end = [next, exp].filter((i) => i > -1).sort((a, b) => a - b)[0]
+    return lib.slice(start, end ?? lib.length)
+  }
+
+  it("a role's brief is addressed to its hiring manager, so one must be named first", () => {
+    const fn = fnBody(lib, "export async function startRoleBrief")
+    expect(fn).toMatch(/if \(!role\.contact_id\) throw new AgencyAccessError/)
+    expect(fn).toMatch(/if \(role\.brief_id\) throw new AgencyAccessError/)
+  })
+
+  it("links the role in one guarded write, so two clicks cannot leave two briefs on one role", () => {
+    const fn = fnBody(lib, "export async function startRoleBrief")
+    for (const k of ["brief_id: briefId", "brief_version: view.currentVersion", "brief_config: c", "brief_connected_at: now"]) expect(fn).toContain(k)
+    expect(fn).toMatch(/\.is\("brief_id", null\)/)
+    // The loser's draft is discarded rather than left orphaned.
+    expect(fn).toMatch(/discarded_at: now/)
+  })
+
+  it("starts from the last brief agreed with the same client", () => {
+    expect(fnBody(lib, "export async function startRoleBrief")).toMatch(/b\.state === "approved" && b\.company\.trim\(\)\.toLowerCase\(\) === company/)
+  })
+
+  it("the role follows the recruiter's versions and signed ones — never a client's unanswered amendment", () => {
+    const fn = helper("followBrief")
+    expect(fn).toMatch(/view\.latest\.authoredBy === "recruiter" \|\| view\.state === "approved"/)
+    // Briefs shared by several roles before 2 Oct are left alone.
+    expect(fn).toMatch(/view\.connectedRoles\.length !== 1\) return/)
+    expect(fn).toMatch(/writeAudit\(/)
+    expect(fnBody(lib, "export async function clientAmend")).not.toMatch(/followBrief\(/)
+    for (const m of ["saveDraft", "sendBrief", "recruiterAmend", "recruiterApprove", "clientApprove"]) {
+      expect(fnBody(lib, `export async function ${m}`), m).toMatch(/followBrief\(/)
+    }
+  })
+
+  it("only interview terms that CHANGED are mapped, so a tweak on the interviews screen survives", () => {
+    const fn = helper("applyInterviewTerms")
+    expect(fn).toMatch(/!prev \|\| prev\.noticeHours !== c\.noticeHours/)
+    expect(fn).not.toMatch(/windowFrom|windowTo/)
+  })
+
+  it("a brief cannot be connected to a second role", () => {
+    expect(fnBody(lib, "export async function connectRoleToBrief")).toMatch(/view\.connectedRoles\.some\(\(r\) => r\.id !== roleId\)/)
+  })
+
+  it("the client sees the role's job description on the brief when nothing else was attached", () => {
+    const send = fnBody(lib, "export async function sendBrief")
+    expect(send).toMatch(/const config = await attachRoleJd\(ctx, briefId, view\.latest\.config\)/)
+    expect(send.indexOf("attachRoleJd(")).toBeLessThan(send.indexOf("sent_at: now"))
+    expect(helper("attachRoleJd")).toMatch(/if \(config\.jdFileId\) return config/)
   })
 })

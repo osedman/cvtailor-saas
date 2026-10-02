@@ -21,6 +21,15 @@
  * brief id from the URL alone — the id is the address, the link is the
  * permission (same shape as client-shortlist.ts).
  *
+ * ONE BRIEF PER ROLE (frame 36, Ose, 2 Oct 2026). Step 01 is "Role & brief":
+ * startRoleBrief() writes a role's own brief from its first screen, and the
+ * role then FOLLOWS that brief — every recruiter-side version and every
+ * version both sides sign is copied onto the role by followBrief(). A
+ * client's unanswered amendment is not followed until the recruiter
+ * approves it. Approval is not a gate: the role runs on its brief from the
+ * first draft. Briefs connected to several roles before 2 Oct keep the old
+ * behaviour below (copy on connect, "brief has moved on").
+ *
  * CONNECTING COPIES. connectRoleToBrief() writes the config onto the role
  * and stamps the version — and the brief's job description text into
  * job_roles.jd_raw when that intake is empty (lib/agency/brief-files.ts).
@@ -34,7 +43,7 @@
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
 import { getInterviewSettings, setInterviewSettings } from "./interview-settings"
 import { notify } from "./notify"
-import { listBriefJdFiles, getBriefJdText, deleteBriefJdFiles, assertJdOnBrief, type BriefJdFile } from "./brief-files"
+import { listBriefJdFiles, getBriefJdText, deleteBriefJdFiles, assertJdOnBrief, storeBriefJd, type BriefJdFile } from "./brief-files"
 import type { AgencyContext, HiringContext } from "./types"
 import {
   normaliseBrief,
@@ -435,6 +444,7 @@ export async function saveDraft(ctx: AgencyContext, briefId: string, input: { ti
   if (typeof input.title === "string") {
     await admin.from("search_briefs").update({ title: input.title.trim().slice(0, 200), updated_at: new Date().toISOString() }).eq("id", briefId)
   }
+  await followBrief(ctx.agencyId, briefId, ctx.userId)
   return (await loadBrief(ctx.agencyId, briefId))!
 }
 
@@ -450,16 +460,21 @@ export async function sendBrief(ctx: AgencyContext, briefId: string): Promise<Br
   if (view.state !== "draft") throw new AgencyAccessError("this brief has already been sent")
   if (!view.title.trim()) throw new AgencyAccessError("give the brief a title — the client sees it as the search's name")
 
+  // The client sees the job description on the brief (Ose, 2 Oct 2026). A
+  // role's brief carries the role's own text, as a file, when nobody
+  // attached one — one copy, the same words the requirements came from.
+  const config = await attachRoleJd(ctx, briefId, view.latest.config)
   const now = new Date().toISOString()
   const { error } = await admin
     .from("search_brief_versions")
-    .update({ sent_at: now, recruiter_approved_at: now, recruiter_approved_by: ctx.userId })
+    .update({ config, sent_at: now, recruiter_approved_at: now, recruiter_approved_by: ctx.userId })
     .eq("id", view.latest.id)
     .is("sent_at", null)
   if (error) throw error
 
   await writeAudit(admin, { agencyId: ctx.agencyId, actorId: ctx.userId, entityType: "brief", entityRef: briefId, action: "brief_sent", toValue: { version: view.latest.version, contact_id: view.contactId } })
   await notify(admin, { kind: "brief_sent", agencyId: ctx.agencyId, actorId: ctx.userId, contactId: view.contactId, briefId, briefTitle: view.title, agencyName: view.agencyName, version: view.latest.version })
+  await followBrief(ctx.agencyId, briefId, ctx.userId)
   return (await loadBrief(ctx.agencyId, briefId))!
 }
 
@@ -502,6 +517,7 @@ export async function recruiterAmend(ctx: AgencyContext, briefId: string, input:
 
   await writeAudit(admin, { agencyId: ctx.agencyId, actorId: ctx.userId, entityType: "brief", entityRef: briefId, action: "brief_amended", fromValue: { version: view.currentVersion }, toValue: { version, changed: changes.map((c) => c.key) } })
   await notify(admin, { kind: "brief_changed", agencyId: ctx.agencyId, actorId: ctx.userId, contactId: view.contactId, briefId, briefTitle: view.title, agencyName: view.agencyName, version, changed: changes.length })
+  await followBrief(ctx.agencyId, briefId, ctx.userId)
   return (await loadBrief(ctx.agencyId, briefId))!
 }
 
@@ -527,6 +543,8 @@ export async function recruiterApprove(ctx: AgencyContext, briefId: string, vers
   if (after.state === "approved") {
     await notify(admin, { kind: "brief_approved", agencyId: ctx.agencyId, actorId: ctx.userId, contactId: view.contactId, briefId, briefTitle: view.title, agencyName: view.agencyName, version })
   }
+  // Approving the client's amendment is what lets the role follow it.
+  await followBrief(ctx.agencyId, briefId, ctx.userId)
   return after
 }
 
@@ -608,6 +626,7 @@ export async function clientApprove(ctx: HiringContext, briefId: string, version
   const after = (await getBriefForClient(ctx, briefId))!
   await writeAudit(admin, { agencyId: view.agencyId, actorId: ctx.userId, entityType: "brief", entityRef: briefId, action: after.state === "approved" ? "brief_approved_by_both" : "brief_approved_by_client", toValue: { version } })
   await notify(admin, { kind: "brief_approved_by_client", agencyId: view.agencyId, actorId: ctx.userId, contactId: view.contactId, briefId, briefTitle: view.title, version, both: after.state === "approved" })
+  if (after.state === "approved") await followBrief(view.agencyId, briefId, ctx.userId)
   return after
 }
 
@@ -636,6 +655,11 @@ export async function connectRoleToBrief(ctx: AgencyContext, roleId: string, bri
   if (!role) throw new AgencyAccessError("that role is not on this agency")
   if (role.company && view.company && role.company.trim().toLowerCase() !== view.company.trim().toLowerCase()) {
     throw new AgencyAccessError(`this brief is with ${view.company}; the role is for ${role.company}`)
+  }
+  // One brief per role (2 Oct 2026). Re-following your own brief is fine;
+  // taking over another role's is not.
+  if (view.connectedRoles.some((r) => r.id !== roleId)) {
+    throw new AgencyAccessError("that brief already runs another role — each role has its own brief, written on its first step")
   }
 
   const c = view.latest.config
@@ -744,6 +768,158 @@ export async function disconnectRoleFromBrief(ctx: AgencyContext, roleId: string
     fromValue: { brief_id: role.brief_id, version: role.brief_version },
     toValue: null,
   })
+}
+
+/**
+ * Write a role's own brief from its first step (frame 36, 2 Oct 2026).
+ *
+ * Addressed to the role's hiring manager, so one must be named first. It
+ * starts from the last brief agreed with the same client — the terms an
+ * agency agrees once and reuses — or from the agency defaults. The role is
+ * linked at once and runs on the draft: approval is not a gate.
+ */
+export async function startRoleBrief(ctx: AgencyContext, roleId: string): Promise<{ briefId: string }> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  const { data: role } = await admin
+    .from("job_roles")
+    .select("id, ref, title, contact_id, brief_id")
+    .eq("id", roleId)
+    .eq("agency_id", ctx.agencyId)
+    .is("discarded_at", null)
+    .maybeSingle()
+  if (!role) throw new AgencyAccessError("that role is not on this agency")
+  if (role.brief_id) throw new AgencyAccessError("this role already has its brief")
+  if (!role.contact_id) throw new AgencyAccessError("name the hiring manager first — the brief is addressed to them")
+  const contact = await requireContact(admin, ctx.agencyId, role.contact_id as string)
+
+  const company = String(contact.company ?? "").trim().toLowerCase()
+  const lastAgreed = (await listBriefs(ctx))
+    .filter((b) => b.state === "approved" && b.company.trim().toLowerCase() === company)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+  const roleTitle = String(role.title ?? "").trim()
+  const title = roleTitle.toLowerCase() === "untitled role" ? "" : roleTitle
+  const { briefId } = await createBrief(ctx, { contactId: role.contact_id as string, title, fromBriefId: lastAgreed?.id ?? null })
+
+  const view = (await loadBrief(ctx.agencyId, briefId))!
+  const c = view.latest.config
+  const now = new Date().toISOString()
+  // Guarded on brief_id still being null: two clicks must not leave two
+  // briefs fighting over one role. The loser's draft is discarded.
+  const { data: linked, error } = await admin
+    .from("job_roles")
+    .update({ brief_id: briefId, brief_version: view.currentVersion, brief_config: c, brief_connected_at: now, planned_rounds: c.rounds.length, updated_at: now })
+    .eq("id", roleId)
+    .eq("agency_id", ctx.agencyId)
+    .is("brief_id", null)
+    .select("id")
+  if (error) throw error
+  if (!linked || linked.length === 0) {
+    await admin.from("search_briefs").update({ discarded_at: now, discarded_by: ctx.userId }).eq("id", briefId)
+    throw new AgencyAccessError("this role already has its brief — reload the page")
+  }
+  await applyInterviewTerms(ctx.agencyId, roleId, ctx.userId, null, c)
+
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    roleId,
+    actorId: ctx.userId,
+    entityType: "role",
+    entityRef: role.ref as string,
+    action: "brief_started",
+    toValue: { brief_id: briefId, version: view.currentVersion, from_brief: lastAgreed?.id ?? null },
+  })
+  return { briefId }
+}
+
+/**
+ * The role follows its own brief. Called after every write that changes
+ * what the recruiter stands behind: a draft save, a send, an amendment, an
+ * approval on either side. The latest version is followed when the
+ * recruiter wrote it or both sides signed it — a client's amendment waits
+ * for the recruiter's approval. Briefs shared by several roles (before
+ * 2 Oct) are left alone; those roles keep "brief has moved on".
+ */
+async function followBrief(agencyId: string, briefId: string, actorId: string): Promise<void> {
+  const admin = agencyAdmin()
+  const view = await loadBrief(agencyId, briefId)
+  if (!view || view.connectedRoles.length !== 1) return
+  const followable = view.latest.authoredBy === "recruiter" || view.state === "approved"
+  if (!followable) return
+  const { data: role } = await admin
+    .from("job_roles")
+    .select("id, ref, brief_version, brief_config")
+    .eq("id", view.connectedRoles[0].id)
+    .eq("agency_id", agencyId)
+    .maybeSingle()
+  if (!role) return
+  const prev = role.brief_config ? normaliseBrief(role.brief_config) : null
+  const c = view.latest.config
+  if (Number(role.brief_version) === view.currentVersion && prev && diffBrief(prev, c).length === 0) return
+
+  const now = new Date().toISOString()
+  const { error } = await admin
+    .from("job_roles")
+    .update({ brief_version: view.currentVersion, brief_config: c, planned_rounds: c.rounds.length, updated_at: now })
+    .eq("id", role.id as string)
+    .eq("agency_id", agencyId)
+    .eq("brief_id", briefId)
+  if (error) throw error
+  await applyInterviewTerms(agencyId, role.id as string, actorId, prev, c)
+  await writeAudit(admin, {
+    agencyId,
+    roleId: role.id as string,
+    actorId,
+    entityType: "role",
+    entityRef: role.ref as string,
+    action: "brief_followed",
+    fromValue: { version: role.brief_version ?? null },
+    toValue: { brief_id: briefId, version: view.currentVersion },
+  })
+}
+
+/**
+ * The brief's interview terms onto the role's interview settings — only the
+ * terms that CHANGED since `prev` (all of them when prev is null), so an
+ * unrelated edit to the brief never stamps over a tweak the recruiter made
+ * on the interviews screen. Times-of-day windows are not mapped: the
+ * settings' windows are dates, a different fact.
+ */
+async function applyInterviewTerms(agencyId: string, roleId: string, actorId: string, prev: BriefConfig | null, c: BriefConfig): Promise<void> {
+  const patch: Record<string, number> = {}
+  const dur = c.rounds[0]?.durationMinutes
+  if (dur != null && (!prev || prev.rounds[0]?.durationMinutes !== dur)) patch.durationMinutes = dur
+  if (!prev || prev.noticeHours !== c.noticeHours) patch.minNoticeHours = c.noticeHours
+  if (!prev || prev.bufferMinutes !== c.bufferMinutes) patch.bufferMinutes = c.bufferMinutes
+  if (!prev || prev.maxPerDay !== c.maxPerDay) patch.maxPerDay = c.maxPerDay
+  if (Object.keys(patch).length === 0) return
+  const current = await getInterviewSettings(agencyId, roleId)
+  await setInterviewSettings(agencyId, roleId, actorId, { ...current.settings, ...patch })
+}
+
+/**
+ * The role's job description, attached to its brief as a text file when the
+ * version going out names none. The client reads the same words the
+ * requirements were extracted from. storeBriefJd writes the audit row.
+ */
+async function attachRoleJd(ctx: AgencyContext, briefId: string, config: BriefConfig): Promise<BriefConfig> {
+  if (config.jdFileId) return config
+  const { data: role } = await agencyAdmin()
+    .from("job_roles")
+    .select("jd_raw")
+    .eq("brief_id", briefId)
+    .eq("agency_id", ctx.agencyId)
+    .is("discarded_at", null)
+    .limit(1)
+    .maybeSingle()
+  const text = String(role?.jd_raw ?? "").trim()
+  if (!text) return config
+  const file = await storeBriefJd({
+    ctx: { side: "recruiter", agencyId: ctx.agencyId, userId: ctx.userId },
+    briefId,
+    file: { buffer: Buffer.from(text, "utf8"), name: "job-description.txt", contentType: "text/plain" },
+  })
+  return { ...config, jdFileId: file.fileId }
 }
 
 export interface RoleBriefStatus {

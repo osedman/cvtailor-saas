@@ -36,7 +36,9 @@ const jsxOpen = (src: string, name: string, from = 0): string => {
 
 const form = code(read("components/agency/brief-form.tsx"))
 const review = code(read("components/agency/brief-review.tsx"))
-const recruiterPage = code(read("app/agencies/briefs/[briefId]/page.tsx"))
+// The recruiter's brief body lives in BriefEditor since 2 Oct 2026 (frame 36):
+// the Briefs page and step 01 "Role & brief" both render it.
+const recruiterPage = code(read("components/agency/brief-editor.tsx"))
 const clientPage = code(read("app/hiring/briefs/[briefId]/page.tsx"))
 const rolePage = read("app/agencies/roles/[roleId]/page.tsx")
 const briefs = code(read("lib/agency/search-briefs.ts"))
@@ -76,8 +78,10 @@ describe("A · the form: the job description is the first section, un-numbered",
     const rounds = inside.indexOf('<Section n={1} title="The rounds"')
     expect(jd).toBeGreaterThan(-1)
     expect(rounds).toBeGreaterThan(jd)
-    // Nothing else is rendered between the fieldset and the JD section.
-    expect(inside.slice(inside.indexOf(">") + 1, jd).trim()).toBe("")
+    // Nothing else is rendered between the fieldset and the JD section —
+    // only the step-01 switch that leaves it out (the role's own JD box is
+    // beside the terms there, frame 36).
+    expect(inside.slice(inside.indexOf(">") + 1, jd).trim()).toBe("{!hideJd && (")
   })
 
   it("renders as the first section, with no number, the CLIENT AGREES pill and the board's sub", () => {
@@ -216,11 +220,12 @@ describe("C · the role intake names the brief's file", () => {
     expect(rolePage.slice(chip, box)).toContain("From the brief · {briefStatus.status.jd.name}")
     expect(rolePage.slice(chip, box)).toMatch(/href=\{`\/api\/agency\/briefs\/\$\{briefStatus\.status\.briefId\}\/jd\/\$\{briefStatus\.status\.jd\.fileId\}`\} download/)
   })
-  it("the connect card says the job description came from the brief only when it did", () => {
-    // The sentence never claims the text came from the brief — Connect only
-    // copies it into an empty intake — it says where the brief's file is.
-    expect(rolePage).toContain('Planned rounds, the client contact and the interview rules came from it{briefStatus.status.jd ? "; its job description is linked below" : ""} — carry on below.')
-    expect(rolePage).not.toContain("and the job description came from it")
+  it("step 01 carries the role's own brief, not a card to connect someone else's (frame 36)", () => {
+    expect(rolePage).toContain("<BriefEditor briefId={roleBriefId} embedded")
+    expect(rolePage).toContain("Start the terms")
+    expect(rolePage).not.toContain("Run this role on a brief?")
+    // One job description: the form inside the terms does not offer a second.
+    expect(recruiterPage).toContain("hideJd={embedded}")
   })
 })
 
