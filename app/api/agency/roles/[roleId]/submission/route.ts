@@ -29,6 +29,7 @@ import { agencyNoticeFrom } from "@/lib/email-senders"
 import { shortlistEmailHtml, shortlistEmailSubject } from "@/lib/agency/shortlist-email"
 import { recomputeAndStore } from "@/lib/agency/rescore"
 import { probeAreasForClient } from "@/lib/agency/probes"
+import { listWrittenQuestions } from "@/lib/agency/screening-questions"
 import { errorMessage } from "@/lib/error-message"
 import { sessionUser } from "@/lib/supabase/session-user"
 import { withTiming } from "@/lib/server-timing"
@@ -138,6 +139,9 @@ async function POST_handler(
       .eq("role_id", roleId)
       .order("sort_order")
     const requirementById = new Map((requirements ?? []).map((r) => [r.id, r]))
+    // Questions the recruiter wrote, so the focus line can name them too
+    // (frame 37). The questions only — answers and the call record stay home.
+    const written = await listWrittenQuestions(auth.ctx.agencyId, roleId)
 
     /**
      * Build one snapshot entry per shortlisted candidate, on fresh scores.
@@ -228,7 +232,8 @@ async function POST_handler(
         // resolved from call_answers keys back into readable text.
         probe_areas: probeAreasForClient(
           review?.call_answers as Record<string, string> | null,
-          (requirements ?? []).map((r) => ({ ref: r.ref, text: r.text }))
+          (requirements ?? []).map((r) => ({ ref: r.ref, text: r.text })),
+          written
         ),
       }
     }

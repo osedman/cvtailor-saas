@@ -486,6 +486,8 @@
 .hm-setup-name { font-weight: 600; font-size: var(--t-lead); color: var(--ag-ink); }
 .hm-setup-controls { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
 .hm-setup-controls .hm-field { min-width: 160px; }
+/* "On arrival" takes the whole row: a sentence, not a value (frame 37). */
+.hm-setup-controls .hm-field-wide { flex-basis: 100%; }
 .hm-setup-source { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
 .hm-setup-windows { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 12px; }
 .hm-setup-window { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--ag-border); border-radius: var(--r-sm); background: var(--ag-paper); cursor: pointer; color: var(--ag-ink-2); }

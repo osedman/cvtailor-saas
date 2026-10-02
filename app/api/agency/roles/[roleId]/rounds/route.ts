@@ -20,6 +20,8 @@ import {
   scheduleRound,
   setRoundStatus,
 } from "@/lib/agency/rounds"
+import { getInterviewSettings } from "@/lib/agency/interview-settings"
+import { venueFor } from "@/lib/agency/booking"
 import { errorMessage } from "@/lib/error-message"
 import { withTiming } from "@/lib/server-timing"
 
@@ -47,11 +49,14 @@ async function GET_handler(_req: NextRequest, { params }: { params: Promise<{ ro
     const { roleId } = await params
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
-    const [openSlots, rounds] = await Promise.all([
+    const [openSlots, rounds, { settings }] = await Promise.all([
       listOpenSlots(auth.ctx, roleId),
       listRoundsForRole(auth.ctx, roleId),
+      getInterviewSettings(auth.ctx.agencyId, roleId),
     ])
-    return NextResponse.json({ openSlots, rounds })
+    // Where the interviews are (frame 37): the recruiter sees every line the
+    // candidate will see once confirmed.
+    return NextResponse.json({ openSlots, rounds, venue: venueFor(settings, true) })
   } catch (error) {
     return fail(error)
   }

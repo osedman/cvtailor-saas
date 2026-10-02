@@ -67,7 +67,7 @@ async function GET_handler(
         .select("candidate_id, requirement_id, strength, quote, source_cite, origin"),
       auth.db
         .from("candidate_reviews")
-        .select("candidate_id, status, communication, motivation, availability, salary_confirm, notice_period, notes, call_answers")
+        .select("candidate_id, status, communication, motivation, availability, salary_confirm, notice_period, notes, call_answers, call_trail")
         .eq("role_id", roleId),
       auth.db
         .from("recruiter_reviews")

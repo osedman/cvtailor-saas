@@ -54,6 +54,14 @@ export interface BookingView {
    * unconfirmed inbox is a call somebody can walk into unannounced. */
   meetingUrl: string | null
   /**
+   * How and where (frame 37, 2 Oct 2026). The booking page used to say
+   * "Video call" whatever the client chose. For an in-person interview the
+   * ADDRESS is shown before confirming — so the journey can be judged — and
+   * the floor or room and the arrival instructions only once confirmed
+   * (Ose, 2 Oct), the same rule as the joining link.
+   */
+  venue: { kind: "video" | "phone" | "in_person"; address: string; room: string; arrival: string }
+  /**
    * SELF-BOOKING (11 Sep 2026, Ose: "candidates self-book, the recruiter
    * just has visibility"). A round invited with no slot yet is an invitation
    * to CHOOSE — these are the windows still open on the role, in ISO, for
@@ -121,14 +129,16 @@ export async function peekBooking(rawToken: string): Promise<BookingView> {
       return {
       state: "unknown", company: "", agencyName: "", roundNumber: 0,
       scheduledAt: null, durationMinutes: 0, meetingUrl: null,
+      venue: { kind: "video", address: "", room: "", arrival: "" },
       openWindows: [], noWindowsBecause: null, needsChoice: false,
       reschedule: { allowed: false, because: "" },
     }
   }
 
-  const [{ data: agency }, { data: contact }] = await Promise.all([
+  const [{ data: agency }, { data: contact }, { settings: rules }] = await Promise.all([
     admin.from("agencies").select("name, notice_from_name").eq("id", round.agency_id as string).maybeSingle(),
     admin.from("client_contacts").select("company").eq("id", round.contact_id as string).maybeSingle(),
+    getInterviewSettings(round.agency_id as string, round.role_id as string),
   ])
 
   const confirmed = round.candidate_response === "confirmed"
@@ -159,6 +169,7 @@ export async function peekBooking(rawToken: string): Promise<BookingView> {
     durationMinutes: (round.duration_minutes as number) ?? 45,
     // Withheld until confirmed, on purpose.
     meetingUrl: confirmed ? ((round.meeting_url as string) || null) : null,
+    venue: venueFor(rules, confirmed),
     openWindows,
     noWindowsBecause: showWindows && openWindows.length === 0 ? open.reason : null,
     needsChoice,
@@ -551,7 +562,7 @@ export async function sendBookingInvite(
 ): Promise<{ sent: boolean; reason?: string }> {
   const { data: round } = await admin
     .from("interview_rounds")
-    .select("id, agency_id, contact_id, candidate_id, round_number, scheduled_at, duration_minutes")
+    .select("id, agency_id, role_id, contact_id, candidate_id, round_number, scheduled_at, duration_minutes")
     .eq("id", roundId)
     .maybeSingle()
   // This path states a time and attaches an .ics, so it genuinely needs one.
@@ -559,12 +570,15 @@ export async function sendBookingInvite(
   // sendSelfBookingInvite instead.
   if (!round?.scheduled_at) return { sent: false, reason: "no_time" }
 
-  const [{ data: candidate }, { data: agency }, { data: contact }] = await Promise.all([
+  const [{ data: candidate }, { data: agency }, { data: contact }, { settings: rules }] = await Promise.all([
     admin.from("candidates").select("full_name, email").eq("id", round.candidate_id as string).maybeSingle(),
     admin.from("agencies").select("name, notice_from_name, notice_reply_to").eq("id", round.agency_id as string).maybeSingle(),
     admin.from("client_contacts").select("company").eq("id", round.contact_id as string).maybeSingle(),
+    getInterviewSettings(round.agency_id as string, round.role_id as string),
   ])
   if (!candidate?.email) return { sent: false, reason: "no_contact_details" }
+  // Not yet confirmed: the address only, never the floor or arrival notes.
+  const address = venueFor(rules, false).address
 
   const agencyName = (agency?.notice_from_name as string) || (agency?.name as string) || "A recruitment agency"
   const company = (contact?.company as string) ?? ""
@@ -579,6 +593,7 @@ export async function sendBookingInvite(
     end,
     summary: company ? `Interview — ${company}` : "Interview",
     description: `Arranged by ${agencyName}. Confirm or rearrange: ${url}`,
+    ...(address ? { location: address } : {}),
     organiserName: agencyName,
     now: new Date(),
   })
@@ -593,6 +608,7 @@ export async function sendBookingInvite(
       start,
       minutes,
       url,
+      address,
     }),
     from: agencyNoticeFrom(agencyName),
     replyTo: (agency?.notice_reply_to as string) || undefined,
@@ -620,6 +636,8 @@ export function bookingHtml(o: {
   start: Date
   minutes: number
   url: string
+  /** In person: the address, so the journey can be judged before confirming. */
+  address?: string
 }): string {
   const firstName = o.candidateName.split(" ")[0] || "there"
   const who = o.company ? escapeHtml(o.company) : "the company"
@@ -629,9 +647,10 @@ export function bookingHtml(o: {
   <h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;">A time has been held for you, ${escapeHtml(firstName)}.</h1>
   <p style="margin:0 0 16px;line-height:1.6;">${escapeHtml(o.agencyName)} has arranged an interview with ${who}. It is in the diary as:</p>
   <p style="margin:0 0 16px;padding:14px 16px;background:#f2eee2;border-radius:8px;font-size:16px;font-weight:600;">${escapeHtml(fmt(o.start, o.minutes))}</p>
+  ${o.address ? `<p style="margin:0 0 16px;line-height:1.6;">In person, at ${escapeHtml(o.address)}. Which floor and what to do on arrival appear on the page once you confirm.</p>` : ""}
   <p style="margin:0 0 16px;line-height:1.6;">Please say whether that works. If it does not, say so and the time goes back — it costs you nothing and it is not a comment on the role.</p>
   <p style="margin:0 0 16px;"><a href="${o.url}" style="display:inline-block;background:#1e1813;color:#fffdfa;border-radius:8px;padding:11px 18px;font-weight:600;text-decoration:none;">Confirm or rearrange</a></p>
-  <p style="margin:0 0 16px;line-height:1.6;font-size:13px;color:#4e463d;">There is a calendar file attached, and the joining link appears on that page once you confirm. No account needed, and you can reply to this email instead if you prefer.</p>
+  <p style="margin:0 0 16px;line-height:1.6;font-size:13px;color:#4e463d;">There is a calendar file attached${o.address ? "" : ", and the joining link appears on that page once you confirm"}. No account needed, and you can reply to this email instead if you prefer.</p>
   <p style="margin:24px 0 0;font-size:12px;color:#7a7266;line-height:1.5;">Sent on behalf of ${escapeHtml(o.agencyName)}, who arranged this interview. Tailr processes it on their behalf.</p>
 </div>`
 }
@@ -721,6 +740,25 @@ export function selfBookingHtml(o: {
  * carried through to the people they are meeting, and anything that is not a
  * link stays a description.
  */
+/**
+ * What the candidate is told about where. The address of an in-person
+ * interview always; the floor or room and the arrival notes only once
+ * they have confirmed. Nothing for video or phone — the joining link has
+ * its own withheld field.
+ */
+export function venueFor(
+  s: { locationKind: "video" | "phone" | "in_person"; locationDetail: string; locationRoom: string; arrivalNotes: string },
+  confirmed: boolean
+): BookingView["venue"] {
+  if (s.locationKind !== "in_person") return { kind: s.locationKind, address: "", room: "", arrival: "" }
+  return {
+    kind: "in_person",
+    address: s.locationDetail.trim(),
+    room: confirmed ? s.locationRoom.trim() : "",
+    arrival: confirmed ? s.arrivalNotes.trim() : "",
+  }
+}
+
 export function joiningLink(kind: string, detail: string): string {
   if (kind !== "video") return ""
   const trimmed = detail.trim()

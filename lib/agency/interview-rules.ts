@@ -23,6 +23,10 @@ export interface InterviewSettings {
   durationMinutes: number
   locationKind: LocationKind
   locationDetail: string
+  /** In person: the floor or room (frame 37, 2 Oct 2026). locationDetail is the address. */
+  locationRoom: string
+  /** In person: reception / check-in instructions for the candidate. */
+  arrivalNotes: string
   windowFrom: string | null
   windowTo: string | null
   minNoticeHours: number
@@ -42,6 +46,8 @@ export const DEFAULT_SETTINGS: InterviewSettings = {
   durationMinutes: 45,
   locationKind: "video",
   locationDetail: "",
+  locationRoom: "",
+  arrivalNotes: "",
   windowFrom: null,
   windowTo: null,
   minNoticeHours: 24,
@@ -86,6 +92,8 @@ export function normalise(input: unknown): InterviewSettings {
     durationMinutes: clamp(raw.durationMinutes, 5, 480, DEFAULT_SETTINGS.durationMinutes),
     locationKind: kinds.includes(raw.locationKind as LocationKind) ? (raw.locationKind as LocationKind) : DEFAULT_SETTINGS.locationKind,
     locationDetail: text(raw.locationDetail, 200),
+    locationRoom: text(raw.locationRoom, 120),
+    arrivalNotes: text(raw.arrivalNotes, 600),
     windowFrom,
     windowTo,
     minNoticeHours: clamp(raw.minNoticeHours, 0, 336, DEFAULT_SETTINGS.minNoticeHours),

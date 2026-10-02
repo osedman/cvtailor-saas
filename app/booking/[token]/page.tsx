@@ -202,6 +202,9 @@ export default function BookingPage({ params }: { params: Promise<{ token: strin
               {booking.agencyName} has arranged an interview with {where}. Pick whichever of these
               works — the times are shown in your own timezone.
             </p>
+            {booking.venue.kind === "in_person" && booking.venue.address && (
+              <p className="cs-body">In person, at {booking.venue.address}.</p>
+            )}
             {error && (
               <p className="cs-error" role="alert">
                 {error}
@@ -278,7 +281,13 @@ export default function BookingPage({ params }: { params: Promise<{ token: strin
               </div>
               <div className="bk-row">
                 <dt>How</dt>
-                <dd>Video call — the joining link appears here once you confirm</dd>
+                <dd>
+                  {booking.venue.kind === "in_person"
+                    ? `In person${booking.venue.address ? ` — ${booking.venue.address}` : ""}. Which floor and what to do on arrival appear here once you confirm`
+                    : booking.venue.kind === "phone"
+                      ? "Phone call"
+                      : "Video call — the joining link appears here once you confirm"}
+                </dd>
               </div>
               <div className="bk-row">
                 <dt>Arranged by</dt>
@@ -358,6 +367,28 @@ export default function BookingPage({ params }: { params: Promise<{ token: strin
                   {where} · round {booking.roundNumber}
                 </dd>
               </div>
+              {booking.venue.kind === "in_person" && (
+                <>
+                  {booking.venue.address && (
+                    <div className="bk-row">
+                      <dt>Where</dt>
+                      <dd>{booking.venue.address}</dd>
+                    </div>
+                  )}
+                  {booking.venue.room && (
+                    <div className="bk-row">
+                      <dt>Floor or room</dt>
+                      <dd>{booking.venue.room}</dd>
+                    </div>
+                  )}
+                  {booking.venue.arrival && (
+                    <div className="bk-row">
+                      <dt>On arrival</dt>
+                      <dd>{booking.venue.arrival}</dd>
+                    </div>
+                  )}
+                </>
+              )}
               {booking.meetingUrl && (
                 <div className="bk-row">
                   <dt>Joining link</dt>

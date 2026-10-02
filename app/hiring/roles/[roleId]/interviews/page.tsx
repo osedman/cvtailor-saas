@@ -594,14 +594,42 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                       </select>
                     </label>
                     <label className="hm-field">
-                      <span className="hm-field-label">{rules.locationKind === "in_person" ? "Address or room" : rules.locationKind === "phone" ? "Who calls whom" : "Which platform"}</span>
+                      <span className="hm-field-label">{rules.locationKind === "in_person" ? "Address" : rules.locationKind === "phone" ? "Who calls whom" : "Which platform"}</span>
                       <input
                         className="ag-input"
-                        placeholder={rules.locationKind === "in_person" ? "e.g. Meeting room 2" : rules.locationKind === "phone" ? "e.g. we call you" : "e.g. Google Meet"}
+                        placeholder={rules.locationKind === "in_person" ? "e.g. 1 Canada Square, London E14 5AB" : rules.locationKind === "phone" ? "e.g. we call you" : "e.g. Google Meet"}
                         value={rules.locationDetail}
                         onChange={(e) => setRule("locationDetail", e.target.value)}
                       />
                     </label>
+                    {/* In person (frame 37, 2 Oct 2026): where in the building,
+                        and what to do at the door. The candidate sees the
+                        address before confirming; these two after. */}
+                    {rules.locationKind === "in_person" && (
+                      <>
+                        <label className="hm-field">
+                          <span className="hm-field-label">Floor or room</span>
+                          <input
+                            className="ag-input"
+                            placeholder="e.g. Floor 12 · Thames room"
+                            maxLength={120}
+                            value={rules.locationRoom}
+                            onChange={(e) => setRule("locationRoom", e.target.value)}
+                          />
+                        </label>
+                        <label className="hm-field hm-field-wide">
+                          <span className="hm-field-label">On arrival</span>
+                          <textarea
+                            className="ag-input"
+                            rows={2}
+                            placeholder="e.g. Sign in at main reception with photo ID and ask for Sarah. Arrive 10 minutes early."
+                            maxLength={600}
+                            value={rules.arrivalNotes}
+                            onChange={(e) => setRule("arrivalNotes", e.target.value)}
+                          />
+                        </label>
+                      </>
+                    )}
                     <label className="hm-field">
                       <span className="hm-field-label">Earliest day</span>
                       <input className="ag-input" type="date" value={rules.windowFrom ?? ""} onChange={(e) => setRule("windowFrom", e.target.value || null)} />

@@ -18,6 +18,9 @@ import {
   writeAudit,
 } from "@/lib/agency/db"
 import { applyOverrides, loadScoringState, recomputeAndStore } from "@/lib/agency/rescore"
+import { appendTrail, trailEvents } from "@/lib/agency/call-trail"
+import { resolveProbes } from "@/lib/agency/probes"
+import { listWrittenQuestions } from "@/lib/agency/screening-questions"
 import type { Strength } from "@/lib/agency/types"
 import { errorMessage } from "@/lib/error-message"
 import { withTiming } from "@/lib/server-timing"
@@ -104,6 +107,21 @@ async function PATCH_handler(
         if (typeof v === "string") answers[k.slice(0, 10)] = v.slice(0, 4000)
       }
       patch.call_answers = answers
+
+      // The call record (frame 37, 2 Oct 2026): what this save added,
+      // answered, changed or removed, appended — never rewritten. The text
+      // is frozen as it read now, so a later edit cannot change what was asked.
+      const [{ data: prior }, { data: reqs }, written] = await Promise.all([
+        admin.from("candidate_reviews").select("call_answers, call_trail").eq("candidate_id", candidateId).maybeSingle(),
+        admin.from("requirements").select("ref, text").eq("role_id", state.candidate.role_id),
+        listWrittenQuestions(auth.ctx.agencyId, state.candidate.role_id),
+      ])
+      const before = (prior?.call_answers ?? {}) as Record<string, string>
+      const textByKey = new Map(
+        resolveProbes(Array.from(new Set([...Object.keys(before), ...Object.keys(answers)])), (reqs ?? []) as Array<{ ref: string; text: string }>, written).map((p) => [p.id, p.text])
+      )
+      const events = trailEvents(before, answers, (k) => textByKey.get(k) ?? null, auth.ctx.userId, new Date().toISOString())
+      if (events.length > 0) patch.call_trail = appendTrail(prior?.call_trail, events)
     }
     if (body.status === "reviewed" || body.status === "unreviewed") {
       patch.status = body.status
@@ -150,7 +168,9 @@ async function PATCH_handler(
       score = await recomputeAndStore(admin, auth.ctx.agencyId, candidateId)
     }
 
-    return NextResponse.json({ score })
+    // The call record comes back when this save added to it, so the screen
+    // shows it without a second read.
+    return NextResponse.json(patch.call_trail ? { score, call_trail: patch.call_trail } : { score })
   } catch (error) {
     if (error instanceof AgencyAccessError) {
       return NextResponse.json({ error: error.message }, { status: 403 })

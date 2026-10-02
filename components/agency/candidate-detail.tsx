@@ -75,13 +75,18 @@ export function CandidateDetail({
    */
   const [open, setOpen] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
+  const [written, setWritten] = useState<Array<{ key: string; text: string }>>([])
 
   const load = useCallback(async () => {
-    const [roleRes, candRes, reviewRes] = await Promise.all([
+    const [roleRes, candRes, reviewRes, writtenRes] = await Promise.all([
       fetch(`/api/agency/roles/${roleId}`),
       fetch(`/api/agency/roles/${roleId}/candidates`),
       fetch(`/api/agency/candidates/${candidateId}/review`),
+      fetch(`/api/agency/roles/${roleId}/screening-questions`),
     ])
+    // Questions the recruiter wrote (frame 37), so their answers read
+    // against the question rather than vanish as an unknown key.
+    if (writtenRes.ok) setWritten(((await writtenRes.json()) as { questions?: Array<{ key: string; text: string }> }).questions ?? [])
     if (roleRes.status === 401) return router.push("/agencies")
     if (!roleRes.ok || !candRes.ok) return setError("Not found in your agency")
     const roleBody = await roleRes.json()
@@ -159,7 +164,7 @@ export function CandidateDetail({
   )
   // The call script for this candidate, resolved from the ids the recruiter
   // picked during screening, plus the requirements still carrying no evidence.
-  const allProbes = resolveProbes(Object.keys(review?.call_answers ?? {}), requirements)
+  const allProbes = resolveProbes(Object.keys(review?.call_answers ?? {}), requirements, written)
   const answeredProbes = allProbes.filter((q) => (review?.call_answers?.[q.id] ?? "").trim().length > 0)
   const unevidenced = requirements.filter((r) => r.weight !== "nice" && ["missing", "partial"].includes(effective(r.id)))
 

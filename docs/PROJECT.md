@@ -8344,3 +8344,53 @@ each role has one brief, and the client sees the job description on it.
 
 No migration. The writes were verified on staging as `service_role` in a
 rolled-back DO block (`linked rows=1`). tsc clean, 2150 tests pass.
+
+### UAT #14, #17, #20: screening questions, compare dropdowns, in-person interviews (frame 37, approved 2 Oct 2026)
+
+Ose approved frame 37 and said yes to all three proposals: role questions go
+on every call automatically, the call record is recruiter-only, and the
+candidate sees the address before confirming (floor and arrival notes after).
+
+**Migration `20261002120000_screening_questions_and_venue`: applied to
+STAGING ONLY** (pwonuqkpumgejqmotkwh). Production waits for Ose. The MCP
+`apply_migration` tool kept timing out, so the same statements were run as
+plain SQL in small pieces and recorded in `schema_migrations`. Verified by
+effect in a rolled-back DO block:
+- `service_role` can insert;
+- `authenticated` insert is refused;
+- a malformed key is refused;
+- a non-array `call_trail` is refused;
+- the venue columns are writable.
+
+What the migration adds:
+- `agency.screening_questions`: 7 indexes, RLS on, select-only for the
+  browser.
+- `candidate_reviews.call_trail`: jsonb array.
+- `interview_settings.location_room` and `arrival_notes`.
+
+- **#17 Compare**: one bar of three labelled dropdowns. Sort by (score /
+  must-haves met / name), Requirements (all / must-haves / must + important),
+  Candidates (everyone / not decided / shortlisted / on hold / passed / call
+  logged), plus Restore hidden. View only; remembered per role in this
+  browser.
+- **#14 Screening**:
+  - Each question carries a tag: for every candidate / added on this call /
+    from a CV gap / standard.
+  - A write-a-question box with a "Just this call / Every candidate on this
+    role" choice. The role's own list has Remove.
+  - The **call record** is written by the review route
+    (`lib/agency/call-trail.ts`): append-only, the question text frozen at
+    the time, and a removed question keeps its answer.
+  - Written questions resolve everywhere answers are read: the pop-up, and
+    the submission focus line (questions only).
+  - Writes go through `lib/agency/screening-questions.ts` with audit rows.
+- **#20 In person**:
+  - The hiring manager's set-up form has Address, Floor or room, and On
+    arrival.
+  - The booking page shows the address before confirming, and floor and
+    arrival after. It no longer says "Video call" for every kind.
+  - The invite email and the .ics carry the address.
+  - The recruiter's interviews screen shows all three lines.
+
+tsc clean, 2168 tests pass, `next build` clean. Not yet clicked through by a
+person: the recruiter and HM screens need a signed-in session.

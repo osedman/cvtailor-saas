@@ -15,6 +15,7 @@ import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
 import { useRouter } from "next/navigation"
 import { PROBE_LIBRARY, gapProbeText, resolveProbes, type ProbeQuestion } from "@/lib/agency/probes"
+import { trailLine, type TrailEvent, type WrittenQuestion } from "@/lib/agency/call-trail"
 import { PANE_STEPS, WORKFLOW_STEPS, stepLabel, stepNumber, type PaneStepKey, isSourcingStep } from "@/lib/agency/steps"
 import { STRENGTHS, strengthWeightLabel } from "@/lib/agency/strengths"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
@@ -113,7 +114,7 @@ interface Snapshot {
 // the order the client actually cares about.
 const WEIGHT_RANK = ["must", "important", "nice"]
 
-interface Review { candidate_id: string; status: string; communication: number | null; motivation: number | null; availability: string; salary_confirm: string; notice_period: string; notes: string; call_answers?: Record<string, string> }
+interface Review { candidate_id: string; status: string; communication: number | null; motivation: number | null; availability: string; salary_confirm: string; notice_period: string; notes: string; call_answers?: Record<string, string>; call_trail?: TrailEvent[] }
 interface Evidence { candidate_id: string; requirement_id: string; strength: string; quote: string | null; source_cite?: string }
 
 type Strength = "strong" | "transferable" | "partial" | "missing"
@@ -361,6 +362,24 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     }
   }
   const [probePicker, setProbePicker] = useState(false)
+  // Questions the recruiter WROTE (frame 37, approved 2 Oct 2026): for every
+  // candidate on the role — on every call's list automatically — or for one
+  // call. Removed ones are kept: they still label answers already given.
+  const [written, setWritten] = useState<WrittenQuestion[]>([])
+  const [newQuestion, setNewQuestion] = useState("")
+  const [newScope, setNewScope] = useState<"call" | "role">("call")
+  const [addingQuestion, setAddingQuestion] = useState(false)
+  const loadWritten = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/screening-questions`)
+      if (res.ok) setWritten(((await res.json()) as { questions?: WrittenQuestion[] }).questions ?? [])
+    } catch {
+      /* the list stays as it was; the next add re-reads it */
+    }
+  }, [roleId])
+  useEffect(() => {
+    void loadWritten()
+  }, [loadWritten])
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
   const [disclosure, setDisclosure] = useState<Disclosure>({ scores: true, evidence: true, probes: true, notes: false, logistics: true, cv: true })
   /*
@@ -416,7 +435,31 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // the recommendation is a second reading of the same material, never a
   // replacement for the board the decisions are made on.
   const [compareTab, setCompareTab] = useState<"matrix" | "reco">("matrix")
-  const [mustOnly, setMustOnly] = useState(false)
+  // The compare filter bar (frame 37, 2 Oct 2026): three labelled dropdowns.
+  // All VIEW controls — nothing is hidden from the record, nothing decided.
+  const [reqFilter, setReqFilter] = useState<"all" | "must" | "must_important">("all")
+  const [candFilter, setCandFilter] = useState<"all" | "undecided" | "shortlist" | "hold" | "reject" | "called">("all")
+  // Remembered per role, on this browser only. Storage can be blocked or
+  // empty; the board must work without it.
+  const filterKey = `tailr.compare.${roleId}`
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(filterKey) ?? "null") as { sort?: string; req?: string; cand?: string } | null
+      if (!saved) return
+      if (saved.sort === "score" || saved.sort === "must" || saved.sort === "name") setCompareSort(saved.sort)
+      if (saved.req === "all" || saved.req === "must" || saved.req === "must_important") setReqFilter(saved.req)
+      if (saved.cand && ["all", "undecided", "shortlist", "hold", "reject", "called"].includes(saved.cand)) setCandFilter(saved.cand as typeof candFilter)
+    } catch {
+      /* no storage: defaults */
+    }
+  }, [filterKey])
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(filterKey, JSON.stringify({ sort: compareSort, req: reqFilter, cand: candFilter }))
+    } catch {
+      /* no storage: nothing to remember */
+    }
+  }, [filterKey, compareSort, reqFilter, candFilter])
   // Hiding is a view control on the compare board only. It never touches the
   // candidate, the score or any decision — the product does not remove people.
   const [hiddenCandidates, setHiddenCandidates] = useState<string[]>([])
@@ -762,6 +805,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       const body = await res.json()
       if (body.score) {
         setScores((prev) => ({ ...prev, [candidateId]: { ...prev[candidateId], ...body.score, candidate_id: candidateId } }))
+      }
+      if (Array.isArray(body.call_trail)) {
+        setReviews((prev) => (prev[candidateId] ? { ...prev, [candidateId]: { ...prev[candidateId], call_trail: body.call_trail } } : prev))
       }
       if (!optimistic) await loadReviewDetail(candidateId)
       setError(null)
@@ -1168,14 +1214,25 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       if (st !== "missing" && st !== "partial" && st !== "transferable") continue
       gaps.push({ id: req.ref, text: gapProbeText(req.text), why: `${req.ref} reads ${st} from the CV`, source: "gap" })
     }
-    return [...gaps, ...PROBE_LIBRARY.map((q) => ({ ...q, source: "library" as const }))]
-  }, [active, requirements, effectiveStrength])
-  const chosenProbes = useMemo(() => probeCatalogue.filter((q) => q.id in activeAnswers), [probeCatalogue, activeAnswers])
+    // Written questions: the role's (live, or answered on this call) and this
+    // call's own. A removed one stays only where it already has an answer.
+    const keep = (w: WrittenQuestion) => !w.removedAt || w.key in activeAnswers
+    const roleQs: ProbeQuestion[] = written
+      .filter((w) => w.candidateId === null && keep(w))
+      .map((w) => ({ id: w.key, text: w.text, why: "Written for every candidate", source: "role" }))
+    const callQs: ProbeQuestion[] = written
+      .filter((w) => w.candidateId === active.id && keep(w))
+      .map((w) => ({ id: w.key, text: w.text, why: "Added on this call", source: "call" }))
+    return [...roleQs, ...callQs, ...gaps, ...PROBE_LIBRARY.map((q) => ({ ...q, source: "library" as const }))]
+  }, [active, requirements, effectiveStrength, written, activeAnswers])
+  // On the call: everything already on its script, plus every question
+  // written for the role — those are on every call's list automatically.
+  const chosenProbes = useMemo(() => probeCatalogue.filter((q) => q.id in activeAnswers || q.source === "role"), [probeCatalogue, activeAnswers])
   const answeredProbes = useMemo(
     () => chosenProbes.filter((q) => (activeAnswers[q.id] ?? "").trim().length > 0).length,
     [chosenProbes, activeAnswers]
   )
-  const suggestedProbes = useMemo(() => probeCatalogue.filter((q) => !(q.id in activeAnswers)), [probeCatalogue, activeAnswers])
+  const suggestedProbes = useMemo(() => probeCatalogue.filter((q) => !(q.id in activeAnswers) && q.source !== "role" && q.source !== "call"), [probeCatalogue, activeAnswers])
 
   // Held, rejected and undecided candidates: the internal record on the
   // submission screen. Present so the recruiter can see the whole field,
@@ -1236,7 +1293,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               })),
               gaps: requirements.filter((r) => effectiveStrength(c.id, r.id) === "missing").map((r) => r.text),
               probes: Object.keys(rv?.call_answers ?? {}).length > 0
-                ? resolveProbes(Object.keys(rv!.call_answers!), requirements).map((p) => p.text)
+                ? resolveProbes(Object.keys(rv!.call_answers!), requirements, written).map((p) => p.text)
                 : requirements
                     .filter((r) => r.weight !== "nice" && ["missing", "partial"].includes(effectiveStrength(c.id, r.id)))
                     .map((r) => r.text),
@@ -1245,9 +1302,47 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               redacted: false,
             }
           }),
-    [submissionSnap, submissionShortlisted, submissionMusts, requirements, scores, reviews, effectiveStrength, evidenceAt]
+    [submissionSnap, submissionShortlisted, submissionMusts, requirements, scores, reviews, effectiveStrength, evidenceAt, written]
   )
 
+
+  /** Write a question: on this call only, or for every candidate on the role. */
+  async function addQuestion(candidateId: string) {
+    const text = newQuestion.trim()
+    if (!text || addingQuestion) return
+    setAddingQuestion(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/screening-questions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, candidateId: newScope === "call" ? candidateId : null }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok || !body.question) return setError(typeof body?.error === "string" ? body.error : "That question did not save.")
+      setWritten((w) => [...w, body.question as WrittenQuestion])
+      // A call question goes on this call's script now, so the record says
+      // when it was asked. A role question is on every list already.
+      if (newScope === "call") setProbe(candidateId, (body.question as WrittenQuestion).key, "")
+      setNewQuestion("")
+    } catch {
+      setError("That question did not save.")
+    } finally {
+      setAddingQuestion(false)
+    }
+  }
+
+  /** Take a role question off every call not yet made. Answers given keep it. */
+  async function removeRoleQuestion(id: string) {
+    if (!window.confirm("Take this question off the role? Calls already made keep their answers to it.")) return
+    try {
+      const res = await fetch(`/api/agency/roles/${roleId}/screening-questions`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })
+      if (!res.ok) return setError("That question was not removed.")
+      setWritten((w) => w.map((q) => (q.id === id ? { ...q, removedAt: new Date().toISOString() } : q)))
+    } catch {
+      setError("That question was not removed.")
+    }
+  }
 
   function setProbe(candidateId: string, id: string, value: string | null) {
     const current = reviews[candidateId]?.call_answers ?? {}
@@ -2019,10 +2114,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
 
                       <div className="ag-card-body ag-stack" style={{ gap: 18 }}>
                         <div>
-                          <div className="ag-field-label">Suggested probes · generated from this candidate&apos;s gaps</div>
+                          <div className="ag-field-label">Questions for this call · {answeredProbes} of {chosenProbes.length} answered</div>
                           {chosenProbes.length === 0 && (
                             <p className="ag-quiet" style={{ padding: "14px 0", textAlign: "left" }}>
-                              No questions picked yet. Tailr suggests the ones your requirements leave open.
+                              No questions on this call yet. Write one below, or pick from the ones your requirements leave open.
                             </p>
                           )}
                           <div className="ag-stack" style={{ gap: 12 }}>
@@ -2031,7 +2126,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                 <label className="ag-probe-label" htmlFor={`q-${active.id}-${q.id}`}>
                                   <span className="ag-qnum">Q{i + 1}</span>
                                   <span style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{q.text}</span>
-                                  <button className="ag-icon-btn" title="Remove this question" aria-label={`Remove ${q.id}`} onClick={() => setProbe(active.id, q.id, null)}>×</button>
+                                  <span className={`ag-q-tag ag-q-tag-${q.source}`}>
+                                    {q.source === "role" ? "For every candidate" : q.source === "call" ? "Added on this call" : q.source === "gap" ? `From a CV gap · ${q.id}` : "Standard"}
+                                  </span>
+                                  {/* A role question is on every list: it comes off from
+                                      the role's list below, not one call at a time. */}
+                                  {q.source !== "role" && (
+                                    <button className="ag-icon-btn" title="Remove this question" aria-label={`Remove ${q.id}`} onClick={() => setProbe(active.id, q.id, null)}>×</button>
+                                  )}
                                 </label>
                                 <textarea
                                   id={`q-${active.id}-${q.id}`}
@@ -2048,9 +2150,32 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                               </div>
                             ))}
                           </div>
-                          <button className="ag-btn ag-btn-secondary" style={{ marginTop: 10 }} onClick={() => setProbePicker((v) => !v)}>
-                            {probePicker ? "Close" : "+ Add a question"}
-                          </button>
+                          {/* Write a question (frame 37): typed as you would ask
+                              it, for this call or for every candidate. */}
+                          <div className="ag-q-add">
+                            <label className="ag-label" htmlFor="q-new">Add a question</label>
+                            <div className="ag-q-add-row">
+                              <input
+                                id="q-new"
+                                className="ag-input"
+                                placeholder="Type the question as you would ask it…"
+                                maxLength={300}
+                                value={newQuestion}
+                                onChange={(e) => setNewQuestion(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addQuestion(active.id) } }}
+                              />
+                              <button className="ag-btn ag-btn-primary" onClick={() => void addQuestion(active.id)} disabled={!newQuestion.trim() || addingQuestion}>
+                                {addingQuestion ? "Adding…" : "Add"}
+                              </button>
+                            </div>
+                            <div className="ag-q-scope" role="radiogroup" aria-label="Who this question is for">
+                              <label><input type="radio" name="q-scope" checked={newScope === "call"} onChange={() => setNewScope("call")} /> Just this call</label>
+                              <label><input type="radio" name="q-scope" checked={newScope === "role"} onChange={() => setNewScope("role")} /> Every candidate on this role</label>
+                            </div>
+                            <button className="ag-btn ag-btn-secondary" style={{ marginTop: 4, alignSelf: "flex-start" }} onClick={() => setProbePicker((v) => !v)}>
+                              {probePicker ? "Close the suggestions" : "Or pick a suggested question"}
+                            </button>
+                          </div>
                           {probePicker && (
                             <div className="ag-picker">
                               {suggestedProbes.length === 0 && <p className="ag-quiet" style={{ padding: 12 }}>Every question is already on the script.</p>}
@@ -2062,7 +2187,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                   <span className="ag-picker-why">{q.why}</span>
                                 </button>
                               ))}
-                              {suggestedProbes.some((q) => q.source === "library") && <p className="ag-picker-group">Standard probes</p>}
+                              {suggestedProbes.some((q) => q.source === "library") && <p className="ag-picker-group">Standard questions</p>}
                               {suggestedProbes.filter((q) => q.source === "library").map((q) => (
                                 <button className="ag-picker-opt" key={q.id} onClick={() => setProbe(active.id, q.id, "")}>
                                   <span className="ag-qnum">{q.id}</span>
@@ -2073,6 +2198,48 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             </div>
                           )}
                         </div>
+
+                        {/* The role's own questions (frame 37): written once, on
+                            every call's list. Removing one takes it off calls
+                            not yet made; answers already given keep it. */}
+                        {written.some((w) => w.candidateId === null && !w.removedAt) && (
+                          <div>
+                            <div className="ag-field-label">
+                              Questions for every candidate on this role · {written.filter((w) => w.candidateId === null && !w.removedAt).length}
+                            </div>
+                            <ul className="ag-q-role-list">
+                              {written.filter((w) => w.candidateId === null && !w.removedAt).map((w) => (
+                                <li key={w.id}>
+                                  <span className="ag-grow">{w.text}</span>
+                                  <button className="ag-btn ag-btn-secondary" onClick={() => void removeRoleQuestion(w.id)}>Remove</button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* The call record (frame 37): append-only, recruiter
+                            only — never sent to the client. */}
+                        {(activeReview?.call_trail?.length ?? 0) > 0 && (
+                          <details className="ag-q-trail">
+                            <summary className="ag-field-label">Call record · {active.ref} · recruiter only · {activeReview!.call_trail!.length}</summary>
+                            <ol>
+                              {activeReview!.call_trail!.slice().reverse().map((e, i) => (
+                                <li key={`${e.at}-${e.key}-${e.kind}-${i}`}>
+                                  <span className="ag-q-trail-time">
+                                    {new Date(e.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                  <span className="ag-grow">
+                                    {trailLine(e)}
+                                    {e.answer && (e.kind === "removed" || e.kind === "answered" || e.kind === "edited") && (
+                                      <span className="ag-q-trail-answer">{e.answer}</span>
+                                    )}
+                                  </span>
+                                </li>
+                              ))}
+                            </ol>
+                          </details>
+                        )}
 
                         <div>
                           <div className="ag-field-label">Soft signals</div>
@@ -2259,12 +2426,20 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
           {role && step === "compare" && (() => {
             const shownCandidates = rankedCandidates
               .filter((c) => !hiddenCandidates.includes(c.id))
+              .filter((c) =>
+                candFilter === "all" ? true
+                  : candFilter === "called" ? reviews[c.id]?.status === "reviewed"
+                    : candFilter === "undecided" ? !decisions[c.id]
+                      : decisions[c.id] === candFilter
+              )
               .sort((a, b) =>
                 compareSort === "name" ? a.full_name.localeCompare(b.full_name)
                   : compareSort === "must" ? (scores[b.id]?.must_have_hit ?? 0) - (scores[a.id]?.must_have_hit ?? 0)
                     : (scores[b.id]?.overall ?? 0) - (scores[a.id]?.overall ?? 0)
               )
-            const shownReqs = (mustOnly ? requirements.filter((r) => r.weight === "must") : requirements)
+            const shownReqs = (reqFilter === "must" ? requirements.filter((r) => r.weight === "must")
+              : reqFilter === "must_important" ? requirements.filter((r) => r.weight !== "nice")
+                : requirements)
               .slice()
               .sort((a, b) => WEIGHT_RANK.indexOf(a.weight) - WEIGHT_RANK.indexOf(b.weight))
             const cols = `minmax(240px, 1.4fr) repeat(${Math.max(shownCandidates.length, 1)}, minmax(160px, 1fr))`
@@ -2404,24 +2579,47 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 {compareTab === "matrix" ? (
                   <>
 
+                {/* The filter bar (frame 37): three labelled dropdowns, each
+                    saying what it does. View controls only. */}
+                <div className="ag-cmp-filters" role="group" aria-label="Filter the comparison">
+                  <label className="ag-cmp-filter">
+                    <span className="ag-label">Sort by</span>
+                    <select className="ag-input" value={compareSort} onChange={(e) => setCompareSort(e.target.value as typeof compareSort)}>
+                      <option value="score">Score</option>
+                      <option value="must">Must-haves met</option>
+                      <option value="name">Name</option>
+                    </select>
+                  </label>
+                  <label className="ag-cmp-filter">
+                    <span className="ag-label">Requirements</span>
+                    <select className="ag-input" value={reqFilter} onChange={(e) => setReqFilter(e.target.value as typeof reqFilter)}>
+                      <option value="all">All requirements</option>
+                      <option value="must">Must-haves only</option>
+                      <option value="must_important">Must-haves and important</option>
+                    </select>
+                  </label>
+                  <label className="ag-cmp-filter">
+                    <span className="ag-label">Candidates</span>
+                    <select className="ag-input" value={candFilter} onChange={(e) => setCandFilter(e.target.value as typeof candFilter)}>
+                      <option value="all">Everyone · {candidates.length}</option>
+                      <option value="undecided">Not decided yet · {decisionCounts.undecided}</option>
+                      <option value="shortlist">Shortlisted · {decisionCounts.shortlist}</option>
+                      <option value="hold">On hold · {decisionCounts.hold}</option>
+                      <option value="reject">Passed · {decisionCounts.reject}</option>
+                      <option value="called">Call logged · {reviewedCount}</option>
+                    </select>
+                  </label>
+                  {hiddenCandidates.length > 0 && (
+                    <button className="ag-btn ag-btn-secondary ag-cmp-restore" onClick={() => setHiddenCandidates([])}>Restore {hiddenCandidates.length} hidden</button>
+                  )}
+                </div>
+
                 <div className="ag-legend">
                   <span className="ag-field-label" style={{ marginBottom: 0, marginRight: 4 }}>Legend</span>
                   <StrengthKey strength="strong" label="Strong evidence — 1.0" />
                   <StrengthKey strength="transferable" label="Transferable — 0.7" />
                   <StrengthKey strength="partial" label="Partial — 0.4" />
                   <StrengthKey strength="missing" label="Missing — 0.0" />
-                  <span className="ag-legend-trailing">
-                    <span className="ag-field-label" style={{ marginBottom: 0 }}>Sort</span>
-                    <div className="ag-seg">
-                      {([["score", "Score"], ["must", "Must-haves"], ["name", "Name"]] as const).map(([k, l]) => (
-                        <button key={k} aria-pressed={compareSort === k} className={compareSort === k ? "on" : ""} onClick={() => setCompareSort(k)}>{l}</button>
-                      ))}
-                    </div>
-                    <button className="ag-filter" aria-pressed={mustOnly} onClick={() => setMustOnly((v) => !v)}>Must-haves only</button>
-                    {hiddenCandidates.length > 0 && (
-                      <button className="ag-btn" onClick={() => setHiddenCandidates([])}>Restore {hiddenCandidates.length} hidden</button>
-                    )}
-                  </span>
                 </div>
 
                 <div className="ag-cmp-grid">

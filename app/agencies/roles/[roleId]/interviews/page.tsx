@@ -174,6 +174,8 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
   const [role, setRole] = useState<{ ref: string; title: string; plannedRounds: number | null; startTarget: string } | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [slots, setSlots] = useState<OpenSlot[] | null>(null)
+  /** Where the interviews are, from the client's set-up (frame 37). */
+  const [venue, setVenue] = useState<{ kind: string; address: string; room: string; arrival: string } | null>(null)
   const [rounds, setRounds] = useState<RoundRow[]>([])
   const [candidateId, setCandidateId] = useState("")
   const [slotId, setSlotId] = useState("")
@@ -234,6 +236,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
         const body = await roundsRes.json()
         setSlots(Array.isArray(body?.openSlots) ? body.openSlots : [])
         setRounds(Array.isArray(body?.rounds) ? body.rounds : [])
+        setVenue(body?.venue ?? null)
       } else {
         setSlots([])
       }
@@ -465,6 +468,14 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
               {role.plannedRounds && role.startTarget ? " ·" : ""}
               {role.startTarget ? ` wants someone in seat: ${role.startTarget}` : ""}
               . Their plan, not a gate — what the candidates book is what counts.
+            </p>
+          )}
+
+          {venue && venue.kind === "in_person" && (venue.address || venue.room || venue.arrival) && (
+            <p className="ag-note" style={{ marginTop: 6, color: "var(--ag-ink-3)" }}>
+              In person{venue.address ? ` at ${venue.address}` : ""}
+              {venue.room ? ` · ${venue.room}` : ""}
+              {venue.arrival ? `. On arrival: ${venue.arrival}` : ""}
             </p>
           )}
 

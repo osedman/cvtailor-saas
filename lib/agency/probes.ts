@@ -10,14 +10,17 @@
  * Ids double as `candidate_reviews.call_answers` keys, and the review API
  * caps those at 10 characters, so they stay short by design. A requirement
  * ref (R02) means a gap question generated from that requirement; an L id
- * means one of the standard probes below.
+ * means one of the standard probes below; a Q id (Q + 8 hex) is a question
+ * the recruiter WROTE (agency.screening_questions, frame 37, 2 Oct 2026).
  */
 
 export interface ProbeQuestion {
   id: string
   text: string
   why: string
-  source: "gap" | "library"
+  /** gap: from a CV gap · library: standard · role: written for every
+   *  candidate on the role · call: written on this one call. */
+  source: "gap" | "library" | "role" | "call"
 }
 
 export const PROBE_LIBRARY: Array<{ id: string; text: string; why: string }> = [
@@ -49,14 +52,21 @@ export function gapProbeText(requirementText: string): string {
  */
 export function resolveProbes(
   keys: string[],
-  requirements: Array<{ ref: string; text: string }>
+  requirements: Array<{ ref: string; text: string }>,
+  written: Array<{ key: string; text: string }> = []
 ): Array<{ id: string; text: string }> {
   const reqByRef = new Map(requirements.map((r) => [r.ref, r]))
+  const writtenByKey = new Map(written.map((w) => [w.key, w.text]))
   const out: Array<{ id: string; text: string }> = []
   for (const key of keys) {
     const lib = LIBRARY_BY_ID.get(key)
     if (lib) {
       out.push({ id: key, text: lib.text })
+      continue
+    }
+    const mine = writtenByKey.get(key)
+    if (mine) {
+      out.push({ id: key, text: mine })
       continue
     }
     const req = reqByRef.get(key)
@@ -71,8 +81,9 @@ export function resolveProbes(
  */
 export function probeAreasForClient(
   callAnswers: Record<string, string> | null | undefined,
-  requirements: Array<{ ref: string; text: string }>
+  requirements: Array<{ ref: string; text: string }>,
+  written: Array<{ key: string; text: string }> = []
 ): string[] {
   if (!callAnswers) return []
-  return resolveProbes(Object.keys(callAnswers), requirements).map((p) => p.text)
+  return resolveProbes(Object.keys(callAnswers), requirements, written).map((p) => p.text)
 }
