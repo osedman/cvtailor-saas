@@ -8473,3 +8473,34 @@ No migration. Staging check: `search_brief_versions.agency_id` exists, and
 no role has a client change waiting today (both live briefs are signed by
 both sides). tsc clean, 2176 tests pass (4 new rung tests, nav test updated
 to the decision).
+
+### Today, made professional — frame 38 (5 Oct 2026)
+
+Ose asked for the Today screen to look more professional. Drawn first as
+Figma frame `38 · Today, made professional` (656:2), revised once at Ose's
+instruction ("there's no such thing as waiting on others"), approved, then
+built in `app/agencies/page.tsx` + a `.agt` block in `agencies.css`.
+
+- **One typeface.** The date, role meta line, status chip, age column, band
+  heads, archive rows and footnote leave monospace for Noto Sans. Scoped by
+  `.agt` on `<main>` because the hiring manager's dashboard shares the
+  `agd-` classes.
+- **One list, "Live roles".** Roles that need the recruiter first, then the
+  longest-standing. No "waiting on" group, label or column anywhere; the
+  blocked-row tint is gone.
+- **Two counts** under the headline: Needs you, Live roles.
+- **Status as a sentence-case pill** ("Brief v2 to sign"), coral only when it
+  is the recruiter's to act on. A dark button carries the next step's label;
+  other rows get a quiet "View". The button is a span — the row is the link.
+- **Step bar:** six thin segments and one caption in the workflow's own words
+  ("Step 4 of 6 · Screening calls"), replacing six capitalised labels that
+  outweighed the title and still said Intake / Parse / Add / Calls / Send.
+- **Copy:** "2 roles need your attention · Roles that need you come first,
+  then oldest first." The time-of-day tail, "Worst first…" and "A rare
+  sight" are gone. "+ New role" is a plain coral "New role" (N still works);
+  the search box hides below 560px.
+
+Checked in the browser against the frame at 1440 and 390 wide with mocked
+payloads (no staging login from this container). Tests: `today-frame-38`
+(6 new), the nav band test updated to the new heads. tsc clean, 2182 pass.
+The Roles list shares the old `agd-today` classes and is unchanged.

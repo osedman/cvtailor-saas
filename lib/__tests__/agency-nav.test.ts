@@ -192,9 +192,10 @@ describe("every agency screen uses the shared nav", () => {
     // Comments stripped: the removed band names survive in the note that
     // explains why they went, and a scan of raw source would match those.
     const s = tsCode(read("app/agencies/page.tsx"))
-    const bands = [...s.matchAll(/className="agd-eyebrow"/g)]
+    // Frame 38 (5 Oct 2026) restyled the band heads; still two of them.
+    const bands = [...s.matchAll(/<h2 className="agt-head"/g)]
     expect(bands).toHaveLength(2)
-    expect(s).toMatch(/id="agd-roles-h">Live roles</)
+    expect(s).toMatch(/id="agd-roles-h">\s*Live roles/)
     expect(s).toMatch(/id="agd-archive-h">Archive</)
     for (const gone of ["Also needs you", "Briefs from your clients", ">Queue<", ">Desk health<"]) {
       expect(s, gone).not.toContain(gone)

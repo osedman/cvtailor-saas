@@ -25,6 +25,7 @@ import { AgencySwitcher } from "@/components/agency/agency-switcher"
 import { AgencyNav } from "@/components/agency/agency-nav"
 import { PHASES, workflowHref, type PhaseKey } from "@/lib/agency/phases"
 import { ageLabel, type NextAction } from "@/lib/agency/next-action"
+import { WORKFLOW_STEPS } from "@/lib/agency/steps"
 import { SignOut } from "@/components/agency/sign-out"
 
 type StageState = "here" | "blocked" | "waiting" | "done"
@@ -40,48 +41,60 @@ interface TodayRow {
 const PHASE_ORDER = ["shortlist", "interviews", "handover"] as const
 
 /**
- * The status rail on a role row (restored 10 Sep 2026, Ose).
+ * The step bar on a role row. Frame 38 (approved 5 Oct 2026, Ose): thin
+ * segments and ONE caption in the workflow's own words ("Step 4 of 6 ·
+ * Screening calls"), replacing six capitalised labels that outweighed the
+ * role title and still carried the retired step names.
  *
- * Two modes, exactly as the old dashboard drew it: inside the shortlist flow
- * it is the six steps with the live one marked here / blocked / waiting;
- * past it, the three phases. A role in interviews would otherwise show a
- * six-step rail pointing backwards at work that is finished.
- *
- * Labels are transparent except on the live segment, so the row reads as one
- * word and a bar rather than six words competing with the title.
+ * Two modes, as before: inside the shortlist flow it is the six steps; past
+ * it, the three phases, so a role in interviews never points backwards at
+ * work that is finished.
  */
 function StatusRail({ row }: { row: RoleRow }) {
   if (row.phase && row.phase !== "shortlist") {
+    const at = PHASE_ORDER.indexOf(row.phase)
     return (
-      <span className="ag-stage" aria-label={`Phase: ${row.phase}`}>
-        {PHASE_ORDER.map((key) => {
-          const st =
-            PHASE_ORDER.indexOf(key) < PHASE_ORDER.indexOf(row.phase!) ? "done" : key === row.phase ? "here" : undefined
-          const name = key.charAt(0).toUpperCase() + key.slice(1)
-          return (
-            <span className="ag-stage-seg" key={key} data-s={st} title={name}>
-              <span className="ag-stage-bar" />
-              <span className="ag-stage-label">{name}</span>
-            </span>
-          )
-        })}
+      <span className="agt-rail">
+        <span className="agt-rail-bars" aria-hidden="true">
+          {PHASE_ORDER.map((key, i) => (
+            <span key={key} className="agt-rail-seg" data-s={i < at ? "done" : i === at ? "here" : undefined} />
+          ))}
+        </span>
+        <span className="agt-rail-caption">{phaseLabel(row.phase)}</span>
       </span>
     )
   }
+  const n = Math.min(Math.max(row.stage, 1), WORKFLOW_STEPS.length)
   return (
-    <span className="ag-stage" aria-label={`Step ${row.stage} of 6: ${STAGES[row.stage - 1] ?? ""}`}>
-      {STAGES.map((name, i) => {
-        const n = i + 1
-        const st = row.stage_state === "done" ? "done" : n < row.stage ? "done" : n === row.stage ? row.stage_state : undefined
-        return (
-          <span className="ag-stage-seg" key={name} data-s={st} title={`${n}. ${name}`}>
-            <span className="ag-stage-bar" />
-            <span className="ag-stage-label">{name}</span>
-          </span>
-        )
-      })}
+    <span className="agt-rail">
+      <span className="agt-rail-bars" aria-hidden="true">
+        {WORKFLOW_STEPS.map((step, i) => {
+          const st = row.stage_state === "done" || i + 1 < n ? "done" : i + 1 === n ? row.stage_state : undefined
+          return <span key={step.key} className="agt-rail-seg" data-s={st} />
+        })}
+      </span>
+      <span className="agt-rail-caption">
+        Step {n} of {WORKFLOW_STEPS.length} · {WORKFLOW_STEPS[n - 1].label}
+      </span>
     </span>
   )
+}
+
+/** "BRIEF V2 TO SIGN" → "Brief v2 to sign". The ladder's chips are written
+ *  in capitals for the role header; on Today they read as a status pill. */
+function sentenceCase(chip: string) {
+  const lower = chip.toLowerCase()
+  return lower.charAt(0).toUpperCase() + lower.slice(1)
+}
+
+/** How long a row has been in its state: hours inside the first day, where
+ *  ageLabel would say "today" for both five minutes and twenty hours. */
+function sinceLabel(since: string, now: string) {
+  const hours = Math.floor((Date.parse(now) - Date.parse(since)) / 3_600_000)
+  if (!Number.isFinite(hours) || hours < 0) return ""
+  if (hours < 1) return "Just now"
+  if (hours < 24) return hours === 1 ? "1 hour" : `${hours} hours`
+  return ageLabel(since, now)
 }
 
 const phaseLabel = (p: PhaseKey) => PHASES.find((x) => x.key === p)?.label ?? p
@@ -132,8 +145,6 @@ interface Dashboard {
   roles: RoleRow[]
   activity: Activity[]
 }
-
-const STAGES = ["Intake", "Parse", "Add", "Calls", "Compare", "Send"]
 
 const RIGHTS_WORDS: Record<string, string> = {
   erasure: "have their data deleted",
@@ -274,12 +285,17 @@ export default function AgencyHomePage() {
 
   // The dashboard is live roles now, so the search narrows those and the
   // headline counts what actually needs the recruiter — no second source.
+  // One list (frame 38): roles that need the recruiter first, then the
+  // longest-standing first. A row with no "since" sorts after those with one.
   const shownRoles = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    if (!needle) return today ?? []
-    return (today ?? []).filter((r) =>
-      `${r.role.title} ${r.role.company} ${r.role.ref} ${r.role.ownerName ?? ""}`.toLowerCase().includes(needle)
-    )
+    const rows = !needle
+      ? today ?? []
+      : (today ?? []).filter((r) =>
+          `${r.role.title} ${r.role.company} ${r.role.ref} ${r.role.ownerName ?? ""}`.toLowerCase().includes(needle)
+        )
+    const rank = (r: TodayRow) => (r.next.mode === "act" ? 0 : 1)
+    return rows.slice().sort((a, b) => rank(a) - rank(b) || (a.next.since ?? "~").localeCompare(b.next.since ?? "~"))
   }, [today, q])
   // The rail's stage and phase come from the dashboard payload the page
   // already fetches — merged by id, so no second request for a visual.
@@ -306,22 +322,21 @@ export default function AgencyHomePage() {
   const [showArchive, setShowArchive] = useState(false)
   const needsClosing = archived.filter((r) => r.status !== "closed").length
   const acts = (today ?? []).filter((r) => r.next.mode === "act").length
-  const hour = new Date().getHours()
-  const tail = hour >= 17 ? "before you log off" : hour >= 12 ? "this afternoon" : "this morning"
+  const live = today?.length ?? 0
   const headline =
     today === null
       ? "Working out where your roles stand…"
       : acts === 0
-        ? "Nothing is waiting on you."
+        ? "Nothing needs your attention right now."
         : acts === 1
-          ? `One role needs you ${tail}.`
-          : `${acts} roles need you ${tail}.`
+          ? "1 role needs your attention"
+          : `${acts} roles need your attention`
   const subline =
     today === null
       ? "One line per role, and what it needs next."
-      : acts > 0
-        ? "Worst first. Everything else is running."
-        : "No decisions outstanding, nothing blocked. A rare sight."
+      : live === 0
+        ? "No live roles yet."
+        : "Roles that need you come first, then oldest first."
   const dateLine = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })
   const initials = (data?.caller_email || "?").slice(0, 2).toUpperCase()
 
@@ -361,11 +376,11 @@ export default function AgencyHomePage() {
         </div>
       </aside>
 
-      <main className="ag-main agd-main">
+      <main className="ag-main agd-main agt">
         <div className="agd-topbar">
           <span className="agd-crumb">Today</span>
           <span className="agd-spacer" />
-          <div className="agd-search">
+          <div className="agd-search agt-search">
             <input
               ref={searchRef}
               className="agd-search-input"
@@ -376,8 +391,8 @@ export default function AgencyHomePage() {
             />
             <span className="agd-kbd">/</span>
           </div>
-          <button className="agd-tbtn primary" onClick={createRole} disabled={creating || state !== "ready"}>
-            {creating ? <span className="ag-spin" /> : "+ New role"} <span className="agd-kbd inverse">N</span>
+          <button className="agd-tbtn accent" onClick={createRole} disabled={creating || state !== "ready"} title="New role (N)">
+            {creating ? <span className="ag-spin" /> : "New role"}
           </button>
           {/* Only for someone who genuinely holds both hats. A recruiter who
               is not a client contact anywhere must not be offered a client
@@ -426,64 +441,75 @@ export default function AgencyHomePage() {
                 <p className="agd-sub">{subline}</p>
               </section>
 
+              {/* Two counts the page already holds (frame 38). */}
+              {today !== null && live > 0 && (
+                <div className="agt-stats">
+                  <div className="agt-stat" data-hot={acts > 0 || undefined}>
+                    <span className="agt-stat-n">{acts}</span>
+                    <span className="agt-stat-l">Needs you</span>
+                  </div>
+                  <div className="agt-stat">
+                    <span className="agt-stat-n">{live}</span>
+                    <span className="agt-stat-l">Live roles</span>
+                  </div>
+                </div>
+              )}
+
               {/*
-                LIVE ROLES, AND NOTHING ELSE (10 Sep 2026, Ose).
-                The dashboard carried seven bands — Today, Also needs you,
-                briefs, the queue, live roles and clients — plus a
-                nav whose sections expanded into all of them. For MVP it is
-                one thing: the roles that are live, each saying what it needs
-                next. The ladder's value survives in the row; the bands do
-                not. Briefs still surface through the nav's own count, and
-                the reports lived on numbers nobody had asked for yet.
+                LIVE ROLES, ONE LIST (frame 38, approved 5 Oct 2026, Ose).
+                Every live role, the ones that need the recruiter first. There
+                is no second group for roles "waiting on" anyone: a role that is
+                not yours to move right now is still a live role, and it sits
+                in the same list with a quiet "View".
               */}
               <section className="agd-band" aria-labelledby="agd-roles-h" id="agd-roles">
-                <div className="agd-eyebrow-row">
-                  <h2 className="agd-eyebrow" id="agd-roles-h">Live roles</h2>
-                  <span className="agd-rule" />
-                  <span className="agd-aside">what each one needs next</span>
-                </div>
+                <h2 className="agt-head" id="agd-roles-h">
+                  Live roles {today !== null && <span className="agt-head-n">{shownRoles.length}</span>}
+                </h2>
                 {today === null ? (
                   <div className="ag-quiet" aria-live="polite">Working out where each role stands…</div>
                 ) : shownRoles.length === 0 ? (
                   <div className="ag-quiet">
-                    {q.trim() ? "No live role matches that." : "No live roles yet. Start one with + New role."}
+                    {q.trim() ? "No live role matches that." : "No live roles yet. Start one with New role."}
                   </div>
                 ) : (
-                  <div className="agd-today">
-                    <div className="agd-today-group">
-                      {shownRoles.map((r) => (
+                  <div className="agt-list">
+                    {shownRoles.map((r) => {
+                      const act = r.next.mode === "act"
+                      const status = statusById.get(r.role.id)
+                      const age = r.next.since ? sinceLabel(r.next.since, todayNow) : ""
+                      return (
                         <Link
                           key={r.role.id}
-                          className={`agd-today-row with-rail ${r.next.mode}`}
-                          data-flag={statusById.get(r.role.id)?.stage_state === "blocked" ? "blocked" : undefined}
+                          className="agt-row"
+                          data-mode={r.next.mode}
                           href={r.next.cta?.href ?? `/agencies/roles/${r.role.id}`}
                         >
-                          <span className="agd-today-role">
-                            <span className="agd-today-role-title">{r.role.title}</span>
-                            <span className="agd-today-role-meta">
-                              {r.role.company ? `${r.role.company} · ` : ""}
-                              {r.role.ref}
-                              {r.role.ownerName ? ` · ${r.role.ownerName}` : ""}
+                          <span className="agt-who">
+                            <span className="agt-title">{r.role.title}</span>
+                            <span className="agt-meta">
+                              {[r.role.company, r.role.ref, r.role.ownerName ?? "Unassigned"].filter(Boolean).join(" · ")}
                             </span>
                           </span>
-                          <span className="agd-today-state">
-                            <span className="agd-today-chip">
-                              {phaseLabel(r.phase)} · {r.subState.chip}
+                          <span className="agt-what">
+                            <span className="agt-pill" data-act={act || undefined}>{sentenceCase(r.subState.chip)}</span>
+                            <span className="agt-next">{r.next.title}</span>
+                          </span>
+                          <span className="agt-end">
+                            {age && <span className="agt-age">{age}</span>}
+                            {/* A span, not a button: the whole row is the link. */}
+                            <span className="agt-btn" data-primary={act || undefined}>
+                              {act ? r.next.cta?.label ?? "Open" : "View"}
                             </span>
-                            <span className="agd-today-next">{r.next.title}</span>
                           </span>
-                          <span className="agd-today-since">
-                            {r.next.waitingOn.label}
-                            {r.next.since ? ` · ${ageLabel(r.next.since, todayNow)}` : ""}
-                          </span>
-                          {statusById.get(r.role.id) && (
-                            <span className="agd-today-rail">
-                              <StatusRail row={statusById.get(r.role.id)!} />
+                          {status && (
+                            <span className="agt-rail-row">
+                              <StatusRail row={status} />
                             </span>
                           )}
                         </Link>
-                      ))}
-                    </div>
+                      )
+                    })}
                   </div>
                 )}
               </section>
@@ -498,14 +524,12 @@ export default function AgencyHomePage() {
                 * should not scroll past its own history to reach its work. */}
               {archived.length > 0 && (
                 <section className="agd-band" aria-labelledby="agd-archive-h">
-                  <div className="agd-eyebrow-row">
-                    <h2 className="agd-eyebrow" id="agd-archive-h">Archive</h2>
-                    <span className="agd-rule" />
+                  <div className="agt-archive-head">
+                    <h2 className="agt-head" id="agd-archive-h">Archive</h2>
                     {needsClosing > 0 && (
-                      <span className="agd-aside" style={{ color: "var(--ag-warn)" }}>
-                        {needsClosing} handed over, not yet closed
-                      </span>
+                      <span className="agt-owed">{needsClosing} handed over, not yet closed</span>
                     )}
+                    <span className="ag-grow" />
                     <button
                       className="ag-archive-toggle"
                       aria-expanded={showArchive}
@@ -538,7 +562,7 @@ export default function AgencyHomePage() {
                           </Link>
                         )
                       })}
-                      <p className="agd-aside" style={{ marginTop: 4 }}>
+                      <p className="agt-archive-note">
                         Nothing here is deleted. Closing a role starts the retention clock on its
                         candidates; erasure happens when that clock runs out, not when a role leaves
                         this table.
@@ -549,7 +573,7 @@ export default function AgencyHomePage() {
               )}
 
               <p className="agd-foot">
-                <b>NOTE</b> Tailr never rejects anyone automatically. Client declines are signals, not state changes, and every override is audited.
+                Tailr never rejects anyone automatically. Client declines are signals, not decisions, and every override is audited.
               </p>
             </>
           )}
