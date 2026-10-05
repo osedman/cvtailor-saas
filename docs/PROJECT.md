@@ -8394,3 +8394,26 @@ What the migration adds:
 
 tsc clean, 2168 tests pass, `next build` clean. Not yet clicked through by a
 person: the recruiter and HM screens need a signed-in session.
+
+### Staging: Yemi's interviews can be same-day; why Oje cannot get in (5 Oct 2026)
+
+- **ROL-2422 minimum notice set from 24h to 0h** (staging data only, audit
+  row `settings_updated` with the reason). Yemi had no windows or rounds yet.
+  Her 1 Oct set-up had a 24h notice, which hid any window offered for today
+  from candidates ("inside the notice"). She can now offer today's times for
+  her next round and candidates can book them. Nothing else on the role was
+  touched. She can set it back on her interview set-up screen.
+- **Oje: diagnosed, not fixed (needs Ose in Vercel).**
+  - Oje's account exists (24 Sep) and is an active owner of Halcyon Search.
+  - The 2 Oct hiring-manager invite to "Oje Test Company" is unaccepted.
+  - The account has **never signed in**.
+  - A sign-in link was generated on 2 Oct at 20:42, but the account is still
+    unused.
+  - Oje's gmail address is not on the staging `EMAIL_ALLOWLIST`. Yemi's
+    hotmail is, so the variable is set and Oje simply isn't in it. That means
+    the team email, the invite email and the sign-in email were all refused by
+    the non-production guard.
+  - Fix: add Oje's address to `EMAIL_ALLOWLIST` (Vercel → Preview), keeping
+    every existing entry, redeploy staging, then have Oje request a sign-in
+    link again. The Vercel connector shows no projects, so this could not be
+    checked or set from the session.
