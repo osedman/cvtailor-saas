@@ -8417,3 +8417,10 @@ person: the recruiter and HM screens need a signed-in session.
     every existing entry, redeploy staging, then have Oje request a sign-in
     link again. The Vercel connector shows no projects, so this could not be
     checked or set from the session.
+- **5 Oct, later:** Ose added Oje to `EMAIL_ALLOWLIST` (Vercel Preview). The
+  Vercel connector cannot list or create deployments for `cvtailor-saas`
+  (403: the token's role lacks deploy rights), so staging was rebuilt by
+  pushing this commit to `staging`, which runs the Git deploy and picks up
+  the new variable. Next: Oje requests a sign-in link and the 2 Oct
+  hiring-manager invite is re-sent from Clients. The first one was refused
+  by the guard and never delivered.
