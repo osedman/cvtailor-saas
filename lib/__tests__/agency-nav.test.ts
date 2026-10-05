@@ -212,8 +212,10 @@ describe("the nav itself", () => {
    * 25). The nav offers the page; it still does not fetch a badge, because
    * "waiting on you" is read on the page, not polled from the rail.
    */
-  it("offers Briefs — the terms of a search, not the old inbox", () => {
-    expect(nav).toMatch(/href: "\/agencies\/briefs"/)
+  it("no longer offers Briefs: a role's brief lives on its first step (5 Oct 2026)", () => {
+    // Retired once Today and the role's next action carried the one thing
+    // the tab was for — a client's change waiting on the recruiter.
+    expect(nav).not.toMatch(/href: "\/agencies\/briefs"/)
     expect(nav).not.toMatch(/\/api\/agency\/briefs/)
   })
 

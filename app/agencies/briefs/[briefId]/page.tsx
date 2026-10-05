@@ -4,9 +4,14 @@
  * One brief, the recruiter's side — frame 25. The body is BriefEditor, which
  * step 01 "Role & brief" renders too (frame 36, 2 Oct 2026): one editor, two
  * entrances, so the two can never drift.
+ *
+ * Since the Briefs tab was retired (5 Oct 2026) a brief that belongs to ONE
+ * role is edited on that role's first step, so an old link to it — an email,
+ * a bookmark — goes there. This page stays for a brief with no role (drafts
+ * from before frame 36) or one shared by several (before 2 Oct).
  */
 
-import { use } from "react"
+import { use, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AgencySwitcher } from "@/components/agency/agency-switcher"
@@ -17,6 +22,22 @@ import { BriefEditor } from "@/components/agency/brief-editor"
 export default function BriefPage({ params }: { params: Promise<{ briefId: string }> }) {
   const { briefId } = use(params)
   const router = useRouter()
+  const [routing, setRouting] = useState(true)
+  useEffect(() => {
+    let live = true
+    fetch(`/api/agency/briefs/${briefId}`)
+      .then(async (r) => (r.ok ? ((await r.json()) as { brief?: { connectedRoles?: Array<{ id: string }> } }) : null))
+      .then((b) => {
+        if (!live) return
+        const roles = b?.brief?.connectedRoles ?? []
+        if (roles.length === 1) router.replace(`/agencies/roles/${roles[0].id}?step=intake`)
+        else setRouting(false)
+      })
+      .catch(() => live && setRouting(false))
+    return () => {
+      live = false
+    }
+  }, [briefId, router])
 
   return (
     <div className="ag-app ag-themed">
@@ -40,7 +61,7 @@ export default function BriefPage({ params }: { params: Promise<{ briefId: strin
         <Link href="/agencies/briefs" className="ag-back">
           ← Briefs
         </Link>
-        <BriefEditor briefId={briefId} />
+        {routing ? <p className="ag-note">Opening the brief…</p> : <BriefEditor briefId={briefId} />}
       </main>
     </div>
   )

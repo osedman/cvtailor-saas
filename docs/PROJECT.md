@@ -8444,3 +8444,32 @@ Yemi, ose@lean-frame and Oje.
 - **Yemi and Oje** have never tailored a CV on staging (0 runs), so there
   is no CV to build an arc or path from. All three are in `beta_access`
   (exact match), so the beta gate is not the cause.
+
+### The Briefs tab is retired: brief events go to Today and the role (5 Oct 2026)
+
+Decided with the tailr-b2b skill after frame 36 made each brief the role's
+own. The tab's only remaining job was as an inbox for "the client changed
+the brief". Ose approved all three steps.
+
+1. **New next-action rung `brief-to-sign`** (`lib/agency/next-action.ts`):
+   the brief's current version was written by the client and the recruiter
+   hasn't signed it.
+   - The recruiter sees "{client} changed the brief — review vN", with Open
+     the brief → the role's step 01. The client sees a wait.
+   - It ranks below the handover rungs and above the workflow rungs.
+   - `role-facts.ts` supplies it in one batched query, so the role header
+     and Today both show it.
+2. **Every link goes to step 01.** The "client changed the brief" and
+   "client approved" emails carry `roleId` and open
+   `/agencies/roles/{id}?step=intake`. The role header's brief chip does the
+   same. `/agencies/briefs/[id]` redirects to its role when the brief
+   belongs to exactly one. Stale copy fixed: "Roles can connect to it now" /
+   "Roles can now run on it" are gone.
+3. **"Briefs" is removed from the sidebar.** `/agencies/briefs` stays
+   reachable by URL as the archive for briefs with no role: the 2 drafts
+   from before frame 36 on staging.
+
+No migration. Staging check: `search_brief_versions.agency_id` exists, and
+no role has a client change waiting today (both live briefs are signed by
+both sides). tsc clean, 2176 tests pass (4 new rung tests, nav test updated
+to the decision).

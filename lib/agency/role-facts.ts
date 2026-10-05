@@ -75,7 +75,7 @@ export async function getRoleFactsBatch(
 
   const { data: roles, error: roleErr } = await admin
     .from("job_roles")
-    .select("id, ref, title, company, status, closed_at, created_at, owner_id, planned_rounds, contact_id")
+    .select("id, ref, title, company, status, closed_at, created_at, owner_id, planned_rounds, contact_id, brief_id")
     .eq("agency_id", ctx.agencyId)
     .in("id", ids)
   if (roleErr) throw roleErr
@@ -126,6 +126,26 @@ export async function getRoleFactsBatch(
   ])
   for (const r of [requirements, candidates, submissions, packs, briefs, rounds, slots, takenSlots]) {
     if (r.error) throw r.error
+  }
+
+  // ── The role's own brief: is a client change waiting on the recruiter? ──
+  // (5 Oct 2026, the Briefs tab retired.) Owed when the brief's CURRENT
+  // version was written by the client and the recruiter has not signed it.
+  const briefToSign = new Map<string, { at: string; version: number }>()
+  const briefIds = [...new Set(roleRows.map((r) => r.brief_id as string | null).filter((x): x is string => !!x))]
+  if (briefIds.length > 0) {
+    const [{ data: sb, error: sbErr }, { data: sv, error: svErr }] = await Promise.all([
+      admin.from("search_briefs").select("id, current_version").eq("agency_id", ctx.agencyId).in("id", briefIds).is("discarded_at", null),
+      admin.from("search_brief_versions").select("brief_id, version, authored_by_side, recruiter_approved_at, sent_at, created_at").eq("agency_id", ctx.agencyId).in("brief_id", briefIds),
+    ])
+    if (sbErr) throw sbErr
+    if (svErr) throw svErr
+    const current = new Map((sb ?? []).map((b) => [b.id as string, Number(b.current_version)]))
+    for (const v of sv ?? []) {
+      if (Number(v.version) !== current.get(v.brief_id as string)) continue
+      if (v.authored_by_side !== "client" || v.recruiter_approved_at) continue
+      briefToSign.set(v.brief_id as string, { at: (v.sent_at as string | null) ?? (v.created_at as string), version: Number(v.version) })
+    }
   }
 
   const candidateRows = candidates.data ?? []
@@ -343,6 +363,7 @@ export async function getRoleFactsBatch(
       reviewed: reviewed.length,
       undecided,
       decisionsCompleteAt: completions.get(roleId) ?? null,
+      briefToSign: role.brief_id ? briefToSign.get(role.brief_id as string) ?? null : null,
       roundRequest: roundRequests.get(roleId)
         ? { at: roundRequests.get(roleId)!.at, refs: roundRequests.get(roleId)!.candidateRefs, roundNumber: roundRequests.get(roleId)!.roundNumber }
         : null,

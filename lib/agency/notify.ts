@@ -60,8 +60,10 @@ export type NotifyEvent =
   | { kind: "brief_sent"; contactId: string; briefId: string; briefTitle: string; agencyName: string; version: number }
   | { kind: "brief_changed"; contactId: string; briefId: string; briefTitle: string; agencyName: string; version: number; changed: number }
   | { kind: "brief_approved"; contactId: string; briefId: string; briefTitle: string; agencyName: string; version: number }
-  | { kind: "brief_amended_by_client"; contactId: string; briefId: string; briefTitle: string; version: number; changed: number }
-  | { kind: "brief_approved_by_client"; contactId: string; briefId: string; briefTitle: string; version: number; both: boolean }
+  // roleId: the role the brief belongs to, when it has one — the recruiter's
+  // email opens that role's Role & brief step (the Briefs tab retired 5 Oct 2026).
+  | { kind: "brief_amended_by_client"; contactId: string; briefId: string; briefTitle: string; version: number; changed: number; roleId?: string | null }
+  | { kind: "brief_approved_by_client"; contactId: string; briefId: string; briefTitle: string; version: number; both: boolean; roleId?: string | null }
   | { kind: "debrief_recorded"; roleId: string; candidateRef: string }
   | { kind: "consent_answered"; roleId: string; candidateRef: string }
   | { kind: "reference_submitted"; roleId: string; candidateRef: string }
@@ -367,7 +369,7 @@ function copyFor(input: NotifyInput): Copy {
         subject: `Agreed: the brief for ${input.briefTitle} (v${input.version})`,
         eyebrow: "The brief",
         heading: "Both sides have signed.",
-        body: `You and ${esc(input.agencyName)} have approved v${input.version} of the ${esc(input.briefTitle)} brief. Roles can now run on it, and anywhere a role departs from it you will be shown the difference.`,
+        body: `You and ${esc(input.agencyName)} have approved v${input.version} of the ${esc(input.briefTitle)} brief. These are now the agreed terms for the role, and anywhere it departs from them you will be shown the difference.`,
         ctaLabel: "Open the brief",
         ctaUrl: `${agencyOrigin}/hiring/briefs/${input.briefId}`,
       }
@@ -379,7 +381,7 @@ function copyFor(input: NotifyInput): Copy {
         heading: "The client sent back a change.",
         body: `v${input.version} of the ${esc(input.briefTitle)} brief has ${input.changed === 1 ? "one line" : `${input.changed} lines`} changed by the client and marked. Their signature is on it; yours is needed again.`,
         ctaLabel: "Read what changed",
-        ctaUrl: `${agencyOrigin}/agencies/briefs/${input.briefId}`,
+        ctaUrl: input.roleId ? `${agencyOrigin}/agencies/roles/${input.roleId}?step=intake` : `${agencyOrigin}/agencies/briefs/${input.briefId}`,
       }
 
     case "brief_approved_by_client":
@@ -388,10 +390,10 @@ function copyFor(input: NotifyInput): Copy {
         eyebrow: "The brief",
         heading: input.both ? "Both sides have signed." : "The client has signed.",
         body: input.both
-          ? `v${input.version} of the ${esc(input.briefTitle)} brief is approved by both sides. Roles can connect to it now.`
+          ? `v${input.version} of the ${esc(input.briefTitle)} brief is approved by both sides. These are now the agreed terms, and the role follows them.`
           : `The client has approved v${input.version} of the ${esc(input.briefTitle)} brief. It is waiting on your signature to become the agreed terms.`,
         ctaLabel: "Open the brief",
-        ctaUrl: `${agencyOrigin}/agencies/briefs/${input.briefId}`,
+        ctaUrl: input.roleId ? `${agencyOrigin}/agencies/roles/${input.roleId}?step=intake` : `${agencyOrigin}/agencies/briefs/${input.briefId}`,
       }
 
     case "invite_accepted":

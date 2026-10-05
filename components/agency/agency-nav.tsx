@@ -85,9 +85,11 @@ const ITEMS: Array<{ key: AgencyNavKey; label: string; href: string; group: NavG
   // so a person was reachable only through the role they were on. It is a
   // destination now — the count always implied one (22 Aug walk-through).
   { key: "candidates", label: "Candidates", href: "/agencies/candidates", group: "work" },
-  // Briefs, again — as the terms of a search agreed with a client (23 Sep
-  // 2026, frame 25), not the JD inbox that was removed the day before.
-  { key: "briefs", label: "Briefs", href: "/agencies/briefs", group: "work" },
+  // No Briefs item (retired 5 Oct 2026). Each role's brief is written on its
+  // first step, Role & brief (frame 36), and a client's change to it surfaces
+  // in Today and the role's next action. /agencies/briefs stays reachable by
+  // URL as the archive for briefs with no role; the key stays in NavKey so
+  // those pages still type-check.
   { key: "clients", label: "Client access", href: "/agencies/clients", group: "desk" },
   { key: "audit", label: "Audit log", href: "/agencies/audit", group: "desk" },
   { key: "settings", label: "Settings", href: "/agencies/settings", group: "desk" },

@@ -90,6 +90,13 @@ export interface RoleFacts {
    * A request, not a round: it waits on the recruiter to add or answer it.
    */
   roundRequest?: { at: string; refs: string[]; roundNumber: number | null } | null
+  /**
+   * The client sent back a change to this role's brief and it waits on the
+   * recruiter's signature (frame 36 made the brief the role's own, and the
+   * Briefs tab — once its only inbox — was retired on 5 Oct 2026). Null when
+   * nothing is owed.
+   */
+  briefToSign?: { at: string; version: number } | null
   submission: {
     generatedAt: string
     /** 'document' | 'email' | 'portal' — how it left, if it left at all. */
@@ -126,6 +133,7 @@ export interface RoleFacts {
 
 export type SubStateKey =
   | "cvs-unreadable"
+  | "brief-to-sign"
   | "intake"
   | "adding-candidates"
   | "screening"
@@ -286,6 +294,16 @@ export function deriveSubState(f: RoleFacts, now: Date = new Date()): SubState {
   if (f.phase === "handover" && f.pack) {
     if (f.pack.deliveredAt) return { key: "handed-over", chip: "HANDED OVER", party: "recruiter", since: f.pack.deliveredAt }
     return { key: "pack-generated", chip: "PACK GENERATED", party: "recruiter", since: f.pack.generatedAt }
+  }
+
+  /**
+   * THE CLIENT CHANGED THE BRIEF (5 Oct 2026). A signature the recruiter
+   * owes, on terms the client is waiting to see agreed. It outranks the
+   * workflow rungs because the client is the one waiting — but never the
+   * handover rungs above: once the pack exists the brief is history.
+   */
+  if (f.briefToSign) {
+    return { key: "brief-to-sign", chip: `BRIEF V${f.briefToSign.version} TO SIGN`, party: "recruiter", since: f.briefToSign.at, n: f.briefToSign.version }
   }
 
   if (f.phase === "shortlist" || !f.submission) {
@@ -464,6 +482,10 @@ export function nextAction(f: RoleFacts, hat: Hat, roleId: string, now: Date = n
       return R
         ? { ...base, mode: "act", title: `Fix ${plural(sub.n ?? 0, "CV that would not read", "CVs that would not read")}`, detail: "Re-upload or replace them before screening.", cta: { label: "Open candidates", href: wf("candidates") } }
         : clientWaiting(base, f)
+    case "brief-to-sign":
+      return R
+        ? { ...base, mode: "act", title: `${client} changed the brief — review v${sub.n ?? ""}`, detail: "Approve their change, or amend it and send it back. The role follows what you both sign.", cta: { label: "Open the brief", href: wf("intake") } }
+        : { ...base, mode: "wait", title: "Your recruiter is reviewing your change to the brief", detail: "Nothing is needed from you.", cta: null }
     case "intake":
       return R
         ? { ...base, mode: "act", title: "Write the brief", detail: "Paste the job description and parse it into requirements.", cta: { label: "Open intake", href: wf("intake") } }

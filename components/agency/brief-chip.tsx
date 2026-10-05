@@ -53,7 +53,9 @@ export function BriefChip({ roleId, hat, data }: { roleId: string; hat: "recruit
   const s = data.status
   const n = s.differences.length
   const href = hat === "recruiter" ? `/api/agency/roles/${roleId}/brief` : `/hiring/briefs/${s.briefId}`
-  const briefHref = hat === "recruiter" ? `/agencies/briefs/${s.briefId}` : `/hiring/briefs/${s.briefId}`
+  // The recruiter's brief lives on the role's first step now (frame 36); the
+  // Briefs tab was retired on 5 Oct 2026.
+  const briefHref = hat === "recruiter" ? `/agencies/roles/${roleId}?step=intake` : `/hiring/briefs/${s.briefId}`
   void href
   return (
     <div className="ag-brief-chips-row">

@@ -8,6 +8,8 @@
  */
 
 import { describe, it, expect } from "vitest"
+import { readFileSync } from "fs"
+import { join } from "path"
 import {
   ageLabel,
   deriveSubState,
@@ -388,5 +390,34 @@ describe("the receipt only claims what actually happened", () => {
     const h = handoffFor(withClient(generatedOnly({ format: "email", submitted: 2 })), "recruiter", "r1")
     expect(h?.confirmed).toMatch(/generated as an email/)
     expect(h?.confirmed).not.toMatch(/\bsent to\b/i)
+  })
+})
+
+describe("a client's change to the brief (5 Oct 2026, the Briefs tab retired)", () => {
+  const toSign = { at: "2026-09-04T10:00:00Z", version: 3 }
+
+  it("is the recruiter's next action, opening the role's Role & brief step", () => {
+    const f = facts({ requirements: 6, candidates: 4, reviewed: 1, briefToSign: toSign })
+    expect(deriveSubState(f)).toMatchObject({ key: "brief-to-sign", party: "recruiter", since: toSign.at })
+    const n = nextAction(f, "recruiter", "role-1")
+    expect(n.mode).toBe("act")
+    expect(n.title).toMatch(/changed the brief — review v3/)
+    expect(n.cta?.href).toMatch(/step=intake/)
+  })
+
+  it("leaves the client waiting, with nothing to do", () => {
+    const n = nextAction(facts({ briefToSign: toSign }), "client", "role-1")
+    expect(n.mode).toBe("wait")
+    expect(n.cta).toBeNull()
+  })
+
+  it("never outranks the handover: once the pack exists the brief is history", () => {
+    const f = facts({ phase: "handover", pack: { generatedAt: "2026-09-04T09:00:00Z", deliveredAt: null }, briefToSign: toSign })
+    expect(deriveSubState(f).key).toBe("pack-generated")
+  })
+
+  it("is read from the role's own brief: a client-written version the recruiter has not signed", () => {
+    const src = readFileSync(join(process.cwd(), "lib/agency/role-facts.ts"), "utf8")
+    expect(src).toMatch(/v\.authored_by_side !== "client" \|\| v\.recruiter_approved_at/)
   })
 })

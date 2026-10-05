@@ -604,7 +604,7 @@ export async function clientAmend(ctx: HiringContext, briefId: string, proposed:
   await admin.from("search_briefs").update({ current_version: version, updated_at: now }).eq("id", briefId)
 
   await writeAudit(admin, { agencyId: view.agencyId, actorId: ctx.userId, entityType: "brief", entityRef: briefId, action: "brief_amended_by_client", fromValue: { version: view.currentVersion }, toValue: { version, changed: changes.map((c) => c.key) } })
-  await notify(admin, { kind: "brief_amended_by_client", agencyId: view.agencyId, actorId: ctx.userId, contactId: view.contactId, briefId, briefTitle: view.title, version, changed: changes.length })
+  await notify(admin, { kind: "brief_amended_by_client", agencyId: view.agencyId, actorId: ctx.userId, contactId: view.contactId, briefId, briefTitle: view.title, version, changed: changes.length, roleId: view.connectedRoles.length === 1 ? view.connectedRoles[0].id : null })
   return (await getBriefForClient(ctx, briefId))!
 }
 
@@ -625,7 +625,7 @@ export async function clientApprove(ctx: HiringContext, briefId: string, version
   if (error) throw error
   const after = (await getBriefForClient(ctx, briefId))!
   await writeAudit(admin, { agencyId: view.agencyId, actorId: ctx.userId, entityType: "brief", entityRef: briefId, action: after.state === "approved" ? "brief_approved_by_both" : "brief_approved_by_client", toValue: { version } })
-  await notify(admin, { kind: "brief_approved_by_client", agencyId: view.agencyId, actorId: ctx.userId, contactId: view.contactId, briefId, briefTitle: view.title, version, both: after.state === "approved" })
+  await notify(admin, { kind: "brief_approved_by_client", agencyId: view.agencyId, actorId: ctx.userId, contactId: view.contactId, briefId, briefTitle: view.title, version, both: after.state === "approved", roleId: view.connectedRoles.length === 1 ? view.connectedRoles[0].id : null })
   if (after.state === "approved") await followBrief(view.agencyId, briefId, ctx.userId)
   return after
 }
