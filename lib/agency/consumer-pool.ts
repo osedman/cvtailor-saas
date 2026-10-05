@@ -45,6 +45,7 @@
  * selectable whatever it says.
  */
 
+import { arcText } from "./arc-text"
 import { agencyAdmin } from "./db"
 import { createAdminClient } from "@/lib/supabase/server"
 import type { AgencyContext } from "./types"
@@ -153,19 +154,10 @@ export async function listConsumerPool(
       : Promise.resolve({ data: [] as Array<{ id: string; user_id: string; state: string }> }),
   ])
 
+  // Stored arcs are objects (CareerProfileSections); arcText reads that
+  // shape. The old array / string reading left every arc blank (5 Oct 2026).
   const arcByUser = new Map<string, string>()
-  for (const a of arcs ?? []) {
-    const sections = a.sections as unknown
-    const text = Array.isArray(sections)
-      ? (sections as Array<Record<string, unknown>>)
-          .map((s) => (typeof s.body === "string" ? s.body : typeof s.text === "string" ? s.text : ""))
-          .filter(Boolean)
-          .join(" ")
-      : typeof sections === "string"
-        ? sections
-        : ""
-    arcByUser.set(a.user_id as string, text)
-  }
+  for (const a of arcs ?? []) arcByUser.set(a.user_id as string, arcText(a.sections))
 
   const evByUser = new Map<string, Array<{ text: string; role: string }>>()
   for (const e of evidence ?? []) {

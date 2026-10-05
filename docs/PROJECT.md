@@ -8424,3 +8424,23 @@ person: the recruiter and HM screens need a signed-in session.
   the new variable. Next: Oje requests a sign-in link and the 2 Oct
   hiring-manager invite is re-sent from Clients. The first one was refused
   by the guard and never delivered.
+
+### 🐛 The pool showed every Career Arc blank (5 Oct 2026)
+
+Ose asked why career arc and career path were missing from the profiles of
+Yemi, ose@lean-frame and Oje.
+
+- **The bug:** `lib/agency/consumer-pool.ts` read `career_profiles.sections`
+  as an array of `{body}` or a plain string. Every stored arc is an
+  **object** (CareerProfileSections), so every person's arc reached
+  recruiters as `""`, and the "may be switching" signal leaned on that same
+  text. Fixed with `lib/agency/arc-text.ts`, which reads the identity lines,
+  the story in the person's own words, and the chapters (not the name).
+  Verified against ose@lean-frame's stored arc: role line, supporting line
+  and 3 chapters now come through. 4 new tests.
+- **Career path is not a bug:** recruiters are deliberately never shown it.
+  It's the person's private plan; the snapshot and the pool both refuse
+  `career_roadmaps`.
+- **Yemi and Oje** have never tailored a CV on staging (0 runs), so there
+  is no CV to build an arc or path from. All three are in `beta_access`
+  (exact match), so the beta gate is not the cause.
