@@ -8504,3 +8504,15 @@ Checked in the browser against the frame at 1440 and 390 wide with mocked
 payloads (no staging login from this container). Tests: `today-frame-38`
 (6 new), the nav band test updated to the new heads. tsc clean, 2182 pass.
 The Roles list shares the old `agd-today` classes and is unchanged.
+
+### Staging: three ended interviews for Yemi to write up (6 Oct 2026)
+
+Data only, staging (`pwonuqkpumgejqmotkwh`), at Ose's request. ROL-2422 had
+no rounds and no offered times, so there was nothing to move into the past.
+Created instead, with Yemi (the role's linked hiring-manager contact) as the
+interviewer: three offered times and three round-1 interviews for CAN-01,
+CAN-02 and CAN-03 at 11:00, 12:00 and 13:00 UTC on 6 Oct, 45 minutes each,
+candidate response "confirmed", status "scheduled". Each has a `scheduled`
+audit row with no actor and a note saying it was created for UAT. Read back:
+all three have ended and have no decision, which is what opens the write-up.
+No candidate was changed; no email was sent.
