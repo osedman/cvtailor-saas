@@ -27,13 +27,20 @@ let openHint: (() => void) | null = null
 
 export function Hint({
   text,
+  content,
   children,
   className = "",
   tone,
   bare = false,
+  info = false,
 }: {
   /** The sentence. Plain words, one job. */
-  text: string
+  text?: string
+  /** Board 39 (7 Oct 2026): a longer explanation that used to sit on the
+   *  page as a card — "How this works". Same bubble, wider, with structure.
+   *  Takes precedence over `text`. Inline elements only (it renders inside
+   *  a span); use .ag-hint-block for a line of its own. */
+  content?: ReactNode
   /** The pill's label. */
   children: ReactNode
   className?: string
@@ -42,6 +49,9 @@ export function Hint({
   /** Board 35: explain a value that already has its own look (a score
    *  badge, a label) without turning it into a pill. Same dot, same bubble. */
   bare?: boolean
+  /** Board 39: an ⓘ link ("How this works") instead of a pill, opening the
+   *  wide bubble. */
+  info?: boolean
 }) {
   const id = useId()
   const [open, setOpen] = useState(false)
@@ -57,7 +67,7 @@ export function Hint({
     const r = rootRef.current?.getBoundingClientRect()
     // A 280px hint leaving the right edge flips to hang from the pill's
     // right side instead. Measured on open, not on every scroll.
-    const w = Math.min(280, window.innerWidth - 32)
+    const w = Math.min(info ? 400 : 280, window.innerWidth - 32)
     const flipped = !!r && r.left + w > window.innerWidth - 16
     setFlip(flipped)
     // FIXED WHILE OPEN (board 35, 30 Sep 2026). Absolutely positioned, the
@@ -88,10 +98,16 @@ export function Hint({
   }, [open, close])
 
   return (
-    <span ref={rootRef} className={`ag-hint${open ? " is-open" : ""}${flip ? " is-flip" : ""}`}>
+    <span ref={rootRef} className={`ag-hint${open ? " is-open" : ""}${flip ? " is-flip" : ""}${info ? " is-info" : ""}`}>
       <button
         type="button"
-        className={bare ? "ag-hint-bare" : `ag-pill ag-hint-pill${tone ? ` tone-${tone}` : ""} ${className}`.trim()}
+        className={
+          info
+            ? "ag-hint-info"
+            : bare
+              ? "ag-hint-bare"
+              : `ag-pill ag-hint-pill${tone ? ` tone-${tone}` : ""} ${className}`.trim()
+        }
         aria-describedby={id}
         aria-expanded={open}
         onMouseEnter={show}
@@ -102,8 +118,9 @@ export function Hint({
       >
         {/* Bare: the value keeps its own classes on an inner span, so the
             button's reset cannot strip a badge's border or a label's face. */}
+        {info && <span className="ag-hint-i" aria-hidden="true">i</span>}
         {bare && className ? <span className={className}>{children}</span> : children}
-        <span className="ag-hint-dot" aria-hidden="true" />
+        {!info && <span className="ag-hint-dot" aria-hidden="true" />}
       </button>
       <span
         role="tooltip"
@@ -111,7 +128,7 @@ export function Hint({
         className="ag-hint-bubble"
         style={open && pos ? { position: "fixed", top: pos.top, left: pos.left, right: "auto" } : undefined}
       >
-        {text}
+        {content ?? text}
       </span>
     </span>
   )

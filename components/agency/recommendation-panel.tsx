@@ -29,6 +29,7 @@
  *     word for the stored value "reject" is "pass", here and on the cards.
  */
 
+import { Hint } from "@/components/agency/hint"
 import { useState } from "react"
 import { Sparkles, RotateCw } from "lucide-react"
 import { GROUP_LABELS, GROUP_ORDER, type RecommendationGroup, type RecommendationItem, type RecommendationResult } from "@/lib/agency/recommendation"
@@ -106,37 +107,36 @@ export function RecommendationPanel({
               </>
             )}
           </button>
+          {/* Board 39 (7 Oct 2026): the three "What it reads / never reads /
+              comes back" cards fold into this one hint, on demand. */}
+          <Hint
+            info
+            content={
+              <>
+                <span className="ag-hint-block">
+                  <span className="ag-hint-head">What it reads</span>
+                  The answers you typed against each requirement on the call, the score components and
+                  must-have coverage, your overrides, and the verbatim CV evidence. {callsLogged} of{" "}
+                  {candidateCount} candidates have a call logged.
+                </span>
+                <span className="ag-hint-block">
+                  <span className="ag-hint-head">What it never reads</span>
+                  Tone, sentiment, confidence, fluency or fit — none of it exists in the product. The
+                  communication and motivation stars and the motivation and logistics probes are not sent.
+                </span>
+                <span className="ag-hint-block">
+                  <span className="ag-hint-head">What comes back</span>
+                  Three groups, every candidate named once, each with the reason and the quote, call answer
+                  or override behind it. Nothing is hidden, and nothing is decided until you add someone.
+                </span>
+              </>
+            }
+          >
+            How it works
+          </Hint>
         </div>
       )}
 
-      {!result && !error && (
-        <div className="ag-reco-reads">
-          <div className="ag-reco-read">
-            <span className="ag-field-label">What it reads</span>
-            <p>
-              The answers you typed against each requirement on the call, the five score components
-              and must-have coverage, your overrides, and the verbatim CV evidence behind every
-              requirement. {callsLogged} of {candidateCount} candidates have a call logged.
-            </p>
-          </div>
-          <div className="ag-reco-read ag-reco-read-line">
-            <span className="ag-field-label">What it never reads</span>
-            <p>
-              Tone, sentiment, confidence, fluency or fit — none of it exists in the product. The
-              communication and motivation stars are not sent, and neither are the motivation and
-              logistics probes. Where there is nothing written, it says so rather than filling it in.
-            </p>
-          </div>
-          <div className="ag-reco-read">
-            <span className="ag-field-label">What comes back</span>
-            <p>
-              Three groups with every candidate named once, each carrying the reason they are there
-              and the quote, call answer or override it came from. Nothing is hidden, nothing is
-              filtered, and no decision is written until you add someone yourself.
-            </p>
-          </div>
-        </div>
-      )}
 
       {error && (
         <div className="ag-reco-error" role="alert">

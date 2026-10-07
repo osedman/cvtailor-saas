@@ -125,6 +125,17 @@ const GROUPS: Array<{ weight: "must" | "important" | "nice"; label: string; hint
   { weight: "nice", label: "Nice to have", hint: "Signal only. Adds bonus points, never subtracts." },
 ]
 
+/** What happens when a CV is added — board 39 moved it from a card into a hint. */
+const ADD_EXPLAINED = (
+  <>
+    <span className="ag-hint-block">1. The CV is read and mapped against every requirement.</span>
+    <span className="ag-hint-block">2. Each claim carries a verbatim quote, or shows MISSING.</span>
+    <span className="ag-hint-block">3. The score is computed on the server, never in your browser.</span>
+    <span className="ag-hint-block">4. The candidate is told your agency is considering them, within your notice window.</span>
+    <span className="ag-hint-block">No candidate is rejected automatically.</span>
+  </>
+)
+
 export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId: string }> }) {
   const { roleId } = use(params)
   const router = useRouter()
@@ -1824,6 +1835,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 <div className="ag-card">
                   <div className="ag-card-head">
                     <span className="ag-card-title">Candidates ({candidates.length})</span>
+                    <span className="ag-grow" />
+                    {/* Board 39 (7 Oct 2026): "What happens on add" was a card on
+                        every visit; it opens on demand now, word for word. */}
+                    <Hint info content={ADD_EXPLAINED}>How this works</Hint>
                     <label className="ag-btn ag-btn-secondary" style={{ cursor: "pointer" }}>
                       Upload CV
                       <input type="file" accept=".pdf,.docx,.txt" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) { const form = new FormData(); form.append("file", f); ingest({ body: form }) } }} />
@@ -2010,18 +2025,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       >
                         {busy === "ingest" ? <><span className="ag-spin" /> Reading the CV</> : "Add candidate"}
                       </button>
-                    </div>
-                  </div>
-                  <div className="ag-card">
-                    <div className="ag-card-head"><span className="ag-card-title">What happens on add</span></div>
-                    <div className="ag-card-body" style={{ fontSize: 12.5, color: "var(--ag-ink-2)" }}>
-                      <ol style={{ paddingLeft: 18, display: "grid", gap: 6 }}>
-                        <li>The CV is read and mapped against every requirement.</li>
-                        <li>Each claim carries a verbatim quote, or shows MISSING.</li>
-                        <li>The score is computed on the server, never in your browser.</li>
-                        <li>The candidate is told your agency is considering them, within your notice window.</li>
-                      </ol>
-                      <p style={{ marginTop: 10, color: "var(--ag-ink-3)" }}>No candidate is rejected automatically.</p>
                     </div>
                   </div>
                 </div>

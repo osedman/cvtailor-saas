@@ -58,7 +58,8 @@ describe("the words", () => {
 
   it("a bare hint keeps the value's own classes off the reset button", () => {
     const hint = read("components/agency/hint.tsx")
-    expect(hint).toMatch(/className=\{bare \? "ag-hint-bare"/)
+    // Board 39 added the info variant ahead of it; bare still gets the reset class.
+    expect(hint).toMatch(/bare\s*\?\s*"ag-hint-bare"/)
     expect(hint).toMatch(/bare && className \? <span className=\{className\}>/)
   })
 })

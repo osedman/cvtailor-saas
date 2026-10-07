@@ -8516,3 +8516,32 @@ candidate response "confirmed", status "scheduled". Each has a `scheduled`
 audit row with no actor and a note saying it was created for UAT. Read back:
 all three have ended and have no decision, which is what opens the write-up.
 No candidate was changed; no email was sent.
+
+### Explain on demand — board 39 (7 Oct 2026)
+
+From the 7 Oct UAT document (items 3A, 4, 6). Figma frame `39 · Explain on
+demand` (669:2), approved by Ose, then built.
+
+- **`Hint` gains an `info` variant** (`components/agency/hint.tsx`): an ⓘ
+  link that opens the board-32 dark bubble, wider (400px) and able to carry
+  structured `content`. Same mechanics: hover, keyboard focus or tap; Esc or
+  a tap elsewhere closes it; the bubble is the button's aria-describedby.
+- **Step 03 (item 4):** the "What happens on add" card is gone; "How this
+  works" sits in the Candidates card head beside Upload CV, word for word.
+- **Step 05 recommendation (item 6):** the three cards ("What it reads /
+  never reads / comes back") fold into one "How it works" beside "Recommend a
+  shortlist". The calls-logged count moves with them.
+- **The pool (item 3A, kept):** headings "Chose to be seen" and "Open to
+  recruiters" in sentence case with a "What is this?" hint each (the notes
+  moved in word for word); "Not matched by the last scan" becomes "Not in the
+  latest match · You can invite them after the next one". Scans run on a
+  schedule, so there is deliberately no re-run button.
+
+Item 8 (calendar) is configuration, not code: Google redirect URI, publish
+and verify the consent screen; Microsoft app registration — steps given to
+Ose on 7 Oct, awaiting his console changes. Items 1, 2, 5, 7 were already
+done on 1–2 Oct (the UAT screenshots predate them).
+
+Checked in the browser at 1280 and 390 on a throwaway page rendering the
+real components (no horizontal scroll, bubbles open). Tests: 4 new, one
+pinned regex widened for the new branch. tsc clean, 2186 pass.

@@ -37,6 +37,7 @@
  * why the card this replaces refused to show a number too.
  */
 
+import { Hint } from "@/components/agency/hint"
 import { memo, useCallback, useEffect, useRef } from "react"
 
 /** Two letters, the way every other avatar in this product is built. Copied
@@ -44,6 +45,13 @@ import { memo, useCallback, useEffect, useRef } from "react"
  *  into a page component from here would be the wrong direction. */
 const initials = (name: string) =>
   name.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?"
+
+/* Board 39 (7 Oct 2026): the paragraphs under each list moved into hints,
+ * word for word. */
+const SEEN_EXPLAINED =
+  "A row is what they consented to show: name, headline, band and the evidence that matched. Their CV and contact details arrive only if they apply. Bands, never a ranking."
+const POOL_EXPLAINED =
+  "Everyone here chose to be seen by recruiters. The percentage is how much of this role they have already evidenced — a reading aid, not a ranking, and nobody is excluded by it. Somebody mid-switch scores low on purpose: their arc points here and their evidence has not caught up."
 
 export interface MatchedPerson {
   recommendationId: string
@@ -446,9 +454,10 @@ export function MatchingWindow({
           )}
           {people.length > 0 && (
             <>
-              <p className="ag-field-label" style={{ marginTop: 26 }}>
-                Who chose to be seen · {people.length}
-              </p>
+              <h3 className="ag-pool-head" style={{ marginTop: 26 }}>
+                Chose to be seen <span className="ag-pool-head-n">{people.length}</span>
+                <Hint info text={SEEN_EXPLAINED}>What is this?</Hint>
+              </h3>
               <div className="ag-matched-grid">
                 {people.map((p) => (
                   <MatchedCard
@@ -461,11 +470,6 @@ export function MatchingWindow({
                   />
                 ))}
               </div>
-              <p className="ag-note" style={{ marginTop: 12 }}>
-                A row is what they consented to show: name, headline, band and the evidence that
-                matched. Their CV and contact details arrive only if they apply. Bands, never a
-                ranking.
-              </p>
             </>
           )}
 
@@ -476,9 +480,10 @@ export function MatchingWindow({
               number says, and the switchers are the point. */}
           {pool !== null && pool.people.length > 0 && (
             <>
-              <p className="ag-field-label" style={{ marginTop: 26 }}>
-                The pool · {pool.people.length}
-              </p>
+              <h3 className="ag-pool-head" style={{ marginTop: 26 }}>
+                Open to recruiters <span className="ag-pool-head-n">{pool.people.length}</span>
+                <Hint info text={POOL_EXPLAINED}>What is this?</Hint>
+              </h3>
               <ul className="ag-pool">
                 {pool.people.map((p) => (
                   <li key={p.userId} className="ag-pool-row" data-switching={p.switching || undefined}>
@@ -522,18 +527,17 @@ export function MatchingWindow({
                           {inviting === p.recommendationId ? "Inviting…" : "Invite to apply"}
                         </button>
                       ) : (
-                        <span className="ag-meta">Not matched by the last scan</span>
+                        // Scans run on a schedule; there is nothing to press, so the
+                        // row says when inviting becomes possible (board 39).
+                        <span className="ag-pool-later">
+                          <span>Not in the latest match</span>
+                          <span className="ag-meta">You can invite them after the next one</span>
+                        </span>
                       )}
                     </div>
                   </li>
                 ))}
               </ul>
-              <p className="ag-note" style={{ marginTop: 12 }}>
-                Everyone here chose to be seen by recruiters. The percentage is how much of THIS
-                role they have already evidenced — a reading aid, not a ranking, and nobody is
-                excluded by it. Somebody mid-switch scores low on purpose: their arc points here
-                and their evidence has not caught up.
-              </p>
             </>
           )}
 
