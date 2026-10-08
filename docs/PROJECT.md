@@ -8545,3 +8545,28 @@ done on 1–2 Oct (the UAT screenshots predate them).
 Checked in the browser at 1280 and 390 on a throwaway page rendering the
 real components (no horizontal scroll, bubbles open). Tests: 4 new, one
 pinned regex widened for the new branch. tsc clean, 2186 pass.
+
+### The shortlist in three stages, and a gap answer that moves the score — board 40 (8 Oct 2026)
+
+UAT review items 19 and 16. Figma frame `40` (675:2), approved by Ose.
+
+- **Item 19, three stages.** `components/agency/shortlist-stages.tsx`: one
+  strip, "1 Add people → 2 Confirm → 3 Send to client", on the shortlist rail
+  (stage 1) and the submission step (stage 3; ticks once sent). The buttons
+  carry their numbers: "2 · Confirm shortlist →" (and "2 · Confirm →" on the
+  phone bar), "3 · Send to … →". Below 560px the strip is one line, "Stage N
+  of 3 · …". It shows where you are; it moves nothing.
+- **Item 16, calls that count.** Audit first: the score already moves on the
+  call through strength changes, the motivation/communication stars and
+  marking reviewed; the written answers never did, and still do not — Tailr
+  does not score words. New: under an answered **gap** question (one tied to a
+  requirement), "Does this evidence R04? Strong / Transferable / Partial /
+  Still missing". A click writes the existing attributed override with the
+  answer as its reason ("From the screening call: …") and rescores; clicking
+  the chosen level clears it. Nothing is pre-selected. An answered gap now
+  stays on the call's list after the answer closes it.
+
+No migration (overrides and `override_reason` already exist). Browser check
+at 1280 and 390 on a throwaway page rendering the real rail and stage strip.
+Tests: `board-40` (9 new); two pinned captions updated to the approved line.
+tsc clean, 2194 pass.

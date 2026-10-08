@@ -28,6 +28,7 @@ import { DecisionSlot } from "@/components/agency/decision-slot"
 import { ShortlistRail, ShortlistBar, type ShortlistEntry } from "@/components/agency/shortlist-rail"
 import { countWord, countWordCap } from "@/components/agency/count-word"
 import { Hint, RECRUITER_HINTS } from "@/components/agency/hint"
+import { ShortlistStages } from "@/components/agency/shortlist-stages"
 import { AdjustedPill, ConfidenceBars, ScoreBreakdown, StrengthKey } from "@/components/agency/score-parts"
 import {
   PrintPortal,
@@ -123,6 +124,14 @@ const GROUPS: Array<{ weight: "must" | "important" | "nice"; label: string; hint
   { weight: "must", label: "Must have", hint: "Weight about 45% of the score. Zero here is a hard fail." },
   { weight: "important", label: "Important", hint: "Weighted, but not disqualifying if missing." },
   { weight: "nice", label: "Nice to have", hint: "Signal only. Adds bonus points, never subtracts." },
+]
+
+/** The levels a gap answer can set (board 40). "Still missing" is an override too. */
+const GAP_LEVELS: Array<[Strength, string]> = [
+  ["strong", "Strong"],
+  ["transferable", "Transferable"],
+  ["partial", "Partial"],
+  ["missing", "Still missing"],
 ]
 
 /** What happens when a CV is added — board 39 moved it from a card into a hint. */
@@ -836,7 +845,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     }
   }
 
-  async function setOverride(candidateId: string, requirementId: string, strength: Strength | null) {
+  async function setOverride(candidateId: string, requirementId: string, strength: Strength | null, reason?: string) {
     const rollback = overrides[candidateId] ?? {}
     setOverrides((prev) => {
       const mine = { ...(prev[candidateId] ?? {}) }
@@ -848,7 +857,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       const res = await fetch(`/api/agency/candidates/${candidateId}/review`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ overrides: { [requirementId]: strength } }),
+        body: JSON.stringify({ overrides: { [requirementId]: strength }, ...(reason ? { override_reason: reason } : {}) }),
       })
       if (!res.ok) throw new Error(res.status === 403 ? "You have view-only access to this agency." : "That override did not save.")
       const body = await res.json()
@@ -1222,7 +1231,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     for (const req of requirements) {
       if (req.weight === "nice") continue
       const st = effectiveStrength(active.id, req.id)
-      if (st !== "missing" && st !== "partial" && st !== "transferable") continue
+      // An answered gap stays on the call's list even after the answer closed
+      // it (board 40: the answer can now upgrade the requirement).
+      if (!(req.ref in activeAnswers) && st !== "missing" && st !== "partial" && st !== "transferable") continue
       gaps.push({ id: req.ref, text: gapProbeText(req.text), why: `${req.ref} reads ${st} from the CV`, source: "gap" })
     }
     // Written questions: the role's (live, or answered on this call) and this
@@ -2150,6 +2161,40 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                     setProbe(active.id, q.id, e.target.value)
                                   }}
                                 />
+                                {/* BOARD 40, band B (8 Oct 2026, UAT item 16). A gap
+                                    answered on the call can move the score — by the
+                                    recruiter's choice, never by reading the words. The
+                                    level writes the same attributed override the matrix
+                                    writes, with the answer as its reason. Nothing is
+                                    pre-selected; clicking the chosen level clears it. */}
+                                {q.source === "gap" && (activeAnswers[q.id] ?? "").trim() && (() => {
+                                  const req = requirements.find((r) => r.ref === q.id)
+                                  if (!req) return null
+                                  const mine = overrides[active.id]?.[req.id] ?? null
+                                  const answer = (activeAnswers[q.id] ?? "").trim()
+                                  const reason = `From the screening call: ${answer.length > 400 ? `${answer.slice(0, 400)}…` : answer}`
+                                  return (
+                                    <div className="ag-ev-row" role="group" aria-label={`Does this answer evidence ${req.ref}?`}>
+                                      <span className="ag-ev-ask">Does this evidence {req.ref}?</span>
+                                      {GAP_LEVELS.map(([level, label]) => (
+                                        <button
+                                          key={level}
+                                          type="button"
+                                          className="ag-ev-opt"
+                                          aria-pressed={mine === level}
+                                          onClick={() => void setOverride(active.id, req.id, mine === level ? null : level, mine === level ? undefined : reason)}
+                                        >
+                                          {label}
+                                        </button>
+                                      ))}
+                                      {mine && (
+                                        <span className="ag-ev-saved" role="status">
+                                          Saved as your override on {req.ref}; the score has been updated.
+                                        </span>
+                                      )}
+                                    </div>
+                                  )
+                                })()}
                               </div>
                             ))}
                           </div>
@@ -2836,7 +2881,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             const sendLabel =
               recipients.length === 0
                 ? "Choose who gets it"
-                : `Send to ${recipients.length === 1 ? (recipients[0].full_name || "1 person") : `${recipients.length} people`} at ${role.company || "the client"} →`
+                : `3 · Send to ${recipients.length === 1 ? (recipients[0].full_name || "1 person") : `${recipients.length} people`} at ${role.company || "the client"} →`
 
             return (
               <>
@@ -2855,6 +2900,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   </div>
                 </PrintPortal>
 
+                {/* Board 40 (8 Oct 2026): where this sits in add → confirm → send. */}
+                <ShortlistStages at={2} done={alreadySent} />
                 <div className="ag-screen-head">
                   <div>
                     <h1 className="ag-title">

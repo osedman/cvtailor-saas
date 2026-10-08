@@ -268,7 +268,8 @@ describe("D · the recruiter's rail", () => {
     const out = rail("Meridian Health")
     expect(out).toContain("Meridian Health sees each name as you add it. The CV, evidence and scores wait for the submission.")
     expect(out).toMatch(/<p class="ag-sl-visible">Names visible to the client<\/p>/)
-    expect(out).toContain("Opens the submission step, where you choose what else the client reads.")
+    // Board 40 (8 Oct 2026) replaced this caption with the next-stage line.
+    expect(out).toContain("Next: choose what else the client reads, then send.")
     // Board 26's other lines are unchanged.
     for (const line of ["Your shortlist · Meridian Health", "Nobody yet", "Your next add lands here", "Kept for later. Never sent.", "Internal record only.", "Confirm shortlist →"]) {
       expect(out).toContain(line)

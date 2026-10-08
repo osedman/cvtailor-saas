@@ -31,6 +31,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { ChevronUp } from "lucide-react"
+import { ShortlistStages } from "@/components/agency/shortlist-stages"
 
 export interface ShortlistEntry {
   id: string
@@ -74,6 +75,7 @@ export function ShortlistRail({
   return (
     <section className={`ag-sl ${variant === "card" ? "ag-card ag-sl-card" : "ag-sl-sheet-body"}`} aria-label="Your shortlist">
       <div className="ag-sl-head">
+        <ShortlistStages at={0} />
         <span className="ag-field-label ag-sl-eyebrow">
           Your shortlist{company ? ` · ${company}` : ""}
         </span>
@@ -125,10 +127,10 @@ export function ShortlistRail({
           onClick={onConfirm}
           disabled={n === 0}
         >
-          Confirm shortlist →
+          2 · Confirm shortlist →
         </button>
         <p className="ag-sl-caption">
-          Opens the submission step, where you choose what else the client reads.
+          Next: choose what else the client reads, then send.
         </p>
       </div>
     </section>
@@ -237,7 +239,7 @@ export function ShortlistBar(props: ShortlistRailProps) {
           onClick={onConfirm}
           disabled={n === 0}
         >
-          Confirm →
+          2 · Confirm →
         </button>
       </div>
 

@@ -3092,3 +3092,28 @@ a.ag-rh-next:hover { opacity: 0.86; }
 .ag-hint-info { white-space: nowrap; }
 .ag-card-head:has(.ag-hint-info) { flex-wrap: wrap; row-gap: 8px; }
 .ag-pool-row .ag-meta, .ag-pool-later .ag-meta { font-family: var(--ag-sans); }
+
+/* ── The shortlist's three stages — board 40, band A (approved 8 Oct 2026) ── */
+.ag-stages { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 4px; list-style: none; margin: 0 0 14px; padding: 0; }
+.ag-stage-step { display: inline-flex; align-items: center; gap: 6px; font-size: var(--t-small); font-weight: 500; color: var(--ag-ink); }
+.ag-stage-step + .ag-stage-step::before { content: ""; width: 14px; height: 1px; background: var(--ag-ink-4); margin-right: 4px; }
+.ag-stage-dot { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1; border: 1px solid var(--ag-border); background: var(--ag-cream); color: var(--ag-ink-3); }
+.ag-stage-step[data-s="here"] { font-weight: 600; }
+.ag-stage-step[data-s="here"] .ag-stage-dot { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); }
+.ag-stage-step[data-s="done"] .ag-stage-dot { background: var(--ag-tint-2); border-color: var(--ag-tint-2); color: var(--ag-coral-deep); }
+.ag-stage-step[data-s="next"] { color: var(--ag-ink-3); }
+.ag-stages-compact { display: none; font-size: var(--t-small); font-weight: 600; color: var(--ag-ink-2); }
+@media (max-width: 560px) {
+  .ag-stage-step { display: none; }
+  .ag-stages-compact { display: block; }
+}
+
+/* ── A gap answer that moves the score — board 40, band B (8 Oct 2026) ── */
+.ag-ev-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+.ag-ev-ask { font-size: var(--t-small); font-weight: 500; color: var(--ag-ink); margin-right: 2px; }
+.ag-ev-opt { display: inline-flex; align-items: center; min-height: 32px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--ag-border); background: var(--ag-paper); color: var(--ag-ink-2); font-family: var(--ag-sans); font-size: var(--t-small); font-weight: 500; cursor: pointer; transition: background-color 0.15s, border-color 0.15s; }
+.ag-ev-opt:hover { border-color: var(--ag-ink-4); }
+.ag-ev-opt[aria-pressed="true"] { background: var(--ag-ink); border-color: var(--ag-ink); color: var(--ag-paper); }
+.ag-ev-opt:focus-visible { outline: 2px solid var(--ag-coral); outline-offset: 2px; }
+.ag-ev-saved { flex-basis: 100%; font-size: var(--t-caption); color: var(--ag-ink-3); }
+@media (prefers-reduced-motion: reduce) { .ag-ev-opt { transition: none; } }

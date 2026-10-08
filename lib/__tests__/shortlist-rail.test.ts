@@ -77,7 +77,8 @@ describe("the rail", () => {
     expect(compareStep()).toMatch(/onConfirm: \(\) => setStep\("submission"\)/)
     expect(RAIL).toMatch(/onClick=\{onConfirm\}[\s\S]{0,120}Confirm shortlist →/)
     expect(RAIL).not.toMatch(/fetch\(/)
-    expect(RAIL).toContain("Opens the submission step, where you choose what else the client reads.")
+    // Board 40 (8 Oct 2026) replaced this caption with the next-stage line.
+    expect(RAIL).toContain("Next: choose what else the client reads, then send.")
   })
 
   it("carries the board's words", () => {
