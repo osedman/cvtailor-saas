@@ -8570,3 +8570,13 @@ No migration (overrides and `override_reason` already exist). Browser check
 at 1280 and 390 on a throwaway page rendering the real rail and stage strip.
 Tests: `board-40` (9 new); two pinned captions updated to the approved line.
 tsc clean, 2194 pass.
+
+### Staging: Yemi's round 2 moved into the past for write-ups (8 Oct 2026)
+
+Data only, staging, at Ose's request. ROL-2422 round 2 existed for CAN-01 and
+CAN-02 (CAN-03 was not advanced) but neither had a time — both were waiting
+for the candidate to pick one. Each got an offered time from Yemi's contact
+(10:00 and 11:00 UTC on 8 Oct, 45 minutes), the slot, candidate response
+"confirmed", and a `scheduled` audit row with no actor and a UAT note. Read
+back: both have ended and have no decision, so the write-ups are open. No
+email was sent; round 1 is untouched.
