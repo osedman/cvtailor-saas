@@ -8580,3 +8580,14 @@ for the candidate to pick one. Each got an offered time from Yemi's contact
 "confirmed", and a `scheduled` audit row with no actor and a UAT note. Read
 back: both have ended and have no decision, so the write-ups are open. No
 email was sent; round 1 is untouched.
+
+### Static guidance inventory and the declutter plan (9 Oct 2026)
+
+Ose asked for the app to be intuitive end to end rather than explained step by
+step. `docs/GUIDANCE-INVENTORY.md` lists every always-visible explanation on
+the recruiter, hiring-manager and doorway screens: 352 items, ~7,800 words
+(recruiter 229 / ~5,100; hiring manager 74 / ~1,460; doorways 49 / ~1,240).
+Plan sent to Ose for sign-off: a guidance rule set (frame 42), then four
+phases — workflow steps, the other recruiter screens, the hiring-manager
+surface with a persistent "Viewing as" switch, and the doorways (consent and
+rights untouched pending the lawyer). Nothing built yet.
