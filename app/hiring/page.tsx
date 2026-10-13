@@ -21,7 +21,7 @@ import { buildTodo, roundStarted, stageHref } from "@/lib/agency/hm-room"
 
 export default function ToDoPage() {
   const data = useHiringData()
-  const { screen, roles, rounds, alsoRecruiter, agencyName, nowMs: now } = data
+  const { screen, roles, rounds, nowMs: now } = data
 
   const roundsTodo = useMemo(() => buildTodo(roles.map(toSummary), rounds, now), [roles, rounds, now])
   /**
@@ -70,21 +70,6 @@ export default function ToDoPage() {
 
   return (
     <HmFrame screen={screen} crumb="Hiring / To do">
-      {screen === "ready" && (
-        <div className="hm-side-band" role="note">
-          <span className="hm-side-dot" aria-hidden="true" />
-          <span className="hm-side-text">
-            <b>You are on the client side.</b> This is what {agencyName || "your agency"} shows you —
-            your interviews and decisions. Their working on candidates is not here.
-          </span>
-          {alsoRecruiter && (
-            <Link className="agd-tbtn hm-side-switch" href="/agencies">
-              Back to your agency →
-            </Link>
-          )}
-        </div>
-      )}
-
       <section className="agd-hero">
         <h1 className="agd-h1">
           {todo.length === 0 ? "Nothing needs you." : todo.length === 1 ? "One thing needs you." : `${todo.length} things need you.`}
@@ -93,8 +78,8 @@ export default function ToDoPage() {
           {todo.length === 0
             ? booked.length > 0
               ? `Your next interview is ${fmtWhen(booked[0].scheduled_at as string)}.`
-              : "When a shortlist arrives or an interview needs writing up, it appears here."
-            : `Across ${ownedRoles === 1 ? "one role" : `${ownedRoles} roles`}. Each opens the exact step.`}
+              : "Shortlists and interviews to write up appear here."
+            : `Across ${ownedRoles === 1 ? "one role" : `${ownedRoles} roles`}.`}
         </p>
       </section>
 

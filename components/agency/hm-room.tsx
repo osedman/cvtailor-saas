@@ -10,6 +10,7 @@
  * list three different ways.
  */
 
+import { HatSwitch } from "@/components/agency/hat-switch"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { HINTS, Hint } from "@/components/agency/hint"
 import Link from "next/link"
@@ -144,7 +145,8 @@ export function HmFrame({
         <span className="agd-spacer" />
         {screen === "ready" && (
           <>
-            <span className="ag-pill hm-role-chip">Hiring manager</span>
+            {/* Frame 44: both sides → the switch; a client only → the pill. */}
+            <HatSwitch current="hiring" inline fallback={<span className="ag-pill hm-role-chip">Hiring manager</span>} />
             <SignOut door="consumer" />
           </>
         )}
@@ -158,18 +160,29 @@ export function HmFrame({
           </div>
         )}
         {screen === "unauthed" && (
-          <EmptyBand title="Sign in to see your hiring." body="Your email address and a link we send you — no password." />
+          <EmptyBand title="Sign in to see your hiring." body="Sign in with a link sent to your email — no password." />
         )}
         {screen === "not_linked" && (
           <EmptyBand
             title="This account has no client access yet."
-            body="Hiring-manager access is given by invitation only — ask your recruiter for one."
+            body="Access is by invitation only — ask your recruiter for one."
           />
         )}
         {screen === "error" && (
           <EmptyBand title="We could not load this." body="Reload the page. If it keeps failing, tell your recruiter." />
         )}
         {screen === "ready" && children}
+        {/* Frame 44, band C: the one promise, on every client screen, in
+            place of six per-screen statements. Checked 13 Oct: decisions are
+            append-only with no lock after close-out — only a revoked link
+            stops them — hence "while the role is open with you". */}
+        {screen === "ready" && (
+          <p className="hm-promise">
+            Nothing you do here closes the role or removes anyone. You can change a decision while the
+            role is open with you, and Tailr never tells candidates you held or declined them. Your
+            recruiter&apos;s working notes are not shown here.
+          </p>
+        )}
       </div>
     </main>
   )

@@ -18,53 +18,47 @@ import { join } from "path"
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 
-describe("the client-side band", () => {
-  const page = read("app/hiring/page.tsx")
+/**
+ * Frame 44 (approved 13 Oct 2026, Ose) replaced the home-screen band and the
+ * two cross-links with one "Viewing as" switch on every screen of both
+ * sides. The rules the band carried still hold, and are pinned here.
+ */
+describe("the Viewing as switch (frame 44)", () => {
+  const sw = read("components/agency/hat-switch.tsx")
+  const nav = read("components/agency/agency-nav.tsx")
+  const frame = read("components/agency/hm-room.tsx")
+  const api = read("app/api/me/hats/route.ts")
 
-  it("states whose side of the wall this is", () => {
-    expect(page).toMatch(/You are on the client side/)
+  it("renders only for someone who holds BOTH sides", () => {
+    expect(sw).toMatch(/if \(!hats \|\| !\(hats\.recruiter && hats\.hiringManager\)\) return <>\{fallback\}<\/>/)
   })
 
-  it("renders only once the server has confirmed the relationship", () => {
-    // Over a signed-out or unlinked screen, a band naming an agency would be
-    // asserting a relationship that has not been established.
-    const band = page.slice(page.indexOf("hm-side-band") - 400, page.indexOf("hm-side-band") + 200)
-    expect(band).toMatch(/screen === "ready"/)
+  it("is on every recruiter screen and every client screen", () => {
+    // AgencyNav is the shared nav every agency screen renders (agency-nav.test);
+    // both of its branches carry the switch. HmFrame wraps every client screen.
+    expect(nav.match(/<HatSwitch current="recruiter" \/>/g)?.length).toBe(2)
+    expect(frame).toMatch(/<HatSwitch current="hiring" inline fallback=\{<span className="ag-pill hm-role-chip">Hiring manager<\/span>\} \/>/)
   })
 
-  it("is styled, and survives a narrow screen", () => {
-    const css = read("app/hiring/hiring.css")
-    expect(css).toMatch(/\.hm-side-band/)
-    // Two stacked sticky bars eat a phone screen.
-    expect(css).toMatch(/@media \(max-width: 700px\)[\s\S]*hm-side-band[\s\S]*position: static/)
-  })
-})
-
-describe("the way between the two surfaces", () => {
-  const hiring = read("app/hiring/page.tsx")
-  const agencies = read("app/agencies/page.tsx")
-
-  it("the hiring side offers a way back only to someone who is also a recruiter", () => {
-    expect(hiring).toMatch(/alsoRecruiter && \(/)
-    const link = hiring.slice(hiring.indexOf("alsoRecruiter && ("))
-    expect(link.slice(0, 260)).toMatch(/href="\/agencies"/)
+  it("a failure hides the switch rather than erroring, and never defaults true", () => {
+    expect(sw).toMatch(/\.catch\(\(\) => \(\{ recruiter: false, hiringManager: false \}\)\)/)
+    expect(api).toMatch(/catch \{[\s\S]*recruiter: false, hiringManager: false/)
   })
 
-  it("the recruiter side offers the client view only to someone who is also an HM", () => {
-    // A recruiter who is not a client contact anywhere must not be offered a
-    // client view — it is not theirs, and offering it would imply it might be.
-    expect(agencies).toMatch(/data\?\.also_hiring_manager && \(/)
-    const link = agencies.slice(agencies.indexOf("data?.also_hiring_manager && ("))
-    expect(link.slice(0, 320)).toMatch(/href="\/hiring"/)
+  it("the hats route leaks nothing but two booleans", () => {
+    const body = api.slice(api.indexOf("export async function GET"))
+    expect(body).toMatch(/NextResponse\.json\(\{ recruiter: hats\.recruiter, hiringManager: hats\.hiringManager \}\)/)
+    expect(body).not.toMatch(/email|agency_id|contact/i)
   })
 
-  it("neither flag is defaulted true", () => {
-    // Defaulting on would show every recruiter a door into a client workspace.
-    // The flag is loaded in the shared hook since frame 23.
-    const hook = read("components/agency/hm-room.tsx")
-    expect(hook).toMatch(/const \[alsoRecruiter, setAlsoRecruiter\] = useState\(false\)/)
-    expect(hook).toMatch(/setAlsoRecruiter\(Boolean\(/)
-    expect(agencies).toMatch(/also_hiring_manager\?: boolean/)
+  it("the old band and cross-links are gone", () => {
+    expect(read("app/hiring/page.tsx")).not.toMatch(/hm-side-band|You are on the client side|Back to your agency/)
+    expect(read("app/agencies/page.tsx")).not.toMatch(/Client view →/)
+  })
+
+  it("the client side still says the recruiter's working notes are not shown", () => {
+    // The band carried this; frame 44 moved it into the one promise.
+    expect(frame).toMatch(/recruiter&apos;s working notes are not shown here/)
   })
 })
 

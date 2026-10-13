@@ -393,14 +393,6 @@ export default function AgencyHomePage() {
           <button className="agd-tbtn accent" onClick={createRole} disabled={creating || state !== "ready"} title="New role (N)">
             {creating ? <span className="ag-spin" /> : "New role"}
           </button>
-          {/* Only for someone who genuinely holds both hats. A recruiter who
-              is not a client contact anywhere must not be offered a client
-              view they have no business in. See getHatsHeld. */}
-          {data?.also_hiring_manager && (
-            <Link className="agd-tbtn" href="/hiring" title="You are also a hiring manager on an agency's client side">
-              Client view →
-            </Link>
-          )}
           <div className="agd-avatar" title={data?.caller_email ?? ""}>{initials}</div>
         </div>
 

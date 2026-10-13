@@ -49,6 +49,7 @@
  * next to a single back link.
  */
 
+import { HatSwitch } from "@/components/agency/hat-switch"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
@@ -119,6 +120,7 @@ export function AgencyNav({
   if (inRole) {
     return (
       <div>
+        <HatSwitch current="recruiter" />
         {/* Unconditional, and it needs no data. The role header renders
             nothing until its facts load and nothing at all if they fail, so
             the way OUT of a role must never depend on it. */}
@@ -139,6 +141,8 @@ export function AgencyNav({
 
   return (
     <div>
+      {/* Frame 44: which side this is, for someone who holds both. */}
+      <HatSwitch current="recruiter" />
       {groups.map((group) => (
         <div key={group.key} className={group.key === "desk" ? "ag-nav-group" : undefined}>
           <div className="ag-rail-label">{group.label}</div>
