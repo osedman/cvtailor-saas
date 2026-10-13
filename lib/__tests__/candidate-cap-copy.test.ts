@@ -15,7 +15,8 @@ describe("the candidate cap is said once", () => {
   it("the screen quotes the number the server enforces", () => {
     const cap = route.match(/const MAX_CANDIDATES_PER_ROLE = (\d+)/)?.[1]
     expect(cap).toBeDefined()
-    expect(page).toMatch(new RegExp(`up to ${cap} per role`))
-    expect(page).not.toMatch(new RegExp(`up to (?!${cap}\\b)\\d+ per role`))
+    // Frame 43 (13 Oct 2026): "Add up to 50 CVs per role".
+    expect(page).toMatch(new RegExp(`up to ${cap} (CVs )?per role`))
+    expect(page).not.toMatch(new RegExp(`up to (?!${cap}\\b)\\d+ (CVs )?per role`))
   })
 })

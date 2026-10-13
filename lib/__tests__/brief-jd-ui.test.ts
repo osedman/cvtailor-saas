@@ -91,7 +91,9 @@ describe("A · the form: the job description is the first section, un-numbered",
     expect(firstSection).toContain(">The job description</h3>")
     expect(firstSection).not.toMatch(/\d · The job description/)
     expect(firstSection).toContain("ag-brief-tier-1")
-    expect(text(firstSection)).toContain("The document the terms are about. The client sees it and can replace it; a new file is an amendment both sides sign again. When a role runs on this brief, the description lands in its intake.")
+    // Frame 43 (13 Oct 2026) removed the section's sub; its meaning lives in
+    // step 01's How this works.
+    expect(text(firstSection)).not.toContain("The document the terms are about.")
     expect(html.indexOf("1 · The rounds")).toBeGreaterThan(html.indexOf("The job description"))
   })
 
@@ -100,7 +102,7 @@ describe("A · the form: the job description is the first section, un-numbered",
     expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="\.pdf,\.docx,\.txt"/)
     expect(html).toMatch(/<button type="button" class="ag-brief-jd-drop"/)
     const t = text(html)
-    for (const s of ["Attach the job description", "PDF, DOCX or TXT, up to 10 MB. Drop it here or choose a file.", "Choose a file"]) expect(t).toContain(s)
+    for (const s of ["Attach the job description", "PDF, DOCX or TXT, up to 10 MB.", "Choose a file"]) expect(t).toContain(s)
     // It takes a drop, and reads "Reading the file…" busy while uploading.
     const jd = fnBody(form, "function JdSection(")
     expect(jd).toMatch(/onDrop=/)
@@ -116,7 +118,8 @@ describe("A · the form: the job description is the first section, un-numbered",
     expect(t).toMatch(/184 KB · Added by you · 26 Sep · Text read/)
     expect(html).toContain(`href="/api/agency/briefs/brief-1/jd/${OLD.fileId}"`)
     for (const s of ["Download", "Replace", "Remove"]) expect(t).toContain(s)
-    expect(t).toContain("Read once for the role's intake. Nothing is parsed until you press Extract requirements there.")
+    // Frame 43: the "Read once…" line is gone (How this works says it).
+    expect(t).not.toContain("Read once for the role's intake")
     expect(t).not.toContain("Changed · was")
   })
 
@@ -130,7 +133,7 @@ describe("A · the form: the job description is the first section, un-numbered",
   it("NO TEXT FOUND: the meta says so and the hint tells them to paste instead", () => {
     const t = text(renderForm({ config: cfg(SCAN.fileId), jd: SCAN }))
     expect(t).toMatch(/· No text found/)
-    expect(t).toContain("Nothing could be read from this file — a scan, perhaps. The role's intake will stay empty; paste the description there instead.")
+    expect(t).toContain("No text could be read — paste the description into the intake instead.")
     expect(t).not.toContain("Read once for the role's intake")
     expect(form).toContain("data-jd-no-text")
   })
@@ -249,7 +252,8 @@ describe("the review's fixes: signatures, copy, focus, names, locking", () => {
   it("copy counts the job description: the client's form aside and the recruiter's review note", () => {
     expect(clientPage).toContain("Only the job description and the four numbered sections after it are yours to change")
     expect(clientPage).not.toContain("Only the first four sections")
-    expect(text(renderReview({ config: cfg(null) }))).toContain("The job description and the four terms the client signs for.")
+    // Frame 43 (13 Oct 2026): the recruiter's review intro was deleted.
+    expect(text(renderReview({ config: cfg(null) }))).not.toContain("The job description and the four terms the client signs for.")
   })
 
   it("one always-mounted status line announces the upload; no control is disabled out from under focus", () => {

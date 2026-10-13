@@ -8611,3 +8611,30 @@ message instead of silently showing the new level.
 
 Browser check at 1280 and 390 on a throwaway page with the real classes,
 including the keyboard. Tests: `frame-41-levels` (5 new). tsc clean.
+
+### Declutter phase 1 — the workflow, explained by itself (frame 43, 13 Oct 2026)
+
+Frames 42 (the rules) and 43 (phase 1) approved by Ose, with both of his
+calls: the client document's footer keeps "No candidate was rejected
+automatically", and MISSING keeps a visible, shorter line ("No evidence in
+the CV. Confirm on the call.").
+
+Steps 01–06 and the candidate pop-up: ~1,910 always-visible words → ~680.
+One subtitle per step (≤15 words); one "How this works" on steps 01, 02, 03
+and 04 (step 05's stays in the recommendation); explanations of values moved
+into hints (scan status, legend, recommendation groups, workspace row, PDF
+option, tier-2 terms, brief-form labels); narrating lines deleted. The
+"never rejects" promise now appears once in the recruiter UI, as the same
+sidebar-foot line on Today, the role page and the candidate page. The
+Weighting model card and the Evidence-first card are now "How this works"
+content. One accuracy fix: the pop-up said the narrative always reaches the
+client; it does only when notes are shared.
+
+Browser check of the REAL role page (all six steps) at 1280 and 390 with
+mocked API data: no page errors, no sideways scroll. It found and fixed three
+layout defects: the screen-head action row did not wrap (steps 01, 02, 04
+scrolled sideways), step 02's two columns were set inline and beat the
+phone rule (requirement rows squeezed to a sliver), and the screen head
+squeezed its title on phones instead of stacking. A duplicate "From the
+brief" marker was also removed. Tests updated where they pinned changed copy
+(none weakened; the MISSING guard is as strict). tsc clean, 2199 pass.

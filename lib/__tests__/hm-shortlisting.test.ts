@@ -267,9 +267,10 @@ describe("D · the recruiter's rail", () => {
   it("tells the recruiter the client sees each name, and the new caption", () => {
     const out = rail("Meridian Health")
     expect(out).toContain("Meridian Health sees each name as you add it. The CV, evidence and scores wait for the submission.")
-    expect(out).toMatch(/<p class="ag-sl-visible">Names visible to the client<\/p>/)
-    // Board 40 (8 Oct 2026) replaced this caption with the next-stage line.
-    expect(out).toContain("Next: choose what else the client reads, then send.")
+    // Frame 43 (13 Oct 2026): the sentence above carries the disclosure, so
+    // the "Names visible" tag and board 40's next-stage caption are gone.
+    expect(out).not.toContain("Names visible to the client")
+    expect(out).not.toContain("Next: choose what else the client reads, then send.")
     // Board 26's other lines are unchanged.
     for (const line of ["Your shortlist · Meridian Health", "Nobody yet", "Your next add lands here", "Kept for later. Never sent.", "Internal record only.", "Confirm shortlist →"]) {
       expect(out).toContain(line)

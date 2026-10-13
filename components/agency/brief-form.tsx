@@ -25,6 +25,7 @@
  */
 
 import { useEffect, useRef, useState, useMemo } from "react"
+import { Hint } from "./hint"
 import {
   BUFFER_MIN,
   DURATIONS_MIN,
@@ -76,6 +77,11 @@ function Section({ n, id, title, tier, sub, children }: { n?: number; id?: strin
   )
 }
 
+/** A field label, with its explanation as a bare hint when it has one. */
+function LabelText({ label, hint }: { label: string; hint?: string }) {
+  return hint ? <Hint bare text={hint}>{label}</Hint> : <>{label}</>
+}
+
 function Select<T extends string | number>({
   id,
   label,
@@ -83,6 +89,7 @@ function Select<T extends string | number>({
   options,
   onChange,
   hint,
+  labelHint,
   render,
 }: {
   id: string
@@ -91,13 +98,15 @@ function Select<T extends string | number>({
   options: readonly T[]
   onChange: (v: T) => void
   hint?: string
+  /** Frame 43: an explanation of the label, as a hint rather than a line. */
+  labelHint?: string
   render?: (v: T) => string
 }) {
   const isNumber = typeof value === "number"
   return (
     <div className="ag-brief-field">
       <label className="ag-label" htmlFor={id}>
-        {label}
+        <LabelText label={label} hint={labelHint} />
       </label>
       <select id={id} className="ag-input" value={String(value)} onChange={(e) => onChange((isNumber ? Number(e.target.value) : e.target.value) as T)}>
         {options.map((o) => (
@@ -133,10 +142,10 @@ function Stepper({ id, label, value, min, max, step = 1, unit, onChange, hint, f
   )
 }
 
-function Chips<T extends string>({ label, options, selected, onToggle, render, hint }: { label: string; options: readonly T[]; selected: readonly T[]; onToggle: (v: T) => void; render: (v: T) => string; hint?: string }) {
+function Chips<T extends string>({ label, options, selected, onToggle, render, hint, labelHint }: { label: string; options: readonly T[]; selected: readonly T[]; onToggle: (v: T) => void; render: (v: T) => string; hint?: string; labelHint?: string }) {
   return (
     <div className="ag-brief-field">
-      <span className="ag-label">{label}</span>
+      <span className="ag-label"><LabelText label={label} hint={labelHint} /></span>
       <div className="ag-brief-chips" role="group" aria-label={label}>
         {options.map((o) => {
           const on = selected.includes(o)
@@ -152,14 +161,14 @@ function Chips<T extends string>({ label, options, selected, onToggle, render, h
   )
 }
 
-function MultiContact({ id, label, contacts, selected, onChange, hint }: { id: string; label: string; contacts: ContactOption[]; selected: string[]; onChange: (ids: string[]) => void; hint?: string }) {
+function MultiContact({ id, label, contacts, selected, onChange, hint, labelHint }: { id: string; label: string; contacts: ContactOption[]; selected: string[]; onChange: (ids: string[]) => void; hint?: string; labelHint?: string }) {
   return (
     <div className="ag-brief-field">
       <span className="ag-label" id={`${id}-label`}>
-        {label}
+        <LabelText label={label} hint={labelHint} />
       </span>
       <div className="ag-brief-chips" role="group" aria-labelledby={`${id}-label`}>
-        {contacts.length === 0 && <span className="ag-note">No contacts at this client yet — add them under Client access.</span>}
+        {contacts.length === 0 && <span className="ag-note">No contacts yet — add them under Client access.</span>}
         {contacts.map((c) => {
           const on = selected.includes(c.id)
           return (
@@ -355,7 +364,6 @@ function JdSection({
       id="brief-jd"
       title="The job description"
       tier={1}
-      sub="The document the terms are about. The client sees it and can replace it; a new file is an amendment both sides sign again. When a role runs on this brief, the description lands in its intake."
     >
       <input
         ref={input}
@@ -400,7 +408,7 @@ function JdSection({
             <>
               <span className="ag-brief-jd-drop-title">Attach the job description</span>
               <span className="ag-brief-jd-drop-sub" id="brief-jd-drop-sub">
-                PDF, DOCX or TXT, up to 10 MB. Drop it here or choose a file.
+                PDF, DOCX or TXT, up to 10 MB.
               </span>
               <span className="ag-btn ag-btn-secondary" aria-hidden="true">
                 Choose a file
@@ -434,28 +442,27 @@ function JdSection({
               </button>
             </div>
           </div>
-          {current && current.textChars === 0 ? (
+          {current && current.textChars === 0 && (
             <p className="ag-brief-hint" data-jd-no-text>
               {side === "recruiter"
-                ? "Nothing could be read from this file — a scan, perhaps. The role's intake will stay empty; paste the description there instead."
-                : `Nothing could be read from this file — a scan, perhaps. The role's intake will stay empty; ${agencyName} will paste the description there instead.`}
-            </p>
-          ) : (
-            <p className="ag-brief-hint">
-              {side === "recruiter"
-                ? "Read once for the role's intake. Nothing is parsed until you press Extract requirements there."
-                : `Read once for the role's intake. Nothing is parsed until ${agencyName} presses Extract requirements there.`}
+                ? "No text could be read — paste the description into the intake instead."
+                : `No text could be read — ${agencyName} will paste the description into the intake instead.`}
             </p>
           )}
         </>
       )}
       {was !== undefined && (
         <div className="ag-brief-jd-was">
-          <span className="ag-brief-changed">Changed · was {was}</span>
-          {thisEdit && (
-            <span className="ag-brief-hint">
-              {fileId ? "A new file" : "Removing the file"} is a new version: {otherSig} signature is cleared until they approve it.
-            </span>
+          {thisEdit ? (
+            <Hint
+              bare
+              text={`${fileId ? "A new file" : "Removing the file"} is a new version: ${otherSig} signature is cleared until they approve it.`}
+              className="ag-brief-changed"
+            >
+              Changed · was {was}
+            </Hint>
+          ) : (
+            <span className="ag-brief-changed">Changed · was {was}</span>
           )}
         </div>
       )}
@@ -563,14 +570,14 @@ export function BriefForm({
         />
       )}
 
-      <Section n={1} title="The rounds" tier={1} sub="What each round is for, who is in it, how long. The room's stage bar, the wave planner and the diary read this; a decider can differ by round.">
+      <Section n={1} title="The rounds" tier={1}>
         {config.rounds.map((r, i) => (
           <div key={i} className="ag-brief-round">
             <div className="ag-brief-round-n">Round {i + 1}</div>
             <Select id={`r${i}-purpose`} label="What it is for" value={r.purpose} options={ROUND_PURPOSES} onChange={(v) => setRound(i, { purpose: v })} render={(v) => ROUND_PURPOSE_LABEL[v]} />
             <Select id={`r${i}-format`} label="How" value={r.format} options={ROUND_FORMATS} onChange={(v) => setRound(i, { format: v })} render={(v) => ROUND_FORMAT_LABEL[v]} />
             <Select id={`r${i}-len`} label="How long" value={r.durationMinutes} options={DURATIONS_MIN} onChange={(v) => setRound(i, { durationMinutes: v })} render={(v) => `${v} min`} />
-            <MultiContact id={`r${i}-who`} label="Who is in it" contacts={contacts} selected={r.interviewerIds} onChange={(ids) => setRound(i, { interviewerIds: ids })} hint={i === 0 ? "Multi-select from the client's contacts. The first named decides." : undefined} />
+            <MultiContact id={`r${i}-who`} label="Who is in it" contacts={contacts} selected={r.interviewerIds} onChange={(ids) => setRound(i, { interviewerIds: ids })} labelHint="The first person named decides this round." />
             {config.rounds.length > 1 && (
               <button type="button" className="ag-btn ag-btn-secondary ag-brief-round-remove" onClick={() => set("rounds", config.rounds.filter((_, j) => j !== i))} aria-label={`Remove round ${i + 1}`}>
                 Remove
@@ -587,8 +594,8 @@ export function BriefForm({
 
       <Section n={2} title="Deciding" tier={1}>
         <div className="ag-brief-row">
-          <Select id="turnaround" label="Decision turnaround after a round" value={config.decisionTurnaroundDays} options={TURNAROUND_DAYS} onChange={(v) => set("decisionTurnaroundDays", v)} render={(v) => `${v} working day${v === 1 ? "" : "s"}`} hint="Drives the reminders and “I’m done deciding”. A promise the client makes, not a setting you pick alone." />
-          <Chips label="Interview days" options={WEEKDAYS} selected={config.interviewDays} onToggle={toggleDay} render={(d) => WEEKDAY_LABEL[d]} hint="Tap to toggle." />
+          <Select id="turnaround" label="Decision turnaround after a round" value={config.decisionTurnaroundDays} options={TURNAROUND_DAYS} onChange={(v) => set("decisionTurnaroundDays", v)} render={(v) => `${v} working day${v === 1 ? "" : "s"}`} labelHint="The client’s promise, not your setting. It drives reminders and “I’m done deciding”." />
+          <Chips label="Interview days" options={WEEKDAYS} selected={config.interviewDays} onToggle={toggleDay} render={(d) => WEEKDAY_LABEL[d]} />
         </div>
         <div className="ag-brief-row">
           <Select id="from" label="From" value={config.windowFrom} options={TIME_STEPS} onChange={(v) => set("windowFrom", v)} />
@@ -599,14 +606,13 @@ export function BriefForm({
         </div>
       </Section>
 
-      <Section n={3} title="What the client is shown" tier={1} sub="The agreed default, frozen per submission as today. It is what the candidate's notice describes.">
+      <Section n={3} title="What the client is shown" tier={1} sub="Frozen into each submission. The candidate's notice describes exactly this.">
         <Chips
           label="Shown"
           options={["scores", "evidence", "notes", "cv", "logistics"] as const}
           selected={(Object.keys(config.disclosure) as Array<keyof BriefConfig["disclosure"]>).filter((k) => config.disclosure[k])}
           onToggle={(k) => set("disclosure", { ...config.disclosure, [k]: !config.disclosure[k] })}
           render={(k) => ({ scores: "Score", evidence: "Evidence quotes", notes: "Recruiter notes", cv: "The CV", logistics: "Logistics" })[k]}
-          hint="Notes default off; the rest default on."
         />
       </Section>
 
@@ -621,8 +627,8 @@ export function BriefForm({
           ownership are the contract, not the brief (Ose, 1 Oct 2026). */}
       <Section n={5} title="The offer" tier={2}>
         <div className="ag-brief-row">
-          <Select id="offer" label="Offer authority" value={config.offerAuthorityContactId ?? ""} options={["", ...contacts.map((c) => c.id)]} onChange={(v) => set("offerAuthorityContactId", v || null)} render={(v) => (v ? contactName(v) : "Not named")} hint="From the client's contacts." />
-          <Stepper id="ceiling" label="Up to" value={config.offerCeiling ?? 0} min={0} max={500_000} step={1000} onChange={(v) => set("offerCeiling", v || null)} format={(v) => (v ? `£${v.toLocaleString("en-GB")}` : "Not set")} hint="Steps of £1,000." />
+          <Select id="offer" label="Offer authority" value={config.offerAuthorityContactId ?? ""} options={["", ...contacts.map((c) => c.id)]} onChange={(v) => set("offerAuthorityContactId", v || null)} render={(v) => (v ? contactName(v) : "Not named")} />
+          <Stepper id="ceiling" label="Up to" value={config.offerCeiling ?? 0} min={0} max={500_000} step={1000} onChange={(v) => set("offerCeiling", v || null)} format={(v) => (v ? `£${v.toLocaleString("en-GB")}` : "Not set")} />
           <Select id="start" label="Start target" value={config.startTargetMonth ?? ""} options={["", ...monthOptions]} onChange={(v) => set("startTargetMonth", v || null)} render={monthLabel} />
           <Stepper id="size" label="Shortlist size" value={config.shortlistSize} min={SHORTLIST_SIZE.min} max={SHORTLIST_SIZE.max} onChange={(v) => set("shortlistSize", v)} />
         </div>
@@ -635,7 +641,7 @@ export function BriefForm({
           selected={config.referencesWanted}
           onToggle={(k) => set("referencesWanted", (["character", "hr"] as const).filter((x) => (x === k ? !config.referencesWanted.includes(k) : config.referencesWanted.includes(x))))}
           render={(k) => (k === "hr" ? "HR" : "Character")}
-          hint="The default per candidate on this role; changeable per person at close-out."
+          labelHint="The default for each candidate here; change it per person at close-out."
         />
       </Section>
 
@@ -644,7 +650,6 @@ export function BriefForm({
           Anything else the client should read (optional)
         </label>
         <textarea id="brief-note" className="ag-textarea" rows={3} maxLength={600} value={config.note} onChange={(e) => set("note", e.target.value)} />
-        <p className="ag-brief-hint">The one free-text field, and it is optional. 600 characters.</p>
       </div>
     </fieldset>
   )

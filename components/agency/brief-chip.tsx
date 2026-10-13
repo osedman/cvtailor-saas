@@ -80,7 +80,7 @@ export function BriefChip({ roleId, hat, data }: { roleId: string; hat: "recruit
             ))}
           </ul>
           <p className="ag-meta">
-            {hat === "recruiter" ? "Amend the brief to a new version, change the role back, or keep the difference — the client sees this too." : `${"Your recruiter"} has departed from the brief here. Ask them, or wait for an amended brief.`}
+            {hat === "recruiter" ? "The client sees these differences too." : `${"Your recruiter"} has departed from the brief here. Ask them, or wait for an amended brief.`}
           </p>
         </details>
       )}

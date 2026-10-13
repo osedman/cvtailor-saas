@@ -18,8 +18,12 @@ describe("explain on demand (board 39)", () => {
   it("'What happens on add' is a hint by the upload, not a card", () => {
     expect(ROLE).not.toMatch(/ag-card-title">What happens on add/)
     expect(ROLE).toMatch(/<Hint info content=\{ADD_EXPLAINED\}>How this works<\/Hint>/)
-    for (const line of ["mapped against every requirement", "verbatim quote, or shows MISSING", "No candidate is rejected automatically."])
+    for (const line of ["mapped against every requirement", "verbatim quote, or shows MISSING"])
       expect(ROLE).toContain(line)
+    // Frame 43 (13 Oct 2026): the no-auto-rejection promise is said once, in
+    // the sidebar foot, not repeated in this hint.
+    expect(ROLE).toContain("Decision support only. No candidate is ever rejected automatically.")
+    expect(ROLE.match(/rejected automatically/g)?.length).toBe(1)
   })
 
   it("the recommendation's three cards fold into one hint", () => {

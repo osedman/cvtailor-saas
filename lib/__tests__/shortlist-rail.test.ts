@@ -77,8 +77,9 @@ describe("the rail", () => {
     expect(compareStep()).toMatch(/onConfirm: \(\) => setStep\("submission"\)/)
     expect(RAIL).toMatch(/onClick=\{onConfirm\}[\s\S]{0,120}Confirm shortlist →/)
     expect(RAIL).not.toMatch(/fetch\(/)
-    // Board 40 (8 Oct 2026) replaced this caption with the next-stage line.
-    expect(RAIL).toContain("Next: choose what else the client reads, then send.")
+    // Frame 43 (13 Oct 2026) removed board 40's next-stage caption: the
+    // stage bar already names what comes next.
+    expect(RAIL).not.toContain("Next: choose what else the client reads, then send.")
   })
 
   it("carries the board's words", () => {
@@ -295,15 +296,12 @@ describe("the recommendation tab carries decisions", () => {
     expect(PANEL).not.toMatch(/\.filter\(\(i\) => i\.group === group\)\.filter/)
   })
 
-  it("says the board's words about who decides", () => {
-    expect(PANEL).toMatch(
-      /A reading of your own notes, not a filter\. Everyone is still on the matrix in the order\s+you left them\. Adding someone here — from any group — is the only thing that writes a\s+decision, and it is your click\./
-    )
-    expect(PANEL).toMatch(
-      /The recommendation proposes; you add\. Every add here is the same decision as on the\s+matrix — yours, audit-logged, reversible until you confirm\. Running it again re-reads\s+everything and never touches a decision you have made\./
-    )
-    // The foot uses the existing uppercase mono class, not a new face.
-    expect(PANEL).toMatch(/className="ag-field-label ag-reco-foot"/)
+  it("says once, in How it works, that a re-run never changes a decision", () => {
+    // Frame 43 (13 Oct 2026): the reading sub and the foot narrated what the
+    // one verb already shows; the re-run promise moved into the hint.
+    expect(PANEL).toContain("Running it again re-reads everything and never changes a decision you have made.")
+    expect(PANEL).not.toMatch(/A reading of your own notes, not a filter/)
+    expect(PANEL).not.toMatch(/ag-reco-foot/)
   })
 })
 

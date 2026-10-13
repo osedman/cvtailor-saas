@@ -113,7 +113,6 @@ export function SubmissionPreview({
         })}
       </ul>
       <div className="ag-hmp-handoff">
-        <span>Choose who you want to interview, then offer the times you can do — the candidates you choose book themselves in.</span>
         <span className="ag-hmp-cta">Choose and offer times →</span>
       </div>
     </section>
@@ -403,7 +402,7 @@ export function SubmissionProgress({
       {linksOpen && links.length > 0 && (
         <div className="ag-stack" style={{ gap: 8 }}>
           <p className="ag-prose-note" style={{ margin: 0 }}>
-            Personal links, one per person, shown once — they are not stored. Each expires in 30 days and can be revoked on its own.
+            Shown once and not stored. Each expires in 30 days.
           </p>
           {links.map((l) => (
             <div className="ag-link-row" key={l.url}>

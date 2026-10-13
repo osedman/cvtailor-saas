@@ -369,9 +369,8 @@ export default function AgencyHomePage() {
 
         <SignOut email={data?.caller_email} />
         <div className="ag-sidebar-foot">
-          <div className="ag-meta" style={{ marginBottom: 6 }}>Decision support</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>
-            All shortlists are subject to recruiter judgment. Nothing is rejected automatically.
+            Decision support only. No candidate is ever rejected automatically.
           </div>
         </div>
       </aside>
@@ -572,9 +571,6 @@ export default function AgencyHomePage() {
                 </section>
               )}
 
-              <p className="agd-foot">
-                Tailr never rejects anyone automatically. Client declines are signals, not decisions, and every override is audited.
-              </p>
             </>
           )}
         </div>

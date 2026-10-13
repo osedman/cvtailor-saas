@@ -137,6 +137,34 @@ const GAP_LEVELS: Array<[Strength, string]> = [
   ["missing", "Still missing"],
 ]
 
+/** Step 01, frame 43 (approved 13 Oct 2026): what used to narrate the
+ *  intake as notes, a principle card and the brief editor's lines. */
+const INTAKE_EXPLAINED = (
+  <>
+    <span className="ag-hint-block">Extraction fills empty intake fields from the JD. It never overwrites what you typed or touches your notes, and nothing is parsed until you press Extract.</span>
+    <span className="ag-hint-block">Every later score points back to this JD or your notes; where there is no proof it shows MISSING.</span>
+    <span className="ag-hint-block">The role runs on the terms now; the client&rsquo;s approval is not a gate. Sending the terms is v1, signed by you, and they read it in their workspace.</span>
+    <span className="ag-hint-block">Any change — from either side, or a new JD file — is a new version the other side approves again, and you see what changed.</span>
+  </>
+)
+
+/** Step 04, frame 43: what the subtitle used to carry. */
+const SCREENING_EXPLAINED = (
+  <>
+    <span className="ag-hint-block">Overriding a strength rescores the candidate immediately.</span>
+    <span className="ag-hint-block">Every change is attributed to you in the audit trail.</span>
+    <span className="ag-hint-block">Written questions and their answers never change the CV score; only a level you choose under a gap question does.</span>
+  </>
+)
+
+/** Step 02, frame 43: the weighting model card and the constraints footnote. */
+const WEIGHTING_EXPLAINED = (
+  <>
+    <span className="ag-hint-block">The fit score is requirement coverage 45%, evidence strength 25%, seniority calibration 10%, context fit 10% and confidence 10%.</span>
+    <span className="ag-hint-block">Constraints are filters: a candidate outside one gets a flag, not a lower score.</span>
+  </>
+)
+
 /** What happens when a CV is added — board 39 moved it from a card into a hint. */
 const ADD_EXPLAINED = (
   <>
@@ -144,7 +172,6 @@ const ADD_EXPLAINED = (
     <span className="ag-hint-block">2. Each claim carries a verbatim quote, or shows MISSING.</span>
     <span className="ag-hint-block">3. The score is computed on the server, never in your browser.</span>
     <span className="ag-hint-block">4. The candidate is told your agency is considering them, within your notice window.</span>
-    <span className="ag-hint-block">No candidate is rejected automatically.</span>
   </>
 )
 
@@ -1431,7 +1458,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
         <SignOut />
         <div className="ag-sidebar-foot">
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>
-            Decision support only. All shortlists are subject to recruiter judgment.
+            Decision support only. No candidate is ever rejected automatically.
           </div>
         </div>
       </aside>
@@ -1483,9 +1510,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               <div className="ag-screen-head">
                 <div>
                   <h1 className="ag-title">Set up the role, and agree how it runs.</h1>
-                  <p className="ag-sub">The job comes first: the description and your notes are what everything downstream is scored against. The terms beside it are what the client agrees to — send them when you are ready, and carry on while they read.</p>
+                  <p className="ag-sub">The job and your notes are what every candidate is scored against.</p>
                 </div>
-                <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <Hint info content={INTAKE_EXPLAINED}>How this works</Hint>
                   {requirements.length > 0 ? (
                     <>
                       <button className="ag-btn ag-btn-secondary" onClick={() => extract()} disabled={busy !== null || !role.jd_raw.trim()}>
@@ -1510,9 +1538,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </div>
                     <div style={{ fontSize: 12.5, color: "var(--ag-ink-2)" }}>
                       {extractResult.filled.length > 0
-                        ? `Filled from the JD: ${extractResult.filled.map((f) => f.replace(/_/g, " ")).join(", ")}. Your typed fields and notes were left alone.`
-                        : "Every intake field already had your own text, so nothing was overwritten."}
-                      {" "}Check the fields, then continue to check the requirements and adjust their weights.
+                        ? `Filled from the JD: ${extractResult.filled.map((f) => f.replace(/_/g, " ")).join(", ")}.`
+                        : "Nothing overwritten — every field had your text."}
                     </div>
                   </div>
                   <button className="ag-btn ag-btn-coral" onClick={() => setStep("parse")}>Continue</button>
@@ -1545,9 +1572,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       {/* The client's JD arrived with the brief. Accept copied
                           it in; this line is the provenance, and the button is
                           the way back to their exact text after edits. */}
-                      {briefJd && briefJd === role.jd_raw.trim() && (
-                        <p className="ag-note" style={{ marginTop: 8, color: "var(--ag-ink-3)" }}>
-                          This JD came with the client&rsquo;s brief — parse it, or edit first.
+                      {/* Only when the file row above is not already naming the brief. */}
+                      {briefJd && briefJd === role.jd_raw.trim() && !(briefStatus && briefStatus !== "error" && briefStatus.status?.jd) && (
+                        <p className="ag-note" style={{ marginTop: 8 }}>
+                          <Hint bare text="This JD came with the client’s brief. Extract from it as is, or edit first." className="ag-field-label">From the brief</Hint>
                         </p>
                       )}
                       {briefJd && briefJd !== role.jd_raw.trim() && (
@@ -1555,13 +1583,11 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           <button
                             className="ag-btn ag-btn-secondary"
                             disabled={busy !== null}
+                            title="Replaces your edits with the client’s exact text."
                             onClick={() => { patchRole({ jd_raw: briefJd }); void saveIntake({ jd_raw: briefJd }) }}
                           >
                             Use the JD from the client&rsquo;s brief
                           </button>
-                          <span className="ag-note" style={{ color: "var(--ag-ink-3)" }}>
-                            Replaces the box with their exact text.
-                          </span>
                         </div>
                       )}
                       <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
@@ -1570,9 +1596,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           Fetch and extract
                         </button>
                       </div>
-                      <p className="ag-note" style={{ marginTop: 8 }}>
-                        Extraction fills any empty fields below from the JD. It never overwrites what you typed, and never touches your notes.
-                      </p>
                     </div>
                   </div>
                   <div className="ag-card">
@@ -1600,7 +1623,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                             </option>
                           ))}
                         </select>
-                        <p className="ag-note" style={{ marginTop: 6 }}>Naming them puts this role in their workspace and their name on the header. Add contacts under Client access.</p>
+                        <p className="ag-note" style={{ marginTop: 6 }}>Naming them shows this role in their workspace.</p>
                       </div>
                       <div><label className="ag-label">Start target</label><input className="ag-input" placeholder="e.g. early November" value={role.start_target ?? ""} onChange={(e) => patchRole({ start_target: e.target.value })} onBlur={() => void saveIntake()} /></div>
                     </div>
@@ -1634,12 +1657,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         <BriefEditor briefId={roleBriefId} embedded roleTitle={role.title} onChanged={() => void reloadBrief()} />
                       ) : !role.contact_id ? (
                         <p className="ag-note">
-                          Name the hiring manager under Role &amp; client first — the terms are addressed to them, and they agree them in their workspace.
+                          Name the hiring manager first — the terms are addressed to them.
                         </p>
                       ) : (
                         <>
                           <p className="ag-note" style={{ marginBottom: 10 }}>
-                            The rounds, how the client decides, what they are shown, the feedback promise, the offer and references — agreed once, by both sides. It starts from the last terms agreed with {role.company.trim() || "this client"}, or your defaults.
+                            Starts from the last terms agreed with {role.company.trim() || "this client"}, or your defaults.
                           </p>
                           <button className="ag-btn ag-btn-primary" onClick={() => void startBrief()} disabled={startingBrief}>
                             {startingBrief ? "Starting…" : "Start the terms"}
@@ -1660,25 +1683,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     <div className="ag-card-head"><span className="ag-card-title">Discard this role</span><span className="ag-pill">Audit logged</span></div>
                     <div className="ag-card-body">
                       <p className="ag-note" style={{ marginBottom: 10 }}>
-                        For a role added twice, or by mistake. It leaves your lists and counts, and the
-                        record stays for the audit. Once anyone is on the role this is refused — close it
-                        instead, which tells the candidates and starts the retention clock.
+                        For a role added twice or by mistake; the record stays for audit. Once anyone is on
+                        it, close it instead — that tells candidates and starts the retention clock.
                       </p>
                       <button className="ag-btn ag-btn-secondary" disabled={discarding} onClick={() => void discardRole()}>
                         {discarding ? "Discarding…" : "Discard this role"}
                       </button>
                     </div>
                   </div>
-                </div>
-              </div>
-              <div className="ag-principle">
-                <span className="ag-principle-bar" />
-                <div>
-                  <div className="ag-field-label">Evidence first principle</div>
-                  <p className="ag-principle-text">
-                    Every score you see later points back to something in this brief or your notes. Where we have no proof we say{" "}
-                    <span className="ag-missing-chip">MISSING</span> rather than invent it, nobody is rejected automatically, and you stay in control of every decision.
-                  </p>
                 </div>
               </div>
             </>
@@ -1691,12 +1703,13 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   <h1 className="ag-title">Here&apos;s what we extracted.<br />Tune it before we score.</h1>
                   <p className="ag-sub">Choose how much each requirement counts. It never decides who is kept.</p>
                 </div>
-                <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <Hint info content={WEIGHTING_EXPLAINED}>How this works</Hint>
                   <button className="ag-btn" onClick={() => setStep("intake")}>Back</button>
                   <button className="ag-btn ag-btn-primary" onClick={() => setStep("candidates")} disabled={requirements.length === 0}>Continue to candidates</button>
                 </div>
               </div>
-              <div className="ag-grid-2" style={{ gridTemplateColumns: "1.5fr 1fr" }}>
+              <div className="ag-grid-2 ag-grid-2-wide">
                 <div className="ag-card">
                   <div className="ag-card-head">
                     <span className="ag-card-title">Requirements</span>
@@ -1752,23 +1765,6 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           <span className="ag-pill">{c.kind.replace("_", "-")}</span>
                         </div>
                       ))}
-                      {constraints.length > 0 && (
-                        <p style={{ borderTop: "1px solid var(--ag-border)", paddingTop: 10, margin: 0, fontSize: 12, color: "var(--ag-ink-3)" }}>
-                          Constraints act as filters, not scoring inputs. A candidate outside a constraint gets a flag, not a lower score.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="ag-card">
-                    <div className="ag-card-head"><span className="ag-card-title">Weighting model</span></div>
-                    <div className="ag-card-body">
-                      {[["Requirement coverage", 45], ["Evidence strength", 25], ["Seniority calibration", 10], ["Context fit", 10], ["Confidence", 10]].map(([name, pct]) => (
-                        <div className="ag-weight-row" key={name as string}>
-                          <span style={{ fontSize: 12.5, width: 150 }}>{name}</span>
-                          <div className="ag-weight-bar"><div className="ag-weight-fill" style={{ width: `${(pct as number) * 2}%` }} /></div>
-                          <span className="ag-meta">{pct}%</span>
-                        </div>
-                      ))}
                     </div>
                   </div>
                 </div>
@@ -1781,7 +1777,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               <div className="ag-screen-head">
                 <div>
                   <h1 className="ag-title">Add candidates.</h1>
-                  <p className="ag-sub">PDF, DOCX or pasted text, up to 50 per role. Scoring runs on the server the moment a CV lands.</p>
+                  <p className="ag-sub">Add up to 50 CVs per role — PDF, DOCX or pasted text.</p>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                   <button className="ag-btn" onClick={() => setStep("parse")}>Back</button>
@@ -1805,27 +1801,31 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               <div className="ag-card" style={{ marginBottom: 16 }}>
                 <div className="ag-card-head">
                   <span className="ag-card-title">Matched on Tailr</span>
-                  <span className="ag-pill">
-                    {requirements.length === 0
-                      ? "Needs requirements"
-                      : !matching?.enabled
-                        ? "Not scanning"
-                        : matching.scanQueued
-                          ? "Scan running"
-                          : matching.lastScanAt
-                            ? `Checked ${new Date(matching.lastScanAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
+                  {requirements.length > 0 && matching?.enabled && !matching.scanQueued && matching.lastScanAt ? (
+                    <Hint bare text="Re-runs on its own when you republish or the requirements change." className="ag-pill">
+                      {`Checked ${new Date(matching.lastScanAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
+                    </Hint>
+                  ) : (
+                    <span className="ag-pill">
+                      {requirements.length === 0
+                        ? "Needs requirements"
+                        : !matching?.enabled
+                          ? "Not scanning"
+                          : matching.scanQueued
+                            ? "Scan running"
                             : "Waiting for first scan"}
-                  </span>
+                    </span>
+                  )}
                 </div>
                 <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
                   {requirements.length === 0 ? (
                     <p className="ag-note" style={{ margin: 0 }}>
-                      Tailr scans against this role&apos;s requirements, so parse them first. Once they exist you can publish this role and the scan runs on its own.
+                      Parse the requirements first, then publish this role for matching.
                     </p>
                   ) : !matching?.enabled ? (
                     <>
                       <p className="ag-note" style={{ margin: 0 }}>
-                        Publish this role and Tailr scans every Tailr user who opted into matching, against these {requirements.length} requirements. Nobody is contacted, nothing is shared, and no agency browses anyone: you see only the people who match and who chose to be seen.
+                        Only people who opted into matching are scanned. Nobody is contacted; you see only those who chose to be seen.
                       </p>
                       {/* One publish control, and it is in the window. This
                           was a second threshold input and a second publish
@@ -1855,13 +1855,13 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         matching against, how far it has got, and who
                         consented to be seen, with room to read it.
                       */}
-                      <p className="ag-note" style={{ margin: 0 }}>
-                        {matching.scanQueued
-                          ? "The scan is running now. Nothing else is needed from you."
-                          : matching.lastScanAt
-                            ? "Scanned against this role's requirements. It re-runs on its own whenever you republish or the requirements change."
+                      {(matching.scanQueued || !matching.lastScanAt) && (
+                        <p className="ag-note" style={{ margin: 0 }}>
+                          {matching.scanQueued
+                            ? "The scan is running now. Nothing else is needed from you."
                             : "Published. The first scan is queued and will run shortly."}
-                      </p>
+                        </p>
+                      )}
                       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                         <button className="ag-btn ag-btn-primary" onClick={() => setMatchWindow(true)}>
                           {matching.scanQueued ? "Watch the scan" : "See who matched"}
@@ -2085,10 +2085,11 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 <div>
                   <h1 className="ag-title">Your call is the evidence<br />the CV could not give us.</h1>
                   <p className="ag-sub">
-                    Log what you learned. Overriding a strength rescores the candidate immediately, and every change is attributed to you in the audit trail.
+                    Record each call&rsquo;s answers against the requirements still open.
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <Hint info content={SCREENING_EXPLAINED}>How this works</Hint>
                   <span className="ag-meta">{reviewedCount}/{candidates.length} calls logged</span>
                   <button className="ag-btn" onClick={() => setStep("candidates")}>Back</button>
                   <button className="ag-btn ag-btn-primary" onClick={() => setStep("compare")} disabled={reviewedCount === 0}>
@@ -2167,7 +2168,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           <div className="ag-field-label">Questions for this call · {answeredProbes} of {chosenProbes.length} answered</div>
                           {chosenProbes.length === 0 && (
                             <p className="ag-quiet" style={{ padding: "14px 0", textAlign: "left" }}>
-                              No questions on this call yet. Write one below, or pick from the ones your requirements leave open.
+                              No questions yet — write one, or pick an open requirement.
                             </p>
                           )}
                           <div className="ag-stack" style={{ gap: 12 }}>
@@ -2575,7 +2576,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   <div>
                     <h1 className="ag-title">Every candidate, every<br />requirement, side by side.</h1>
                     <p className="ag-sub">
-                      The matrix shows post call evidence. Coral cells are your overrides. Decide here; nothing is decided for you.
+                      Choose who goes on the shortlist, from the evidence after screening.
                     </p>
                   </div>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -2699,11 +2700,11 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 </div>
 
                 <div className="ag-legend">
-                  <span className="ag-field-label" style={{ marginBottom: 0, marginRight: 4 }}>Legend</span>
-                  <StrengthKey strength="strong" label="Strong evidence — 1.0" />
-                  <StrengthKey strength="transferable" label="Transferable — 0.7" />
-                  <StrengthKey strength="partial" label="Partial — 0.4" />
-                  <StrengthKey strength="missing" label="Missing — 0.0" />
+                  <Hint bare text="Strong counts 1.0, transferable 0.7, partial 0.4, missing 0. Coral cells are your overrides." className="ag-field-label ag-legend-label">Legend</Hint>
+                  <StrengthKey strength="strong" label="Strong" />
+                  <StrengthKey strength="transferable" label="Transferable" />
+                  <StrengthKey strength="partial" label="Partial" />
+                  <StrengthKey strength="missing" label="Missing" />
                 </div>
 
                 <div className="ag-cmp-grid">
@@ -2944,7 +2945,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       {countWordCap(shortlisted)} candidate{shortlisted === 1 ? "" : "s"}, ready for {company}.
                     </h1>
                     <p className="ag-sub">
-                      They open it in their Tailr workspace, where they choose who to meet and offer the times they can do. Your reasoning travels with it.
+                      Send the shortlist to the client&rsquo;s workspace, with your reasoning attached.
                     </p>
                   </div>
                   {/* A COMPLETED STATE MUST NOT BE ARMED (13 Sep 2026).
@@ -3013,10 +3014,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         This shortlist has already gone to {role.company || "your client"}.
                       </div>
                       <p className="ag-note" style={{ margin: "0 0 6px" }}>
-                        Sending again does not replace what they have. It generates a second
-                        snapshot from today&apos;s evidence, mints fresh portal links, and puts a
-                        second copy in your recipients&apos; workspace. The copy they already hold
-                        stays exactly as it was. This is recorded against your name.
+                        Sending again adds a second snapshot with fresh links; the copy they hold stays
+                        as it was. Recorded under your name.
                       </p>
                       <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
                         <button
@@ -3044,10 +3043,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         {representAsk.refs.join(", ")} {representAsk.refs.length === 1 ? "has" : "have"} not agreed to be put forward.
                       </div>
                       <p className="ag-note" style={{ margin: "0 0 6px" }}>
-                        The ask is on their rights page and they have not answered it. Unanswered is
-                        not yes. You can go ahead anyway — that is your call to make, it is recorded
-                        against your name in the audit log, and the candidate can still withdraw
-                        later, which stops future submissions.
+                        The ask is on their rights page, unanswered — and unanswered is not yes. Going
+                        ahead is your call and audit-logged; they can still withdraw, which stops future
+                        submissions.
                       </p>
                       <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
                         <button
@@ -3068,7 +3066,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 {shortlisted === 0 ? (
                   <div className="ag-card">
                     <div className="ag-quiet">
-                      Nothing shortlisted yet. Go back to compare and shortlist the candidates you want to submit.
+                      Nothing shortlisted yet — shortlist candidates on Compare.
                     </div>
                   </div>
                 ) : (
@@ -3083,7 +3081,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
                             {contacts.length === 0 && (
                               <p className="ag-note" style={{ margin: 0 }}>
-                                No client contacts yet. Add the hiring manager and the shortlist goes to them.
+                                No client contacts yet — add the hiring manager under Client access.
                               </p>
                             )}
                             {contacts.map((contact) => {
@@ -3189,22 +3187,20 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                               </li>
                               {recipients.length > 0 && (
                                 <li data-ok={noWorkspace.length === 0}>
-                                  <span>
+                                  <Hint
+                                    bare
+                                    text={noWorkspace.length === 0 ? "Sent to their Tailr account — no email to find." : "The invite and shortlist arrive in one email."}
+                                  >
                                     {noWorkspace.length === 0
                                       ? recipients.length === 1 ? "They have a workspace" : "They all have a workspace"
                                       : `${noWorkspace.length} will be invited first`}
-                                  </span>
-                                  <small>
-                                    {noWorkspace.length === 0
-                                      ? "Sent to their account. Nobody has to find an email."
-                                      : "The invite and the shortlist arrive in one email."}
-                                  </small>
+                                  </Hint>
                                 </li>
                               )}
                               {twins.map((c) => (
                                 <li key={c.id} data-ok="false">
                                   <span>{c.ref} looks like {candidates.find((o) => o.id === c.duplicate_of)?.ref ?? "another candidate"}</span>
-                                  <small>Both are shortlisted. They would reach the client as two people.</small>
+                                  <small>Both shortlisted — the client would see two people.</small>
                                 </li>
                               ))}
                             </ul>
@@ -3244,7 +3240,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           <p className="ag-meta" style={{ margin: "10px 0 0" }}>
                             {alreadySent
                               ? "Locked. These choices were written into the submission when you sent it."
-                              : "Written into the submission when you send, so what the client received can never change afterwards."}
+                              : "Frozen into the submission when you send; what the client received never changes."}
                           </p>
                         </div>
                       </div>
@@ -3257,9 +3253,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                           </div>
                           <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
                             {([
-                              ["email", "Email them a summary", "Names, one line each, and a button back to the workspace. Never the whole shortlist in an inbox."],
-                              ["pdf", "PDF for their files", "The printable document, with the confidentiality footer and known gaps stated plainly. Opens to save when you send."],
-                              ["link", "A link for someone without an account", "Personal, expires in 30 days, revocable on its own. Shown once after you send."],
+                              ["email", "Email them a summary", "Names and a link back only — never the shortlist in an inbox."],
+                              ["pdf", "PDF for their files", ""],
+                              ["link", "A link for someone without an account", "Expires in 30 days, revocable. Shown once after you send."],
                             ] as const).map(([key, title, sub]) => (
                               <label key={key} className="ag-extra-row">
                                 <input
@@ -3268,8 +3264,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                                   onChange={(e) => setExtras((x) => ({ ...x, [key]: e.target.checked }))}
                                 />
                                 <span>
-                                  <span className="ag-extra-title">{title}</span>
-                                  <span className="ag-prose-note">{sub}</span>
+                                  {key === "pdf" ? (
+                                    <Hint bare text="Printable, with the confidentiality footer and known gaps. Opens to save when you send." className="ag-extra-title">
+                                      {title}
+                                    </Hint>
+                                  ) : (
+                                    <span className="ag-extra-title">{title}</span>
+                                  )}
+                                  {sub && <span className="ag-prose-note">{sub}</span>}
                                 </span>
                               </label>
                             ))}
@@ -3296,7 +3298,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                               </div>
                             ))}
                             <p className="ag-note">
-                              Never sent to the client. The reason each was not submitted stays in the audit log.
+                              Never sent to the client; the reasons stay in the audit log.
                             </p>
                           </div>
                         </details>
@@ -3480,7 +3482,11 @@ function SentLinks({ roleId }: { roleId: string }) {
                     </span>
                   </span>
                 ) : (
-                  <button className="ag-btn ag-btn-secondary" onClick={() => setConfirming(r.id)}>
+                  <button
+                    className="ag-btn ag-btn-secondary"
+                    title="Stops this one link. The record of what they were sent stays, and other recipients are untouched."
+                    onClick={() => setConfirming(r.id)}
+                  >
                     Revoke
                   </button>
                 ))}
@@ -3488,10 +3494,6 @@ function SentLinks({ roleId }: { roleId: string }) {
           ))
         )}
         {error && <span className="ag-meta" style={{ color: "var(--ag-coral-text)" }}>{error}</span>}
-        <span className="ag-meta">
-          Revoking kills one person&apos;s link. It never deletes the record of what they were
-          sent, and never touches the other recipients.
-        </span>
       </div>
     </div>
   )

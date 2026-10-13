@@ -174,7 +174,6 @@ export function BriefEditor({
       <button className="ag-btn ag-btn-primary" onClick={() => void act("approve")} disabled={!!busy || uploading}>
         {busy === "approve" ? "Approving…" : `Approve v${brief.currentVersion} as ${brief.contactName} changed it`}
       </button>
-      <span className="ag-note">Or change it, which sends v{brief.currentVersion + 1} back to them.</span>
     </div>
   )
 
@@ -221,9 +220,6 @@ export function BriefEditor({
             Cancel
           </button>
         )}
-        <span className="ag-note">
-          {isDraft ? "Sending is v1 and signs it for your side." : "An amendment is a new version, signed by you; their earlier approval was on the old one."}
-        </span>
       </div>
     </>
   )
@@ -232,9 +228,6 @@ export function BriefEditor({
   if (embedded) {
     return (
       <div className="ag-stack" style={{ gap: 14 }}>
-        <p className="ag-note" style={{ margin: 0 }}>
-          What {brief.contactName} agrees to before interviews start. The role runs on these terms now; approval is not a gate.
-        </p>
         {error && (
           <p className="ag-banner" role="alert">
             {error}
@@ -255,13 +248,9 @@ export function BriefEditor({
               <button className="ag-btn ag-btn-secondary" onClick={() => setEditing(true)} disabled={!!busy}>
                 Edit the terms
               </button>
-              <span className="ag-note">
-                {isDraft
-                  ? `${brief.contactName} reads it in their workspace. Changes come back as a new version; you see what changed.`
-                  : brief.latest.sentAt
-                    ? `v${brief.currentVersion} sent ${fmt(brief.latest.sentAt)}.`
-                    : ""}
-              </span>
+              {!isDraft && brief.latest.sentAt && (
+                <span className="ag-note">{`v${brief.currentVersion} sent ${fmt(brief.latest.sentAt)}.`}</span>
+              )}
             </div>
           </>
         )}

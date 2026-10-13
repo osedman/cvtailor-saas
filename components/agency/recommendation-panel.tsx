@@ -40,9 +40,9 @@ const GROUP_BLURBS: Record<string, string> = {
   recommended:
     "Every must-have evidenced, or answered by something you wrote on the call.",
   second_look:
-    "Strong where it counts, with one gap named plainly. A requirement with nothing under it yet — not a judgement about the person.",
+    "Strong where it counts, with one gap named. A gap means nothing evidenced yet — not a judgement of the person.",
   not_yet:
-    "Each one carries the specific must-have with nothing under it. All of them stay on the matrix, in the order you left them, one click from the shortlist.",
+    "Each names the must-have with nothing under it. They stay on the matrix, one click from the shortlist.",
 }
 
 function takeForward(n: number): string {
@@ -89,10 +89,6 @@ export function RecommendationPanel({
                 ? `${candidateCount} candidates is a lot to read.`
                 : "Read your own screening notes back, grouped."}
             </h2>
-            <p className="ag-sub" style={{ marginTop: 6 }}>
-              Tailr can read the answers you wrote on the screening calls and the scores they moved,
-              and come back with a shortlist to argue with. It recommends; you add.
-            </p>
           </div>
           <button className="ag-btn ag-btn-primary ag-reco-go" onClick={onGenerate} disabled={busy}>
             {busy ? (
@@ -129,6 +125,9 @@ export function RecommendationPanel({
                   Three groups, every candidate named once, each with the reason and the quote, call answer
                   or override behind it. Nothing is hidden, and nothing is decided until you add someone.
                 </span>
+                <span className="ag-hint-block">
+                  Running it again re-reads everything and never changes a decision you have made.
+                </span>
               </>
             }
           >
@@ -152,11 +151,6 @@ export function RecommendationPanel({
               Recommendation · Generated {new Date(result.generated_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} · From {result.items.length} CVs, {callsLogged === 1 ? "1 candidate's" : `${callsLogged} candidates'`} call answers and {result.items.length} scores
             </span>
             <h2 className="ag-reco-h">{takeForward(result.counts.recommended)}</h2>
-            <p className="ag-sub ag-reco-reading-sub">
-              A reading of your own notes, not a filter. Everyone is still on the matrix in the order
-              you left them. Adding someone here — from any group — is the only thing that writes a
-              decision, and it is your click.
-            </p>
           </div>
 
           {GROUP_ORDER.map((group) => {
@@ -168,10 +162,11 @@ export function RecommendationPanel({
               <section key={group} className="ag-card ag-reco-group" data-group={group} data-collapsed={collapsed}>
                 <div className="ag-reco-group-head">
                   <div className="ag-reco-group-text">
-                    <span className="ag-field-label" style={{ marginBottom: 0 }}>
-                      {GROUP_LABELS[group]} · {items.length}
+                    <span className="ag-field-label ag-reco-group-label" style={{ marginBottom: 0 }}>
+                      <Hint info text={GROUP_BLURBS[group]}>
+                        {GROUP_LABELS[group]} · {items.length}
+                      </Hint>
                     </span>
-                    <p className="ag-reco-blurb">{GROUP_BLURBS[group]}</p>
                   </div>
                   <GroupAction
                     group={group}
@@ -234,28 +229,20 @@ export function RecommendationPanel({
                 <p key={r.ref} className="ag-reco-change-line">
                   <b>
                     {r.ref} · {r.text}
-                  </b>{" "}
-                  is a {r.weight === "must" ? "must-have" : "requirement"}, and nobody has been asked
-                  about it — {r.candidates} of {result.items.length}, no CV evidence and no call
-                  answer. It is carried by no one in any group above, because there is nothing to
-                  carry.
+                  </b>
+                  : a {r.weight === "must" ? "must-have" : "requirement"} nobody has been asked about
+                  — {r.candidates} of {result.items.length} have no CV evidence or call answer.
                 </p>
               ))}
               {result.no_call > 0 && (
                 <p className="ag-reco-change-line">
                   {result.no_call} candidate{result.no_call === 1 ? " has" : "s have"} no screening
-                  call logged at all. This recommendation is reading a thinner record than it looks,
-                  and says so rather than filling the space.
+                  call logged, so this reads a thinner record.
                 </p>
               )}
             </div>
           )}
 
-          <p className="ag-field-label ag-reco-foot">
-            The recommendation proposes; you add. Every add here is the same decision as on the
-            matrix — yours, audit-logged, reversible until you confirm. Running it again re-reads
-            everything and never touches a decision you have made.
-          </p>
         </>
       )}
     </div>

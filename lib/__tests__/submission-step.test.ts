@@ -54,7 +54,8 @@ describe("a sent submission is a fact, not a button", () => {
     const ask = page.slice(page.indexOf("resendAsk &&"), page.indexOf("representAsk &&"))
     expect(ask).toMatch(/role="alertdialog"/)
     expect(ask).toMatch(/second\s+snapshot/)
-    expect(ask).toMatch(/fresh\s+portal\s+links/)
+    // Frame 43 (13 Oct 2026) shortened it to "fresh links".
+    expect(ask).toMatch(/fresh\s+(portal\s+)?links/)
     expect(ask).toMatch(/Cancel/)
     // Nothing is pre-selected and the destructive option is not the default
     // shape used elsewhere for a safe action.

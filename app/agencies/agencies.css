@@ -3139,3 +3139,24 @@ a.ag-rh-next:hover { opacity: 0.86; }
   .ag-lv-row { grid-template-columns: auto minmax(0, 1fr) auto; }
   .ag-lv-seg { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
 }
+
+/* ── Phase 1 declutter — frame 43 (approved 13 Oct 2026) ── */
+/* The legend's label is a bare hint now; it keeps the inline spacing it had. */
+.ag-legend .ag-legend-label { margin-bottom: 0; margin-right: 4px; }
+/* The next-scan date was bold inside its sentence; as a bare hint it still is. */
+.ag-match-next { font-weight: 600; }
+/* A recommendation group's label carries its blurb as an info hint, in the
+   label's own face rather than the hint link's. */
+.ag-reco-group-label .ag-hint-info { font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; padding: 0; }
+/* The screen head's action row gained a "How this works" link; on a phone it
+ * must wrap rather than push the page sideways (found at 390px, 13 Oct). */
+.ag-screen-head > div:last-child { flex-wrap: wrap; row-gap: 8px; }
+@media (max-width: 560px) { .ag-screen-head > div:last-child { justify-content: flex-start; } }
+/* Step 02's columns were set inline, which beat the 900px one-column rule and
+ * squeezed the requirement rows to a sliver on a phone (found 13 Oct). */
+.ag-grid-2-wide { grid-template-columns: 1.5fr 1fr; }
+@media (max-width: 900px) { .ag-grid-2-wide { grid-template-columns: 1fr; } }
+/* The screen head stacks on a phone: title first, then the actions. */
+@media (max-width: 760px) {
+  .ag-screen-head { flex-direction: column; align-items: stretch; gap: 12px; }
+}

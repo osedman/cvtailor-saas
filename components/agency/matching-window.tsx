@@ -317,23 +317,15 @@ export function MatchingWindow({
           <div className="ag-match-publish" data-live={matching?.enabled || undefined}>
             {requirements.length === 0 ? (
               <>
-                <p className="ag-note" style={{ marginTop: 0 }}>
-                  Matching scores people against this role&apos;s requirements, so it needs them
-                  parsed first. Extract them and this turns on.
-                </p>
-                <button className="ag-btn ag-btn-secondary" style={{ marginTop: 12 }} disabled>
+                <button className="ag-btn ag-btn-secondary" disabled>
                   Parse requirements first
                 </button>
-                <p className="ag-note" style={{ marginTop: 8 }}>
-                  Nothing has been published and nobody has been scanned.
-                </p>
               </>
             ) : (
               <>
                 <p className="ag-note" style={{ marginTop: 0 }}>
-                  There is no job board. Tailr scans each consumer user&apos;s own evidence — on
-                  their side — and quietly nudges the people who fit. Applying is their consent;
-                  until someone applies, you see nobody.
+                  Tailr nudges the people who fit. Applying is their consent; until someone applies,
+                  you see nobody.
                 </p>
 
                 <div className="ag-match-publish-row">
@@ -386,11 +378,11 @@ export function MatchingWindow({
                     )}
                     {cooldownUntil ? (
                       <>
-                        The next scan runs{" "}
-                        <b>{cooldownUntil.toLocaleString("en-GB", { weekday: "long", hour: "2-digit", minute: "2-digit" })}</b>
-                        , and your score applies to it. Changing the number does not buy an extra
-                        scan — a day between scans is what stops the threshold being used to probe
-                        who is in the pool.
+                        Next scan{" "}
+                        <Hint bare text="One scan a day stops the threshold being used to probe who is in the pool." className="ag-match-next">
+                          {cooldownUntil.toLocaleString("en-GB", { weekday: "long", hour: "2-digit", minute: "2-digit" })}
+                        </Hint>
+                        ; your score applies then.
                       </>
                     ) : (
                       <>A scan is available now — updating the score runs one.</>
@@ -412,10 +404,9 @@ export function MatchingWindow({
           </div>
           <p className="ag-note" style={{ marginTop: 10 }}>
             {requirements.length} requirement{requirements.length === 1 ? "" : "s"},{" "}
-            {musts.length} of them must-haves
-            {matching?.minScore != null ? ` · minimum fit ${matching.minScore}` : ""}. A person is
-            only ever considered against what this role asks for — there is no general ranking of
-            people, and nothing is scored about anyone that is not a requirement you wrote.
+            {musts.length} must-have{musts.length === 1 ? "" : "s"}
+            {matching?.minScore != null ? ` · minimum fit ${matching.minScore}` : ""}. People are
+            scored only against these — never ranked in general.
           </p>
 
           {/* ── The scan, right now ─────────────────────────────────────── */}
@@ -431,12 +422,7 @@ export function MatchingWindow({
                     : "Published. The first scan is queued and will run shortly."}
             </p>
             {scanning && (
-              <>
-                <div className="ag-match-bar" aria-hidden="true"><span /></div>
-                <p className="ag-note" style={{ marginTop: 8 }}>
-                  This usually takes under a minute. You can close this and come back.
-                </p>
-              </>
+              <div className="ag-match-bar" aria-hidden="true"><span /></div>
             )}
           </div>
 
@@ -448,8 +434,7 @@ export function MatchingWindow({
               did not already say. */}
           {matched !== null && pool !== null && people.length === 0 && pool.people.length === 0 && (
             <p className="ag-note" style={{ marginTop: 26 }}>
-              Nobody who matched has chosen to be seen yet. People control whether recruiters can
-              see them, and can change it at any time.
+              Nobody who matched has chosen to be seen yet. They can change that any time.
             </p>
           )}
           {people.length > 0 && (
@@ -547,9 +532,7 @@ export function MatchingWindow({
               <p className="ag-field-label" style={{ marginBottom: 6 }}>And some who did not</p>
               <p style={{ margin: 0 }}>
                 {matched.bucket === "handful" ? "A handful" : "Some"} of the people who matched have
-                not chosen to be seen. They stay a rounded count — never listed, never counted
-                exactly, and never hinted at again. That is what makes choosing to be seen a real
-                choice.
+                not chosen to be seen. They are never listed or counted exactly.
               </p>
             </div>
           )}

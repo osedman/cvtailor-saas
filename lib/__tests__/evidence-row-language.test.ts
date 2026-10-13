@@ -120,11 +120,15 @@ describe("what must not regress", () => {
     // way passed this week while the writer's copy was gutted. This asserts
     // the sentence AROUND the chip, in the order a person reads it.
     const src = screen()
-    const start = src.indexOf("No evidence found in the CV for this requirement")
+    //
+    // Frame 43 (approved 13 Oct 2026) shortened the sentence; Ose kept it
+    // visible and uncollapsed. The pin is as strict as before: the chip,
+    // then the sentence, in the evidence row's own missing paragraph.
+    const start = src.indexOf('<p className="ag-evrow-missing">')
     expect(start).toBeGreaterThan(-1)
     const block = src.slice(start, start + 400).replace(/\s+/g, " ")
     expect(block).toMatch(
-      /No evidence found in the CV for this requirement\. Marked\{" "\}\s*<span className="ag-missing-chip">MISSING<\/span>\. Confirm on the screening call rather than assuming either way\./,
+      /<p className="ag-evrow-missing"> <span className="ag-missing-chip">MISSING<\/span>\{" "\} No evidence in the CV\. Confirm on the call\. <\/p>/,
     )
   })
 

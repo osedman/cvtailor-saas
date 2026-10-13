@@ -84,7 +84,6 @@ export function ShortlistRail({
           {clientName?.trim() || "The client"} sees each name as you add it. The CV, evidence and scores wait for
           the submission.
         </p>
-        <p className="ag-sl-visible">Names visible to the client</p>
       </div>
 
       <ol className="ag-sl-list">
@@ -129,9 +128,6 @@ export function ShortlistRail({
         >
           2 · Confirm shortlist →
         </button>
-        <p className="ag-sl-caption">
-          Next: choose what else the client reads, then send.
-        </p>
       </div>
     </section>
   )

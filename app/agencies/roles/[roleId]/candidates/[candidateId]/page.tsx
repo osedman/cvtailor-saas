@@ -53,9 +53,8 @@ export default function CandidateDetailPage({
         </div>
         <SignOut />
         <div className="ag-sidebar-foot">
-          <div className="ag-eyebrow" style={{ marginBottom: 6 }}>Decision support only</div>
           <div style={{ fontSize: 12, color: "var(--ag-ink-3)" }}>
-            No candidate is ever auto-rejected. All shortlists are subject to recruiter judgment.
+            Decision support only. No candidate is ever rejected automatically.
           </div>
         </div>
       </aside>

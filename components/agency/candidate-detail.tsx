@@ -16,6 +16,7 @@ import type { Strength, Weight } from "@/lib/agency/types"
 import { RoleHeader } from "@/components/agency/role-header"
 import { CandidateCompliance } from "@/components/agency/candidate-compliance"
 import { AdjustedPill, ConfidenceBars, ScoreBreakdown } from "@/components/agency/score-parts"
+import { Hint } from "@/components/agency/hint"
 
 interface Requirement { id: string; ref: string; text: string; weight: string; category?: string }
 interface Candidate { id: string; ref: string; full_name: string; current_title: string; years: number | null; location: string; salary_text?: string; redacted: boolean }
@@ -239,7 +240,7 @@ export function CandidateDetail({
                         <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.65 }}>{narrative}</p>
                       ) : (
                         <p className="ag-note ag-note-quiet">
-                          No narrative written yet. Whatever you record here travels to the client as this candidate&apos;s write up.
+                          No narrative yet. If you share notes, the client reads this write-up.
                         </p>
                       )}
                       <textarea
@@ -342,9 +343,8 @@ export function CandidateDetail({
                                  refuses to let an absence read as a negative
                                  judgement, which is work no chip does alone. */
                               <p className="ag-evrow-missing">
-                                No evidence found in the CV for this requirement. Marked{" "}
-                                <span className="ag-missing-chip">MISSING</span>. Confirm on the screening call rather than
-                                assuming either way.
+                                <span className="ag-missing-chip">MISSING</span>{" "}
+                                No evidence in the CV. Confirm on the call.
                               </p>
                             )}
 
@@ -392,12 +392,9 @@ export function CandidateDetail({
                   </div>
 
                   <p className="ag-note" style={{ marginBottom: 8 }}>
-                    Also on the{" "}
                     <a className="ag-crumb-link" style={{ textDecoration: "underline" }} href={`/agencies/candidates/${candidateId}`}>
-                      candidate file
+                      Open candidate file
                     </a>
-                    {" "}— the operational record outside the workflow, where these travel into the
-                    handover pack.
                   </p>
                   <CandidateCompliance candidateId={candidateId} />
 
@@ -430,7 +427,7 @@ export function CandidateDetail({
                       })}
                       {unevidenced.length > 0 && (
                         <p className="ag-note">
-                          Still unevidenced: {unevidenced.map((r) => r.ref).join(", ")}. Worth asking if the call has not covered them.
+                          Still unevidenced: {unevidenced.map((r) => r.ref).join(", ")}.
                         </p>
                       )}
                     </div>
@@ -456,16 +453,15 @@ export function CandidateDetail({
                   )}
 
                   <div className="ag-card">
-                    <div className="ag-card-head"><span className="ag-card-title">Your decision</span></div>
+                    <div className="ag-card-head">
+                      <Hint bare text="Reversible, and audit-logged under your name." className="ag-card-title">Your decision</Hint>
+                    </div>
                     <div className="ag-card-body ag-stack" style={{ gap: 10 }}>
                       <div className="ag-seg" style={{ width: "100%" }}>
                         {["shortlist", "hold", "reject"].map((d) => (
                           <button key={d} style={{ flex: 1 }} className={decision === d ? "on" : ""} onClick={() => decide(d)}>{d}</button>
                         ))}
                       </div>
-                      <p className="ag-note">
-                        Decisions are yours and reversible. Tailr never rejects a candidate.
-                      </p>
                       <div>
                         <div className="ag-field-label">Note for the record</div>
                         <textarea
