@@ -12,10 +12,11 @@ import {
   updateRequirement,
 } from "@/lib/agency/db"
 import type { Weight } from "@/lib/agency/types"
+import { rescoreRole } from "@/lib/agency/rescore"
 import { errorMessage } from "@/lib/error-message"
 import { withTiming } from "@/lib/server-timing"
 
-export const maxDuration = 15
+export const maxDuration = 60
 
 function authFail(failure: "unauthenticated" | "no_agency") {
   return NextResponse.json(
@@ -48,7 +49,11 @@ async function PATCH_handler(
       patch,
       typeof body?.reason === "string" ? body.reason.slice(0, 300) : undefined
     )
-    return NextResponse.json({ requirement })
+    // A weight is role-wide: every candidate's fit moves with it (frame 41).
+    const rescored = patch.weight && requirement?.role_id
+      ? await rescoreRole(auth.ctx.agencyId, requirement.role_id as string)
+      : 0
+    return NextResponse.json({ requirement, rescored })
   } catch (error) {
     if (error instanceof AgencyAccessError) {
       return NextResponse.json({ error: error.message }, { status: 403 })
@@ -68,8 +73,10 @@ async function DELETE_handler(
     const { requirementId } = await params
     const auth = await requireAgencyContext()
     if (!auth.ok) return authFail(auth.failure)
-    await deleteRequirement(auth.ctx, requirementId)
-    return NextResponse.json({ deleted: true })
+    const { role_id } = await deleteRequirement(auth.ctx, requirementId)
+    // Removing a requirement changes every candidate's coverage too.
+    const rescored = await rescoreRole(auth.ctx.agencyId, role_id)
+    return NextResponse.json({ deleted: true, rescored })
   } catch (error) {
     if (error instanceof AgencyAccessError) {
       return NextResponse.json({ error: error.message }, { status: 403 })

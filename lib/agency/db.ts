@@ -494,7 +494,7 @@ export async function deleteRequirement(
   ctx: AgencyContext,
   requirementId: string,
   reason?: string
-): Promise<void> {
+): Promise<{ role_id: string }> {
   assertWriter(ctx)
   const admin = agencyAdmin()
   const existing = await assertAgencyRow(admin, "requirements", requirementId, ctx.agencyId)
@@ -512,4 +512,5 @@ export async function deleteRequirement(
     fromValue: { text: existing.text, weight: existing.weight },
     reason,
   })
+  return { role_id: existing.role_id as string }
 }

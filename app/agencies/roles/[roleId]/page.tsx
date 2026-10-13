@@ -119,11 +119,14 @@ interface Review { candidate_id: string; status: string; communication: number |
 interface Evidence { candidate_id: string; requirement_id: string; strength: string; quote: string | null; source_cite?: string }
 
 type Strength = "strong" | "transferable" | "partial" | "missing"
-const WEIGHT_ORDER: Record<string, "must" | "important" | "nice"> = { must: "important", important: "nice", nice: "must" }
 const GROUPS: Array<{ weight: "must" | "important" | "nice"; label: string; hint: string }> = [
-  { weight: "must", label: "Must have", hint: "Weight about 45% of the score. Zero here is a hard fail." },
-  { weight: "important", label: "Important", hint: "Weighted, but not disqualifying if missing." },
-  { weight: "nice", label: "Nice to have", hint: "Signal only. Adds bonus points, never subtracts." },
+  // Frame 41 (approved 9 Oct 2026): what each level actually does to the
+  // score — WEIGHT_MULTIPLIER in lib/agency/strengths.ts. The old lines said
+  // "zero here is a hard fail" (nothing is ever rejected) and "never
+  // subtracts" (a missing nice-to-have does lower coverage, a little).
+  { weight: "must", label: "Must have", hint: "Counts 3× toward requirement coverage. A must-have with no evidence is flagged as a gap to ask about, never an automatic rejection." },
+  { weight: "important", label: "Important", hint: "Counts 2×. Missing evidence lowers the score; it is not flagged on its own." },
+  { weight: "nice", label: "Nice to have", hint: "Counts 1×, the least. A gap here moves the score only a little." },
 ]
 
 /** The levels a gap answer can set (board 40). "Still missing" is an override too. */
@@ -759,19 +762,31 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
     }
   }
 
-  async function cycleWeight(req: Requirement) {
-    const weight = WEIGHT_ORDER[req.weight]
+  // Frame 41: the level is chosen, not cycled. The route rescores every
+  // candidate on the role, so the scores are re-read afterwards.
+  async function setWeight(req: Requirement, weight: "must" | "important" | "nice") {
+    if (req.weight === weight) return
+    const before = req.weight
     setRequirements((rs) => rs.map((r) => (r.id === req.id ? { ...r, weight } : r)))
-    await fetch(`/api/agency/requirements/${req.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weight }),
-    })
+    try {
+      const res = await fetch(`/api/agency/requirements/${req.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weight }),
+      })
+      if (!res.ok) throw new Error(res.status === 403 ? "You have view-only access to this agency." : "That level did not save.")
+      setError(null)
+      if (candidates.length > 0) await loadCandidates()
+    } catch (e) {
+      setRequirements((rs) => rs.map((r) => (r.id === req.id ? { ...r, weight: before } : r)))
+      setError(e instanceof Error ? e.message : "That level did not save.")
+    }
   }
 
   async function removeRequirement(req: Requirement) {
     setRequirements((rs) => rs.filter((r) => r.id !== req.id))
     await fetch(`/api/agency/requirements/${req.id}`, { method: "DELETE" })
+    if (candidates.length > 0) await loadCandidates()
   }
 
   async function ingest(bodyInit: RequestInit) {
@@ -1674,7 +1689,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               <div className="ag-screen-head">
                 <div>
                   <h1 className="ag-title">Here&apos;s what we extracted.<br />Tune it before we score.</h1>
-                  <p className="ag-sub">Click a chip to cycle its weight. This is the human in the loop moment before anything is scored.</p>
+                  <p className="ag-sub">Choose how much each requirement counts. It never decides who is kept.</p>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                   <button className="ag-btn" onClick={() => setStep("intake")}>Back</button>
@@ -1688,20 +1703,41 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     <span className="ag-meta">{(["must", "important", "nice"] as const).map((w) => `${requirements.filter((r) => r.weight === w).length} ${w}`).join(" · ")}</span>
                   </div>
                   <div className="ag-card-body ag-stack" style={{ gap: 20 }}>
-                    {GROUPS.map((group) => (
-                      <div key={group.weight}>
-                        <div className="ag-meta" style={{ marginBottom: 2 }}>{group.label}</div>
-                        <div className="ag-group-hint">{group.hint}</div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                          {requirements.filter((r) => r.weight === group.weight).map((req) => (
-                            <span key={req.id} className={`ag-chip ${req.weight === "must" ? "must" : req.weight === "nice" ? "nice" : ""}`} onClick={() => cycleWeight(req)}>
-                              <span className="id">{req.ref}</span> {req.text}
-                              <button className="x" onClick={(e) => { e.stopPropagation(); removeRequirement(req) }}>×</button>
-                            </span>
+                    {GROUPS.map((group) => {
+                      const inGroup = requirements.filter((r) => r.weight === group.weight)
+                      return (
+                        <section key={group.weight} className="ag-lv-group" aria-labelledby={`lv-${group.weight}`}>
+                          <div className="ag-lv-head">
+                            <h3 className="ag-lv-title" id={`lv-${group.weight}`}>
+                              {group.label} <span className="ag-lv-n">{inGroup.length}</span>
+                            </h3>
+                            <p className="ag-lv-hint">{group.hint}</p>
+                          </div>
+                          {inGroup.map((req) => (
+                            <div key={req.id} className="ag-lv-row">
+                              <span className="ag-lv-ref">{req.ref}</span>
+                              <span className="ag-lv-text">{req.text}</span>
+                              {/* A radio group per requirement: arrow keys move it. */}
+                              <span className="ag-lv-seg" role="radiogroup" aria-label={`Level for ${req.ref}`}>
+                                {GROUPS.map((g) => (
+                                  <label key={g.weight} className="ag-lv-opt" data-on={req.weight === g.weight || undefined} data-level={g.weight}>
+                                    <input
+                                      type="radio"
+                                      name={`lv-${req.id}`}
+                                      value={g.weight}
+                                      checked={req.weight === g.weight}
+                                      onChange={() => void setWeight(req, g.weight)}
+                                    />
+                                    {g.label}
+                                  </label>
+                                ))}
+                              </span>
+                              <button className="ag-icon-btn ag-lv-x" onClick={() => removeRequirement(req)} aria-label={`Remove ${req.ref}`} title={`Remove ${req.ref}`}>×</button>
+                            </div>
                           ))}
-                        </div>
-                      </div>
-                    ))}
+                        </section>
+                      )
+                    })}
                   </div>
                 </div>
                 <div className="ag-stack">

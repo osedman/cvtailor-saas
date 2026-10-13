@@ -8591,3 +8591,23 @@ Plan sent to Ose for sign-off: a guidance rule set (frame 42), then four
 phases — workflow steps, the other recruiter screens, the hiring-manager
 surface with a persistent "Viewing as" switch, and the doorways (consent and
 rights untouched pending the lawyer). Nothing built yet.
+
+### Requirement levels you choose — frame 41 (9 Oct 2026, built 13 Oct)
+
+UAT review item 3; frame `41` (682:2), approved by Ose. Step 02's
+click-to-cycle chips are gone: each requirement is a row with a labelled
+radio group (Must have · Important · Nice to have; arrow keys move it). The
+group lines now match the scoring code — 3×, 2×, 1× toward requirement
+coverage; a must-have with no evidence is flagged, never rejected — replacing
+"zero here is a hard fail" and "never subtracts", both untrue.
+
+**Bug fixed on the way:** changing a requirement's weight, or removing one,
+never rescored the candidates already on the role, so their fit went stale
+until something else touched each of them. New `rescoreRole()` in
+`lib/agency/rescore.ts` (requirements loaded once, candidates five at a
+time); the requirement PATCH and DELETE routes call it (maxDuration 60), and
+the page re-reads the scores. A failed level save now rolls back with a
+message instead of silently showing the new level.
+
+Browser check at 1280 and 390 on a throwaway page with the real classes,
+including the keyboard. Tests: `frame-41-levels` (5 new). tsc clean.

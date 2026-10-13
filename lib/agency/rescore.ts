@@ -270,3 +270,29 @@ export async function applyOverrides(
 
   return recomputeAndStore(admin, ctx.agencyId, candidateId)
 }
+
+/**
+ * Rescore every candidate on a role (frame 41, 9 Oct 2026).
+ *
+ * Requirements are role-level, so changing one requirement's weight — or
+ * removing one — changes every candidate's fit. Before this, neither did
+ * anything to the stored scores: they went stale until some other change
+ * touched each candidate, and the step-02 level choice looked like it did
+ * nothing. Requirements are loaded once and shared; candidates are rescored
+ * a few at a time to stay inside the route's time budget.
+ */
+export async function rescoreRole(agencyId: string, roleId: string): Promise<number> {
+  const admin = agencyAdmin()
+  const [{ data: reqs, error: reqErr }, { data: cands, error: candErr }] = await Promise.all([
+    admin.from("requirements").select("id, ref, weight").eq("agency_id", agencyId).eq("role_id", roleId),
+    admin.from("candidates").select("id").eq("agency_id", agencyId).eq("role_id", roleId),
+  ])
+  if (reqErr) throw reqErr
+  if (candErr) throw candErr
+  const requirements = (reqs ?? []) as ScoringRequirements
+  const ids = ((cands ?? []) as Array<{ id: string }>).map((c) => c.id)
+  for (let i = 0; i < ids.length; i += 5) {
+    await Promise.all(ids.slice(i, i + 5).map((id) => recomputeAndStore(admin, agencyId, id, requirements)))
+  }
+  return ids.length
+}
