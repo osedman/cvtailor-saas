@@ -23,8 +23,11 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import "../../../hiring.css"
 import { EmptyBand } from "@/components/agency/hm-shared"
+import { Hint } from "@/components/agency/hint"
 import { RoleHeader, announceRoleChanged } from "@/components/agency/role-header"
 import { SignOut } from "@/components/agency/sign-out"
+import { HatSwitch } from "@/components/agency/hat-switch"
+import { HmPromise } from "@/components/agency/hm-room"
 import { proposeWindows, windowsWanted, type Interval } from "@/lib/calendar/windows"
 import { assessCapacity, type Capacity } from "@/lib/calendar/capacity"
 import { CohortBoard, type BoardData } from "@/components/agency/cohort-board"
@@ -411,7 +414,7 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
         <span className="agd-spacer" />
         {screen === "ready" && (
           <>
-            <span className="ag-pill hm-role-chip">Hiring manager</span>
+            <HatSwitch current="hiring" inline fallback={<span className="ag-pill hm-role-chip">Hiring manager</span>} />
             <SignOut door="consumer" />
           </>
         )}
@@ -430,6 +433,27 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
         {screen === "ready" && shortlist && (
           <>
             <RoleHeader roleId={roleId} hat="client" />
+            <div className="hm-how">
+              <Hint
+                info
+                content={
+                  <>
+                    <span className="ag-hint-block">
+                      You choose who to meet and offer times from your diary. Each candidate picks their own; a
+                      taken time disappears for everyone else.
+                    </span>
+                    <span className="ag-hint-block">Times obey the rules below, which your recruiter sees too.</span>
+                    <span className="ag-hint-block">
+                      Inviting in waves stops ten people racing for four windows — the rest go out when the first
+                      wave has had its time or a window frees up.
+                    </span>
+                    <span className="ag-hint-block">After each interview you write it up, then decide.</span>
+                  </>
+                }
+              >
+                How this works
+              </Hint>
+            </div>
 
             {calendarNote === "connected" && (
               <p className="ag-banner" role="status">Calendar connected. Scan it below and we will propose interview windows.</p>
@@ -445,25 +469,21 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
              * is numbered 1 and 2 and works; what was missing is everything
              * after you press invite. This says it once, at the top, whether
              * or not a cohort exists yet — so the screen answers "what am I
-             * about to start?" and not only "what did I just do?" */}
+             * about to start?" and not only "what did I just do?"
+             *
+             * Frame 44 (13 Oct 2026): before a cohort exists, that answer is
+             * the "How this works" under the title; the rail shows once
+             * someone has been invited. */}
+            {board && board.members.length > 0 && (
             <section className="agd-band" aria-labelledby="loop-h">
               <div className="agd-eyebrow-row">
                 <h2 className="agd-eyebrow" id="loop-h">Your interview loop</h2>
                 <span className="agd-rule" />
-                {board && board.members.length > 0 && (
-                  <span className="agd-aside">how far each person has got</span>
-                )}
+                <span className="agd-aside">how far each person has got</span>
               </div>
-              {!board || board.members.length === 0 ? (
-                <p className="hm-loop-intro">
-                  <b>You choose who to meet</b>, you offer times from your diary, <b>they pick their
-                  own</b>, you meet, you write up what you thought, and then you decide. Half of
-                  that is not yours to do — the two steps below are.
-                </p>
-              ) : (
-                <LoopRail progress={progress} yours={yours} />
-              )}
+              <LoopRail progress={progress} yours={yours} />
             </section>
+            )}
 
             {board && board.members.length > 0 && (
               <section className="agd-band" aria-labelledby="cohort-h">
@@ -498,8 +518,7 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                   </div>
                   <div className="ag-receipt-cells">
                     <div className="ag-receipt-cell"><span className="ag-receipt-label">Now owned by</span><span className="ag-receipt-value">Your recruiter</span></div>
-                    <div className="ag-receipt-cell"><span className="ag-receipt-label">Their next task</span><span className="ag-receipt-value">{done.offered ? `Nothing — ${done.interviewed} candidate${done.interviewed === 1 ? " picks their" : "s pick their"} own time from your windows. Your recruiter watches it fill.` : "Offer some times, then the candidates can book."}</span></div>
-                    <div className="ag-receipt-cell"><span className="ag-receipt-label">Then</span><span className="ag-receipt-value">Each booking takes that window off the board; the rounds land in your diary; you write each one up before deciding.</span></div>
+                    <div className="ag-receipt-cell"><span className="ag-receipt-label">Their next task</span><span className="ag-receipt-value">{done.offered ? "Nothing — candidates book from your windows." : "Offer some times, then the candidates can book."}</span></div>
                   </div>
                 </div>
                 <p style={{ marginTop: 14 }}>
@@ -561,11 +580,6 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                       )
                     })}
                   </div>
-                  <p className="agd-aside" style={{ marginTop: 10 }}>
-                    Full evidence for each candidate is in the shortlist your recruiter sent you. <b>Hold</b> keeps
-                    somebody in reserve without inviting them yet. Every one of these is a signal to your recruiter,
-                    never a removal, and nothing is sent to the candidate except an invitation to book.
-                  </p>
                 </section>
 
                 <section className="agd-band" aria-labelledby="setup-when">
@@ -668,11 +682,6 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                       </select>
                     </label>
                   </div>
-                  <p className="agd-aside" style={{ marginTop: 8 }}>
-                    Answer these once. Every candidate you invite is offered times that obey them, and your recruiter sees the same
-                    rules. Inviting in waves keeps ten people from racing for four windows: the rest wait, and go out when the first
-                    wave has had its time or a window frees up.
-                  </p>
 
                   <div className="hm-setup-source">
                     {connected ? (
@@ -720,11 +729,22 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                     )}
                   </div>
                   {scanError && <p className="ag-banner" role="alert">{scanError}</p>}
-                  {busy && <p className="agd-aside">Read {busy.length} busy span{busy.length === 1 ? "" : "s"} from your calendar. Nothing about them is stored.</p>}
+                  {busy && <p className="agd-aside">Read {busy.length} busy time{busy.length === 1 ? "" : "s"} from your calendar; none are stored.</p>}
 
                   {capacity && chosen.length > 0 && (
                     <div className={`ag-banner hm-capacity ${capacity.level}`} role="status">
-                      <div style={{ fontWeight: 600 }}>{capacity.headline}</div>
+                      <div style={{ fontWeight: 600 }}>
+                        {capacity.level === "short" ? (
+                          <Hint
+                            bare
+                            text="Not enough windows. Widen the range, raise the daily limit, or invite fewer now — the rest when times open up."
+                          >
+                            {capacity.headline}
+                          </Hint>
+                        ) : (
+                          capacity.headline
+                        )}
+                      </div>
                       {(capacity.rejected.tooSoon > 0 || capacity.rejected.overDailyCap > 0 || capacity.rejected.tooShort > 0) && (
                         <div className="ag-meta" style={{ marginTop: 4 }}>
                           {[
@@ -732,11 +752,6 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
                             capacity.rejected.overDailyCap > 0 && `${capacity.rejected.overDailyCap} over your ${rules.maxPerDay}-a-day limit`,
                             capacity.rejected.tooShort > 0 && `${capacity.rejected.tooShort} shorter than ${rules.durationMinutes} minutes`,
                           ].filter(Boolean).join(" · ")}
-                        </div>
-                      )}
-                      {capacity.level === "short" && (
-                        <div className="ag-meta" style={{ marginTop: 4 }}>
-                          Widen the range, raise the daily limit, or invite fewer people for now — you can invite the rest when times open up.
                         </div>
                       )}
                     </div>
@@ -813,6 +828,8 @@ export default function SetUpInterviewsPage({ params }: { params: Promise<{ role
             )}
           </>
         )}
+        {/* Not inside HmFrame, so it carries the promise itself (frame 44). */}
+        {screen === "ready" && <HmPromise />}
       </div>
     </main>
   )

@@ -71,7 +71,7 @@ export function withheldSentence(d: ShortlistDisclosure): string | null {
   ].filter(Boolean) as string[]
   if (off.length === 0) return null
   const list = off.length === 1 ? off[0] : `${off.slice(0, -1).join(", ")} or ${off[off.length - 1]}`
-  return `Your recruiter did not include ${list} with this submission. Ask them if you need ${off.length === 1 ? "it" : "any of these"} — nothing else on this page has been hidden.`
+  return `Not included by your recruiter: ${list}. Nothing else is hidden — ask them if you need it.`
 }
 
 /**
@@ -113,7 +113,7 @@ export function CaseSummary({
   if (!entry || cases.state !== "ready") {
     return (
       <p className="ag-quiet hm-case-none">
-        Your recruiter has not sent you {refId}&apos;s evidence in a submission yet. Ask them for it before you decide.
+        No evidence sent for {refId} yet — ask your recruiter before deciding.
       </p>
     )
   }

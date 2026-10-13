@@ -238,11 +238,13 @@ export function CohortBoard({
           their week, not about their application.
         </p>
       )}
-      <p className="ag-note" style={{ marginTop: 8 }}>
-        {hat === "client"
-          ? "Each candidate picks their own time from the windows you offered. A time taken disappears for everyone else."
-          : "Candidates book themselves from the client's windows, and the client decides when the next wave goes. Nothing here seats anyone — sending a link again is the only act."}
-      </p>
+      {/* Frame 44: the client's line moved into the setup screen's "How this works". */}
+      {hat !== "client" && (
+        <p className="ag-note" style={{ marginTop: 8 }}>
+          Candidates book themselves from the client&apos;s windows, and the client decides when the next wave goes.
+          Nothing here seats anyone — sending a link again is the only act.
+        </p>
+      )}
     </div>
   )
 }

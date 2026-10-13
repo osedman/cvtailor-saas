@@ -178,7 +178,7 @@ describe("the plan is the role's number, never a literal", () => {
     // may say this was the last planned round; it must not refuse another.
     const ui = read(UI)
     expect(ui).not.toMatch(/disabled=\{.*atFinalRound/)
-    expect(ui).toMatch(/you can still ask them for another round/i)
+    expect(ui).toMatch(/you can still ask your recruiter for another round/i)
   })
 })
 
@@ -197,7 +197,10 @@ describe("what the room deliberately does not do", () => {
   })
 
   it("never removes anyone", () => {
-    expect(ui).toMatch(/Nobody is removed by any of these/)
+    // Frame 44: the reassurance is the client frame's one promise now
+    // ("Nothing you do here closes the role or removes anyone"), not a
+    // per-screen line. The room still never names a removal.
+    expect(ui).not.toMatch(/Nobody is removed by any of these/)
     expect(ui).not.toMatch(/reject|remove from shortlist/i)
   })
 })

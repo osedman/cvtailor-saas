@@ -20,6 +20,7 @@
 
 import { useState } from "react"
 import type { ShortlistEntry, ShortlistDisclosure } from "@/lib/agency/client-shortlist"
+import { Hint } from "@/components/agency/hint"
 
 interface CvPayload {
   ref: string
@@ -106,11 +107,12 @@ export function CandidateDetail({
 
       {entry.gaps && entry.gaps.length > 0 && (
         <section className="hm-cand-block">
-          <h4 className="agd-eyebrow">Known gaps, stated plainly</h4>
-          <p>
-            {entry.gaps.map((g) => g.requirement).join(" · ")} — nothing in the CV under{" "}
-            {entry.gaps.length === 1 ? "this must-have" : "these must-haves"}. Not inferred either way.
-          </p>
+          <h4 className="agd-eyebrow">
+            <Hint bare text="Must-haves with nothing in their CV under them. Not inferred either way.">
+              Known gaps
+            </Hint>
+          </h4>
+          <p>{entry.gaps.map((g) => g.requirement).join(" · ")}</p>
         </section>
       )}
 
@@ -126,7 +128,7 @@ export function CandidateDetail({
         <section className="hm-cand-block hm-cand-withheld">
           <h4 className="agd-eyebrow">Withheld in this submission</h4>
           <p>
-            Your recruiter did not include{" "}
+            Not included by your recruiter:{" "}
             {[
               !disclosure.scores ? "the score" : null,
               !disclosure.evidence ? "the evidence and gaps" : null,
@@ -134,7 +136,7 @@ export function CandidateDetail({
             ]
               .filter(Boolean)
               .join(", ")}
-            . Withheld, not absent — ask them if you need it.
+            . Nothing else is hidden — ask them if you need it.
           </p>
         </section>
       )}
@@ -143,13 +145,9 @@ export function CandidateDetail({
       <section className="hm-cand-block">
         <h4 className="agd-eyebrow">Their CV</h4>
         {!disclosure.cv ? (
-          <p className="ag-quiet">
-            Your recruiter did not include the CV in this submission. Withheld, not missing — ask them.
-          </p>
+          <p className="ag-quiet">CV not included in this submission — ask your recruiter.</p>
         ) : entry.redacted ? (
-          <p className="ag-quiet">
-            This candidate asked to be considered without their details being shared.
-          </p>
+          <p className="ag-quiet">Not shared, at the candidate&apos;s request.</p>
         ) : cv.state === "idle" ? (
           <button className="agd-tbtn" onClick={openCv}>
             Read {name}&apos;s CV
@@ -171,16 +169,11 @@ export function CandidateDetail({
         ) : (
           <article className="hm-cv">
             <p className="hm-cv-seal">
-              Shared with you by your recruiter · contact details removed · opening this is recorded
+              Contact details removed — reach them via your recruiter. Opening this is recorded.
             </p>
             <h5 className="hm-cv-name">{cv.cv.fullName || cv.cv.ref}</h5>
             {cv.cv.currentTitle && <p className="hm-cv-title">{cv.cv.currentTitle}</p>}
             <pre className="hm-cv-text">{cv.cv.text}</pre>
-            {cv.cv.anythingRemoved && (
-              <p className="hm-cv-note">
-                Their phone, email and personal links were removed. Reply to your recruiter to reach them.
-              </p>
-            )}
           </article>
         )}
       </section>

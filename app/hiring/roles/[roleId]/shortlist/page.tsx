@@ -18,6 +18,7 @@
 import { use, useCallback, useEffect, useRef, useState } from "react"
 import { HandOff, HmFrame, RoomHeader, useRoom } from "@/components/agency/hm-room"
 import { CandidateDetail } from "@/components/agency/hm-candidate"
+import { Hint } from "@/components/agency/hint"
 import {
   AddedSince,
   BeingShortlisted,
@@ -122,6 +123,23 @@ export default function ShortlistStage({ params }: { params: Promise<{ roleId: s
   return (
     <HmFrame screen={room.screen} crumb="Hiring / Roles / Shortlist">
       <RoomHeader room={room} roleId={roleId} here={{ key: "shortlist" }} />
+      <div className="hm-how">
+        <Hint
+          info
+          content={
+            <>
+              <span className="ag-hint-block">
+                {agency.lead} adds names as they shortlist; CVs, evidence and scores arrive with the submission.
+              </span>
+              <span className="ag-hint-block">
+                Then choose who to interview and offer times — the people you choose book themselves in.
+              </span>
+            </>
+          }
+        >
+          How this works
+        </Hint>
+      </div>
 
       {list.state === "loading" && <p className="ag-quiet" aria-live="polite">Loading the shortlist…</p>}
       {list.state === "error" && (
@@ -167,9 +185,19 @@ export default function ShortlistStage({ params }: { params: Promise<{ roleId: s
                 <li key={e.ref} className="hm-sl-card">
                   <div className="hm-sl-head">
                     <span className="hm-sl-name">{e.redacted || !e.fullName ? e.ref : e.fullName}</span>
-                    <span className="hm-sl-state" data-tone={fwd ? "fwd" : outcome || e.action ? "done" : "open"}>
-                      {state}
-                    </span>
+                    {!hasRounds && !outcome && (e.action === "interview" || e.action === "approve") ? (
+                      <Hint
+                        bare
+                        text={`You chose ${chosen}. They are booking from the times you offered.`}
+                        className="hm-sl-state"
+                      >
+                        {state}
+                      </Hint>
+                    ) : (
+                      <span className="hm-sl-state" data-tone={fwd ? "fwd" : outcome || e.action ? "done" : "open"}>
+                        {state}
+                      </span>
+                    )}
                   </div>
                   <p className="hm-sl-sub">
                     {[e.ref, e.currentTitle, e.location, e.years ? `${e.years} yrs` : null].filter(Boolean).join(" · ")}
@@ -228,21 +256,21 @@ export default function ShortlistStage({ params }: { params: Promise<{ roleId: s
       {list.state === "ready" &&
         (hasRounds ? (
           <HandOff
-            text="Interviews have started. The rounds are where this role is being decided now."
+            text=""
             href={stageHref(roleId, { key: "round", n: 1 })}
             label="Round 1"
             ready
           />
         ) : undecided > 0 || chosen === 0 ? (
           <HandOff
-            text="Choose who you want to interview, then offer the times you can do — the candidates you choose book themselves in."
+            text=""
             href={`/hiring/roles/${roleId}/interviews`}
             label="Choose and offer times"
             ready
           />
         ) : (
           <HandOff
-            text={`You chose ${chosen === 1 ? "one candidate" : `${chosen} candidates`}. They are picking times from the windows you offered.`}
+            text=""
             href={`/hiring/roles/${roleId}/interviews`}
             label="See who has booked"
             ready={false}

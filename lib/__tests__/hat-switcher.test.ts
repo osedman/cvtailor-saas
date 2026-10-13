@@ -46,7 +46,7 @@ describe("the Viewing as switch (frame 44)", () => {
   })
 
   it("the hats route leaks nothing but two booleans", () => {
-    const body = api.slice(api.indexOf("export async function GET"))
+    const body = api.slice(api.indexOf("async function GET_handler"), api.indexOf("export const GET"))
     expect(body).toMatch(/NextResponse\.json\(\{ recruiter: hats\.recruiter, hiringManager: hats\.hiringManager \}\)/)
     expect(body).not.toMatch(/email|agency_id|contact/i)
   })

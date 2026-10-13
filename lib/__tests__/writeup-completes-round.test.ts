@@ -145,7 +145,8 @@ describe("the screens read the clock, not a click", () => {
 
   it("tells the hiring manager the recruiter has not confirmed, without blocking them", () => {
     const s = src()
-    expect(s).toContain("has not confirmed")
+    // Frame 44: said as a hint on the owed section's status.
+    expect(s).toContain("Not yet confirmed as held by your recruiter. You can still write it up.")
     // The write-up is still offered: the line is information, not a gate.
     expect(s).not.toMatch(/disabled=\{[^}]*notConfirmed/)
   })
@@ -175,6 +176,8 @@ describe("the round card itself opens on the clock", () => {
 
   it("says happening now while a round is in the room", () => {
     expect(card()).toContain("Happening now")
-    expect(card()).toContain("In the room now")
+    // Frame 44: the line under the card went; the pill's hint says it.
+    expect(card()).toContain("HINTS.happeningNow")
+    expect(card()).not.toContain("In the room now")
   })
 })

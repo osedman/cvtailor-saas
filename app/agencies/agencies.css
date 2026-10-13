@@ -3160,3 +3160,17 @@ a.ag-rh-next:hover { opacity: 0.86; }
 @media (max-width: 760px) {
   .ag-screen-head { flex-direction: column; align-items: stretch; gap: 12px; }
 }
+
+/* ── Phase 3 declutter — frame 44 (approved 13 Oct 2026) ── */
+/* One "How this works" per client screen, under the title — the cards and
+ * intro paragraphs it replaced sat here. */
+.hm-how { display: flex; flex-wrap: wrap; margin: 4px 0 16px; }
+/* A hand-off whose sentence was deleted keeps only its action. */
+.hm-handoff > p:empty { display: none; }
+.hm-handoff:has(> p:empty) { justify-content: flex-end; }
+/* A status or heading that carries its explanation as a bare hint keeps the
+ * heading's own face. */
+.agd-eyebrow .ag-hint-bare, .agd-h1 .ag-hint-bare, .hm-room-eyebrow .ag-hint-bare { font: inherit; letter-spacing: inherit; text-transform: inherit; }
+/* Frame 44: on a phone the shell wraps so the "Viewing as" bar sits above
+ * the page (it renders only for someone who holds both sides). */
+@media (max-width: 900px) { .ag-app:has(> [data-hat-phone]) { flex-wrap: wrap; align-content: flex-start; } .ag-app:has(> [data-hat-phone]) > .ag-main { flex-basis: 100%; } }

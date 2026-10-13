@@ -45,6 +45,7 @@ import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth/auth-provider"
 import { DoorwayLoadIssue } from "@/components/agency/doorway-load-issue"
+import { Hint } from "@/components/agency/hint"
 import { doorwayLoadState, retryAfterSeconds, type DoorwayLoadState } from "@/lib/agency/doorway-messages"
 import { tooManyAcceptsMessage } from "@/lib/agency/hiring-invite-messages"
 import { createClient } from "@/lib/supabase/client"
@@ -62,8 +63,28 @@ type Lookup = "loading" | "dead" | "ready"
 type Phase = "idle" | "accepting" | "mismatch"
 
 const DEAD_TITLE = "This invite link isn't valid any more"
-const DEAD_BODY =
-  "Invitation links stop working once they have been used, once they expire, and the moment your recruiter revokes one. Ask them to send you a fresh link — it takes them a couple of seconds."
+const DEAD_BODY = "Used, expired or revoked. Ask your recruiter for a fresh link."
+
+/** Frame 44: the sign-in mechanics, said once per state as "How this works"
+ *  instead of three notes down the card. */
+const HOW_THIS_WORKS = (
+  <Hint
+    info
+    content={
+      <>
+        <span className="ag-hint-block">
+          No password — we email a link and a 6-digit code, each working once for about an hour.
+        </span>
+        <span className="ag-hint-block">Sign in with the invited address; accepting checks it.</span>
+        <span className="ag-hint-block">
+          If you already use Tailr, this signs into that account rather than creating a second one.
+        </span>
+      </>
+    }
+  >
+    How this works
+  </Hint>
+)
 
 export default function HiringInvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -303,10 +324,8 @@ export default function HiringInvitePage({ params }: { params: Promise<{ token: 
                   {invite.maskedEmail}
                 </p>
                 <p className="ag-note">
-                  You are signed in as a different account, and access is only ever given to the
-                  mailbox the invitation was sent to. Sign in with that address and open this link
-                  again. If the masked address above is not one of yours, your recruiter has the
-                  wrong contact details — tell them before using it.
+                  Access goes only to the mailbox shown. Sign in with it and reopen this link — if it
+                  isn&apos;t yours, tell your recruiter.
                 </p>
                 <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
                   <button className="ag-btn ag-btn-coral" onClick={startOver}>
@@ -322,15 +341,13 @@ export default function HiringInvitePage({ params }: { params: Promise<{ token: 
                 <h1 className="ag-title" style={{ fontSize: "var(--t-title)" }}>
                   {invite.agencyName} invited you
                 </h1>
+                <div className="hm-how">{HOW_THIS_WORKS}</div>
                 <p className="ag-note" style={{ marginTop: 10 }}>
-                  Accepting opens a workspace where you brief roles, offer interview times and
-                  record your decisions for <b style={{ color: "var(--ag-ink)" }}>{invite.company}</b>
-                  . Your recruiter can see everything you do there, and you can see none of their
-                  working notes.
+                  Brief roles, offer interview times and record decisions for{" "}
+                  <b style={{ color: "var(--ag-ink)" }}>{invite.company}</b>.
                 </p>
                 <p className="ag-note" style={{ marginTop: 10 }}>
-                  This invitation was issued to {invite.maskedEmail} — accepting checks that
-                  against the address you are signed in with.
+                  Your recruiter sees everything you do here; you don&apos;t see their working notes.
                 </p>
                 {acceptError && (
                   <p
@@ -363,11 +380,10 @@ export default function HiringInvitePage({ params }: { params: Promise<{ token: 
                 <h1 className="ag-title" style={{ fontSize: "var(--t-title)" }}>
                   {invite.agencyName} invited you
                 </h1>
+                <div className="hm-how">{HOW_THIS_WORKS}</div>
                 <p className="ag-note" style={{ marginTop: 10 }}>
-                  They want you as the hiring manager for{" "}
-                  <b style={{ color: "var(--ag-ink)" }}>{invite.company}</b>: briefing roles,
-                  offering interview times and recording decisions in one place instead of a
-                  thread.
+                  Be the hiring manager for <b style={{ color: "var(--ag-ink)" }}>{invite.company}</b>: brief
+                  roles, offer interview times, record decisions.
                 </p>
                 <p className="ag-note" style={{ marginTop: 10 }}>
                   The invitation was sent to:
@@ -382,8 +398,7 @@ export default function HiringInvitePage({ params }: { params: Promise<{ token: 
                       Check your email
                     </p>
                     <p className="ag-note" style={{ marginTop: 6 }}>
-                      We sent a sign-in link to that address. Open it on this device to come
-                      straight back here — or type the 6-digit code from the same email below.
+                      Open the link on this device, or enter the 6-digit code.
                     </p>
                     <form onSubmit={verifyCode} style={{ marginTop: 14 }}>
                       <label className="ag-label" htmlFor="hm-otp">
@@ -420,10 +435,6 @@ export default function HiringInvitePage({ params }: { params: Promise<{ token: 
                         {verifying ? "Verifying…" : "Verify code"}
                       </button>
                     </form>
-                    <p className="ag-note" style={{ marginTop: 14 }}>
-                      The link and the code each work once and expire after about an hour. If
-                      either fails, request a fresh one.
-                    </p>
                     <button
                       className="ag-btn"
                       style={{ marginTop: 8, paddingLeft: 0, textDecoration: "underline" }}
@@ -452,10 +463,6 @@ export default function HiringInvitePage({ params }: { params: Promise<{ token: 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                     />
-                    <p className="ag-note" style={{ marginTop: 6 }}>
-                      No password. We email you a link, and you already have a Tailr account if
-                      you have ever used it — signing in here does not create a second one.
-                    </p>
                     {signInError && (
                       <p
                         className="ag-note"

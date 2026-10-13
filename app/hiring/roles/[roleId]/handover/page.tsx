@@ -39,10 +39,7 @@ export default function HandoverStage({ params }: { params: Promise<{ roleId: st
         <section className="agd-band">
           <div className="hm-note-card">
             <p className="hm-note-title">Your recruiter is preparing the handover.</p>
-            <p>
-              They are collecting references and putting together the record for the person you took forward.
-              You will get an email when it is ready — nothing is needed from you.
-            </p>
+            <p>You&apos;ll get an email when it&apos;s ready — nothing needed from you.</p>
           </div>
         </section>
       )}
@@ -113,7 +110,7 @@ export default function HandoverStage({ params }: { params: Promise<{ roleId: st
                 {new Date(pack.clientChoice.at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}:
               </p>
               <blockquote className="hm-pack-quote">{pack.clientChoice.reason}</blockquote>
-              <p className="ag-quiet">In your own words, as sent. Not edited by the agency.</p>
+              <p className="ag-quiet">Your words, as sent — not edited by the agency.</p>
             </section>
           )}
 

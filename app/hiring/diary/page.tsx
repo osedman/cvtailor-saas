@@ -63,7 +63,7 @@ export default function DiaryPage() {
         ) : (
           <EmptyBand
             title="Nothing booked."
-            body="When a candidate picks one of your times, it appears here with its joining link."
+            body="Interviews appear here, with joining links, once a candidate books."
           />
         )}
       </section>
@@ -81,7 +81,7 @@ export default function DiaryPage() {
           </div>
         ) : (
           <p className="ag-note">
-            No open times. You offer them from a role — open it and choose <b>Offer times</b>.
+            No open times. Offer them from a role.
           </p>
         )}
       </section>

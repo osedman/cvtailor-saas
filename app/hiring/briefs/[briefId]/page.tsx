@@ -16,6 +16,7 @@ import { use, useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { HmFrame, useHiringData } from "@/components/agency/hm-room"
 import { BriefReview } from "@/components/agency/brief-review"
+import { Hint } from "@/components/agency/hint"
 import { BriefForm, type BriefJdView, type ContactOption } from "@/components/agency/brief-form"
 import { applyClientAmendment, diffBrief, type BriefConfig, type BriefState } from "@/lib/agency/brief-options"
 
@@ -141,7 +142,7 @@ export default function ClientBriefPage({ params }: { params: Promise<{ briefId:
         <section className="agd-band">
           <div className="hm-note-card">
             <p className="hm-note-title">No brief was sent to you at this address.</p>
-            <p>If your recruiter mentioned one, it may be addressed to a colleague, or not sent yet.</p>
+            <p>It may be addressed to a colleague, or not sent yet.</p>
           </div>
         </section>
       )}
@@ -153,6 +154,27 @@ export default function ClientBriefPage({ params }: { params: Promise<{ briefId:
               Brief · v{brief.currentVersion} · {brief.latest.authoredBy === "client" ? "your version" : `sent by ${brief.agencyName}`} · {fmt(brief.latest.sentAt)}
             </p>
             <h1 className="agd-h1">{heading}</h1>
+            {brief.state !== "approved" && (
+              <div className="hm-how">
+                <Hint
+                  info
+                  content={
+                    <>
+                      <span className="ag-hint-block">
+                        The job description and the four numbered sections are yours to change; the rest are{" "}
+                        {brief.agencyName}&apos;s terms.
+                      </span>
+                      <span className="ag-hint-block">If one of those is wrong, say so — that is a change too.</span>
+                      <span className="ag-hint-block">
+                        Any change makes a new version, signed by you and waiting on {brief.agencyName}.
+                      </span>
+                    </>
+                  }
+                >
+                  How this works
+                </Hint>
+              </div>
+            )}
             <div className="hm-brief-sigs" role="status">
               <span data-on={Boolean(brief.latest.recruiterApprovedAt) || undefined}>
                 {brief.agencyName} — {brief.latest.recruiterApprovedAt ? `approved v${brief.currentVersion} · ${fmt(brief.latest.recruiterApprovedAt)}` : "cleared by your change"}
@@ -163,12 +185,16 @@ export default function ClientBriefPage({ params }: { params: Promise<{ briefId:
             </div>
             {brief.state === "approved" && (
               <p className="agd-sub">
-                Both sides have signed v{brief.currentVersion}.{" "}
-                {brief.connectedRoles.length > 0 ? `It runs ${brief.connectedRoles.map((r) => r.title).join(", ")}.` : "Roles can run on it now."}{" "}
-                Changing it now would make v{brief.currentVersion + 1}, and any role on it will be asked whether to follow.
+                <Hint
+                  bare
+                  text={`Changing it would make v${brief.currentVersion + 1}; any role on it will be asked whether to follow.`}
+                >
+                  Both sides have signed v{brief.currentVersion}.{" "}
+                  {brief.connectedRoles.length > 0 ? `It runs ${brief.connectedRoles.map((r) => r.title).join(", ")}.` : "Roles can run on it now."}
+                </Hint>
               </p>
             )}
-            {brief.state === "amended" && !dirty && <p className="agd-sub">You sent v{brief.currentVersion} on {fmt(brief.latest.sentAt)}. Nothing to do until {brief.agencyName} signs or changes it.</p>}
+            {brief.state === "amended" && !dirty && <p className="agd-sub">You sent v{brief.currentVersion} on {fmt(brief.latest.sentAt)}. Waiting on {brief.agencyName} to sign or change it.</p>}
           </section>
 
           {error && (
@@ -193,7 +219,6 @@ export default function ClientBriefPage({ params }: { params: Promise<{ briefId:
               />
             ) : (
               <>
-                <p className="agd-aside">Only the job description and the four numbered sections after it are yours to change; the rest are {brief.agencyName}&apos;s terms, shown for the record.</p>
                 <BriefForm
                   config={draft}
                   onChange={setDraft}
@@ -242,7 +267,7 @@ export default function ClientBriefPage({ params }: { params: Promise<{ briefId:
                 )}
                 <p className="agd-aside">
                   {dirty
-                    ? `${changes.length} change${changes.length === 1 ? "" : "s"}. Sending signs the new version for you and clears ${brief.agencyName}'s approval until they read it.`
+                    ? `${changes.length} change${changes.length === 1 ? "" : "s"}. Sending signs v${brief.currentVersion + 1} as you and clears ${brief.agencyName}'s approval until they read it.`
                     : brief.waitingOn === "client"
                       ? "Approving signs this version. Nothing is sent to candidates by this."
                       : ""}

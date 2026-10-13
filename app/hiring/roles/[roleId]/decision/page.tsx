@@ -14,6 +14,7 @@ import { HandOff, HmFrame, RoomHeader, useRoom } from "@/components/agency/hm-ro
 import { DecisionsComplete } from "@/components/agency/hm-shared"
 import { displayName, useSubmittedCases } from "@/components/agency/hm-case"
 import { FinalChoice } from "@/components/agency/hm-final-choice"
+import { Hint } from "@/components/agency/hint"
 import { outcomeByRef, outcomeSentence, plannedFor, stageHref } from "@/lib/agency/hm-room"
 
 export default function DecisionStage({ params }: { params: Promise<{ roleId: string }> }) {
@@ -41,6 +42,24 @@ export default function DecisionStage({ params }: { params: Promise<{ roleId: st
   return (
     <HmFrame screen={room.screen} crumb="Hiring / Roles / Decision">
       <RoomHeader room={room} roleId={roleId} here={{ key: "decision" }} />
+      <div className="hm-how">
+        <Hint
+          info
+          content={
+            <>
+              <span className="ag-hint-block">
+                When you have decided on everyone you want, say so and your recruiter takes it to close-out — you
+                can undo it.
+              </span>
+              <span className="ag-hint-block">
+                Not sure yet? Ask for another round; your recruiter plans it and books it from your diary.
+              </span>
+            </>
+          }
+        >
+          How this works
+        </Hint>
+      </div>
 
       {/* Board 31, band B: once someone is taken forward, Decision is the
           final choice — side by side, in the manager's own words — rather
@@ -61,10 +80,10 @@ export default function DecisionStage({ params }: { params: Promise<{ roleId: st
         )}
         <p className="agd-sub">
           {forward.length > 0
-            ? "Your recruiter handles references, the offer and the handover. Nothing here closes the role."
+            ? "Your recruiter handles references, the offer and the handover."
             : pending > 0
               ? `${pending === 1 ? "One candidate is" : `${pending} candidates are`} still waiting on a round decision.`
-              : "When interviews have happened and you have decided, the outcome is summarised here."}
+              : "Outcomes appear here once you have decided."}
         </p>
         {outcomes.length > 0 && (
           <ul className="hm-quiet-list">
@@ -86,16 +105,9 @@ export default function DecisionStage({ params }: { params: Promise<{ roleId: st
         </section>
       )}
 
-      <HandOff
-        text={
-          room.handover.status === "delivered"
-            ? "Your recruiter has handed over the record for this hire."
-            : "Next, your recruiter collects references and prepares the handover pack. You will get an email when it is ready."
-        }
-        href={room.handover.status === "delivered" ? stageHref(roleId, { key: "handover" }) : null}
-        label="Handover"
-        ready={room.handover.status === "delivered"}
-      />
+      {room.handover.status === "delivered" && (
+        <HandOff text="" href={stageHref(roleId, { key: "handover" })} label="Handover" ready />
+      )}
     </HmFrame>
   )
 }

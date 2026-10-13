@@ -15,6 +15,8 @@
 
 import { ThemeProvider } from "next-themes"
 import { ThemeToggle } from "./theme-toggle"
+import { HatSwitch } from "./hat-switch"
+import { usePathname } from "next/navigation"
 
 export function AgencyShell({
   className,
@@ -23,6 +25,9 @@ export function AgencyShell({
   className: string
   children: React.ReactNode
 }) {
+  // The client side carries its own switch in its top bar, which stays
+  // visible on a phone; the phone bar is for the recruiter side only.
+  const onRecruiterSide = (usePathname() ?? "").startsWith("/agencies")
   return (
     <ThemeProvider
       attribute="data-ag-theme"
@@ -34,6 +39,10 @@ export function AgencyShell({
       disableTransitionOnChange
     >
       <div className={`ag-app ag-themed ${className}`}>
+        {/* Frame 44: the sidebar (and its switch) hides on a phone, so the
+            phone gets the switch as a bar above the page. Renders nothing
+            unless the person holds both sides. */}
+        {onRecruiterSide && <HatSwitch current="recruiter" phoneBar />}
         {children}
         <ThemeToggle />
       </div>

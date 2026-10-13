@@ -62,12 +62,9 @@ describe("A · before any submission, with people shortlisted", () => {
   it("carries the board's eyebrow, aside, sub and foot", () => {
     expect(out).toContain("Being shortlisted · 4 so far")
     expect(out).toContain("Updated as Halcyon Search adds people")
-    expect(out).toContain(
-      "Halcyon Search is still building this shortlist. Each name appears the moment they add someone and goes if they take them off. Their CV, the evidence and the scores arrive with the submission."
-    )
-    expect(out).toContain(
-      "Nothing to decide yet. When the submission arrives you will read each person here in full and choose who to interview."
-    )
+    // Frame 44: the sub moved into the stage's "How this works".
+    expect(out).not.toContain("is still building this shortlist")
+    expect(out).toContain("Nothing to decide until the submission arrives.")
   })
 
   it("names every named person, with initials in a round avatar", () => {
@@ -153,9 +150,7 @@ describe("A · before any submission, with nobody shortlisted", () => {
   it("keeps a note, reworded", () => {
     const out = html(createElement(NothingShortlistedYet, { agency: AGENCY }))
     expect(out).toContain("Nothing shortlisted yet.")
-    expect(out).toContain(
-      "Names appear here as Halcyon Search adds people to the shortlist. If your recruiter sends it by email instead, it will be in your inbox."
-    )
+    expect(out).toContain("Names appear here as Halcyon Search shortlists, or arrive by email.")
   })
 
   it("the old note is gone from the stage", () => {
@@ -167,10 +162,11 @@ describe("B · after a submission", () => {
   it("adds a divider and the added-since band only when someone was added", () => {
     const out = html(createElement(AddedSince, { entries: ENTRIES.slice(2), agency: AGENCY, nowMs: NOW }))
     expect(out).toContain('<hr class="hm-sling-divider"/>')
-    expect(out).toContain("Added since · not sent yet · 2")
-    expect(out).toContain(
-      "Halcyon Search has shortlisted these since the submission. Their CV, evidence and scores arrive with the next one."
-    )
+    expect(out).toContain("Added since · not sent yet")
+    expect(out).toContain("· 2")
+    // Frame 44: the sub is a hint on the eyebrow now.
+    expect(out).toContain("Shortlisted since the submission. Their CV, evidence and scores come with the next one.")
+    expect(out).not.toContain("has shortlisted these since the submission")
     expect(out).toContain("Nadia Hussain")
     expect(out).toContain("Asked to be withheld")
     expect(html(createElement(AddedSince, { entries: [], agency: AGENCY, nowMs: NOW }))).toBe("")

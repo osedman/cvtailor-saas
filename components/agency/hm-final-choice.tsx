@@ -132,21 +132,25 @@ export function FinalChoice({
     return (
       <div className="hm-final-sent">
         <h2 className="agd-h1 hm-decision-head">
-          {choice.action === "chosen" && choice.candidateRef ? `You chose ${nameOf(choice.candidateRef)}.` : "You chose neither."}
+          <Hint
+            bare
+            text={
+              choice.action === "chosen"
+                ? `Your recruiter now takes references and the offer.${
+                    others.length > 0
+                      ? ` ${others.map(nameOf).join(" and ")} ${others.length === 1 ? "stays" : "stay"} taken forward until they have spoken to ${others.length === 1 ? "them" : "each of them"}.`
+                      : ""
+                  }`
+                : "Your recruiter will talk to you about what happens next."
+            }
+          >
+            {choice.action === "chosen" && choice.candidateRef ? `You chose ${nameOf(choice.candidateRef)}.` : "You chose neither."}
+          </Hint>
         </h2>
         <figure className="hm-final-reason">
           <figcaption className="agd-eyebrow">Your reason · sent {fmtDate(choice.at)}</figcaption>
           <blockquote>{choice.reason}</blockquote>
         </figure>
-        <p className="agd-sub">
-          {choice.action === "chosen"
-            ? `Your recruiter now takes references and the offer.${
-                others.length > 0
-                  ? ` ${others.map(nameOf).join(" and ")} ${others.length === 1 ? "stays" : "stay"} taken forward until they speak to ${others.length === 1 ? "them" : "each of them"}.`
-                  : ""
-              }`
-            : "Your recruiter will talk to you about what happens next. Nobody has been told anything."}
-        </p>
         <div className="hm-final-row">
           <button
             className="agd-tbtn"
@@ -196,8 +200,7 @@ export function FinalChoice({
           : `You took ${finalists.length} forward. Who would you like to offer?`}
       </h2>
       <p className="agd-sub">
-        Choosing one does not turn anyone else down. Your recruiter speaks to everyone, and nothing is final until
-        they confirm the hire with you.
+        Choosing one turns nobody down. Nothing is final until your recruiter confirms the hire with you.
       </p>
       {withheld && <p className="ag-quiet">{withheld}</p>}
 

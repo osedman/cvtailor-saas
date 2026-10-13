@@ -32,7 +32,18 @@ function loadHats(): Promise<Hats> {
   return pending
 }
 
-export function HatSwitch({ current, fallback = null, inline = false }: { current: "recruiter" | "hiring"; fallback?: ReactNode; inline?: boolean }) {
+export function HatSwitch({
+  current,
+  fallback = null,
+  inline = false,
+  phoneBar = false,
+}: {
+  current: "recruiter" | "hiring"
+  fallback?: ReactNode
+  inline?: boolean
+  /** The recruiter sidebar hides below 900px; this copy is the phone's. */
+  phoneBar?: boolean
+}) {
   const [hats, setHats] = useState<Hats | null>(cached)
   useEffect(() => {
     let live = true
@@ -42,8 +53,8 @@ export function HatSwitch({ current, fallback = null, inline = false }: { curren
     }
   }, [])
   if (!hats || !(hats.recruiter && hats.hiringManager)) return <>{fallback}</>
-  return (
-    <nav className={`${styles.hat}${inline ? ` ${styles.inline}` : ""}`} aria-label="Viewing as">
+  const nav = (
+    <nav className={`${styles.hat}${inline || phoneBar ? ` ${styles.inline}` : ""}`} aria-label="Viewing as">
       <span className={styles.label}>Viewing as</span>
       <span className={styles.seg}>
         <Link href="/agencies" className={styles.opt} data-side="recruiter" aria-current={current === "recruiter" ? "page" : undefined}>
@@ -55,4 +66,5 @@ export function HatSwitch({ current, fallback = null, inline = false }: { curren
       </span>
     </nav>
   )
+  return phoneBar ? <div className={styles.phone} data-hat-phone="">{nav}</div> : nav
 }

@@ -65,15 +65,14 @@ export default function RolesPage() {
       <section className="agd-hero">
         <h1 className="agd-h1">Your roles</h1>
         <p className="agd-sub">
-          Every role your recruiter has opened with you, and the stage each is at. Open one to walk it
-          from shortlist to handover.
+          Every role your recruiter has opened with you, and its stage.
         </p>
       </section>
 
       {rows.length === 0 ? (
         <EmptyBand
           title="No roles yet."
-          body="When your recruiter opens a role with you named on it, it appears here."
+          body="Roles appear here when your recruiter names you on one."
         />
       ) : (
         <>
@@ -85,7 +84,7 @@ export default function RolesPage() {
             {open.length > 0 ? (
               <ul className="hm-role-list">{open.map((x) => <RoleRow key={x.r.role.id} x={x} />)}</ul>
             ) : (
-              <p className="ag-note">Nothing in progress — every role below is finished.</p>
+              <p className="ag-note">Nothing in progress.</p>
             )}
           </section>
           {finished.length > 0 && (

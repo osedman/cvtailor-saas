@@ -38,6 +38,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import type { InterviewRoom as Room, RoomRound } from "@/lib/agency/interview-room"
+import { Hint } from "@/components/agency/hint"
 import { CaseSummary, useSubmittedCases } from "@/components/agency/hm-case"
 
 const DECISIONS: Array<{ key: "advance" | "hold" | "decline"; label: string; note: string }> = [
@@ -182,10 +183,7 @@ export function InterviewRoom({
     return (
       <div className="hm-room" data-modal={inModal}>
         <p className="hm-room-title">This interview is not yours to open.</p>
-        <p className="hm-room-note">
-          You can open a room for somebody your recruiter has actually sent you. If you think that
-          is wrong, ask them — nothing about the candidate has changed.
-        </p>
+        <p className="hm-room-note">Only candidates your recruiter has sent you can be opened.</p>
       </div>
     )
   }
@@ -284,10 +282,7 @@ export function InterviewRoom({
               ROUND {current.roundNumber} · WRITE IT UP FIRST
             </p>
             <h2 className="hm-room-act-title" id="room-act-h">What happened?</h2>
-            <p className="hm-room-note">
-              Your decision should rest on a record rather than a memory, so the buttons below open
-              once this is saved. Only your recruiter sees it.
-            </p>
+            <p className="hm-room-note">Only your recruiter sees your write-up.</p>
             <textarea
               className="ag-textarea"
               value={notes}
@@ -311,11 +306,18 @@ export function InterviewRoom({
 
           <section className="hm-room-dec" data-open={written} aria-labelledby="room-dec-h">
             <p className="hm-room-eyebrow" id="room-dec-h">
-              {written
-                ? room.atFinalRound
-                  ? "THIS WAS THE LAST PLANNED ROUND"
-                  : "THEN YOUR DECISION"
-                : "THEN YOUR DECISION — OPENS WHEN THE WRITE-UP IS SAVED"}
+              {room.atFinalRound ? (
+                <Hint
+                  bare
+                  text="Last planned round. Advancing ends the loop; you can still ask your recruiter for another round."
+                >
+                  {written ? "THIS WAS THE LAST PLANNED ROUND" : "THEN YOUR DECISION — OPENS WHEN THE WRITE-UP IS SAVED"}
+                </Hint>
+              ) : written ? (
+                "THEN YOUR DECISION"
+              ) : (
+                "THEN YOUR DECISION — OPENS WHEN THE WRITE-UP IS SAVED"
+              )}
             </p>
             <div className="hm-room-dec-row">
               {DECISIONS.map((d) => (
@@ -330,11 +332,6 @@ export function InterviewRoom({
                 </button>
               ))}
             </div>
-            <p className="hm-room-note">
-              {room.atFinalRound
-                ? `Round ${current.roundNumber} of ${lastPlanned} planned. Advancing here ends the loop and your recruiter takes it to close-out — you can still ask them for another round.`
-                : "Nobody is removed by any of these, and the candidate is not told. Your recruiter sees the signal and decides what happens next."}
-            </p>
           </section>
         </>
       ) : (
@@ -343,11 +340,6 @@ export function InterviewRoom({
           <h2 className="hm-room-act-title">
             {rounds.some((r) => r.decision) ? "You have had your say." : "No interview to write up yet."}
           </h2>
-          <p className="hm-room-note">
-            {rounds.some((r) => r.decision)
-              ? "This room stays readable. A decision is append-only — what is above is the record of it, not a form to fill in again."
-              : "Once a booked interview has happened, it opens here for your write-up and your decision."}
-          </p>
           {/* Advanced at the last planned round: the next thing is the final
               choice, and the room used to stop here with no way on. */}
           {takenForward && (

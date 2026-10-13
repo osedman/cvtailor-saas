@@ -92,7 +92,7 @@ describe("the round card", () => {
 describe("the round page says the unconfirmed note once, and Decision asks one question at a time", () => {
   it("note once per section", () => {
     const page = tsCode(read("app/hiring/roles/[roleId]/round/[n]/page.tsx"))
-    expect((page.match(/has not confirmed/g) ?? []).length).toBe(1)
+    expect((page.match(/Not yet confirmed as held/g) ?? []).length).toBe(1)
     expect(page).toMatch(/owed\.some\(\(r\) => r\.status === "scheduled"\)/)
   })
   it("'That's all my decisions' waits for the final choice", () => {

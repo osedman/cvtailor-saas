@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react"
+import { Hint } from "@/components/agency/hint"
 
 interface OpenRequest {
   candidateRefs: string[]
@@ -80,16 +81,14 @@ export function RoundRequestSent({
     <div className="hm-rr-sent">
       <p className="agd-eyebrow">Decision · waiting on your recruiter</p>
       <h2 className="agd-h1 hm-decision-head">
-        You asked for {request.roundNumber ? `round ${request.roundNumber}` : "another round"} with {who}.
+        <Hint bare text="Appears here and in your diary once your recruiter books it. You can still choose meanwhile.">
+          You asked for {request.roundNumber ? `round ${request.roundNumber}` : "another round"} with {who}.
+        </Hint>
       </h2>
       <figure className="hm-final-reason">
         <figcaption className="agd-eyebrow">What you want to find out · sent {fmt(request.at)}</figcaption>
         <blockquote>{request.note}</blockquote>
       </figure>
-      <p className="agd-sub">
-        When your recruiter books it, the round appears on this page and in your diary. You can still choose now if
-        you change your mind.
-      </p>
       <div className="hm-final-row">
         <button className="hm-linkbtn" disabled={busy} onClick={() => void withdraw()}>
           Take the request back
@@ -178,7 +177,7 @@ export function RoundRequestForm({
         </button>
         {why && <p className="agd-tbtn-why">{why}</p>}
       </div>
-      <p className="ag-quiet">Nobody is told anything. Your recruiter plans the round and books it from your diary.</p>
+      <p className="ag-quiet">Nobody is told anything; your recruiter books it from your diary.</p>
       {error && <p className="ag-banner" role="alert">{error}</p>}
     </div>
   )

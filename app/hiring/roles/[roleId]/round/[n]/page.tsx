@@ -16,6 +16,7 @@ import Link from "next/link"
 import { HandOff, HmFrame, RoomHeader, useRoom } from "@/components/agency/hm-room"
 import { DECISION_LABEL, RoundActions, fmtWhen } from "@/components/agency/hm-shared"
 import { CaseSummary, displayName, useSubmittedCases } from "@/components/agency/hm-case"
+import { Hint } from "@/components/agency/hint"
 import { owedOn, plannedFor, roundEnded, stageHref } from "@/lib/agency/hm-room"
 import type { HiringRound } from "@/lib/agency/types"
 
@@ -66,8 +67,8 @@ export default function RoundStage({ params }: { params: Promise<{ roleId: strin
             <p className="hm-note-title">Round {n} has not started.</p>
             <p>
               {n === 1
-                ? "Nobody has been invited yet. Choose who to interview on the shortlist, and offer your times."
-                : `The candidates you advance after round ${n - 1} are invited here, and book from the times you offer.`}
+                ? "Nobody invited yet. Choose who to interview on the shortlist."
+                : `Candidates you advance from round ${n - 1} book in here.`}
             </p>
             <Link className="agd-tbtn" href={n === 1 ? stageHref(roleId, { key: "shortlist" }) : `/hiring/roles/${roleId}/interviews`}>
               {n === 1 ? "Go to the shortlist" : "Offer times"} →
@@ -80,21 +81,22 @@ export default function RoundStage({ params }: { params: Promise<{ roleId: strin
             <section className="agd-band" aria-labelledby="hm-owed">
               <div className="agd-eyebrow-row">
                 <h2 className="agd-eyebrow" id="hm-owed">
-                  Round {n} · {owed.length === 1 ? "one needs you" : `${owed.length} need you`}
+                  {/* Information, not a gate: the write-up is still offered.
+                      Said once for the section, as a hint on its status
+                      (board 32; frame 44). */}
+                  {owed.some((r) => r.status === "scheduled") ? (
+                    <Hint bare text="Not yet confirmed as held by your recruiter. You can still write it up.">
+                      Round {n} · {owed.length === 1 ? "one needs you" : `${owed.length} need you`}
+                    </Hint>
+                  ) : (
+                    <>
+                      Round {n} · {owed.length === 1 ? "one needs you" : `${owed.length} need you`}
+                    </>
+                  )}
                 </h2>
                 <span className="agd-rule" />
               </div>
-              <p className="agd-sub hm-stage-lede">
-                Write up what you saw, then decide.{" "}
-                {n >= planned ? "This is the last planned round — advancing puts them in your final choice." : `Advancing invites them to round ${n + 1}.`}
-              </p>
-              {/* Information, not a gate: the write-up is still offered. Said
-                  once for the section, not above every card (board 32). */}
-              {owed.some((r) => r.status === "scheduled") && (
-                <p className="ag-note">
-                  Your recruiter has not confirmed {owed.filter((r) => r.status === "scheduled").length === 1 ? "this interview" : "these interviews"} took place yet — you can still write {owed.filter((r) => r.status === "scheduled").length === 1 ? "it" : "them"} up.
-                </p>
-              )}
+              <p className="agd-sub hm-stage-lede">Write up each interview, then decide.</p>
               <div className="ag-stack" style={{ gap: 12 }}>
                 {owed.map((r) => (
                   <RoundActions
@@ -162,13 +164,7 @@ export default function RoundStage({ params }: { params: Promise<{ roleId: strin
 
       {inRound.length > 0 && (
         <HandOff
-          text={
-            allDecided
-              ? nextStage.key === "round"
-                ? `Round ${n} is decided. The people you advanced are invited to round ${n + 1} from the times you offer.`
-                : `Round ${n} is decided. Next, confirm where you have landed.`
-              : `When everyone in round ${n} is decided, this role moves on${n < planned ? ` to round ${n + 1}` : " to your decision"}.`
-          }
+          text=""
           href={stageHref(roleId, nextStage)}
           label={nextStage.key === "round" ? `Round ${n + 1}` : "Decision"}
           ready={allDecided}

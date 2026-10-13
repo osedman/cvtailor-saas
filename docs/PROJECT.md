@@ -8638,3 +8638,38 @@ phone rule (requirement rows squeezed to a sliver), and the screen head
 squeezed its title on phones instead of stacking. A duplicate "From the
 brief" marker was also removed. Tests updated where they pinned changed copy
 (none weakened; the MISSING guard is as strict). tsc clean, 2199 pass.
+
+### Declutter phase 3 — one switch between your two sides, and a quieter client workspace (frame 44, 13 Oct 2026)
+
+Frame `44` (689:2) approved by Ose: bands A, B and C with his five wording
+calls; D ("Preview as client") left out for now.
+
+- **A · Viewing as.** `components/agency/hat-switch.tsx` +
+  `GET /api/me/hats` (two booleans, nothing else). Renders only for someone
+  who holds both sides: in the recruiter sidebar (both nav branches), as a
+  bar above the page on a recruiter phone (the sidebar hides below 900px),
+  and in the client top bar of every client screen (HmFrame, interview
+  setup, the interview-room page). The client top bar gains a thin coral
+  line. The "You are on the client side" band, "Client view →" and "Back to
+  your agency →" are gone.
+- **C · One promise.** `HmPromise` at the foot of every client screen: "Nothing
+  you do here closes the role or removes anyone. You can change a decision
+  while the role is open with you, and Tailr never tells candidates you held
+  or declined them. Your recruiter's working notes are not shown here."
+  Checked in code: decisions are append-only with no lock after close-out;
+  only a revoked link stops them.
+- **B · Client workspace.** ~1,455 → ~450 visible words across roles, diary,
+  role room, interview setup, rounds and the interview room, decision,
+  handover, brief and invite: one subtitle and at most one "How this works"
+  per screen, status explanations in hints, per-screen copies of the promise
+  deleted. Disclosure, redaction, withheld-material, calendar-retention and
+  signing notices kept visible, shorter. **Not done, needs Ose:** the
+  shortlist's "screening notes are not part of this submission" line is
+  pinned verbatim by the withheld-material guard
+  (`client-shortlist-disclosure.test.ts`), so it is unchanged.
+
+Browser check at 1280 and 390 with mocked data as a dual-role user: Today,
+the client home, Roles and Diary, plus all six recruiter workflow steps — no
+page errors, no sideways scroll. It found and fixed: the switch invisible on
+a recruiter phone; the phone bar showing on client pages; a 240px-tall bar;
+and two layout overflows. tsc clean, 2199 pass.

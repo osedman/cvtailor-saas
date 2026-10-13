@@ -12,6 +12,8 @@ import { use } from "react"
 import "../../../../hiring.css"
 import { SignOut } from "@/components/agency/sign-out"
 import { InterviewRoom } from "@/components/agency/interview-room"
+import { HatSwitch } from "@/components/agency/hat-switch"
+import { HmPromise } from "@/components/agency/hm-room"
 
 export default function InterviewRoomPage({
   params,
@@ -25,10 +27,13 @@ export default function InterviewRoomPage({
         <div className="ag-brand-mark" aria-hidden="true">T</div>
         <span className="agd-crumb">Interview</span>
         <span className="agd-spacer" />
+        <HatSwitch current="hiring" inline fallback={<span className="ag-pill hm-role-chip">Hiring manager</span>} />
         <SignOut />
       </div>
       <div className="agd-page">
         <InterviewRoom roleId={roleId} candidateRef={decodeURIComponent(candidateRef)} />
+        {/* Not inside HmFrame, so it carries the promise itself (frame 44). */}
+        <HmPromise />
       </div>
     </main>
   )

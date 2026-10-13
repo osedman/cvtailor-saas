@@ -10,8 +10,9 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { sessionUser } from "@/lib/supabase/session-user"
 import { getHatsHeld } from "@/lib/hat-routing"
+import { withTiming } from "@/lib/server-timing"
 
-export async function GET() {
+async function GET_handler() {
   try {
     const supabase = await createClient()
     const user = await sessionUser(supabase)
@@ -23,3 +24,6 @@ export async function GET() {
     return NextResponse.json({ recruiter: false, hiringManager: false })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts).
+export const GET = withTiming("/api/me/hats", "GET", GET_handler)

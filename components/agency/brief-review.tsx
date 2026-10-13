@@ -123,7 +123,6 @@ export function BriefReview({
         <h3>What {onChange ? "you are" : "the client is"} agreeing to</h3>
         <TierPill tier={1} />
       </div>
-      {onChange && <p className="ag-note">Change any of these and the brief becomes a new version, signed by you, waiting on the agency.</p>}
       {jdLine}
       {TIER1_LINES.map((k) => line(k))}
       <div className="ag-brief-line" data-changed={windowsChanged || undefined}>
@@ -150,7 +149,6 @@ export function BriefReview({
           </Hint>
         )}
       </div>
-      {onChange && <p className="ag-note">Read these. If one is wrong, say so — that is a change too, and it goes back the same way.</p>}
       {TIER2_LINES.map((k) => line(k))}
       {config.note && (
         <div className="ag-brief-line">

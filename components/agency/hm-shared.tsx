@@ -388,21 +388,9 @@ export function RoundActions({
                   Decline
                 </button>
               </div>
-              <p className="agd-aside">
-                Yours and reversible — deciding again replaces this one. Declining records your
-                view of this round; it never removes anyone from the process.
-              </p>
             </>
           )}
         </>
-      )}
-
-      {!canWrite && !decided && (
-        <p className="agd-aside">
-          {inProgress
-            ? "In the room now. Your write-up opens here the moment it ends."
-            : "Nothing to do until this has happened. Your write-up and decision open here afterwards."}
-        </p>
       )}
 
       {/*
@@ -418,12 +406,13 @@ export function RoundActions({
       */}
       {decided && (
         <p className="agd-aside">
-          You {DECISION_SENTENCE[decided]}
-          {round.latest_decision_at ? ` on ${fmtDate(round.latest_decision_at)}` : ""}.{" "}
-          {round.has_debrief
-            ? "The write-up it rests on is on file with your recruiter."
-            : "No write-up is on file for this round."}{" "}
-          Deciding again replaces this; nothing here removes anyone from the process.
+          <Hint
+            bare
+            text={`${round.has_debrief ? "Your write-up is on file with your recruiter" : "No write-up is on file"}. Deciding again replaces this.`}
+          >
+            You {DECISION_SENTENCE[decided]}
+            {round.latest_decision_at ? ` on ${fmtDate(round.latest_decision_at)}` : ""}.
+          </Hint>
         </p>
       )}
 
@@ -502,9 +491,9 @@ export function DecisionsComplete({ roleId }: { roleId: string }) {
       {completeAt ? (
         <>
           <p className="agd-sub" style={{ marginBottom: 10 }} role="status">
-            You told your recruiter you had finished deciding on{" "}
-            {new Date(completeAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.
-            They are taking it to close-out. Nothing is closed, and you can still change your mind.
+            <Hint bare text="Your recruiter is taking it to close-out. Nothing is closed — you can reopen.">
+              Finished deciding · {new Date(completeAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+            </Hint>
           </p>
           <button className="agd-tbtn" disabled={busy} onClick={() => void send("withdrawn")}>
             {busy ? "Reopening…" : "Actually, I am not finished"}
@@ -512,10 +501,6 @@ export function DecisionsComplete({ roleId }: { roleId: string }) {
         </>
       ) : (
         <>
-          <p className="agd-sub" style={{ marginBottom: 10 }}>
-            When you have decided on everyone you want to, say so and your recruiter can take it
-            to close-out. It does not close the role, and you can undo it.
-          </p>
           <div className="ag-stack" style={{ gap: 8 }}>
             <input
               className="ag-input"

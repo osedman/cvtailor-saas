@@ -27,6 +27,7 @@
 
 import { useEffect, useState } from "react"
 import type { ShortlistingEntry } from "@/lib/agency/client-shortlisting"
+import { Hint } from "@/components/agency/hint"
 
 /** How often the list refreshes while the tab is visible. */
 export const SHORTLISTING_REFRESH_MS = 60_000
@@ -212,15 +213,8 @@ export function BeingShortlisted({ entries, agency, nowMs }: { entries: Shortlis
         <span className="hm-sling-aside">Updated as {agency.mid} adds people</span>
         <span className="agd-rule" />
       </div>
-      <p className="hm-sling-sub">
-        {agency.lead} is still building this shortlist. Each name appears the moment they add someone and goes
-        if they take them off. Their CV, the evidence and the scores arrive with the submission.
-      </p>
       <ShortlistingRows entries={entries} nowMs={nowMs} />
-      <p className="hm-sling-foot">
-        Nothing to decide yet. When the submission arrives you will read each person here in full and choose who
-        to interview.
-      </p>
+      <p className="hm-sling-foot">Nothing to decide until the submission arrives.</p>
     </section>
   )
 }
@@ -231,10 +225,7 @@ export function NothingShortlistedYet({ agency }: { agency: { lead: string; mid:
     <section className="agd-band">
       <div className="hm-note-card">
         <p className="hm-note-title">Nothing shortlisted yet.</p>
-        <p>
-          Names appear here as {agency.mid} adds people to the shortlist. If your recruiter sends it by email
-          instead, it will be in your inbox.
-        </p>
+        <p>Names appear here as {agency.mid} shortlists, or arrive by email.</p>
       </div>
     </section>
   )
@@ -248,13 +239,14 @@ export function AddedSince({ entries, agency, nowMs }: { entries: ShortlistingEn
       <hr className="hm-sling-divider" />
       <section className="agd-band" aria-labelledby="hm-sling-since">
         <div className="agd-eyebrow-row">
-          <h2 className="agd-eyebrow" id="hm-sling-since">Added since · not sent yet · {entries.length}</h2>
+          <h2 className="agd-eyebrow" id="hm-sling-since">
+            <Hint bare text="Shortlisted since the submission. Their CV, evidence and scores come with the next one.">
+              Added since · not sent yet
+            </Hint>{" "}
+            · {entries.length}
+          </h2>
           <span className="agd-rule" />
         </div>
-        <p className="hm-sling-sub">
-          {agency.lead} has shortlisted these since the submission. Their CV, evidence and scores arrive with the
-          next one.
-        </p>
         <ShortlistingRows entries={entries} nowMs={nowMs} />
       </section>
     </>

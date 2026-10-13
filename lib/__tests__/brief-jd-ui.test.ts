@@ -249,8 +249,10 @@ describe("the review's fixes: signatures, copy, focus, names, locking", () => {
     expect(clientNew).toContain("A new file is a new version: Halcyon Search's signature is cleared until they approve it.")
   })
 
-  it("copy counts the job description: the client's form aside and the recruiter's review note", () => {
-    expect(clientPage).toContain("Only the job description and the four numbered sections after it are yours to change")
+  it("copy counts the job description: the client's How this works and the recruiter's review note", () => {
+    // Frame 44 (13 Oct 2026): the client's form aside became the page's one "How this works".
+    expect(clientPage).toContain("The job description and the four numbered sections are yours to change")
+    expect(clientPage).not.toContain("Only the job description and the four numbered sections after it are yours to change")
     expect(clientPage).not.toContain("Only the first four sections")
     // Frame 43 (13 Oct 2026): the recruiter's review intro was deleted.
     expect(text(renderReview({ config: cfg(null) }))).not.toContain("The job description and the four terms the client signs for.")

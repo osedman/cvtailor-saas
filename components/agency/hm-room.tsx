@@ -128,6 +128,18 @@ export function useRoom(roleId: string) {
 }
 
 /** Topbar and the four honest non-ready states, shared by every screen. */
+/** The one promise every client screen carries (frame 44, band C). Pages
+ *  that do not use HmFrame render it themselves. */
+export function HmPromise() {
+  return (
+    <p className="hm-promise">
+      Nothing you do here closes the role or removes anyone. You can change a decision while the
+      role is open with you, and Tailr never tells candidates you held or declined them. Your
+      recruiter&apos;s working notes are not shown here.
+    </p>
+  )
+}
+
 export function HmFrame({
   screen,
   crumb,
@@ -176,13 +188,7 @@ export function HmFrame({
             place of six per-screen statements. Checked 13 Oct: decisions are
             append-only with no lock after close-out — only a revoked link
             stops them — hence "while the role is open with you". */}
-        {screen === "ready" && (
-          <p className="hm-promise">
-            Nothing you do here closes the role or removes anyone. You can change a decision while the
-            role is open with you, and Tailr never tells candidates you held or declined them. Your
-            recruiter&apos;s working notes are not shown here.
-          </p>
-        )}
+        {screen === "ready" && <HmPromise />}
       </div>
     </main>
   )
