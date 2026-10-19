@@ -8714,3 +8714,17 @@ change it" in sentence case, not mono eyebrows. Nothing about grouping,
 reasons or traces changed. Browser check 1440/390 with a mocked result: no
 errors, no sideways scroll. 2203 pass. Ose, 19 Oct: Interviews/close-out
 (frame 46) not needed for now — Compare is the focus.
+
+### Fix: the "Viewing as" switch hid itself after sign-in (19 Oct 2026)
+
+Ose could not see the Recruiter / Hiring manager switch on staging, though his
+login holds both (checked on tailr-staging: active member + linked client
+contact). Cause: the agency shell mounts the switch on `/agencies/sign-in`
+too, so its first `/api/me/hats` ask is made signed out (401) and that
+"neither" was cached in module state for the session. Signing in with a code
+moves on client-side (`router.replace`), so nothing asked again and the switch
+stayed hidden until a hard refresh. Now only a signed-in answer is cached, a
+failed ask is retried on the next navigation, and the shell's copy re-asks on
+route change. `hat-switch-cache.test.ts` (3 new) fails on the old code;
+browser repro (401 on sign-in → client-side nav) showed 1 ask and no switch
+before, 2 asks and the switch after. 2206 pass.

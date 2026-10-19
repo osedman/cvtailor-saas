@@ -41,7 +41,11 @@ describe("the Viewing as switch (frame 44)", () => {
   })
 
   it("a failure hides the switch rather than erroring, and never defaults true", () => {
-    expect(sw).toMatch(/\.catch\(\(\) => \(\{ recruiter: false, hiringManager: false \}\)\)/)
+    // A failed or signed-out ask resolves to NONE (both false) and is never
+    // cached — hat-switch-cache.test.ts covers the not-cached half.
+    expect(sw).toContain("const NONE: Hats = { recruiter: false, hiringManager: false }")
+    expect(sw).toMatch(/if \(!r\.ok\) return NONE/)
+    expect(sw).toMatch(/\.catch\(\(\) => NONE\)/)
     expect(api).toMatch(/catch \{[\s\S]*recruiter: false, hiringManager: false/)
   })
 
