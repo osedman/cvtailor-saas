@@ -32,10 +32,47 @@ Two ways to honour all three:
 | Env | One Production set | Two sets to keep in step; the 28 Jul "Preview-scoped variable" trap, twice |
 | Risk | 454 commits of consumer changes reach consumer prod at once | Two drifting copies of `proxy.ts`, `site-url.ts`, auth and rate-limiting forever |
 
-**Recommendation: A**, in two moves. First port the consumer-side changes
-to `main` in reviewed chunks (as `#61` already did for the Gaps tab), so
-`main` catches up with the consumer fixes staging has been carrying. Then
-the B2B set lands as one port with the migrations in §1. **Ose** decides.
+**DECIDED 19 Oct 2026 (Ose): Option A.** This supersedes the 22 Aug line
+that the agency product would not go into the consumer deployment; the
+separate domain and the shared Supabase project stand. Rules unchanged:
+nothing merges to `main` without Ose saying so for that specific port.
+
+### Move 1 · consumer catch-up, `staging` → `main`, in reviewed chunks
+
+A trial merge of `main` into `staging` (local, 19 Oct) conflicts in **28
+files**, all where both branches changed the same code separately in
+July–August: admin pages and metrics (10), course catalog and sync (6),
+career-path and career-evidence routes (2), `lib/email.ts`, `lib/anthropic.ts`,
+`next.config.js`, `vercel.json`, `app/tailor/page.tsx`, five tests and two
+scripts. Everything else merges clean. So step one is a single **"main back
+into staging"** merge resolving those 28, after which `staging` is a strict
+superset of `main` and every later port is a clean cherry-pick range.
+
+Then the consumer-side diff (106 files) goes to `main` as PRs, smallest
+blast radius first, each one built and clicked on a preview before merge:
+
+| # | Chunk | Commits / files | Needs on prod |
+|---|---|---|---|
+| 1 | Platform: fonts, `app/layout.tsx`, globals, rate limiting, `server-timing`, `public-fetch`, small libs, analytics | 22 / 13 | — |
+| 2 | Auth: `request-otp`, `post-login`, `landing`, `/login`, `session-user`, cookie options, `hat-routing`, `site-url`, `proxy.ts` | 16 / 16 | Supabase redirect URLs if any new path |
+| 3 | Email: `email.ts`, senders, style, weekly cron, path digest | 15 / 7 | `vercel.json` cron + `CRON_SECRET` |
+| 4 | CV tailor: panels, header, role-mode banner, tailor/parse/scrape/history routes | 21 / 14 | — (carries the stale-CV fix once built) |
+| 5 | Career Arc: ledger, reveal, share cards, `/arc/[token]` | 18 / 17 | migrations `019`, `020` **before** deploy |
+| 6 | Career path and courses: compute, roadmap store, upskill, first-cv, catalog, sync | 19 / 14 | — |
+| 7 | Admin and debug | 10 / 11 | — |
+| 8 | Settings, billing, tracker, feature gate | 6 / 9 | — |
+| 9 | Calendar connections and `.ics` | 5 / 6 | shared with B2B; may ride with move 2 |
+
+Also in the diff and **not for `main`**: `Marketing/`, `email/*.html` drafts,
+`.rescued-from-icloud/`, `AGENTS.md`, `tsconfig.tsbuildinfo`.
+
+### Move 2 · the agency product itself
+
+`app/agencies`, `app/hiring`, `app/api/agency`, `app/api/hiring`, `app/api/me`,
+`lib/agency`, `components/agency`, the doorways, matching, their tests, the
+`agency-cvs`/`agency-recordings` buckets — as one port, after §1's
+migrations have run on prod and §2–3 are in place. Then `tailrecruit.com`
+apex → production and `DOMAIN_SPLIT_ENABLED` flipped.
 
 ## 1 · Database — the production port
 

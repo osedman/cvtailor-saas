@@ -83,10 +83,13 @@ and reported as skipped, not failed.
 lives publicly is still Ose's call, and a lawyer pass before public web use
 remains advisable.
 
-**Standing decisions:** B2B gets its OWN separate domain (not a subdomain),
-bought when production is wanted. There is NO port into consumer production,
-ever — agency migrations go to staging and, one day, a B2B production
-environment.
+**Standing decisions:** B2B has its OWN separate domain (`tailrecruit.com`,
+bought 29 Sep, live on staging only). **19 Oct 2026 (Ose): Option A** — one
+codebase and one Vercel deployment serve both hosts, agency schema in the
+SAME prod Supabase project (the matching bridge needs it). Reconcile
+`staging` → `main` in reviewed chunks first, then port the agency product
+with its migrations; see `docs/B2B-PROD-READINESS.md`. Nothing merges to
+`main` without Ose saying so for that port.
 
 ### Verification discipline — the part that pays
 

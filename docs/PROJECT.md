@@ -8737,3 +8737,9 @@ files are consumer-side), then the migration port (57 files never run on
 prod; the staging ledger records only 44 and is not a record of what was
 applied), Vercel env, the tailrecruit.com domain/Resend/redirect-URL work,
 the 30 Sep hardening leftovers, the legal gates, known bugs, housekeeping.
+
+**19 Oct, Option A decided (Ose):** one codebase, one deployment, two hosts.
+Trial merge of `main` into `staging` conflicts in 28 files (admin, courses,
+career-path, email, config); the consumer catch-up is planned as nine PRs in
+`docs/B2B-PROD-READINESS.md` §0, the agency product as one port after. The
+tailr-b2b skill's standing decision updated. No merge to main yet.
