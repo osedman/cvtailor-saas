@@ -29,7 +29,7 @@ import { ShortlistRail, ShortlistBar, type ShortlistEntry } from "@/components/a
 import { countWord, countWordCap } from "@/components/agency/count-word"
 import { Hint, RECRUITER_HINTS } from "@/components/agency/hint"
 import { ShortlistStages } from "@/components/agency/shortlist-stages"
-import { AdjustedPill, ConfidenceBars, ScoreBreakdown, StrengthKey } from "@/components/agency/score-parts"
+import { AdjustedPill, ConfidenceBars, FitHint, ScoreBreakdown } from "@/components/agency/score-parts"
 import {
   PrintPortal,
   SubmissionDocument,
@@ -484,7 +484,23 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // Step 05 has two tabs. The matrix is the default and stays the default:
   // the recommendation is a second reading of the same material, never a
   // replacement for the board the decisions are made on.
-  const [compareTab, setCompareTab] = useState<"matrix" | "reco">("matrix")
+  // Frame 45: cards and the matrix print the same numbers, so they are two
+  // views, not one long page. The choice is remembered per browser; with no
+  // choice yet, six or more candidates open on the matrix.
+  const [compareTabChoice, setCompareTabChoice] = useState<"cards" | "matrix" | "reco" | null>(null)
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem("ag-cmp-view")
+      if (v === "cards" || v === "matrix") setCompareTabChoice(v)
+    } catch {}
+  }, [])
+  const compareTab = compareTabChoice ?? (candidates.length >= 6 ? "matrix" : "cards")
+  const setCompareTab = (t: "cards" | "matrix" | "reco") => {
+    setCompareTabChoice(t)
+    if (t !== "reco") {
+      try { window.localStorage.setItem("ag-cmp-view", t) } catch {}
+    }
+  }
   // The compare filter bar (frame 37, 2 Oct 2026): three labelled dropdowns.
   // All VIEW controls — nothing is hidden from the record, nothing decided.
   const [reqFilter, setReqFilter] = useState<"all" | "must" | "must_important">("all")
@@ -2573,15 +2589,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
             return (
               <>
                 <div className="ag-screen-head">
-                  <div>
-                    <h1 className="ag-title">Every candidate, every<br />requirement, side by side.</h1>
-                    <p className="ag-sub">
-                      Choose who goes on the shortlist, from the evidence after screening.
-                    </p>
-                  </div>
-                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <button className="ag-btn ag-btn-secondary" onClick={() => setStep("screening")}>Back</button>
-                  </div>
+                  <h1 className="ag-title">Compare</h1>
                 </div>
 
                 {/* Board 26: the cards and the recommendation on the left, the
@@ -2592,6 +2600,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 <div className="ag-cmp-main">
                 <div className="ag-cmp-controls">
                   <div className="ag-cmp-tabs" role="tablist" aria-label="Compare views">
+                    <button
+                      role="tab"
+                      aria-selected={compareTab === "cards"}
+                      className={compareTab === "cards" ? "on" : ""}
+                      onClick={() => setCompareTab("cards")}
+                    >
+                      Cards
+                    </button>
                     <button
                       role="tab"
                       aria-selected={compareTab === "matrix"}
@@ -2609,50 +2625,36 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       Recommendation
                     </button>
                   </div>
-                  {compareTab === "matrix" ? (
-                    <div className="ag-cmp-bulk" role="group" aria-label="Add in one go">
-                      <span className="ag-field-label ag-cmp-bulk-label">Add in one go</span>
-                      {mustHaveReady.length > 0 && (
+                  {compareTab !== "reco" ? (
+                    <details className="ag-cmp-bulk">
+                      <summary className="ag-btn ag-btn-secondary">Add in bulk ▾</summary>
+                      <div className="ag-cmp-bulk-menu" role="group" aria-label="Add in bulk">
                         <button
                           type="button"
-                          className="ag-bulk-chip"
-                          onClick={() => addMany(mustHaveReady.map((c) => c.id))}
-                          title="Adds everyone whose every must-have is evidenced and who is not in yet. One decision per person, yours, with undo."
+                          className="ag-cmp-bulk-item"
+                          disabled={mustHaveReady.length === 0}
+                          onClick={(e) => {
+                            e.currentTarget.closest("details")?.removeAttribute("open")
+                            addMany(mustHaveReady.map((c) => c.id))
+                          }}
+                          title="One decision per person, yours, with undo."
                         >
-                          <span className="ag-bulk-long">+ Everyone with every must-have</span>
-                          <span className="ag-bulk-short">+ Every must-have</span>
-                          {" · "}{mustHaveReady.length}
+                          Everyone with all must-haves · {mustHaveReady.length}
                         </button>
-                      )}
-                      {reco.result ? (
-                        recommendedNotIn.length > 0 && (
-                          <button
-                            type="button"
-                            className="ag-bulk-chip"
-                            onClick={() => void addRecommended()}
-                            title="Adds the people in the recommendation's first group who are not in yet. One decision per person, yours, with undo."
-                          >
-                            <span className="ag-bulk-long">+ The {countWord(recommendedNotIn.length)} it recommends</span>
-                            <span className="ag-bulk-short">+ Recommended · {recommendedNotIn.length}</span>
-                          </button>
-                        )
-                      ) : (
                         <button
                           type="button"
-                          className="ag-bulk-chip"
-                          onClick={() => void addRecommended()}
-                          disabled={reco.busy}
-                          title="No recommendation has been generated yet. This runs it first, then adds its first group — one decision per person, yours, with undo."
+                          className="ag-cmp-bulk-item"
+                          disabled={reco.busy || (Boolean(reco.result) && recommendedNotIn.length === 0)}
+                          onClick={(e) => {
+                            e.currentTarget.closest("details")?.removeAttribute("open")
+                            void addRecommended()
+                          }}
+                          title={reco.result ? "One decision per person, yours, with undo." : "Runs the recommendation first. One decision per person, yours, with undo."}
                         >
-                          {reco.busy ? "Reading…" : (
-                            <>
-                              <span className="ag-bulk-long">+ The ones it recommends</span>
-                              <span className="ag-bulk-short">+ Recommended</span>
-                            </>
-                          )}
+                          {reco.busy ? "Reading…" : reco.result ? `The recommended ones · ${recommendedNotIn.length}` : "The recommended ones"}
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    </details>
                   ) : (
                     reco.result && (
                       <button className="ag-btn ag-btn-secondary ag-reco-again" onClick={() => void reco.generate()} disabled={reco.busy}>
@@ -2661,14 +2663,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     )
                   )}
                 </div>
-                {compareTab === "matrix" ? (
+                {compareTab !== "reco" ? (
                   <>
 
                 {/* The filter bar (frame 37): three labelled dropdowns, each
                     saying what it does. View controls only. */}
                 <div className="ag-cmp-filters" role="group" aria-label="Filter the comparison">
                   <label className="ag-cmp-filter">
-                    <span className="ag-label">Sort by</span>
+                    <span className="ag-label">Sort</span>
                     <select className="ag-input" value={compareSort} onChange={(e) => setCompareSort(e.target.value as typeof compareSort)}>
                       <option value="score">Score</option>
                       <option value="must">Must-haves met</option>
@@ -2676,7 +2678,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </select>
                   </label>
                   <label className="ag-cmp-filter">
-                    <span className="ag-label">Requirements</span>
+                    <span className="ag-label">Show</span>
                     <select className="ag-input" value={reqFilter} onChange={(e) => setReqFilter(e.target.value as typeof reqFilter)}>
                       <option value="all">All requirements</option>
                       <option value="must">Must-haves only</option>
@@ -2684,7 +2686,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </select>
                   </label>
                   <label className="ag-cmp-filter">
-                    <span className="ag-label">Candidates</span>
+                    <span className="ag-label">Who</span>
                     <select className="ag-input" value={candFilter} onChange={(e) => setCandFilter(e.target.value as typeof candFilter)}>
                       <option value="all">Everyone · {candidates.length}</option>
                       <option value="undecided">Not decided yet · {decisionCounts.undecided}</option>
@@ -2699,18 +2701,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   )}
                 </div>
 
-                <div className="ag-legend">
-                  <Hint bare text="Strong counts 1.0, transferable 0.7, partial 0.4, missing 0. Coral cells are your overrides." className="ag-field-label ag-legend-label">Legend</Hint>
-                  <StrengthKey strength="strong" label="Strong" />
-                  <StrengthKey strength="transferable" label="Transferable" />
-                  <StrengthKey strength="partial" label="Partial" />
-                  <StrengthKey strength="missing" label="Missing" />
-                </div>
-
+                {compareTab === "cards" && (
                 <div className="ag-cmp-grid">
-                  {shownCandidates.map((c, rank) => {
+                  {shownCandidates.map((c) => {
                     const s = scores[c.id]
                     const topRisk = requirements.find((r) => r.weight !== "nice" && effectiveStrength(c.id, r.id) === "missing")
+                    const allMust = s ? s.must_have_hit === s.must_have_total : false
                     return (
                       <div
                         className="ag-card ag-cmp-card"
@@ -2721,66 +2717,54 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         onMouseEnter={() => setFocusedCandidate(c.id)}
                         onFocus={() => setFocusedCandidate(c.id)}
                       >
-                        <div className="ag-card-head" style={{ alignItems: "flex-start" }}>
-                          <div style={{ display: "flex", gap: 10, minWidth: 0 }}>
-                            <div className="ag-avatar" style={{ width: 34, height: 34, fontSize: 12 }}>{initials(c.full_name)}</div>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
-                                <span className="ag-meta">#{rank + 1}</span>
-                                <span style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.full_name}</span>
-                              </div>
-                              <div className="ag-meta">{c.current_title || c.ref}</div>
-                            </div>
-                          </div>
-                          <button
-                            className="ag-icon-btn"
-                            title={`Hide ${c.full_name} from the comparison`}
-                            aria-label={`Hide ${c.full_name} from the comparison`}
-                            onClick={() => setHiddenCandidates((h) => [...h, c.id])}
-                          >
-                            ×
-                          </button>
-                        </div>
-                        <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                            {reviews[c.id]?.status === "reviewed" && <span className="ag-reviewed inline">Call done</span>}
-                            {s && <AdjustedPill original={s.original_overall} overall={s.overall} />}
+                        <div className="ag-cmp-card-body">
+                          <div className="ag-cmp-who">
+                            <span className="ag-cmp-name">{c.full_name}</span>
+                            <span className="ag-cmp-title">{c.current_title || c.ref}</span>
+                            <button
+                              className="ag-icon-btn ag-cmp-hide"
+                              title={`Hide ${c.full_name} from the comparison`}
+                              aria-label={`Hide ${c.full_name} from the comparison`}
+                              onClick={() => setHiddenCandidates((h) => [...h, c.id])}
+                            >
+                              ×
+                            </button>
                           </div>
                           {s && (
-                            <>
-                              <ScoreBreakdown score={s} />
-                              <ConfidenceBars level={s.confidence_level} />
-                            </>
+                            <div className="ag-cmp-facts">
+                              <FitHint score={s} />
+                              <AdjustedPill original={s.original_overall} overall={s.overall} />
+                              <span className="ag-cmp-must" data-all={allMust}>Must-haves {s.must_have_hit}/{s.must_have_total}</span>
+                              {reviews[c.id]?.status === "reviewed" && <span className="ag-cmp-call">Call done</span>}
+                            </div>
                           )}
-                          <div>
-                            <span className="ag-field-label">Top risk</span>
-                            <span className="ag-toprisk">
-                              {topRisk ? `${topRisk.ref} unevidenced: ${topRisk.text}` : "No unmet must or important requirement."}
-                            </span>
-                          </div>
+                          {topRisk && <span className="ag-cmp-gap">Gap: {topRisk.text}</span>}
                           <DecisionSlot
                             decision={decisions[c.id] ?? null}
                             name={c.full_name}
                             onDecide={(d) => decide(c.id, d)}
                           />
-                          <button className="ag-btn ag-btn-secondary" style={{ width: "100%", justifyContent: "center" }} onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
-                            View candidate
+                          <button className="ag-cmp-view" onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
+                            View →
                           </button>
                         </div>
                       </div>
                     )
                   })}
                 </div>
+                )}
 
+                {compareTab === "matrix" && (
                 <div className="ag-card" style={{ overflow: "hidden" }}>
                   <div className="ag-card-head">
-                    <span className="ag-card-title">Requirement matrix</span>
                     <span className="ag-meta">{shownReqs.length} requirements × {shownCandidates.length} candidates</span>
                   </div>
                   <div style={{ overflowX: "auto" }}>
                     <div style={{ minWidth: 240 + shownCandidates.length * 160 }}>
                       <div className="ag-mx-head" style={{ gridTemplateColumns: cols }}>
-                        <div style={{ padding: "10px 16px" }}><span className="ag-field-label" style={{ marginBottom: 0 }}>Requirement</span></div>
+                        <div style={{ padding: "10px 16px" }}>
+                          <Hint bare text="Strong counts 1.0, transferable 0.7, partial 0.4, missing 0. Coral cells are your overrides." className="ag-field-label ag-hint-label">Requirement</Hint>
+                        </div>
                         {shownCandidates.map((c) => {
                           const s = scores[c.id]
                           return (
@@ -2832,6 +2816,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </div>
                   </div>
                 </div>
+                )}
 
                   </>
                 ) : (
@@ -2872,16 +2857,23 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       </>
                     )}
                   </div>
-                  <span className="ag-field-label">Decisions</span>
                   <span className="ag-decisions-tally">
                     {decisionTotals} · <b>{decisionCounts.undecided} undecided</b>
                   </span>
                   <span className="ag-grow" />
-                  <span className="ag-kbd-hints">
-                    <span><kbd className="ag-kbd">S</kbd> add / remove</span>
-                    <span><kbd className="ag-kbd">H</kbd> hold</span>
-                    <span><kbd className="ag-kbd">R</kbd> pass</span>
-                  </span>
+                  <Hint
+                    info
+                    className="ag-kbd-hints"
+                    content={
+                      <>
+                        <span className="ag-hint-block"><kbd className="ag-kbd">S</kbd> add / remove</span>
+                        <span className="ag-hint-block"><kbd className="ag-kbd">H</kbd> hold</span>
+                        <span className="ag-hint-block"><kbd className="ag-kbd">R</kbd> pass</span>
+                      </>
+                    }
+                  >
+                    Keys
+                  </Hint>
                 </div>
 
                 {/* ≤ 900px: the rail as a sticky bottom bar, opening as a sheet. */}

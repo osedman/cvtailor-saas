@@ -267,8 +267,9 @@ describe("D · the recruiter's rail", () => {
     // the "Names visible" tag and board 40's next-stage caption are gone.
     expect(out).not.toContain("Names visible to the client")
     expect(out).not.toContain("Next: choose what else the client reads, then send.")
-    // Board 26's other lines are unchanged.
-    for (const line of ["Your shortlist · Meridian Health", "Nobody yet", "Your next add lands here", "Kept for later. Never sent.", "Internal record only.", "Confirm shortlist →"]) {
+    // Frame 45 (18 Oct 2026) shortened the heading and the counts; the
+    // hold and pass notes moved behind the counts' hints.
+    for (const line of ["Shortlist · 0", "Your next add lands here", "On hold · 1", "Passed · 2", "Confirm shortlist →"]) {
       expect(out).toContain(line)
     }
   })

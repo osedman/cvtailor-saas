@@ -32,6 +32,7 @@
 import { useEffect, useRef, useState } from "react"
 import { ChevronUp } from "lucide-react"
 import { ShortlistStages } from "@/components/agency/shortlist-stages"
+import { Hint } from "@/components/agency/hint"
 
 export interface ShortlistEntry {
   id: string
@@ -55,14 +56,13 @@ export interface ShortlistRailProps {
   variant?: "card" | "sheet"
 }
 
+// Frame 45: "Shortlist · 2". The list below is in score order; it says so
+// by being in score order.
 function railTitle(n: number): string {
-  if (n === 0) return "Nobody yet"
-  if (n === 1) return "1 person, in score order"
-  return `${n} people, in score order`
+  return `Shortlist · ${n}`
 }
 
 export function ShortlistRail({
-  company,
   clientName,
   entries,
   holdCount,
@@ -76,9 +76,6 @@ export function ShortlistRail({
     <section className={`ag-sl ${variant === "card" ? "ag-card ag-sl-card" : "ag-sl-sheet-body"}`} aria-label="Your shortlist">
       <div className="ag-sl-head">
         <ShortlistStages at={0} />
-        <span className="ag-field-label ag-sl-eyebrow">
-          Your shortlist{company ? ` · ${company}` : ""}
-        </span>
         <h2 className="ag-sl-title" aria-live="polite">{railTitle(n)}</h2>
         <p className="ag-sl-sub">
           {clientName?.trim() || "The client"} sees each name as you add it. The CV, evidence and scores wait for
@@ -92,7 +89,7 @@ export function ShortlistRail({
             <span className="ag-avatar ag-sl-avatar" aria-hidden>{e.initials}</span>
             <span className="ag-sl-who">
               <span className="ag-sl-name">{e.name}</span>
-              <span className="ag-meta ag-sl-fit">FIT {Math.round(e.overall)} · MUST {e.mustHit}/{e.mustTotal}</span>
+              <span className="ag-sl-fit">Fit {Math.round(e.overall)} · Must {e.mustHit}/{e.mustTotal}</span>
             </span>
             <button
               type="button"
@@ -109,14 +106,8 @@ export function ShortlistRail({
       </ol>
 
       <div className="ag-sl-quiet">
-        <div>
-          <span className="ag-field-label ag-sl-quiet-label">On hold · {holdCount}</span>
-          <span className="ag-sl-quiet-note">Kept for later. Never sent.</span>
-        </div>
-        <div>
-          <span className="ag-field-label ag-sl-quiet-label">Passed · {passedCount}</span>
-          <span className="ag-sl-quiet-note">Internal record only.</span>
-        </div>
+        <Hint bare text="Kept for later. Never sent." className="ag-sl-quiet-label">On hold · {holdCount}</Hint>
+        <Hint bare text="Internal record only. The client never sees it." className="ag-sl-quiet-label">Passed · {passedCount}</Hint>
       </div>
 
       <div className="ag-sl-foot">

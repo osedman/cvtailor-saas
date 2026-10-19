@@ -41,10 +41,12 @@ const jsxText = (src: string) => [...src.matchAll(/>([^<>{}]+)</g)].map((m) => m
 describe("the header and the bar", () => {
   const step = compareStep()
 
-  it("the header keeps title, sub and Back only — Build submission has left it", () => {
+  it("the header is the title only — frame 45 dropped the sub and the second Back", () => {
     expect(step).not.toContain("Build submission")
     const head = step.slice(step.indexOf('className="ag-screen-head"'), step.indexOf("ag-cmp-layout"))
-    expect(head).toMatch(/>Back</)
+    expect(head).toMatch(/<h1 className="ag-title">Compare<\/h1>/)
+    // The top nav keeps the one Back; the screen head no longer repeats it.
+    expect(head).not.toMatch(/>Back</)
     expect(head).not.toMatch(/ag-btn-primary/)
   })
 
@@ -69,7 +71,8 @@ describe("the rail", () => {
     expect(step).toMatch(/<ShortlistBar \{\.\.\.railProps\} \/>/)
     // The rail sits outside the tab switch, so it does not re-mount per tab.
     const railAt = step.indexOf("<ShortlistRail")
-    const tabSwitch = step.lastIndexOf('compareTab === "matrix" ? (')
+    const tabSwitch = step.lastIndexOf('compareTab !== "reco" ? (')
+    expect(tabSwitch).toBeGreaterThan(-1)
     expect(railAt).toBeGreaterThan(tabSwitch)
   })
 
@@ -82,16 +85,18 @@ describe("the rail", () => {
     expect(RAIL).not.toContain("Next: choose what else the client reads, then send.")
   })
 
-  it("carries the board's words", () => {
-    expect(RAIL).toContain('"Nobody yet"')
-    expect(RAIL).toContain('"1 person, in score order"')
-    expect(RAIL).toContain("people, in score order")
+  it("carries the board's words, in frame 45's shorter labels", () => {
+    expect(RAIL).toContain("`Shortlist · ${n}`")
+    expect(RAIL).not.toContain("in score order\"")
     // Board 29 replaced board 26's sub: the client now sees names as they are added.
     expect(RAIL).toMatch(/sees each name as you add it\. The CV, evidence and scores wait for\s+the submission\./)
     expect(RAIL).toContain("Your next add lands here")
-    expect(RAIL).toContain("Kept for later. Never sent.")
-    expect(RAIL).toContain("Internal record only.")
-    expect(RAIL).toMatch(/FIT \{Math\.round\(e\.overall\)\} · MUST \{e\.mustHit\}\/\{e\.mustTotal\}/)
+    // The hold and pass notes are still said, one tap away on the counts.
+    expect(RAIL).toMatch(/<Hint bare text="Kept for later\. Never sent\."[^>]*>On hold · \{holdCount\}<\/Hint>/)
+    expect(RAIL).toMatch(/<Hint bare text="Internal record only\.[^"]*"[^>]*>Passed · \{passedCount\}<\/Hint>/)
+    // Sentence case, never capitals (frame 45 rule 2).
+    expect(RAIL).toMatch(/Fit \{Math\.round\(e\.overall\)\} · Must \{e\.mustHit\}\/\{e\.mustTotal\}/)
+    expect(RAIL).not.toContain("ag-sl-eyebrow")
     expect(RAIL).toMatch(/disabled=\{n === 0\}/)
   })
 
@@ -171,24 +176,19 @@ describe("the word on screen is pass, never reject", () => {
 describe("add in one go", () => {
   const step = compareStep()
 
-  it("the must-have chip counts people with every must-have who are not in yet, and hides at zero", () => {
+  // Frame 45 (18 Oct 2026): one "Add in bulk" menu replaces the label and
+  // the two chips. Same two adds, same one-decision-per-person path.
+  it("is one menu with the must-have add, counting people with every must-have who are not in yet", () => {
     expect(step).toMatch(/s\.must_have_total > 0 && s\.must_have_hit === s\.must_have_total && decisions\[c\.id\] !== "shortlist"/)
-    expect(step).toMatch(/\{mustHaveReady\.length > 0 && \(/)
-    expect(step).toMatch(/<span className="ag-bulk-long">\+ Everyone with every must-have<\/span>\s*<span className="ag-bulk-short">\+ Every must-have<\/span>\s*\{" · "\}\{mustHaveReady\.length\}/)
+    expect(step).toContain("<summary className=\"ag-btn ag-btn-secondary\">Add in bulk ▾</summary>")
+    expect(step).toContain("Everyone with all must-haves · {mustHaveReady.length}")
+    expect(step).toMatch(/disabled=\{mustHaveReady\.length === 0\}/)
+    expect(step).not.toContain("ag-bulk-chip")
   })
 
-  it("the chips carry board D's short labels for a phone, and the stylesheet picks by width", () => {
-    // Board D (375px): "+ Every must-have · 5" and "+ Recommended · 4" on one line.
-    expect(step).toContain('<span className="ag-bulk-short">+ Recommended · {recommendedNotIn.length}</span>')
-    expect(step).toContain('<span className="ag-bulk-short">+ Recommended</span>')
-    expect(CSS).toMatch(/\.ag-bulk-short \{ display: none; \}/)
-    expect(CSS).toMatch(/@media \(max-width: 600px\) \{[\s\S]*?\.ag-bulk-long \{ display: none; \}\s*\.ag-bulk-short \{ display: inline; \}/)
-  })
-
-  it("the recommendation chip runs it first when nothing has been generated, and says so", () => {
-    expect(step).toContain("+ The {countWord(recommendedNotIn.length)} it recommends")
-    expect(step).toContain(">+ The ones it recommends<")
-    expect(step).toMatch(/title="No recommendation has been generated yet\. This runs it first/)
+  it("the recommended add runs the recommendation first when nothing has been generated, and says so", () => {
+    expect(step).toContain("`The recommended ones · ${recommendedNotIn.length}`")
+    expect(step).toMatch(/"Runs the recommendation first\. One decision per person, yours, with undo\."/)
     expect(step).toMatch(/const r = await reco\.generate\(\)/)
   })
 

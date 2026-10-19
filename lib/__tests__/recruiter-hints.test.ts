@@ -14,8 +14,12 @@ const DETAIL = "components/agency/candidate-detail.tsx"
 describe("one score block, hinted, on every recruiter screen", () => {
   it("screening, compare and candidate detail draw the shared parts", () => {
     const page = read(PAGE)
-    expect(page.match(/<ScoreBreakdown /g)?.length).toBe(2)
-    expect(page.match(/<ConfidenceBars /g)?.length).toBe(2)
+    // Frame 45: the compare card shows one score; its breakdown sits behind
+    // FitHint, built from the same FIT_CATEGORIES.
+    expect(page.match(/<ScoreBreakdown /g)?.length).toBe(1)
+    expect(page.match(/<ConfidenceBars /g)?.length).toBe(1)
+    expect(page).toContain("<FitHint score={s} />")
+    expect(read("components/agency/score-parts.tsx")).toMatch(/export function FitHint[\s\S]*?FIT_CATEGORIES\.map/)
     const detail = read(DETAIL)
     expect(detail).toMatch(/<ScoreBreakdown score=\{score\} markWeak \/>/)
     expect(detail).toMatch(/<ConfidenceBars /)
@@ -36,11 +40,10 @@ describe("one score block, hinted, on every recruiter screen", () => {
     expect(parts).toMatch(/Math\.min\(3, Math\.max\(1/)
   })
 
-  it("the legend explains each strength", () => {
+  it("the matrix explains each strength from its header (frame 45 moved the legend there)", () => {
     const page = read(PAGE)
-    for (const k of ["strong", "transferable", "partial", "missing"]) {
-      expect(page).toContain(`<StrengthKey strength="${k}"`)
-    }
+    expect(page).toContain('text="Strong counts 1.0, transferable 0.7, partial 0.4, missing 0. Coral cells are your overrides."')
+    expect(page).not.toContain('className="ag-legend"')
   })
 })
 

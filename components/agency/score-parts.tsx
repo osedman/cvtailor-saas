@@ -115,3 +115,29 @@ export function StrengthKey({ strength, label }: { strength: "strong" | "transfe
     </Hint>
   )
 }
+
+/**
+ * Frame 45 (18 Oct 2026): the compare card's one score. The five weighted
+ * categories and the confidence word sit behind it, one tap away, instead of
+ * printed on every card; the candidate pop-up still shows them in full.
+ */
+export function FitHint({ score }: { score: ScoreLike }) {
+  return (
+    <Hint
+      bare
+      className="ag-cmp-fit"
+      content={
+        <>
+          {FIT_CATEGORIES.map((row) => (
+            <span key={row.key} className="ag-hint-block">
+              {row.label} {Math.round(Number(score[row.key]) || 0)} ({row.weight}%)
+            </span>
+          ))}
+          <span className="ag-hint-block">{LEVEL_WORD[levelOf(score.confidence_level)]} confidence</span>
+        </>
+      }
+    >
+      Fit {Math.round(score.overall)}
+    </Hint>
+  )
+}

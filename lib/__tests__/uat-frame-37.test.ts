@@ -140,11 +140,15 @@ describe("in-person interviews (UAT 20)", () => {
 describe("compare filters (UAT 17)", () => {
   const page = read("app/agencies/roles/[roleId]/page.tsx")
   it("are three labelled dropdowns", () => {
-    for (const label of ["Sort by", "Requirements", "Candidates"]) expect(page).toContain(`<span className="ag-label">${label}</span>`)
+    // Frame 45 shortened the labels (rule 1: two words or fewer); the options are unchanged.
+    for (const label of ["Sort", "Show", "Who"]) expect(page).toContain(`<span className="ag-label">${label}</span>`)
+    expect(page).toContain('<option value="must_important">Must-haves and important</option>')
     expect(page).not.toMatch(/Must-haves only<\/button>/)
   })
   it("only change the view — no decision is written by a filter", () => {
-    const bar = page.slice(page.indexOf('className="ag-cmp-filters"'), page.indexOf('<div className="ag-legend">', page.indexOf('className="ag-cmp-filters"')))
+    const from = page.indexOf('className="ag-cmp-filters"')
+    const bar = page.slice(from, page.indexOf('className="ag-cmp-grid"', from))
+    expect(bar.length).toBeGreaterThan(100)
     expect(bar).not.toMatch(/decide\(|addMany\(|fetch\(/)
   })
 })

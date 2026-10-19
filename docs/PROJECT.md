@@ -8673,3 +8673,35 @@ the client home, Roles and Diary, plus all six recruiter workflow steps — no
 page errors, no sideways scroll. It found and fixed: the switch invisible on
 a recruiter phone; the phone bar showing on client pages; a 240px-tall bar;
 and two layout overflows. tsc clean, 2199 pass.
+
+### Compare, said in fewer words (frame 45, 19 Oct 2026)
+
+Frame `45` (700:2) approved by Ose. Step 05 measured with 4 candidates:
+**435 → 210** visible words at 1440, 367 → 162 at 390. How scoring and
+decisions work is unchanged; only what is printed and where.
+
+- **Card.** Name, title, `Fit 84` (the five weighted categories and the
+  confidence word behind it: `FitHint` in `score-parts.tsx`), `Must-haves
+  2/2` (coral when not all met), `Call done`, one `Gap:` line, the same
+  `DecisionSlot`, `View →`. Rank, initials and the capitalised labels gone.
+- **Screen.** Title `Compare` only (sub and second Back gone — the top nav
+  keeps Back). `Add in bulk ▾` menu replaces the label and two chips; same
+  two adds, same one-decision-per-person path with undo. Filters `Sort ·
+  Show · Who` (options unchanged). Legend row gone; the levels sit behind
+  the matrix header's hint. Cards | Matrix | Recommendation are three tabs —
+  cards and matrix no longer stack the same numbers; the choice is
+  remembered per browser, matrix first from six candidates.
+- **Rail.** `Shortlist · N`; hold and pass as counts, their notes behind the
+  counts' hints; `Fit 84 · Must 2/2` in sentence case. The client-sees-names
+  disclosure kept verbatim.
+- **Decisions bar.** No longer sticky (it covered the cards at 1440); keys
+  behind an ⓘ. The bulk-add undo now floats on its own, so it is still
+  reachable after an add at the top of the page.
+- **Rules C** (label ≤ 2 words, no capitalised eyebrows, a number printed
+  once, weights behind ⓘ, no heading restating the screen) apply next to
+  steps 01–07 and phase 2.
+
+Browser check at 1440 and 390 with mocked data: no sideways scroll, the bulk
+menu, Fit and Keys hints open, matrix tab renders. Pinned-copy tests updated
+to the frame (none weakened); new `frame-45-compare.test.ts`. tsc clean,
+2203 pass.
