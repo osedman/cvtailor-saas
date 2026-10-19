@@ -69,13 +69,30 @@ const SKILL_ALIASES: Record<string, string[]> = {
 }
 
 export function skillSearchTerms(skill: string): string[] {
+  const { phrases, tokens } = skillMatchParts(skill)
+  return [...new Set([...phrases, ...tokens])].slice(0, 12)
+}
+
+/**
+ * The skill split into the two kinds of evidence a record can match on.
+ *
+ * `phrases` — the whole skill and its aliases. A hit here is decisive: the
+ * record is about this skill.
+ *
+ * `tokens` — the individual words. A hit on ONE of these means almost nothing,
+ * because skills at this level are built from generic words: "Target Operating
+ * Model" shares "model" with "Model-Driven Apps in Power Apps", and "Direct
+ * line management" shares "management" with "Implement API Management". Those
+ * were being served to users as learning resources. Two or more distinct token
+ * hits is the point where a match stops being a coincidence.
+ */
+export function skillMatchParts(skill: string): { phrases: string[]; tokens: string[] } {
   const normalized = normalizeSkillTag(skill)
-  const tokens = normalized.split(' ').filter((token) => token.length > 2)
-  return [...new Set([
-    normalized,
-    ...(SKILL_ALIASES[normalized] ?? []),
-    ...tokens,
-  ].map(normalizeSkillTag).filter(Boolean))].slice(0, 12)
+  return {
+    phrases: [normalized, ...(SKILL_ALIASES[normalized] ?? [])]
+      .map(normalizeSkillTag).filter(Boolean),
+    tokens: [...new Set(normalized.split(' ').filter((token) => token.length > 2))],
+  }
 }
 
 function rowToEntry(row: CourseCatalogRow): CourseCatalogEntry {
@@ -100,8 +117,7 @@ export function rankCourses(
   entries: CourseCatalogEntry[],
   options: CourseSearchOptions,
 ): CourseCatalogEntry[] {
-  const terms = skillSearchTerms(options.skill)
-  const exactSkill = terms[0] ?? ''
+  const { phrases, tokens } = skillMatchParts(options.skill)
   const region = (options.region || 'GB').toUpperCase()
   const level = options.level ?? null
   const maxDuration = options.maxDurationMinutes ?? null
@@ -115,21 +131,57 @@ export function rankCourses(
       const tags = entry.skillTags.map(normalizeSkillTag)
       const title = normalizeSkillTag(entry.title)
       const description = normalizeSkillTag(entry.description)
-      let score = entry.qualityScore * 30 + providerPreference(entry.provider) / 5
-      if (tags.includes(exactSkill)) score += 100
-      if (title.includes(exactSkill)) score += 55
-      for (const term of terms) {
-        if (tags.some((tag) => tag === term || tag.includes(term) || term.includes(tag))) score += 24
-        if (title.includes(term)) score += 12
-        if (description.includes(term)) score += 3
+
+      // Relevance is scored separately from fit, and gates eligibility. When
+      // the two were one number, a record could clear the bar on fit alone:
+      // a free, short Microsoft module scored ~66 (quality + provider
+      // preference + free + duration) against a threshold of 15 while having
+      // nothing to do with the skill. Every skill therefore looked covered,
+      // which suppressed the web-search fallback below and left the model
+      // choosing between irrelevant courses or none. It chose none — the
+      // items reached users with a project brief and no resources at all.
+      let relevance = 0
+      let tokenHits = 0
+      const phraseHit = phrases.some((p) => tags.includes(p) || title.includes(p))
+      if (tags.some((tag) => phrases.includes(tag))) relevance += 100
+      if (phrases.some((p) => title.includes(p))) relevance += 55
+      for (const token of tokens) {
+        // Substring matching only between words long enough for the overlap to
+        // mean something — otherwise a two-letter tag like "ai" matches
+        // "email" and "detail".
+        const inTags = tags.some((tag) =>
+          tag === token ||
+          (token.length >= 5 && tag.includes(token)) ||
+          (tag.length >= 5 && token.includes(tag)))
+        const inTitle = title.includes(token)
+        if (inTags) relevance += 24
+        if (inTitle) relevance += 12
+        if (inTags || inTitle) tokenHits += 1
+        // Description matches colour the ranking but never establish
+        // relevance — a word appearing in prose is not evidence the course
+        // teaches the skill.
+        if (description.includes(token)) relevance += 3
       }
-      if (entry.regions.includes(region)) score += 8
-      if (entry.accessType === 'free') score += 12
-      if (entry.durationMinutes && entry.durationMinutes <= 600) score += 8
-      if (maxDuration && entry.durationMinutes) score += 15
-      return { entry, score }
+
+      let fit = entry.qualityScore * 30 + providerPreference(entry.provider) / 5
+      if (entry.regions.includes(region)) fit += 8
+      if (entry.accessType === 'free') fit += 12
+      if (entry.durationMinutes && entry.durationMinutes <= 600) fit += 8
+      if (maxDuration && entry.durationMinutes) fit += 15
+
+      // How many token hits count as a match scales with how many words the
+      // skill has. Two hits is convincing for "Power BI" and meaningless for
+      // "Direct line management / team leadership of RPA analysts, developers
+      // or delivery", which cleared a flat bar of two on "team" (matching
+      // "office teams") and "developers" (matching the tag "developer").
+      // Capped, because a long skill should not become unmatchable.
+      const required = Math.min(4, Math.max(2, Math.ceil(tokens.length * 0.4)))
+      return { entry, score: relevance + fit, eligible: phraseHit || tokenHits >= required }
     })
-    .filter(({ score }) => score > 15)
+    // Being strict is cheap here: a skill left with fewer than two records
+    // turns the web-search fallback back on, which is a better answer than a
+    // confident, irrelevant one.
+    .filter(({ eligible }) => eligible)
     .sort((a, b) =>
       b.score - a.score ||
       b.entry.qualityScore - a.entry.qualityScore ||

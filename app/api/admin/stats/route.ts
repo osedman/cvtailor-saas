@@ -20,16 +20,26 @@ function daysAgo(n: number): string {
   return d.toISOString()
 }
 
-/** Paginate auth users — listUsers caps at 1000 per page. */
+/** Paginate auth users — listUsers caps at 1000 per page. Emails for admin drill-down. */
 async function listAllUsers(admin: ReturnType<typeof createAdminClient>) {
-  const users: Array<{ id: string; created_at: string }> = []
+  const users: Array<{
+    id: string
+    email: string
+    created_at: string
+    last_sign_in_at: string | null
+  }> = []
   let page = 1
   for (;;) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 })
     if (error) throw error
     const batch = data.users ?? []
     for (const u of batch) {
-      users.push({ id: u.id, created_at: u.created_at })
+      users.push({
+        id: u.id,
+        email: u.email ?? '',
+        created_at: u.created_at,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+      })
     }
     if (batch.length < 1000) break
     page += 1
@@ -57,6 +67,7 @@ async function GET_handler() {
       historyRes,
       historyQualityRes,
       trackerRes,
+      loginsRes,
       roadmapsRes,
       roadmapItemsRes,
       careerProfilesRes,
@@ -66,7 +77,7 @@ async function GET_handler() {
     ] = await Promise.all([
       listAllUsers(admin),
       // No email — aggregates only
-      admin.from('profiles').select('id, tailors_used'),
+      admin.from('profiles').select('id, tailors_used, plan'),
       admin
         .from('tailor_history')
         .select('user_id, created_at')
@@ -76,6 +87,13 @@ async function GET_handler() {
         .select('user_id, created_at, match_score, feedback, edited_at, cover_letter')
         .gte('created_at', since30),
       admin.from('job_tracker').select('user_id, status, created_at, updated_at'),
+      // Email + timestamp for admin activity (no IP / user-agent)
+      admin
+        .from('login_events')
+        .select('email, created_at')
+        .gte('created_at', since30)
+        .order('created_at', { ascending: false })
+        .limit(5000),
       admin.from('career_roadmaps').select('user_id, target_role'),
       admin.from('career_roadmap_items').select('user_id, status'),
       admin.from('career_profiles').select('user_id'),
@@ -93,7 +111,7 @@ async function GET_handler() {
     type RowRoadmap = { user_id: string; target_role: string | null }
     type RowItem = { user_id: string; status: string }
     type RowFirstCv = { user_id: string; status: string | null }
-    type RowProfile = { id: string; tailors_used: number | null }
+    type RowProfile = { id: string; tailors_used: number | null; plan: string | null }
     type RowRunTiming = { user_id: string; created_at: string }
     type RowRunQuality = RowRunTiming & {
       match_score: number | null
@@ -107,6 +125,7 @@ async function GET_handler() {
       created_at: string
       updated_at: string | null
     }
+    type RowLogin = { email: string | null; created_at: string }
 
     const roadmaps = (roadmapsRes.error ? [] : (roadmapsRes.data ?? [])) as RowRoadmap[]
     const roadmapItems = (roadmapItemsRes.error ? [] : (roadmapItemsRes.data ?? [])) as RowItem[]
@@ -116,10 +135,17 @@ async function GET_handler() {
       ? 0
       : new Set(((evidenceRes.data ?? []) as RowUser[]).map((r) => r.user_id)).size
     const arcShares = arcSharesRes.error ? 0 : (arcSharesRes.count ?? 0)
+    const loginRows = (loginsRes.error ? [] : (loginsRes.data ?? [])) as RowLogin[]
+    const loginAts = loginRows.map((l) => l.created_at).filter(Boolean)
+    const recentLogins = loginRows
+      .filter((l) => (l.email ?? '').trim().length > 0)
+      .slice(0, 30)
+      .map((l) => ({ email: (l.email ?? '').trim(), created_at: l.created_at }))
 
     const profiles = ((profilesRes.data ?? []) as RowProfile[]).map((p) => ({
       id: p.id,
       tailors_used: Number(p.tailors_used ?? 0),
+      plan: p.plan,
     }))
 
     // Merge 90d runs (timing) with 30d quality fields for product health.
@@ -139,7 +165,6 @@ async function GET_handler() {
       const key = `${r.user_id}|${r.created_at}`
       return qualityByKey.get(key) ?? { user_id: r.user_id, created_at: r.created_at }
     })
-    // Quality metrics should only use the 30d window
     const runs30 = [...qualityByKey.values()]
 
     const tracked = ((trackerRes.data ?? []) as RowTracked[]).map((t) => ({
@@ -153,7 +178,10 @@ async function GET_handler() {
       users,
       profiles,
       runs: runs90,
+      runs30d: runs30,
       tracked,
+      loginAts,
+      recentLogins,
       roadmaps: roadmaps.map((r) => ({
         user_id: r.user_id,
         target_role: r.target_role,

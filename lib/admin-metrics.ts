@@ -2,8 +2,9 @@
  * Admin product-health metrics.
  *
  * Pure functions: the API loads rows, this module turns them into the
- * aggregates the dashboard renders. No PII leaves this layer — masked ids
- * only. Every stage in a funnel is a strict subset of the one above it.
+ * payload the dashboard renders. Admin viewers see emails on drill-downs
+ * (stuck, top tailorers, activity). IPs/CVs/JD text stay off the wire.
+ * Every stage in a funnel is a strict subset of the one above it.
  */
 
 export interface MetricsProfile { id: string; tailors_used: number }
@@ -55,7 +56,7 @@ export interface StuckBucket {
   label: string
   meaning: string
   count: number
-  /** Masked ids only — never emails. */
+  /** Email when known; otherwise a masked id fallback. */
   users: string[]
 }
 
@@ -84,6 +85,48 @@ export interface FeatureAdoption {
   eligibleUsers: number
 }
 
+export interface DayCount {
+  label: string
+  value: number
+}
+
+/** Classic volume counters + activity series. */
+export interface VolumeMetrics {
+  totalUsers: number
+  neverTailored: number
+  dau: number
+  wau: number
+  mau: number
+  tailorRuns30d: number
+  tailorRunsAllTime: number
+  trackedJobs: number
+  offers: number
+  proUsers: number
+  signupsPerDay: DayCount[]
+  loginsPerDay: DayCount[]
+  tailorsPerDay: DayCount[]
+  topTailorers: Array<{ label: string; email: string | null; tailors: number }>
+}
+
+export interface ActivityLogin {
+  email: string
+  created_at: string
+}
+
+export interface ActivityUser {
+  id: string
+  email: string
+  created_at: string
+  last_sign_in_at: string | null
+  tailors_used: number
+  plan: string
+}
+
+export interface ActivityDirectory {
+  recentLogins: ActivityLogin[]
+  users: ActivityUser[]
+}
+
 export interface ProductHealth {
   headlines: {
     sevenDayActivation: { rate: number; activated: number; total: number }
@@ -91,6 +134,8 @@ export interface ProductHealth {
     weeklyActiveTailorers: number
     thirtyDayReturnRate: { rate: number; returned: number; activated: number }
   }
+  volume: VolumeMetrics
+  activity: ActivityDirectory
   cohorts: CohortWeek[]
   outcomeFunnel: FunnelStage[]
   quality: QualityMetrics
@@ -106,7 +151,7 @@ export interface ProductHealth {
 const pct = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 100))
 const DAY = 86_400_000
 
-/** Mask a UUID for admin drill-down: "User ··A7F2". Never reverse-able to email. */
+/** Fallback label when email is missing: "User ··A7F2". */
 export function maskUserId(id: string): string {
   const clean = (id ?? '').replace(/-/g, '').toUpperCase()
   const tail = clean.slice(-4) || '????'
@@ -520,8 +565,11 @@ export function buildStuckBuckets(input: {
       .map((i) => i.user_id),
   )
 
+  const emailById = new Map(
+    input.users.map((u) => [u.id, u.email ?? null] as const),
+  )
   const pick = (ids: string[]) =>
-    ids.slice(0, max).map(maskUserId)
+    ids.slice(0, max).map((id) => userLabel(id, emailById.get(id)))
 
   const neverTailored = input.users
     .filter((u) => {
@@ -660,12 +708,127 @@ export function buildFeatureAdoption(input: {
   }
 }
 
+function lastNDays(n: number, now: Date): string[] {
+  const out: string[] = []
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now)
+    d.setUTCHours(0, 0, 0, 0)
+    d.setUTCDate(d.getUTCDate() - i)
+    out.push(d.toISOString().slice(0, 10))
+  }
+  return out
+}
+
+function countByDay(isos: string[], days: string[]): DayCount[] {
+  const tally = new Map(days.map((d) => [d, 0]))
+  for (const iso of isos) {
+    const day = iso.slice(0, 10)
+    if (tally.has(day)) tally.set(day, (tally.get(day) ?? 0) + 1)
+  }
+  return days.map((label) => ({ label, value: tally.get(label) ?? 0 }))
+}
+
+export function buildVolumeMetrics(input: {
+  users: MetricsUser[]
+  profiles: Array<MetricsProfile & { plan?: string | null }>
+  runs30d: MetricsRun[]
+  tracked: MetricsTracked[]
+  loginAts?: string[]
+  now?: Date
+}): VolumeMetrics {
+  const now = input.now ?? new Date()
+  const nowMs = now.getTime()
+  const emailById = new Map(
+    input.users.map((u) => [u.id, u.email ?? null] as const),
+  )
+  const activeIn = (days: number) =>
+    input.users.filter((u) => {
+      if (!u.last_sign_in_at) return false
+      return nowMs - new Date(u.last_sign_in_at).getTime() < days * DAY
+    }).length
+
+  const days30 = lastNDays(30, now)
+  const days14 = lastNDays(14, now)
+
+  const top = [...input.profiles]
+    .sort((a, b) => (b.tailors_used ?? 0) - (a.tailors_used ?? 0))
+    .slice(0, 5)
+    .filter((p) => (p.tailors_used ?? 0) > 0)
+    .map((p) => {
+      const email = emailById.get(p.id) ?? null
+      return {
+        label: userLabel(p.id, email),
+        email,
+        tailors: p.tailors_used ?? 0,
+      }
+    })
+
+  return {
+    totalUsers: input.users.length,
+    neverTailored: input.profiles.filter((p) => (p.tailors_used ?? 0) === 0).length,
+    dau: activeIn(1),
+    wau: activeIn(7),
+    mau: activeIn(30),
+    tailorRuns30d: input.runs30d.length,
+    tailorRunsAllTime: input.profiles.reduce((s, p) => s + (p.tailors_used ?? 0), 0),
+    trackedJobs: input.tracked.length,
+    offers: input.tracked.filter((t) => t.status === 'offer').length,
+    proUsers: input.profiles.filter((p) => p.plan === 'pro').length,
+    signupsPerDay: countByDay(
+      input.users.map((u) => u.created_at),
+      days30,
+    ),
+    loginsPerDay: countByDay(input.loginAts ?? [], days30),
+    tailorsPerDay: countByDay(
+      input.runs30d.map((r) => r.created_at),
+      days14,
+    ),
+    topTailorers: top,
+  }
+}
+
+export function buildActivityDirectory(input: {
+  users: MetricsUser[]
+  profiles: Array<MetricsProfile & { plan?: string | null }>
+  recentLogins?: ActivityLogin[]
+}): ActivityDirectory {
+  const planById = new Map(
+    input.profiles.map((p) => [p.id, {
+      tailors_used: p.tailors_used ?? 0,
+      plan: p.plan ?? 'free',
+    }] as const),
+  )
+  const users: ActivityUser[] = [...input.users]
+    .sort((a, b) =>
+      (b.last_sign_in_at ?? '').localeCompare(a.last_sign_in_at ?? ''),
+    )
+    .map((u) => {
+      const p = planById.get(u.id)
+      return {
+        id: u.id,
+        email: (u.email ?? '').trim() || maskUserId(u.id),
+        created_at: u.created_at,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+        tailors_used: p?.tailors_used ?? 0,
+        plan: p?.plan ?? 'free',
+      }
+    })
+
+  return {
+    recentLogins: (input.recentLogins ?? []).slice(0, 30),
+    users,
+  }
+}
+
 /** Assemble the full product-health payload for the admin API. */
 export function buildProductHealth(input: {
   users: MetricsUser[]
-  profiles: MetricsProfile[]
+  profiles: Array<MetricsProfile & { plan?: string | null }>
   runs: MetricsRun[]
+  runs30d?: MetricsRun[]
   tracked: MetricsTracked[]
+  loginAts?: string[]
+  recentLogins?: ActivityLogin[]
   roadmaps?: Array<{ user_id: string; target_role?: string | null }>
   roadmapItems?: Array<{ user_id: string; status?: string }>
   careerProfiles?: Array<{ user_id: string }>
@@ -680,11 +843,13 @@ export function buildProductHealth(input: {
   const activated = activationRate(input.users, input.profiles)
   const cohort7 = recentCohortActivation(input.users, input.runs, 7, now)
   const return30 = thirtyDayReturnRate(input.profiles, input.runs, now)
+  const runs30d = input.runs30d ?? input.runs
 
   const notes = [
     `Outcome and quality metrics use the last ${windowDays} days of tailor runs unless labelled otherwise.`,
     'Activation and feature adoption are all-time counts of distinct users.',
-    'Stuck buckets show masked ids only — never emails, CVs, or job text.',
+    'Volume DAU/WAU/MAU use last_sign_in_at; weekly active tailorers count people who produced a CV.',
+    'Drill-downs show emails for admin viewers. IPs, CVs, and job text are never returned.',
   ]
   if (input.profiles.length !== input.users.length) {
     notes.push(
@@ -701,6 +866,19 @@ export function buildProductHealth(input: {
       weeklyActiveTailorers: weeklyActiveTailorers(input.runs, now),
       thirtyDayReturnRate: return30,
     },
+    volume: buildVolumeMetrics({
+      users: input.users,
+      profiles: input.profiles,
+      runs30d,
+      tracked: input.tracked,
+      loginAts: input.loginAts,
+      now,
+    }),
+    activity: buildActivityDirectory({
+      users: input.users,
+      profiles: input.profiles,
+      recentLogins: input.recentLogins,
+    }),
     cohorts: buildWeeklyCohorts({
       users: input.users,
       runs: input.runs,

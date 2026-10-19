@@ -4,7 +4,17 @@ import { searchTextFor } from '@/lib/course-sources/types'
 import { isAllowedResourceUrl, isUrlAlive } from '@/lib/course-validation'
 
 const UPSERT_BATCH_SIZE = 200
-const VERIFY_BATCH_SIZE = 100
+/**
+ * Link-rot sweep size per run. Each run re-checks the least-recently-verified
+ * rows, so this number and the cron cadence together set how long a full pass
+ * takes: at 100/run on a weekly cron a ~4.4k catalog took over a year to check
+ * once, which meant dead links reached users long before we noticed. 250 on a
+ * daily cron brings a full pass to under three weeks. Raise with care — these
+ * are live HTTP checks issued inside one 300s invocation.
+ */
+const VERIFY_BATCH_SIZE = 250
+/** How many of those checks run at once. See the wave loop below for why. */
+const VERIFY_CONCURRENCY = 25
 
 function chunks<T>(values: T[], size: number): T[][] {
   const result: T[][] = []
@@ -71,6 +81,32 @@ export interface CourseSyncResult {
   sources: Array<{ source: string; discovered: number; error: string | null }>
 }
 
+/** Identity of a catalog entry, matching the (provider, external_id) unique index. */
+function catalogKey(provider: string, externalId: string) {
+  return `${provider}\u0000${externalId}`
+}
+
+/**
+ * Every (provider, external_id) already in the catalog. Paged because the
+ * catalog is well past PostgREST's default 1,000-row ceiling, and a short read
+ * here would look like "these are all new" and flood the review queue.
+ */
+async function loadCatalogKeys(admin: SupabaseClient): Promise<Set<string>> {
+  const keys = new Set<string>()
+  const PAGE = 1_000
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin
+      .from('course_catalog')
+      .select('provider, external_id')
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    for (const row of data ?? []) {
+      keys.add(catalogKey(row.provider as string, row.external_id as string))
+    }
+    if (!data || data.length < PAGE) return keys
+  }
+}
+
 export async function syncCourseCatalog(
   admin: SupabaseClient,
   options: { dryRun?: boolean } = {},
@@ -83,14 +119,21 @@ export async function syncCourseCatalog(
   let stale = 0
   const runIds = new Map<string, string>()
 
+  // Nothing reaches users unreviewed: a record already in the catalog is
+  // refreshed in place, and anything the catalog has never seen goes to the
+  // approval queue regardless of how trusted its source is. `trusted` now only
+  // decides how a candidate is *presented* for review, not whether review
+  // happens — see the provider grouping in the admin queue.
+  const known = dryRun ? new Set<string>() : await loadCatalogKeys(admin)
+
   for (const collection of collections) {
     const valid = collection.records.filter((record) =>
       record.title.trim().length > 0 &&
       record.externalId.trim().length > 0 &&
       isAllowedResourceUrl(record.canonicalUrl),
     )
-    const trusted = valid.filter((record) => record.trusted)
-    const candidates = valid.filter((record) => !record.trusted)
+    const refresh = valid.filter((record) => known.has(catalogKey(record.provider, record.externalId)))
+    const candidates = valid.filter((record) => !known.has(catalogKey(record.provider, record.externalId)))
     let runId: string | null = null
 
     if (!dryRun) {
@@ -105,7 +148,13 @@ export async function syncCourseCatalog(
 
       try {
         for (const batch of chunks(
-          trusted.map((record) => catalogRow(record, now, collection.source)),
+          refresh.map((record) => {
+            // `status` is omitted deliberately: an admin may have set this row
+            // to review or stale, and a metadata refresh must not quietly
+            // overturn that decision.
+            const { status: _decidedByReview, ...fields } = catalogRow(record, now, collection.source)
+            return fields
+          }),
           UPSERT_BATCH_SIZE,
         )) {
           const { error } = await admin
@@ -127,7 +176,7 @@ export async function syncCourseCatalog(
           status: collection.error ? 'partial' : 'succeeded',
           finished_at: new Date().toISOString(),
           discovered_count: valid.length,
-          upserted_count: trusted.length,
+          upserted_count: refresh.length,
           candidate_count: candidates.length,
           error: collection.error,
         }).eq('id', runId)
@@ -145,7 +194,7 @@ export async function syncCourseCatalog(
         throw error
       }
     } else {
-      upserted += trusted.length
+      upserted += refresh.length
       candidateCount += candidates.length
     }
   }
@@ -159,10 +208,16 @@ export async function syncCourseCatalog(
       .limit(VERIFY_BATCH_SIZE)
     if (error) throw error
 
-    const checked = await Promise.all((verifyRows ?? []).map(async (row) => ({
-      id: row.id as string,
-      alive: await isUrlAlive(row.canonical_url as string, 6_000),
-    })))
+    // Verified in waves rather than one Promise.all: the catalog is dominated
+    // by a single host, so firing the whole batch at once reads as a burst to
+    // them and risks throttling that would look like mass link rot here.
+    const checked: Array<{ id: string; alive: boolean }> = []
+    for (const wave of chunks(verifyRows ?? [], VERIFY_CONCURRENCY)) {
+      checked.push(...await Promise.all(wave.map(async (row) => ({
+        id: row.id as string,
+        alive: await isUrlAlive(row.canonical_url as string, 6_000),
+      }))))
+    }
     const liveIds = checked.filter((row) => row.alive).map((row) => row.id)
     const staleIds = checked.filter((row) => !row.alive).map((row) => row.id)
     if (liveIds.length > 0) {

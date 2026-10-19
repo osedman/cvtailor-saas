@@ -103,7 +103,11 @@ export const microsoftLearnSource: CourseSource = {
       }
     }
 
-    const max = Math.max(1, Number(process.env.MICROSOFT_LEARN_MAX_RECORDS) || 2_000)
+    // The published catalog is ~3.5k modules + ~900 learning paths, so the old
+    // 2k ceiling silently dropped over half of it — and which half depended on
+    // Microsoft's ordering, not on quality. 5k takes everything with headroom;
+    // the env var stays for pinning a smaller set in development.
+    const max = Math.max(1, Number(process.env.MICROSOFT_LEARN_MAX_RECORDS) || 5_000)
     return records.slice(0, max)
   },
 }

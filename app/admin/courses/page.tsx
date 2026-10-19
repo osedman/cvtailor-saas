@@ -60,12 +60,14 @@ export default function CoursesPage() {
   const [provider, setProvider] = useState("")
   const [freeOnly, setFreeOnly] = useState(false)
   const [loadingCatalog, setLoadingCatalog] = useState(false)
+  const [pendingByProvider, setPendingByProvider] = useState<Record<string, number>>({})
 
   const loadPending = useCallback(async () => {
     const res = await fetch("/api/admin/course-candidates")
     if (res.status === 403) { setForbidden(true); setPending([]); return }
     const d = await res.json()
     setPending(d.candidates ?? [])
+    setPendingByProvider(d.pendingByProvider ?? {})
     setSelected(new Set())
   }, [])
 
@@ -109,6 +111,36 @@ export default function CoursesPage() {
       if (!res.ok) throw new Error(d?.error || "Failed.")
       toast.success(`${Object.values(d)[0]} ${action}d`)
       await after()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed.")
+    } finally { setBusy(false) }
+  }
+
+  /**
+   * Act on every pending candidate from one provider. The server works in
+   * bounded pages and reports what is left, so this keeps going until the
+   * provider is clear — a first-party catalog can be thousands of rows, and
+   * one visible page of 200 would otherwise never empty the queue.
+   */
+  const actOnProvider = async (name: string, action: "approve" | "reject") => {
+    const total = pendingByProvider[name] ?? 0
+    if (total === 0) return
+    if (!confirm(`${action === "approve" ? "Approve" : "Reject"} all ${total} pending ${name} ${total === 1 ? "course" : "courses"}?`)) return
+    setBusy(true)
+    try {
+      let done = 0
+      for (;;) {
+        const res = await fetch("/api/admin/course-candidates", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, provider: name }),
+        })
+        const d = await res.json()
+        if (!res.ok) throw new Error(d?.error || "Failed.")
+        done += (d.approved ?? d.rejected ?? 0) as number
+        if (action === "reject" || !d.remaining) break
+      }
+      toast.success(`${done} ${name} ${done === 1 ? "course" : "courses"} ${action}d`)
+      await loadPending()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed.")
     } finally { setBusy(false) }
@@ -192,6 +224,36 @@ export default function CoursesPage() {
               className="p-2.5 rounded-lg border border-[#eee6da] bg-[#fffdfa] text-gray-400 hover:text-[#1e1813] transition-colors" aria-label="Apply search">
               {loadingCatalog ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
             </button>
+          </div>
+        )}
+
+        {/* Whole-provider decisions. The list below is capped at 200, so after a
+            first-party catalog sync it shows a fraction of what is waiting;
+            these counts are the real totals and the buttons act on all of them. */}
+        {view === "pending" && Object.keys(pendingByProvider).length > 0 && (
+          <div className="flex flex-col gap-2" style={{
+            marginTop: 16, padding: "12px 14px", borderRadius: 10,
+            background: "#fffdfa", border: "1px solid #eee6da",
+          }}>
+            <span className="t-mono text-[11px] uppercase tracking-wide text-[#8a8178]">
+              Decide a whole provider
+            </span>
+            {Object.entries(pendingByProvider).sort((a, b) => b[1] - a[1]).map(([name, count]) => (
+              <div key={name} className="flex items-center gap-2 flex-wrap">
+                <span className="text-[13px] text-[#1e1813]" style={{ flex: 1, minWidth: 160 }}>
+                  <strong>{name}</strong>
+                  <span className="text-[#8a8178]"> · {count} awaiting review</span>
+                </span>
+                <button onClick={() => void actOnProvider(name, "approve")} disabled={busy}
+                  className={`${BTN} text-white bg-[#1e1813] hover:bg-[#332a22]`}>
+                  Approve all {count}
+                </button>
+                <button onClick={() => void actOnProvider(name, "reject")} disabled={busy}
+                  className={`${BTN} bg-white border border-[#eee6da] text-[#b3341b] hover:bg-[#fff7f4]`}>
+                  Reject all
+                </button>
+              </div>
+            ))}
           </div>
         )}
 

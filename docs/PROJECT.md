@@ -8743,3 +8743,26 @@ Trial merge of `main` into `staging` conflicts in 28 files (admin, courses,
 career-path, email, config); the consumer catch-up is planned as nine PRs in
 `docs/B2B-PROD-READINESS.md` §0, the agency product as one port after. The
 tailr-b2b skill's standing decision updated. No merge to main yet.
+
+### `main` merged back into `staging` (19 Oct 2026) — step 1 of Option A
+
+Trial merge conflicted in 28 files. Resolution, file by file: **main's version
+taken** where main had the newer behaviour — the course-relevance rule in
+`lib/course-catalog.ts` (+ its tests; a record must be ABOUT the skill),
+"nothing reaches users unreviewed" in `lib/course-sync.ts` (known-set split,
+paged key read, 250-row verify sweep in waves), the whole-provider approve /
+reject queue (`course-candidates` route + `app/admin/courses`), the admin
+volume + activity sections with emails for admin viewers (`lib/admin-metrics`,
+`app/admin/page.tsx`, `admin/stats`, tests), Microsoft Learn's 5k cap.
+**Staging's version kept** where staging was the superset — the
+Server-Timing / `sessionUser` / `errorMessage` wrappers on every route, the
+plan review in `career-path`, role mode on `/tailor`, `lib/email.ts` (guard,
+retries, attachments), `lib/anthropic.ts`, the agency redirects in
+`next.config.js`, `vercel.json` (agency daily + weekly dispatcher; Hobby
+allows two crons), the shared `scripts/lib/mail-env.mjs`, the typography
+allowlist, `/login?next=` redirects. Three routes are hybrids: main's body
+re-wrapped with staging's session and timing helpers. **Known loss:** main
+ran course-sync daily; on staging it runs Sundays via the weekly dispatcher
+because the daily slot is the agency cron — fold course-sync into the daily
+agency cron if daily matters. `main`'s 28 Jul–12 Aug PROJECT.md rows stay
+in `main`'s history; the three admin rows are summarised above.

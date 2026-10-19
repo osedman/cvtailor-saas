@@ -6,11 +6,30 @@ import Link from "next/link"
 import {
   ArrowLeft, Loader2, RefreshCw, ShieldCheck,
   TrendingUp, Clock, Users, RotateCcw, AlertTriangle,
+  LogIn, Sparkles, Kanban,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-provider"
 import { isAdminEmail } from "@/lib/admin"
-import type { ProductHealth, FunnelStage, CohortWeek, StuckBucket } from "@/lib/admin-metrics"
+import type {
+  ProductHealth, FunnelStage, CohortWeek, StuckBucket, VolumeMetrics, DayCount,
+  ActivityDirectory,
+} from "@/lib/admin-metrics"
+
+function fmtDateTime(iso: string | null) {
+  if (!iso) return "—"
+  return new Date(iso).toLocaleString([], {
+    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+  })
+}
+
+function relDay(iso: string | null) {
+  if (!iso) return "Never"
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  if (diff === 0) return "Today"
+  if (diff === 1) return "Yesterday"
+  return `${diff}d ago`
+}
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -67,6 +86,194 @@ function Section({
       </header>
       {children}
     </section>
+  )
+}
+
+function BarChart({
+  data, color = "#dc4f33", height = 100,
+}: {
+  data: DayCount[]
+  color?: string
+  height?: number
+}) {
+  const max = Math.max(1, ...data.map((d) => d.value))
+  const showEvery = data.length > 14 ? 7 : data.length > 7 ? 2 : 1
+  return (
+    <div className="w-full">
+      <div className="flex items-end gap-[3px]" style={{ height }}>
+        {data.map((d) => (
+          <div key={d.label} className="group relative flex h-full flex-1 flex-col items-center justify-end">
+            <div className="absolute -top-7 z-10 hidden whitespace-nowrap rounded bg-[#1e1813] px-2 py-1 text-[10px] text-white group-hover:block">
+              {d.label.slice(5)}: {d.value}
+            </div>
+            <div
+              className="w-full rounded-t transition-all group-hover:opacity-80"
+              style={{
+                height: `${(d.value / max) * 100}%`,
+                minHeight: d.value > 0 ? 3 : 1,
+                background: d.value > 0 ? color : "#f3f4f6",
+              }}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="mt-1.5 flex gap-[3px]">
+        {data.map((d, i) => (
+          <div key={d.label} className="flex-1 text-center">
+            <span className="text-[8px] text-[#1e1813]/30">
+              {i % showEvery === 0 ? d.label.slice(8) : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function VolumeSection({ v }: { v: VolumeMetrics }) {
+  return (
+    <Section
+      title="Volume & activity"
+      meaning="The old dashboard counters — useful for scale, not for whether the product works. Sign-ins are last_sign_in_at; tailor activity is runs."
+    >
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi
+          icon={<Users className="h-3.5 w-3.5" />}
+          label="Total users"
+          value={String(v.totalUsers)}
+          sub={`${v.neverTailored} never tailored · ${v.proUsers} pro`}
+        />
+        <Kpi
+          icon={<LogIn className="h-3.5 w-3.5" />}
+          label="Active users (sign-in)"
+          value={String(v.wau)}
+          sub={`DAU ${v.dau} · MAU ${v.mau}`}
+        />
+        <Kpi
+          icon={<Sparkles className="h-3.5 w-3.5" />}
+          label="Tailors (30d)"
+          value={String(v.tailorRuns30d)}
+          sub={`${v.tailorRunsAllTime} all-time`}
+        />
+        <Kpi
+          icon={<Kanban className="h-3.5 w-3.5" />}
+          label="Tracked jobs"
+          value={String(v.trackedJobs)}
+          sub={`${v.offers} at offer`}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-lg border border-[#eee6da] bg-white p-4">
+          <p className="mb-1 text-[12px] font-medium text-[#1e1813]">Logins per day</p>
+          <p className="mb-3 text-[11px] text-[#1e1813]/45">Last 30 days · counts only</p>
+          <BarChart data={v.loginsPerDay} color="#dc4f33" />
+        </div>
+        <div className="rounded-lg border border-[#eee6da] bg-white p-4">
+          <p className="mb-1 text-[12px] font-medium text-[#1e1813]">Signups per day</p>
+          <p className="mb-3 text-[11px] text-[#1e1813]/45">Last 30 days</p>
+          <BarChart data={v.signupsPerDay} color="#1e1813" />
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <div className="rounded-lg border border-[#eee6da] bg-white p-4 lg:col-span-2">
+          <p className="mb-1 text-[12px] font-medium text-[#1e1813]">Tailoring runs per day</p>
+          <p className="mb-3 text-[11px] text-[#1e1813]/45">Last 14 days</p>
+          <BarChart data={v.tailorsPerDay} color="#b3341b" height={90} />
+        </div>
+        <div className="rounded-lg border border-[#eee6da] bg-white p-4">
+          <p className="mb-3 text-[12px] font-medium text-[#1e1813]">Top tailorers</p>
+          <div className="space-y-2.5">
+            {v.topTailorers.map((t, i) => (
+              <div key={`${t.label}-${i}`} className="flex items-center gap-2">
+                <span className="w-4 text-[10px] font-bold text-[#1e1813]/30">#{i + 1}</span>
+                <span className="flex-1 truncate text-[12px] text-[#1e1813]/70">
+                  {t.label}
+                </span>
+                <span className="text-[12px] font-semibold tabular-nums text-[#dc4f33]">
+                  {t.tailors}
+                </span>
+              </div>
+            ))}
+            {v.topTailorers.length === 0 && (
+              <p className="text-[12px] text-[#1e1813]/40">No usage yet</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </Section>
+  )
+}
+
+function ActivitySection({ activity }: { activity: ActivityDirectory }) {
+  return (
+    <Section
+      title="User activity"
+      meaning="Live from Supabase auth + login_events. Emails visible to admin viewers; IPs stay off the page."
+    >
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="overflow-hidden rounded-lg border border-[#eee6da] bg-white">
+          <div className="border-b border-[#eee6da] px-4 py-3">
+            <p className="text-[12px] font-medium text-[#1e1813]">Recent logins</p>
+            <p className="text-[11px] text-[#1e1813]/45">Last 30 days · magic-link sign-ins</p>
+          </div>
+          {activity.recentLogins.length === 0 ? (
+            <p className="px-4 py-8 text-center text-[12px] text-[#1e1813]/40">
+              No login events yet.
+            </p>
+          ) : (
+            <ul className="max-h-80 divide-y divide-[#eee6da] overflow-y-auto">
+              {activity.recentLogins.map((l, i) => (
+                <li key={`${l.email}-${l.created_at}-${i}`} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                  <span className="truncate text-[12px] text-[#1e1813]">{l.email}</span>
+                  <span className="shrink-0 text-[11px] tabular-nums text-[#1e1813]/45">
+                    {fmtDateTime(l.created_at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="overflow-hidden rounded-lg border border-[#eee6da] bg-white">
+          <div className="border-b border-[#eee6da] px-4 py-3">
+            <p className="text-[12px] font-medium text-[#1e1813]">
+              All users ({activity.users.length})
+            </p>
+            <p className="text-[11px] text-[#1e1813]/45">Sorted by most recent sign-in</p>
+          </div>
+          <div className="max-h-80 overflow-auto">
+            <table className="w-full text-left">
+              <thead className="sticky top-0 bg-white">
+                <tr className="border-b border-[#eee6da] text-[10px] uppercase tracking-wide text-[#1e1813]/40">
+                  <th className="px-4 py-2 font-medium">Email</th>
+                  <th className="px-4 py-2 font-medium">Last sign-in</th>
+                  <th className="px-4 py-2 text-right font-medium">Tailors</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activity.users.map((u) => (
+                  <tr key={u.id} className="border-b border-[#eee6da]/60 last:border-0">
+                    <td className="max-w-[14rem] truncate px-4 py-2 text-[12px] text-[#1e1813]">
+                      {u.email}
+                    </td>
+                    <td className="px-4 py-2 text-[11px] text-[#1e1813]/55">
+                      <span className={relDay(u.last_sign_in_at) === "Today" ? "font-medium text-emerald-700" : ""}>
+                        {relDay(u.last_sign_in_at)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-right text-[12px] tabular-nums text-[#1e1813]/70">
+                      {u.tailors_used}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </Section>
   )
 }
 
@@ -231,7 +438,7 @@ function StuckList({ buckets }: { buckets: StuckBucket[] }) {
               {b.users.map((u) => (
                 <li
                   key={`${b.key}-${u}`}
-                  className="rounded bg-[#f9f6f0] px-2 py-0.5 text-[11px] tabular-nums text-[#1e1813]/70"
+                  className="rounded bg-[#f9f6f0] px-2 py-0.5 text-[11px] text-[#1e1813]/70"
                 >
                   {u}
                 </li>
@@ -303,6 +510,8 @@ export default function AdminPage() {
   const h = health.headlines
   const q = health.quality
   const f = health.features
+  const v = health.volume
+  const activity = health.activity
   const lastCohort = health.cohorts[health.cohorts.length - 1]
 
   return (
@@ -315,13 +524,13 @@ export default function AdminPage() {
               href="/tailor"
               className="mb-3 inline-flex items-center gap-1.5 text-[13px] text-[#1e1813]/55 hover:text-[#1e1813]"
             >
-              <ArrowLeft className="h-3.5 w-3.5" /> Tailor
+              <ArrowLeft className="h-3.5 w-3.5" /> Back
             </Link>
             <h1 className="text-2xl font-semibold tracking-tight text-[#1e1813]">
               Product health
             </h1>
             <p className="mt-1 text-[13px] text-[#1e1813]/55">
-              Activation, retention, outcomes, quality — aggregates only.
+              Activation, retention, outcomes, quality, and volume — aggregates only.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -381,6 +590,9 @@ export default function AdminPage() {
         </div>
 
         <div className="space-y-5">
+          <VolumeSection v={v} />
+          <ActivitySection activity={activity} />
+
           <Section
             title="Weekly cohorts"
             meaning="Each week of signups: how many tailored within 7 days, returned, and started tracking. Compare week-over-week — not vanity volume."
@@ -504,7 +716,7 @@ export default function AdminPage() {
 
           <Section
             title="Stuck segments"
-            meaning="Where users stop. Masked ids only — no emails, CVs, or job text."
+            meaning="Where users stop. Emails shown for admin viewers — no CVs or job text."
           >
             <StuckList buckets={health.stuck} />
           </Section>
