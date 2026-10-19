@@ -8705,3 +8705,12 @@ Browser check at 1440 and 390 with mocked data: no sideways scroll, the bulk
 menu, Fit and Keys hints open, matrix tab renders. Pinned-copy tests updated
 to the frame (none weakened); new `frame-45-compare.test.ts`. tsc clean,
 2203 pass.
+
+**Follow-up, 19 Oct — frame 45's label rules on the Recommendation tab.**
+`FIT 84` / `MUST 2/2` chips → `Fit 84` / `Must-haves 2/2`; the 25-word
+"Recommendation · Generated … · From N CVs…" eyebrow → "Generated 19 Oct
+2026, 14:02 ⓘ" with the sources in the ⓘ; group labels and "What would
+change it" in sentence case, not mono eyebrows. Nothing about grouping,
+reasons or traces changed. Browser check 1440/390 with a mocked result: no
+errors, no sideways scroll. 2203 pass. Ose, 19 Oct: Interviews/close-out
+(frame 46) not needed for now — Compare is the focus.

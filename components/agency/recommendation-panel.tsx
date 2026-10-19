@@ -139,7 +139,7 @@ export function RecommendationPanel({
 
       {error && (
         <div className="ag-reco-error" role="alert">
-          <span className="ag-field-label">The recommendation did not run</span>
+          <strong className="ag-reco-error-h">The recommendation did not run</strong>
           <p>{error}</p>
         </div>
       )}
@@ -147,8 +147,14 @@ export function RecommendationPanel({
       {result && (
         <>
           <div className="ag-card ag-reco-reading">
-            <span className="ag-field-label ag-reco-stamp">
-              Recommendation · Generated {new Date(result.generated_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} · From {result.items.length} CVs, {callsLogged === 1 ? "1 candidate's" : `${callsLogged} candidates'`} call answers and {result.items.length} scores
+            {/* Frame 45 label rules: the stamp is the time; what it read sits behind the ⓘ. */}
+            <span className="ag-reco-stamp">
+              <Hint
+                bare
+                text={`From ${result.items.length} CVs, ${callsLogged === 1 ? "1 candidate's" : `${callsLogged} candidates'`} call answers and ${result.items.length} scores.`}
+              >
+                Generated {new Date(result.generated_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+              </Hint>
             </span>
             <h2 className="ag-reco-h">{takeForward(result.counts.recommended)}</h2>
           </div>
@@ -162,7 +168,7 @@ export function RecommendationPanel({
               <section key={group} className="ag-card ag-reco-group" data-group={group} data-collapsed={collapsed}>
                 <div className="ag-reco-group-head">
                   <div className="ag-reco-group-text">
-                    <span className="ag-field-label ag-reco-group-label" style={{ marginBottom: 0 }}>
+                    <span className="ag-reco-group-label">
                       <Hint info text={GROUP_BLURBS[group]}>
                         {GROUP_LABELS[group]} · {items.length}
                       </Hint>
@@ -189,9 +195,9 @@ export function RecommendationPanel({
                           <span className="ag-reco-name-plain">{item.full_name}</span>
                         )}
                         <span className="ag-meta ag-reco-title">{item.ref}</span>
-                        <span className="ag-reco-chip">FIT {item.overall}</span>
+                        <span className="ag-reco-chip">Fit {item.overall}</span>
                         <span className="ag-reco-chip">
-                          MUST {item.must_hit}/{item.must_total}
+                          Must-haves {item.must_hit}/{item.must_total}
                         </span>
                       </div>
                       <p className="ag-reco-reason">{item.reason}</p>
@@ -224,7 +230,7 @@ export function RecommendationPanel({
 
           {(result.unasked.length > 0 || result.no_call > 0) && (
             <div className="ag-reco-change">
-              <span className="ag-field-label">What would change this recommendation</span>
+              <h3 className="ag-reco-change-h">What would change it</h3>
               {result.unasked.map((r) => (
                 <p key={r.ref} className="ag-reco-change-line">
                   <b>
