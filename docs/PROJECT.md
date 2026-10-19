@@ -8673,3 +8673,39 @@ the client home, Roles and Diary, plus all six recruiter workflow steps — no
 page errors, no sideways scroll. It found and fixed: the switch invisible on
 a recruiter phone; the phone bar showing on client pages; a 240px-tall bar;
 and two layout overflows. tsc clean, 2199 pass.
+
+### Compare, said in fewer words — frame 45 (18 Oct 2026, built 19 Oct)
+
+Frame `45` (700:2) approved by Ose on 19 Oct ("Approved, build it"). Step 05
+only; the label rules in band C are now part of frame 42's rule set.
+
+- **Cards.** One card: name · title, `Fit 84 ⓘ` (the five-line breakdown and
+  confidence moved into the ⓘ — still in full on the candidate pop-up),
+  `Must-haves 2/2` (sage when all met, coral when not), `Call done`, `Gap: …`
+  and one decision row: `Add` / `✓ Shortlisted` (the pill is its own toggle,
+  so Remove is gone), quiet `Hold · Pass`, `View →`. Rank, initials, TOP
+  RISK / OVERALL FIT eyebrows and the R-number are gone from the card.
+  `DecisionSlot` gained `layout="row"`; the recommendation rows keep the
+  stacked slot.
+- **One view at a time.** Tabs are Cards · Matrix · Recommendation. The
+  matrix is the default at 6+ candidates, cards below; the choice is
+  remembered with the filters (same localStorage key).
+- **The rest.** Title "Compare" only (the sub and the second Back went).
+  "Add in one go" + two chips → one "Add in bulk ▾" menu. Filter labels
+  Sort · Show · Who. The legend row is gone; the four levels sit behind the
+  matrix header's ⓘ. The rail is "Shortlist · N", names, and held/passed as
+  counts that open their list (a view filter only). The decisions bar is in
+  flow, not sticky (it covered cards at 1440); counts only, the S/H/R keys
+  behind an ⓘ. The bulk-add undo stays in the bar's live region but is
+  pinned to the viewport on desktop as well as phone, so it stays reachable.
+- **Kept.** The rail's disclosure sentence ("{client} sees each name as you
+  add it…") is unchanged — it is a disclosure, and frame 45 leaves promises
+  and disclosures alone.
+
+Measured on the real step with mocked data (4 candidates, 1440): **435 → 162
+words** in Cards view. Browser check at 1440 and 390 for 4 and 7 candidates:
+no page errors, no sideways scroll; 7 opens on the matrix. It found and fixed
+one defect: at 250px cards the decision row wrapped View → onto its own line,
+so the card minimum is now 300px (frame 45's card is ~340). Tests updated
+where they pinned the old copy (none weakened) plus two new card guards. tsc
+clean, 2201 pass. Dead CSS removed (legend, chips, slot, top-risk).

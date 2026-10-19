@@ -139,12 +139,12 @@ describe("in-person interviews (UAT 20)", () => {
 
 describe("compare filters (UAT 17)", () => {
   const page = read("app/agencies/roles/[roleId]/page.tsx")
-  it("are three labelled dropdowns", () => {
-    for (const label of ["Sort by", "Requirements", "Candidates"]) expect(page).toContain(`<span className="ag-label">${label}</span>`)
+  it("are three labelled dropdowns (labels shortened in frame 45)", () => {
+    for (const label of ["Sort", "Show", "Who"]) expect(page).toContain(`<span className="ag-label">${label}</span>`)
     expect(page).not.toMatch(/Must-haves only<\/button>/)
   })
   it("only change the view — no decision is written by a filter", () => {
-    const bar = page.slice(page.indexOf('className="ag-cmp-filters"'), page.indexOf('<div className="ag-legend">', page.indexOf('className="ag-cmp-filters"')))
+    const bar = page.slice(page.indexOf('className="ag-cmp-filters"'), page.indexOf('{view === "cards" ? (', page.indexOf('className="ag-cmp-filters"')))
     expect(bar).not.toMatch(/decide\(|addMany\(|fetch\(/)
   })
 })

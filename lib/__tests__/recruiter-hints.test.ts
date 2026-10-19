@@ -14,8 +14,15 @@ const DETAIL = "components/agency/candidate-detail.tsx"
 describe("one score block, hinted, on every recruiter screen", () => {
   it("screening, compare and candidate detail draw the shared parts", () => {
     const page = read(PAGE)
-    expect(page.match(/<ScoreBreakdown /g)?.length).toBe(2)
-    expect(page.match(/<ConfidenceBars /g)?.length).toBe(2)
+    // Screening draws the block in full; the compare card (frame 45, 18 Oct
+    // 2026) carries the same five lines and the confidence behind its Fit ⓘ.
+    expect(page.match(/<ScoreBreakdown /g)?.length).toBe(1)
+    expect(page.match(/<ConfidenceBars /g)?.length).toBe(1)
+    expect(page).toMatch(/<FitHint score=\{s\} \/>/)
+    const parts = read("components/agency/score-parts.tsx")
+    const fitHint = parts.slice(parts.indexOf("export function FitHint"))
+    expect(fitHint).toMatch(/FIT_CATEGORIES\.map/)
+    expect(fitHint).toMatch(/LEVEL_WORD\[levelOf\(score\.confidence_level\)\]\} confidence/)
     const detail = read(DETAIL)
     expect(detail).toMatch(/<ScoreBreakdown score=\{score\} markWeak \/>/)
     expect(detail).toMatch(/<ConfidenceBars /)
@@ -36,11 +43,11 @@ describe("one score block, hinted, on every recruiter screen", () => {
     expect(parts).toMatch(/Math\.min\(3, Math\.max\(1/)
   })
 
-  it("the legend explains each strength", () => {
+  it("the legend explains each strength — behind the matrix header's ⓘ since frame 45", () => {
     const page = read(PAGE)
-    for (const k of ["strong", "transferable", "partial", "missing"]) {
-      expect(page).toContain(`<StrengthKey strength="${k}"`)
-    }
+    expect(page).toContain('{(["strong", "transferable", "partial", "missing"] as const).map((k) => (')
+    expect(page).toMatch(/<span className=\{`ag-dot \$\{k\}`\} \/> \{RECRUITER_HINTS\[k\]\}/)
+    expect(page).toContain("Strong counts 1.0, transferable 0.7, partial 0.4, missing 0. Coral cells are your overrides.")
   })
 })
 

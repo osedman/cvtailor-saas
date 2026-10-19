@@ -29,7 +29,7 @@ import { ShortlistRail, ShortlistBar, type ShortlistEntry } from "@/components/a
 import { countWord, countWordCap } from "@/components/agency/count-word"
 import { Hint, RECRUITER_HINTS } from "@/components/agency/hint"
 import { ShortlistStages } from "@/components/agency/shortlist-stages"
-import { AdjustedPill, ConfidenceBars, ScoreBreakdown, StrengthKey } from "@/components/agency/score-parts"
+import { AdjustedPill, ConfidenceBars, FitHint, MustHaves, ScoreBreakdown } from "@/components/agency/score-parts"
 import {
   PrintPortal,
   SubmissionDocument,
@@ -481,10 +481,15 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   // candidate with no decision yet.
   const [focusedCandidate, setFocusedCandidate] = useState<string | null>(null)
   const [compareSort, setCompareSort] = useState<"score" | "must" | "name">("score")
-  // Step 05 has two tabs. The matrix is the default and stays the default:
-  // the recommendation is a second reading of the same material, never a
-  // replacement for the board the decisions are made on.
-  const [compareTab, setCompareTab] = useState<"matrix" | "reco">("matrix")
+  // Step 05: the board (cards or matrix, one at a time — frame 45) and the
+  // recommendation. The board is the default: the recommendation is a second
+  // reading of the same material, never a replacement for the board the
+  // decisions are made on.
+  const [compareTab, setCompareTab] = useState<"board" | "reco">("board")
+  // Cards or matrix. null until the recruiter picks: the matrix for 6+
+  // candidates, cards below that. Remembered with the filters.
+  const [boardView, setBoardView] = useState<"cards" | "matrix" | null>(null)
+  const bulkMenuRef = useRef<HTMLDetailsElement | null>(null)
   // The compare filter bar (frame 37, 2 Oct 2026): three labelled dropdowns.
   // All VIEW controls — nothing is hidden from the record, nothing decided.
   const [reqFilter, setReqFilter] = useState<"all" | "must" | "must_important">("all")
@@ -494,22 +499,23 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const filterKey = `tailr.compare.${roleId}`
   useEffect(() => {
     try {
-      const saved = JSON.parse(window.localStorage.getItem(filterKey) ?? "null") as { sort?: string; req?: string; cand?: string } | null
+      const saved = JSON.parse(window.localStorage.getItem(filterKey) ?? "null") as { sort?: string; req?: string; cand?: string; view?: string } | null
       if (!saved) return
       if (saved.sort === "score" || saved.sort === "must" || saved.sort === "name") setCompareSort(saved.sort)
       if (saved.req === "all" || saved.req === "must" || saved.req === "must_important") setReqFilter(saved.req)
       if (saved.cand && ["all", "undecided", "shortlist", "hold", "reject", "called"].includes(saved.cand)) setCandFilter(saved.cand as typeof candFilter)
+      if (saved.view === "cards" || saved.view === "matrix") setBoardView(saved.view)
     } catch {
       /* no storage: defaults */
     }
   }, [filterKey])
   useEffect(() => {
     try {
-      window.localStorage.setItem(filterKey, JSON.stringify({ sort: compareSort, req: reqFilter, cand: candFilter }))
+      window.localStorage.setItem(filterKey, JSON.stringify({ sort: compareSort, req: reqFilter, cand: candFilter, view: boardView }))
     } catch {
       /* no storage: nothing to remember */
     }
-  }, [filterKey, compareSort, reqFilter, candFilter])
+  }, [filterKey, compareSort, reqFilter, candFilter, boardView])
   // Hiding is a view control on the compare board only. It never touches the
   // candidate, the score or any decision — the product does not remove people.
   const [hiddenCandidates, setHiddenCandidates] = useState<string[]>([])
@@ -2527,6 +2533,10 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 : requirements)
               .slice()
               .sort((a, b) => WEIGHT_RANK.indexOf(a.weight) - WEIGHT_RANK.indexOf(b.weight))
+            const view = boardView ?? (candidates.length >= 6 ? "matrix" : "cards")
+            const closeBulkMenu = () => {
+              if (bulkMenuRef.current) bulkMenuRef.current.open = false
+            }
             const cols = `minmax(240px, 1.4fr) repeat(${Math.max(shownCandidates.length, 1)}, minmax(160px, 1fr))`
             // The rail: who is in, in score order. Same list step 07 reads.
             const railEntries: ShortlistEntry[] = submissionShortlisted.map((c) => ({
@@ -2569,37 +2579,43 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
               passedCount: decisionCounts.reject,
               onRemove: (id: string) => decide(id, "shortlist"),
               onConfirm: () => setStep("submission"),
+              onShowList: (which: "hold" | "reject") => {
+                setCompareTab("board")
+                setCandFilter(which)
+              },
             }
             return (
               <>
                 <div className="ag-screen-head">
                   <div>
-                    <h1 className="ag-title">Every candidate, every<br />requirement, side by side.</h1>
-                    <p className="ag-sub">
-                      Choose who goes on the shortlist, from the evidence after screening.
-                    </p>
-                  </div>
-                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <button className="ag-btn ag-btn-secondary" onClick={() => setStep("screening")}>Back</button>
+                    <h1 className="ag-title">Compare</h1>
                   </div>
                 </div>
 
-                {/* Board 26: the cards and the recommendation on the left, the
+                {/* Board 26: the board and the recommendation on the left, the
                     shortlist being built on the right. The rail is the same
-                    component under both tabs, so an add from either lands in
-                    the same visible place. The matrix stays the default tab. */}
+                    component under every tab, so an add from any of them
+                    lands in the same visible place. Frame 45 (18 Oct 2026):
+                    cards or matrix, one at a time — the same scores were
+                    printed twice, stacked. */}
                 <div className="ag-cmp-layout">
                 <div className="ag-cmp-main">
                 <div className="ag-cmp-controls">
                   <div className="ag-cmp-tabs" role="tablist" aria-label="Compare views">
-                    <button
-                      role="tab"
-                      aria-selected={compareTab === "matrix"}
-                      className={compareTab === "matrix" ? "on" : ""}
-                      onClick={() => setCompareTab("matrix")}
-                    >
-                      Matrix
-                    </button>
+                    {([["cards", "Cards"], ["matrix", "Matrix"]] as const).map(([v, label]) => (
+                      <button
+                        key={v}
+                        role="tab"
+                        aria-selected={compareTab === "board" && view === v}
+                        className={compareTab === "board" && view === v ? "on" : ""}
+                        onClick={() => {
+                          setCompareTab("board")
+                          setBoardView(v)
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
                     <button
                       role="tab"
                       aria-selected={compareTab === "reco"}
@@ -2609,50 +2625,43 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       Recommendation
                     </button>
                   </div>
-                  {compareTab === "matrix" ? (
-                    <div className="ag-cmp-bulk" role="group" aria-label="Add in one go">
-                      <span className="ag-field-label ag-cmp-bulk-label">Add in one go</span>
-                      {mustHaveReady.length > 0 && (
-                        <button
-                          type="button"
-                          className="ag-bulk-chip"
-                          onClick={() => addMany(mustHaveReady.map((c) => c.id))}
-                          title="Adds everyone whose every must-have is evidenced and who is not in yet. One decision per person, yours, with undo."
-                        >
-                          <span className="ag-bulk-long">+ Everyone with every must-have</span>
-                          <span className="ag-bulk-short">+ Every must-have</span>
-                          {" · "}{mustHaveReady.length}
-                        </button>
-                      )}
-                      {reco.result ? (
-                        recommendedNotIn.length > 0 && (
-                          <button
-                            type="button"
-                            className="ag-bulk-chip"
-                            onClick={() => void addRecommended()}
-                            title="Adds the people in the recommendation's first group who are not in yet. One decision per person, yours, with undo."
-                          >
-                            <span className="ag-bulk-long">+ The {countWord(recommendedNotIn.length)} it recommends</span>
-                            <span className="ag-bulk-short">+ Recommended · {recommendedNotIn.length}</span>
-                          </button>
-                        )
-                      ) : (
-                        <button
-                          type="button"
-                          className="ag-bulk-chip"
-                          onClick={() => void addRecommended()}
-                          disabled={reco.busy}
-                          title="No recommendation has been generated yet. This runs it first, then adds its first group — one decision per person, yours, with undo."
-                        >
-                          {reco.busy ? "Reading…" : (
-                            <>
-                              <span className="ag-bulk-long">+ The ones it recommends</span>
-                              <span className="ag-bulk-short">+ Recommended</span>
-                            </>
+                  {compareTab === "board" ? (
+                    (mustHaveReady.length > 0 || !reco.result || recommendedNotIn.length > 0) && (
+                      <details className="ag-bulk-menu" ref={bulkMenuRef}>
+                        <summary className="ag-btn ag-btn-secondary">Add in bulk ▾</summary>
+                        <div className="ag-bulk-items" role="group" aria-label="Add in bulk">
+                          {mustHaveReady.length > 0 && (
+                            <button
+                              type="button"
+                              className="ag-bulk-item"
+                              onClick={() => {
+                                closeBulkMenu()
+                                addMany(mustHaveReady.map((c) => c.id))
+                              }}
+                              title="Adds everyone whose every must-have is evidenced and who is not in yet. One decision per person, yours, with undo."
+                            >
+                              Everyone with all must-haves ({mustHaveReady.length})
+                            </button>
                           )}
-                        </button>
-                      )}
-                    </div>
+                          {(!reco.result || recommendedNotIn.length > 0) && (
+                            <button
+                              type="button"
+                              className="ag-bulk-item"
+                              onClick={() => {
+                                closeBulkMenu()
+                                void addRecommended()
+                              }}
+                              disabled={reco.busy}
+                              title={reco.result
+                                ? "Adds the people in the recommendation's first group who are not in yet. One decision per person, yours, with undo."
+                                : "No recommendation has been generated yet. This runs it first, then adds its first group — one decision per person, yours, with undo."}
+                            >
+                              {reco.busy ? "Reading…" : reco.result ? `The recommended ones (${recommendedNotIn.length})` : "The recommended ones"}
+                            </button>
+                          )}
+                        </div>
+                      </details>
+                    )
                   ) : (
                     reco.result && (
                       <button className="ag-btn ag-btn-secondary ag-reco-again" onClick={() => void reco.generate()} disabled={reco.busy}>
@@ -2661,14 +2670,14 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     )
                   )}
                 </div>
-                {compareTab === "matrix" ? (
+                {compareTab === "board" ? (
                   <>
 
-                {/* The filter bar (frame 37): three labelled dropdowns, each
-                    saying what it does. View controls only. */}
+                {/* The filter bar (frame 37; labels shortened in frame 45).
+                    View controls only. */}
                 <div className="ag-cmp-filters" role="group" aria-label="Filter the comparison">
                   <label className="ag-cmp-filter">
-                    <span className="ag-label">Sort by</span>
+                    <span className="ag-label">Sort</span>
                     <select className="ag-input" value={compareSort} onChange={(e) => setCompareSort(e.target.value as typeof compareSort)}>
                       <option value="score">Score</option>
                       <option value="must">Must-haves met</option>
@@ -2676,7 +2685,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </select>
                   </label>
                   <label className="ag-cmp-filter">
-                    <span className="ag-label">Requirements</span>
+                    <span className="ag-label">Show</span>
                     <select className="ag-input" value={reqFilter} onChange={(e) => setReqFilter(e.target.value as typeof reqFilter)}>
                       <option value="all">All requirements</option>
                       <option value="must">Must-haves only</option>
@@ -2684,7 +2693,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </select>
                   </label>
                   <label className="ag-cmp-filter">
-                    <span className="ag-label">Candidates</span>
+                    <span className="ag-label">Who</span>
                     <select className="ag-input" value={candFilter} onChange={(e) => setCandFilter(e.target.value as typeof candFilter)}>
                       <option value="all">Everyone · {candidates.length}</option>
                       <option value="undecided">Not decided yet · {decisionCounts.undecided}</option>
@@ -2699,18 +2708,11 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   )}
                 </div>
 
-                <div className="ag-legend">
-                  <Hint bare text="Strong counts 1.0, transferable 0.7, partial 0.4, missing 0. Coral cells are your overrides." className="ag-field-label ag-legend-label">Legend</Hint>
-                  <StrengthKey strength="strong" label="Strong" />
-                  <StrengthKey strength="transferable" label="Transferable" />
-                  <StrengthKey strength="partial" label="Partial" />
-                  <StrengthKey strength="missing" label="Missing" />
-                </div>
-
+                {view === "cards" ? (
                 <div className="ag-cmp-grid">
-                  {shownCandidates.map((c, rank) => {
+                  {shownCandidates.map((c) => {
                     const s = scores[c.id]
-                    const topRisk = requirements.find((r) => r.weight !== "nice" && effectiveStrength(c.id, r.id) === "missing")
+                    const gap = requirements.find((r) => r.weight !== "nice" && effectiveStrength(c.id, r.id) === "missing")
                     return (
                       <div
                         className="ag-card ag-cmp-card"
@@ -2721,77 +2723,76 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         onMouseEnter={() => setFocusedCandidate(c.id)}
                         onFocus={() => setFocusedCandidate(c.id)}
                       >
-                        <div className="ag-card-head" style={{ alignItems: "flex-start" }}>
-                          <div style={{ display: "flex", gap: 10, minWidth: 0 }}>
-                            <div className="ag-avatar" style={{ width: 34, height: 34, fontSize: 12 }}>{initials(c.full_name)}</div>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
-                                <span className="ag-meta">#{rank + 1}</span>
-                                <span style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.full_name}</span>
-                              </div>
-                              <div className="ag-meta">{c.current_title || c.ref}</div>
-                            </div>
-                          </div>
-                          <button
-                            className="ag-icon-btn"
-                            title={`Hide ${c.full_name} from the comparison`}
-                            aria-label={`Hide ${c.full_name} from the comparison`}
-                            onClick={() => setHiddenCandidates((h) => [...h, c.id])}
-                          >
-                            ×
-                          </button>
-                        </div>
-                        <div className="ag-card-body ag-stack" style={{ gap: 12 }}>
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                            {reviews[c.id]?.status === "reviewed" && <span className="ag-reviewed inline">Call done</span>}
-                            {s && <AdjustedPill original={s.original_overall} overall={s.overall} />}
-                          </div>
-                          {s && (
-                            <>
-                              <ScoreBreakdown score={s} />
-                              <ConfidenceBars level={s.confidence_level} />
-                            </>
-                          )}
-                          <div>
-                            <span className="ag-field-label">Top risk</span>
-                            <span className="ag-toprisk">
-                              {topRisk ? `${topRisk.ref} unevidenced: ${topRisk.text}` : "No unmet must or important requirement."}
+                        <div className="ag-card-body ag-stack ag-cmp-card-body">
+                          <div className="ag-cmp-card-top">
+                            <span className="ag-cmp-who">
+                              <span className="ag-cmp-name">{c.full_name}</span>
+                              {(c.current_title || c.ref) && <span className="ag-cmp-title"> · {c.current_title || c.ref}</span>}
                             </span>
+                            <button
+                              className="ag-icon-btn"
+                              title={`Hide ${c.full_name} from the comparison`}
+                              aria-label={`Hide ${c.full_name} from the comparison`}
+                              onClick={() => setHiddenCandidates((h) => [...h, c.id])}
+                            >
+                              ×
+                            </button>
                           </div>
-                          <DecisionSlot
-                            decision={decisions[c.id] ?? null}
-                            name={c.full_name}
-                            onDecide={(d) => decide(c.id, d)}
-                          />
-                          <button className="ag-btn ag-btn-secondary" style={{ width: "100%", justifyContent: "center" }} onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
-                            View candidate
-                          </button>
+                          <div className="ag-cmp-facts">
+                            {s && <FitHint score={s} />}
+                            {s && <AdjustedPill original={s.original_overall} overall={s.overall} />}
+                            {s && <MustHaves hit={s.must_have_hit} total={s.must_have_total} />}
+                            {reviews[c.id]?.status === "reviewed" && <span className="ag-cmp-call">Call done</span>}
+                          </div>
+                          <span className="ag-cmp-gap">{gap ? `Gap: ${gap.text}` : "No gaps"}</span>
+                          <div className="ag-cmp-actions">
+                            <DecisionSlot
+                              layout="row"
+                              decision={decisions[c.id] ?? null}
+                              name={c.full_name}
+                              onDecide={(d) => decide(c.id, d)}
+                            />
+                            <button className="ag-reco-text-btn ag-cmp-view" onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)} aria-label={`View ${c.full_name}`}>
+                              View →
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )
                   })}
                 </div>
-
+                ) : (
                 <div className="ag-card" style={{ overflow: "hidden" }}>
-                  <div className="ag-card-head">
-                    <span className="ag-card-title">Requirement matrix</span>
-                    <span className="ag-meta">{shownReqs.length} requirements × {shownCandidates.length} candidates</span>
-                  </div>
                   <div style={{ overflowX: "auto" }}>
                     <div style={{ minWidth: 240 + shownCandidates.length * 160 }}>
                       <div className="ag-mx-head" style={{ gridTemplateColumns: cols }}>
-                        <div style={{ padding: "10px 16px" }}><span className="ag-field-label" style={{ marginBottom: 0 }}>Requirement</span></div>
+                        <div style={{ padding: "10px 16px" }}>
+                          {/* Frame 45: the legend lives here, behind the ⓘ. */}
+                          <Hint
+                            bare
+                            className="ag-label ag-mx-req-label"
+                            content={
+                              <>
+                                {(["strong", "transferable", "partial", "missing"] as const).map((k) => (
+                                  <span key={k} className="ag-hint-block">
+                                    <span className={`ag-dot ${k}`} /> {RECRUITER_HINTS[k]}
+                                  </span>
+                                ))}
+                                <span className="ag-hint-block">Strong counts 1.0, transferable 0.7, partial 0.4, missing 0. Coral cells are your overrides.</span>
+                              </>
+                            }
+                          >
+                            Requirement
+                          </Hint>
+                        </div>
                         {shownCandidates.map((c) => {
                           const s = scores[c.id]
                           return (
                             <button key={c.id} className="ag-mx-cand" onClick={() => router.push(`/agencies/roles/${roleId}/candidates/${c.id}`)}>
-                              <span style={{ display: "flex", gap: 7, alignItems: "center", minWidth: 0 }}>
-                                <span className="ag-avatar" style={{ width: 22, height: 22, fontSize: 9 }}>{initials(c.full_name)}</span>
-                                <span style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.full_name.split(" ")[0]}</span>
-                              </span>
+                              <span style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.full_name}</span>
                               <span style={{ display: "flex", gap: 7, alignItems: "baseline" }}>
                                 <span className="ag-mx-score">{s ? Math.round(s.overall) : "—"}</span>
-                                {s && <span className="ag-meta">{s.must_have_hit}/{s.must_have_total} must</span>}
+                                {s && <span className="ag-mx-must">{s.must_have_hit}/{s.must_have_total} must</span>}
                               </span>
                             </button>
                           )
@@ -2832,6 +2833,7 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                     </div>
                   </div>
                 </div>
+                )}
 
                   </>
                 ) : (
@@ -2855,13 +2857,12 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                 </aside>
                 </div>
 
-                {/* The tally under both tabs. Confirm lives on the rail now,
-                    so this bar carries no button: count, and the keys. The
-                    undo a bulk add leaves behind rides here too, because the
-                    bar is where the eye already is (sticky at the bottom on
-                    desktop, fixed above the shortlist bar on a phone) — a
-                    group add three screens down must still be able to reach
-                    its Undo before the eight seconds are up. */}
+                {/* The tally under every tab (frame 45: in flow, not sticky —
+                    it covered the cards at 1440). Counts only; the keys sit
+                    behind the ⓘ. The undo a bulk add leaves behind lives in
+                    this bar's live region but is pinned to the viewport
+                    (agencies.css), so it is reachable for its eight seconds
+                    wherever the recruiter has scrolled. */}
                 <div className="ag-decisions-bar">
                   <div className="ag-undo" role="status" data-empty={!undo}>
                     {undo && (
@@ -2872,16 +2873,22 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                       </>
                     )}
                   </div>
-                  <span className="ag-field-label">Decisions</span>
                   <span className="ag-decisions-tally">
                     {decisionTotals} · <b>{decisionCounts.undecided} undecided</b>
                   </span>
                   <span className="ag-grow" />
-                  <span className="ag-kbd-hints">
-                    <span><kbd className="ag-kbd">S</kbd> add / remove</span>
-                    <span><kbd className="ag-kbd">H</kbd> hold</span>
-                    <span><kbd className="ag-kbd">R</kbd> pass</span>
-                  </span>
+                  <Hint
+                    info
+                    content={
+                      <span className="ag-kbd-hints">
+                        <span><kbd className="ag-kbd">S</kbd> add / remove</span>
+                        <span><kbd className="ag-kbd">H</kbd> hold</span>
+                        <span><kbd className="ag-kbd">R</kbd> pass</span>
+                      </span>
+                    }
+                  >
+                    Keys
+                  </Hint>
                 </div>
 
                 {/* ≤ 900px: the rail as a sticky bottom bar, opening as a sheet. */}

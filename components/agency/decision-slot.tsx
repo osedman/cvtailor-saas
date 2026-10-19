@@ -33,6 +33,7 @@ export function DecisionSlot({
   name,
   onDecide,
   quietRow = "always",
+  layout = "stack",
   disabled = false,
 }: {
   decision: DecisionValue | string | null | undefined
@@ -45,6 +46,12 @@ export function DecisionSlot({
    * recommendation rows, where the head of the row is the verb).
    */
   quietRow?: "always" | "when-decided"
+  /**
+   * "row" (frame 45, 18 Oct 2026, the compare cards): one line. The filled
+   * control is "Add" or "✓ Shortlisted", and the shortlisted pill is its own
+   * toggle, so there is no separate Remove. Hold · Pass stay quiet text.
+   */
+  layout?: "stack" | "row"
   disabled?: boolean
 }) {
   const d = decision ?? null
@@ -52,6 +59,48 @@ export function DecisionSlot({
   const held = d === HOLD
   const passed = d === PASS
   const showQuiet = quietRow === "always" || held || passed
+
+  if (layout === "row") {
+    return (
+      <div className="ag-decision ag-decision-row" data-state={inShortlist ? "in" : held ? "hold" : passed ? "pass" : "none"}>
+        <button
+          type="button"
+          className={`ag-btn ${inShortlist ? "ag-decision-pill" : d ? "ag-btn-secondary" : "ag-btn-primary"}`}
+          onClick={() => onDecide(IN)}
+          disabled={disabled}
+          aria-pressed={inShortlist}
+          aria-label={inShortlist ? `${name} is shortlisted. Press to remove.` : `Add ${name} to the shortlist`}
+        >
+          {inShortlist ? "✓ Shortlisted" : "Add"}
+        </button>
+        <span className="ag-decision-quiet">
+          <button
+            type="button"
+            className="ag-decision-quiet-btn"
+            data-on={held}
+            onClick={() => onDecide(HOLD)}
+            disabled={disabled}
+            aria-pressed={held}
+            aria-label={held ? `${name} is on hold. Press to clear.` : `Hold ${name}`}
+          >
+            {held ? "On hold ✓" : "Hold"}
+          </button>
+          <span aria-hidden="true">·</span>
+          <button
+            type="button"
+            className="ag-decision-quiet-btn"
+            data-on={passed}
+            onClick={() => onDecide(PASS)}
+            disabled={disabled}
+            aria-pressed={passed}
+            aria-label={passed ? `${name} is passed. Press to clear.` : `Pass on ${name}`}
+          >
+            {passed ? "Passed ✓" : "Pass"}
+          </button>
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div className="ag-decision" data-state={inShortlist ? "in" : held ? "hold" : passed ? "pass" : "none"}>

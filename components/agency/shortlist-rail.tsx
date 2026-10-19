@@ -51,24 +51,20 @@ export interface ShortlistRailProps {
   passedCount: number
   onRemove: (candidateId: string) => void
   onConfirm: () => void
+  /** Opens the compare list filtered to the held or the passed. */
+  onShowList?: (which: "hold" | "reject") => void
   /** Sheet mode drops the card chrome; the sheet supplies its own. */
   variant?: "card" | "sheet"
 }
 
-function railTitle(n: number): string {
-  if (n === 0) return "Nobody yet"
-  if (n === 1) return "1 person, in score order"
-  return `${n} people, in score order`
-}
-
 export function ShortlistRail({
-  company,
   clientName,
   entries,
   holdCount,
   passedCount,
   onRemove,
   onConfirm,
+  onShowList,
   variant = "card",
 }: ShortlistRailProps) {
   const n = entries.length
@@ -76,10 +72,7 @@ export function ShortlistRail({
     <section className={`ag-sl ${variant === "card" ? "ag-card ag-sl-card" : "ag-sl-sheet-body"}`} aria-label="Your shortlist">
       <div className="ag-sl-head">
         <ShortlistStages at={0} />
-        <span className="ag-field-label ag-sl-eyebrow">
-          Your shortlist{company ? ` · ${company}` : ""}
-        </span>
-        <h2 className="ag-sl-title" aria-live="polite">{railTitle(n)}</h2>
+        <h2 className="ag-sl-title" aria-live="polite">Shortlist · {n}</h2>
         <p className="ag-sl-sub">
           {clientName?.trim() || "The client"} sees each name as you add it. The CV, evidence and scores wait for
           the submission.
@@ -89,11 +82,7 @@ export function ShortlistRail({
       <ol className="ag-sl-list">
         {entries.map((e) => (
           <li className="ag-sl-row" key={e.id}>
-            <span className="ag-avatar ag-sl-avatar" aria-hidden>{e.initials}</span>
-            <span className="ag-sl-who">
-              <span className="ag-sl-name">{e.name}</span>
-              <span className="ag-meta ag-sl-fit">FIT {Math.round(e.overall)} · MUST {e.mustHit}/{e.mustTotal}</span>
-            </span>
+            <span className="ag-sl-name">{e.name}</span>
             <button
               type="button"
               className="ag-icon-btn ag-sl-x"
@@ -105,18 +94,17 @@ export function ShortlistRail({
             </button>
           </li>
         ))}
-        <li className="ag-sl-slot" aria-hidden>Your next add lands here</li>
+        {n === 0 && <li className="ag-sl-empty">Nobody yet</li>}
       </ol>
 
+      {/* Frame 45: held and passed are counts that open their list. */}
       <div className="ag-sl-quiet">
-        <div>
-          <span className="ag-field-label ag-sl-quiet-label">On hold · {holdCount}</span>
-          <span className="ag-sl-quiet-note">Kept for later. Never sent.</span>
-        </div>
-        <div>
-          <span className="ag-field-label ag-sl-quiet-label">Passed · {passedCount}</span>
-          <span className="ag-sl-quiet-note">Internal record only.</span>
-        </div>
+        <button type="button" className="ag-reco-text-btn" onClick={() => onShowList?.("hold")} disabled={holdCount === 0}>
+          On hold · {holdCount}
+        </button>
+        <button type="button" className="ag-reco-text-btn" onClick={() => onShowList?.("reject")} disabled={passedCount === 0}>
+          Passed · {passedCount}
+        </button>
       </div>
 
       <div className="ag-sl-foot">
@@ -259,7 +247,14 @@ export function ShortlistBar(props: ShortlistRailProps) {
             >
               <span aria-hidden />
             </button>
-            <ShortlistRail {...props} variant="sheet" />
+            <ShortlistRail
+              {...props}
+              onShowList={(which) => {
+                setOpen(false)
+                props.onShowList?.(which)
+              }}
+              variant="sheet"
+            />
           </div>
         </>
       )}

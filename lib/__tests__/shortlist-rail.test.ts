@@ -41,16 +41,21 @@ const jsxText = (src: string) => [...src.matchAll(/>([^<>{}]+)</g)].map((m) => m
 describe("the header and the bar", () => {
   const step = compareStep()
 
-  it("the header keeps title, sub and Back only — Build submission has left it", () => {
+  it("the header is the title alone (frame 45) — Build submission has left it", () => {
     expect(step).not.toContain("Build submission")
     const head = step.slice(step.indexOf('className="ag-screen-head"'), step.indexOf("ag-cmp-layout"))
-    expect(head).toMatch(/>Back</)
+    expect(head).toMatch(/<h1 className="ag-title">Compare<\/h1>/)
+    // One Back: the top nav's. The screen head's second one is gone.
+    expect(head).not.toMatch(/>Back</)
     expect(head).not.toMatch(/ag-btn-primary/)
   })
 
-  it("the decisions bar loses Continue to submission and carries the tally and the keys", () => {
+  it("the decisions bar loses Continue to submission and carries the tally, with the keys behind its ⓘ", () => {
     expect(step).not.toContain("Continue to submission")
     const bar = step.slice(step.indexOf('className="ag-decisions-bar"'))
+    expect(bar).toMatch(/<Hint\s+info\s+content=\{[\s\S]*?<kbd className="ag-kbd">S<\/kbd>[\s\S]*?Keys\s*<\/Hint>/)
+    // In flow, not sticky: frame 45 found it covering the cards at 1440.
+    expect(CSS).toMatch(/\.ag-decisions-bar \{ position: static; box-shadow: none; flex-wrap: wrap; \}\n@media \(min-width: 901px\)/)
     expect(bar).toMatch(/add \/ remove/)
     expect(bar).toMatch(/<kbd className="ag-kbd">H<\/kbd> hold/)
     expect(bar).toMatch(/<kbd className="ag-kbd">R<\/kbd> pass/)
@@ -69,7 +74,8 @@ describe("the rail", () => {
     expect(step).toMatch(/<ShortlistBar \{\.\.\.railProps\} \/>/)
     // The rail sits outside the tab switch, so it does not re-mount per tab.
     const railAt = step.indexOf("<ShortlistRail")
-    const tabSwitch = step.lastIndexOf('compareTab === "matrix" ? (')
+    const tabSwitch = step.lastIndexOf('compareTab === "board" ? (')
+    expect(tabSwitch).toBeGreaterThan(-1)
     expect(railAt).toBeGreaterThan(tabSwitch)
   })
 
@@ -82,16 +88,18 @@ describe("the rail", () => {
     expect(RAIL).not.toContain("Next: choose what else the client reads, then send.")
   })
 
-  it("carries the board's words", () => {
-    expect(RAIL).toContain('"Nobody yet"')
-    expect(RAIL).toContain('"1 person, in score order"')
-    expect(RAIL).toContain("people, in score order")
-    // Board 29 replaced board 26's sub: the client now sees names as they are added.
+  it("carries frame 45's words", () => {
+    expect(RAIL).toContain(">Nobody yet<")
+    expect(RAIL).toMatch(/Shortlist · \{n\}<\/h2>/)
+    // Board 29's disclosure stays in full: the client sees names as they are added.
     expect(RAIL).toMatch(/sees each name as you add it\. The CV, evidence and scores wait for\s+the submission\./)
-    expect(RAIL).toContain("Your next add lands here")
-    expect(RAIL).toContain("Kept for later. Never sent.")
-    expect(RAIL).toContain("Internal record only.")
-    expect(RAIL).toMatch(/FIT \{Math\.round\(e\.overall\)\} · MUST \{e\.mustHit\}\/\{e\.mustTotal\}/)
+    // Held and passed are counts that open their list, through a view filter only.
+    expect(RAIL).toMatch(/onShowList\?\.\("hold"\)[\s\S]{0,80}On hold · \{holdCount\}/)
+    expect(RAIL).toMatch(/onShowList\?\.\("reject"\)[\s\S]{0,80}Passed · \{passedCount\}/)
+    expect(compareStep()).toMatch(/onShowList: \(which: "hold" \| "reject"\) => \{\s*setCompareTab\("board"\)\s*setCandFilter\(which\)\s*\}/)
+    for (const gone of ["Your next add lands here", "Kept for later. Never sent.", "Internal record only.", "in score order"]) {
+      expect(RAIL).not.toContain(gone)
+    }
     expect(RAIL).toMatch(/disabled=\{n === 0\}/)
   })
 
@@ -114,7 +122,7 @@ describe("the rail", () => {
     expect(RAIL).toMatch(/Shortlist · \{n\}/)
     expect(RAIL).toMatch(/\+\$\{firsts\.length - 3\} more/)
     expect(RAIL).toMatch(/role="dialog"/)
-    expect(RAIL).toMatch(/<ShortlistRail \{\.\.\.props\} variant="sheet" \/>/)
+    expect(RAIL).toMatch(/<ShortlistRail\s+\{\.\.\.props\}[\s\S]{0,160}variant="sheet"\s*\/>/)
     expect(CSS).toMatch(/\.ag-sl-bar, \.ag-sl-scrim, \.ag-sl-sheet \{ display: none; \}/)
     expect(CSS).toMatch(/@media \(max-width: 900px\) \{[\s\S]*\.ag-cmp-rail \{ display: none; \}[\s\S]*\.ag-sl-bar \{[\s\S]*position: fixed/)
   })
@@ -137,6 +145,30 @@ describe("the cards", () => {
     expect(SLOT).toMatch(/d \? "ag-btn-secondary" : "ag-btn-primary"/)
     // It never writes; every click goes back through onDecide.
     expect(SLOT).not.toMatch(/fetch\(/)
+  })
+
+  it("frame 45: one card is name, Fit ⓘ, Must-haves, Call done, Gap and the decision row", () => {
+    const step = compareStep()
+    const card = step.slice(step.indexOf('{view === "cards" ? ('), step.indexOf('className="ag-mx-head"'))
+    expect(card).toMatch(/<FitHint score=\{s\} \/>/)
+    expect(card).toMatch(/<MustHaves hit=\{s\.must_have_hit\} total=\{s\.must_have_total\} \/>/)
+    expect(card).toContain(">Call done<")
+    expect(card).toContain("`Gap: ${gap.text}`")
+    expect(card).toMatch(/<DecisionSlot\s+layout="row"/)
+    // What moved behind the ⓘ or went: no breakdown, no rank, no eyebrows.
+    for (const gone of ["<ScoreBreakdown", "<ConfidenceBars", "Top risk", "unevidenced:", "#{rank + 1}", "ag-field-label", "initials("]) {
+      expect(card, gone).not.toContain(gone)
+    }
+    // One view at a time: the matrix renders only in the other branch.
+    expect(step).toContain('const view = boardView ?? (candidates.length >= 6 ? "matrix" : "cards")')
+  })
+
+  it("the row slot: the shortlisted pill is its own toggle, Hold · Pass stay quiet", () => {
+    const row = SLOT.slice(SLOT.indexOf('if (layout === "row")'), SLOT.indexOf("return (", SLOT.indexOf('if (layout === "row")') + 40))
+    expect(row).toMatch(/onClick=\{\(\) => onDecide\(IN\)\}[\s\S]{0,200}aria-pressed=\{inShortlist\}/)
+    expect(row).toContain('{inShortlist ? "✓ Shortlisted" : "Add"}')
+    expect(row).toContain('"On hold ✓" : "Hold"')
+    expect(row).toContain('"Passed ✓" : "Pass"')
   })
 
   it("the primary Add is at least 44px tall on a phone", () => {
@@ -171,24 +203,24 @@ describe("the word on screen is pass, never reject", () => {
 describe("add in one go", () => {
   const step = compareStep()
 
-  it("the must-have chip counts people with every must-have who are not in yet, and hides at zero", () => {
+  it("the must-have item counts people with every must-have who are not in yet, and hides at zero", () => {
     expect(step).toMatch(/s\.must_have_total > 0 && s\.must_have_hit === s\.must_have_total && decisions\[c\.id\] !== "shortlist"/)
     expect(step).toMatch(/\{mustHaveReady\.length > 0 && \(/)
-    expect(step).toMatch(/<span className="ag-bulk-long">\+ Everyone with every must-have<\/span>\s*<span className="ag-bulk-short">\+ Every must-have<\/span>\s*\{" · "\}\{mustHaveReady\.length\}/)
+    expect(step).toContain("Everyone with all must-haves ({mustHaveReady.length})")
   })
 
-  it("the chips carry board D's short labels for a phone, and the stylesheet picks by width", () => {
-    // Board D (375px): "+ Every must-have · 5" and "+ Recommended · 4" on one line.
-    expect(step).toContain('<span className="ag-bulk-short">+ Recommended · {recommendedNotIn.length}</span>')
-    expect(step).toContain('<span className="ag-bulk-short">+ Recommended</span>')
-    expect(CSS).toMatch(/\.ag-bulk-short \{ display: none; \}/)
-    expect(CSS).toMatch(/@media \(max-width: 600px\) \{[\s\S]*?\.ag-bulk-long \{ display: none; \}\s*\.ag-bulk-short \{ display: inline; \}/)
+  it("is one \"Add in bulk ▾\" menu (frame 45), shown only when it has something to add", () => {
+    expect(step).toMatch(/<summary className="ag-btn ag-btn-secondary">Add in bulk ▾<\/summary>/)
+    expect(step).toContain("(mustHaveReady.length > 0 || !reco.result || recommendedNotIn.length > 0) && (")
+    // Each item closes the menu, then adds through the same one-click paths.
+    expect(step).toMatch(/closeBulkMenu\(\)\s*addMany\(mustHaveReady\.map\(\(c\) => c\.id\)\)/)
+    expect(step).toMatch(/closeBulkMenu\(\)\s*void addRecommended\(\)/)
   })
 
-  it("the recommendation chip runs it first when nothing has been generated, and says so", () => {
-    expect(step).toContain("+ The {countWord(recommendedNotIn.length)} it recommends")
-    expect(step).toContain(">+ The ones it recommends<")
-    expect(step).toMatch(/title="No recommendation has been generated yet\. This runs it first/)
+  it("the recommendation item runs it first when nothing has been generated, and says so", () => {
+    expect(step).toContain("`The recommended ones (${recommendedNotIn.length})`")
+    expect(step).toContain(': "The recommended ones"}')
+    expect(step).toMatch(/"No recommendation has been generated yet\. This runs it first/)
     expect(step).toMatch(/const r = await reco\.generate\(\)/)
   })
 
