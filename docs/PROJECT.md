@@ -8728,3 +8728,12 @@ failed ask is retried on the next navigation, and the shell's copy re-asks on
 route change. `hat-switch-cache.test.ts` (3 new) fails on the old code;
 browser repro (401 on sign-in → client-side nav) showed 1 ask and no switch
 before, 2 asks and the switch after. 2206 pass.
+
+### What stands between staging and production — the list (19 Oct 2026)
+
+Ose asked for the list. `docs/B2B-PROD-READINESS.md`: the deployment
+decision first (staging is 454 commits ahead of main, 106 of the changed
+files are consumer-side), then the migration port (57 files never run on
+prod; the staging ledger records only 44 and is not a record of what was
+applied), Vercel env, the tailrecruit.com domain/Resend/redirect-URL work,
+the 30 Sep hardening leftovers, the legal gates, known bugs, housekeeping.
