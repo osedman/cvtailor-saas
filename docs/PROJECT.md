@@ -8709,3 +8709,12 @@ one defect: at 250px cards the decision row wrapped View → onto its own line,
 so the card minimum is now 300px (frame 45's card is ~340). Tests updated
 where they pinned the old copy (none weakened) plus two new card guards. tsc
 clean, 2201 pass. Dead CSS removed (legend, chips, slot, top-risk).
+
+**Follow-up, 19 Oct — frame 45's label rules on the Recommendation tab.**
+`FIT 84` / `MUST 2/2` chips → `Fit 84` / `Must-haves 2/2`; the 25-word
+"Recommendation · Generated … · From N CVs…" eyebrow → "Generated 19 Oct
+2026, 14:02 ⓘ" with the sources in the ⓘ; group labels and "What would
+change it" in sentence case, not mono eyebrows. Nothing about grouping,
+reasons or traces changed. Browser check 1440/390 with a mocked result: no
+errors, no sideways scroll. 2201 pass. Ose, 19 Oct: Interviews/close-out
+(frame 46) not needed for now — Compare is the focus.
