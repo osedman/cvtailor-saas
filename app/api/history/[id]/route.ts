@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { errorMessage } from '@/lib/error-message'
+import { applyTailoredCvEdit } from '@/lib/tailor-history-edit'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 10
 
@@ -19,14 +23,14 @@ const MAX_LETTER_CHARS = 20_000
  * download, tracker sync) sees the edit without changes. The AI's original is
  * stashed under `result.tailoredCVOriginal` the first time an edit lands.
  */
-export async function PATCH(
+async function PATCH_handler(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
     const body = await req.json()
@@ -75,14 +79,12 @@ export async function PATCH(
       if (readErr) throw readErr
       if (!row?.result) return NextResponse.json({ error: 'Run not found' }, { status: 404 })
 
-      const result = row.result as Record<string, unknown>
-      update.result = {
-        ...result,
-        // Preserve the AI version once, on the first edit only
-        tailoredCVOriginal: result.tailoredCVOriginal ?? result.tailoredCV,
-        tailoredCV,
-      }
-      update.edited_at = new Date().toISOString()
+      // Preserves the AI version once, drops the after-tailoring score (it
+      // described the bytes just replaced) and stamps the CV-specific edit
+      // time — see lib/tailor-history-edit.ts for why that is not edited_at.
+      const now = new Date()
+      update.result = applyTailoredCvEdit(row.result as Record<string, unknown>, tailoredCV, now)
+      update.edited_at = now.toISOString()
     }
 
     if (hasLetter) {
@@ -105,19 +107,19 @@ export async function PATCH(
     if (error) throw error
     return NextResponse.json({ ok: true })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
 
-export async function DELETE(
+async function DELETE_handler(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
     const { error } = await supabase
@@ -129,7 +131,11 @@ export async function DELETE(
     if (error) throw error
     return NextResponse.json({ ok: true })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const PATCH = withTiming("/api/history/[id]", "PATCH", PATCH_handler)
+export const DELETE = withTiming("/api/history/[id]", "DELETE", DELETE_handler)
