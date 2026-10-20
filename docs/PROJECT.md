@@ -8808,3 +8808,15 @@ prod. **Check before the Career Arc port (chunk 5):** #61's message said
 migration 019 had to be on prod before it merged; the prod ledger does not
 list 019 or 020 (hand-run migrations are not recorded), so confirm by
 querying the tables before chunk 5 deploys.
+
+### Port 3/9 merged; port 4/9 (CV tailor) opened (20 Oct 2026)
+
+#65 merged as `44016b8`. [osedman/cvtailor-saas#66](https://github.com/osedman/cvtailor-saas/pull/66),
+branch `port/4-cv-tailor`: the resizable-panels draft fix (14 Sep —
+**mechanism A of the stale-CV pair, so the skill's "ask Ose which repro"
+is settled: A ships here, B (apply sending the last tailored run) was
+fixed on staging 16–24 Sep and ports with matching**), its source-scan
+test, `tailor-history-edit`, public-tool limits on parse-cv/scrape-job,
+and wrappers on tailor/history/cover-letter/company-analysis/
+interview-prep/pitches. Role mode and `header.tsx` deferred. tsc clean,
+298 pass, build clean (53 pages). Nothing needed on prod. Awaiting Ose.
