@@ -14,6 +14,10 @@ interface ResizablePanelsProps {
   enhanced?: boolean
   /** Drives the onboarding coachmark badges on the panel headers. */
   guideStep?: "cv" | "job" | "tailor" | null
+  /** Role mode (tailoring against a role that found you): the JD is the
+   *  frozen snapshot, rendered server-side — read-only here so what you see
+   *  is what the pipeline actually uses. The URL scraper hides with it. */
+  jobLocked?: boolean
 }
 
 function CoachBadge({ n, label }: { n: number; label: string }) {
@@ -85,6 +89,7 @@ export function ResizablePanels({
   onJobUrlScraped,
   enhanced = false,
   guideStep = null,
+  jobLocked = false,
 }: ResizablePanelsProps) {
   // Shared style fragments toggled by the enhanced (gated) workspace UI.
   const panelShell = enhanced
@@ -105,13 +110,63 @@ export function ResizablePanels({
   const [restoredFromStorage, setRestoredFromStorage] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const fileInputId = useId()
+  const cvFieldId = useId()
+  const jdFieldId = useId()
+  const jdLockNoteId = useId()
+  const jobUrlFieldId = useId()
 
-  // Restore CV from localStorage on mount
+  /**
+   * THE CV AND ITS FILENAME ARE ONE FACT, WRITTEN AT ONE MOMENT (14 Sep 2026).
+   *
+   * They used to be written at different times: parseFile stored the filename
+   * the instant an upload parsed, while the text waited out an 800ms debounce.
+   * Upload a new CV over an old one and reload inside that window and the
+   * editor came back showing the NEW file's name above the OLD file's text —
+   * a document mislabelled as one you had just replaced, which you would then
+   * tailor and send. The label led the content, so the lie was invisible.
+   *
+   * One writer now, and it writes both keys or clears both.
+   */
+  const latestCv = useRef<{ text: string; name: string | null }>({ text: cvText, name: cvFileName })
+  useEffect(() => {
+    latestCv.current = { text: cvText, name: cvFileName }
+  }, [cvText, cvFileName])
+
+  /**
+   * `allowClear` is the whole asymmetry, and it is not decoration.
+   *
+   * The debounced path MAY clear: the field has been empty for 800ms and the
+   * person meant it. The exit path may NOT. An unmount can happen before the
+   * restore above has committed — React StrictMode double-invokes effects on
+   * mount, and a fast navigation does the same thing in production — and at
+   * that moment the live text is still "". A flush that cleared would then
+   * delete the very CV it exists to protect. A flush rescues work; it must
+   * never be able to destroy it.
+   */
+  const persistCvNow = useCallback((allowClear: boolean) => {
+    try {
+      const { text, name } = latestCv.current
+      if (text) {
+        localStorage.setItem("cvtailor:cv", text)
+        if (name) localStorage.setItem("cvtailor:cv-filename", name)
+        else localStorage.removeItem("cvtailor:cv-filename")
+      } else if (allowClear) {
+        localStorage.removeItem("cvtailor:cv")
+        localStorage.removeItem("cvtailor:cv-filename")
+      }
+    } catch {}
+  }, [])
+
+  // Restore on mount, from whatever that one writer last committed.
   useEffect(() => {
     try {
       const saved = localStorage.getItem("cvtailor:cv")
       const savedName = localStorage.getItem("cvtailor:cv-filename")
-      if (saved && !cvText) {
+      // Read through the ref, not the enclosing render's `cvText`. With empty
+      // deps that closure can only ever hold the first render's value, which
+      // the parent always initialises to "" — so the old `!cvText` guard was
+      // dead code that read like protection.
+      if (saved && !latestCv.current.text) {
         setCvText(saved)
         if (savedName) setCvFileName(savedName)
         setRestoredFromStorage(true)
@@ -120,20 +175,34 @@ export function ResizablePanels({
     } catch {}
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Persist CV to localStorage (debounced)
+  // Debounced, because writing on every keystroke of a 30,000-char CV is
+  // wasteful — not because a delay is wanted.
   useEffect(() => {
-    const t = setTimeout(() => {
-      try {
-        if (cvText) {
-          localStorage.setItem("cvtailor:cv", cvText)
-        } else {
-          localStorage.removeItem("cvtailor:cv")
-          localStorage.removeItem("cvtailor:cv-filename")
-        }
-      } catch {}
-    }, 800)
+    const t = setTimeout(() => persistCvNow(true), 800)
     return () => clearTimeout(t)
-  }, [cvText])
+  }, [cvText, cvFileName, persistCvNow])
+
+  /**
+   * And the debounce must never be the reason work is lost. A reload, a
+   * back-navigation or a closed tab inside those 800ms used to discard
+   * whatever had been typed since the last write; the restore then brought
+   * back the previous CV as though nothing had happened. Flushed on the way
+   * out instead — pagehide fires where unload does not on mobile Safari, and
+   * visibilitychange covers a tab discarded in the background.
+   */
+  useEffect(() => {
+    const flush = () => persistCvNow(false)
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flush()
+    }
+    window.addEventListener("pagehide", flush)
+    document.addEventListener("visibilitychange", onHide)
+    return () => {
+      window.removeEventListener("pagehide", flush)
+      document.removeEventListener("visibilitychange", onHide)
+      flush()
+    }
+  }, [persistCvNow])
 
   const handleMouseDown = useCallback(() => setIsDragging(true), [])
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -164,7 +233,8 @@ export function ResizablePanels({
       if (!res.ok) throw new Error(data.error)
       setCvText(data.text)
       setCvFileName(file.name)
-      localStorage.setItem("cvtailor:cv-filename", file.name)
+      // Deliberately NOT written here any more: the filename leading the text
+      // into storage is what produced a new name above an old document.
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to parse file")
     } finally {
@@ -197,7 +267,7 @@ export function ResizablePanels({
     if (!jobUrl.trim()) return
     const parsed = normalizeJobUrl(jobUrl)
     if (!parsed) {
-      toast.error("That doesn't look like a valid job URL")
+      toast.error("That doesn’t look like a valid job URL — check it and try again")
       return
     }
     setScrapingUrl(true)
@@ -245,7 +315,7 @@ export function ResizablePanels({
           {/* Panel header */}
           <div className={`flex-shrink-0 flex items-center justify-between px-3 pt-2.5 pb-1.5 ${panelHeaderBg}`}>
             <div className="flex items-center gap-2">
-              <span className={labelCls}>Your CV</span>
+              <label className={labelCls} htmlFor={cvFieldId}>Your CV</label>
               {guideStep === "cv" && <CoachBadge n={1} label="Start here" />}
               {cvFileName && (
                 <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
@@ -315,10 +385,14 @@ export function ResizablePanels({
             </a>
             </>
           ) : (
+            /* Shares cvFieldId with the empty-state paste box below: the two
+               are mutually exclusive on `cvText`, so exactly one is ever in
+               the document and the label always points at the live one. */
             <textarea
+              id={cvFieldId}
               value={cvText}
               onChange={(e) => setCvText(e.target.value)}
-              className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300"
+              className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#dc4f33] text-base sm:text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300"
               placeholder="Your CV text…"
             />
           )}
@@ -326,9 +400,10 @@ export function ResizablePanels({
           {/* Always-visible paste area when empty (below the drop zone) */}
           {!cvText && !parsingFile && (
             <textarea
+              id={cvFieldId}
               value={cvText}
               onChange={(e) => setCvText(e.target.value)}
-              className="w-full h-20 px-3 py-2 bg-transparent resize-none focus:outline-none text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300 border-t border-gray-100"
+              className="w-full h-20 px-3 py-2 bg-transparent resize-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#dc4f33] text-base sm:text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300 border-t border-gray-100"
               placeholder="…or paste your CV text here"
             />
           )}
@@ -361,50 +436,85 @@ export function ResizablePanels({
       </div>
 
       {/* ── Right Panel: Job Description ── */}
-      <div className="flex flex-col p-4" style={{ width: `${100 - leftWidth}%` }}>
+      <div className="flex min-w-0 flex-col p-4" style={{ width: `${100 - leftWidth}%` }}>
         <div className={`relative flex-1 flex flex-col rounded-lg overflow-hidden ${panelShell}`}>
           {/* Panel header */}
           <div className={`flex-shrink-0 px-3 pt-2.5 pb-1.5 ${panelHeaderBg}`}>
-            <span className={labelCls}>Job Description</span>
-            {guideStep === "job" && <CoachBadge n={2} label="Next" />}
+            <label className={labelCls} htmlFor={jdFieldId}>Job Description</label>
+            {jobLocked && (
+              <span
+                id={jdLockNoteId}
+                className="ml-2 align-middle text-[11px] font-semibold uppercase tracking-[0.5px] text-[#b3341b]"
+              >
+                Locked to the role that found you
+              </span>
+            )}
+            {!jobLocked && guideStep === "job" && <CoachBadge n={2} label="Next" />}
           </div>
 
-          {/* URL scraper bar */}
+          {/* URL scraper bar (free tailoring only — a locked JD is the point) */}
+          {!jobLocked && (
           <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-gray-100 bg-white/60">
-            <Link className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            <Link className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" aria-hidden="true" />
+            <label className="sr-only" htmlFor={jobUrlFieldId}>Job posting URL</label>
             <input
-              type="text"
+              id={jobUrlFieldId}
+              type="url"
               inputMode="url"
               autoComplete="url"
+              spellCheck={false}
               value={jobUrl}
               onChange={(e) => setJobUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleScrapeUrl()}
               placeholder="Paste any job URL to auto-fill…"
-              className="flex-1 text-xs bg-transparent focus:outline-none text-[#1e1813] placeholder:text-gray-300 min-w-0"
+              className="flex-1 text-base sm:text-xs bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#dc4f33] text-[#1e1813] placeholder:text-gray-300 min-w-0"
             />
             {jobUrl && (
               <button
                 onClick={handleScrapeUrl}
                 disabled={scrapingUrl}
-                className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-white bg-[#dc4f33] rounded hover:bg-[#b3341b] disabled:opacity-60 transition-colors"
+                aria-busy={scrapingUrl}
+                className="flex-shrink-0 inline-flex min-h-[44px] items-center gap-1 px-3 py-1 text-[11px] font-medium text-white bg-[#dc4f33] rounded hover:bg-[#b3341b] disabled:opacity-60 transition-colors [touch-action:manipulation] sm:min-h-0 sm:py-2"
               >
-                {scrapingUrl ? <Loader2 className="w-3 h-3 animate-spin" /> : "Fetch"}
+                {scrapingUrl ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+                    Fetching…
+                  </>
+                ) : (
+                  "Fetch"
+                )}
               </button>
             )}
           </div>
+          )}
 
           {/* Textarea */}
           <textarea
+            id={jdFieldId}
             value={jobDescription}
             onChange={(e) => setJobDescription(e.target.value)}
-            className="flex-1 w-full px-3 py-2 bg-transparent resize-none focus:outline-none text-sm text-[#1e1813] leading-relaxed placeholder:text-gray-300"
+            readOnly={jobLocked}
+            aria-readonly={jobLocked || undefined}
+            aria-describedby={jobLocked ? jdLockNoteId : undefined}
+            className={`flex-1 w-full px-3 py-2 bg-transparent resize-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#dc4f33] text-base sm:text-sm leading-relaxed placeholder:text-gray-300 ${jobLocked ? "text-[#4e463d] cursor-default" : "text-[#1e1813]"}`}
             placeholder="Or paste the job description here…"
           />
+          {/* The panel silently stops accepting input when role mode engages —
+              announce the flip rather than letting someone discover it by
+              typing into a field that ignores them. */}
+          <span className="sr-only" role="status">
+            {jobLocked ? "Job description is locked to the role that found you." : ""}
+          </span>
 
           {/* Footer */}
-          <div className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 ${panelFooterBg}`}>
-            <LengthBar charCount={jobDescription.length} threshold={JD_COMPRESS_THRESHOLD} limit={JD_RAW_LIMIT} noun="Job description" />
-            <span className="text-[10px] text-gray-400 flex-shrink-0 ml-auto">{jobDescription.length.toLocaleString()} chars</span>
+          <div className={`flex-shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 ${panelFooterBg}`}>
+            <span className="min-w-0">
+              <LengthBar charCount={jobDescription.length} threshold={JD_COMPRESS_THRESHOLD} limit={JD_RAW_LIMIT} noun="Job description" />
+            </span>
+            <span className="text-[10px] text-gray-400 flex-shrink-0 ml-auto [font-variant-numeric:tabular-nums]">
+              {jobDescription.length.toLocaleString("en-GB")} chars
+            </span>
           </div>
         </div>
       </div>

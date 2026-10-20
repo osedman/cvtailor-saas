@@ -3,6 +3,9 @@ import { anthropic } from '@/lib/anthropic'
 import { createClient } from '@/lib/supabase/server'
 import { stripDashPunctuation } from '@/lib/sanitize'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { errorMessage } from '@/lib/error-message'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 60
 
@@ -16,10 +19,10 @@ SMART QUESTIONS TO ASK
 
 Keep it factual and useful for an interview candidate. No preamble, no closing remarks — start directly with the first heading.`
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
     const limited = await checkRateLimit(user.id, 'ai')
@@ -78,8 +81,11 @@ ${PROMPT_SUFFIX}`
 
     return NextResponse.json({ companyAnalysis: stripDashPunctuation(text) })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     console.error('[company-analysis] error:', msg)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/company-analysis", "POST", POST_handler)

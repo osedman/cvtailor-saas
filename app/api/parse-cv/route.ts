@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { errorMessage } from '@/lib/error-message'
+import { withTiming } from "@/lib/server-timing"
+import { checkPublicToolLimit } from "@/lib/public-tool-limit"
 
 export const maxDuration = 30
 
@@ -20,8 +23,10 @@ async function extractDocxText(buffer: Buffer): Promise<string> {
   return result.value
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
+    const limited = await checkPublicToolLimit(req, "parse-cv")
+    if (limited) return limited
     const formData = await req.formData()
     const file = formData.get('file') as File | null
 
@@ -63,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ text })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     console.error('[parse-cv] error:', msg)
     return NextResponse.json(
       { error: `Failed to parse file: ${msg}. Please copy and paste your CV text instead.` },
@@ -71,3 +76,6 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/parse-cv", "POST", POST_handler)

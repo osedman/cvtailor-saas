@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeJobUrl } from '@/lib/job-url'
+import { errorMessage } from '@/lib/error-message'
+import { withTiming } from "@/lib/server-timing"
+import { checkPublicToolLimit } from "@/lib/public-tool-limit"
 
 export const maxDuration = 30
 
@@ -75,8 +78,10 @@ async function scrapeGeneric(url: URL): Promise<string | null> {
   return text.length >= 100 ? text : null
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
+    const limited = await checkPublicToolLimit(req, "scrape-job")
+    if (limited) return limited
     const { url } = await req.json()
 
     if (!url || typeof url !== 'string') {
@@ -116,7 +121,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ text })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     console.error('[scrape-job] error:', msg)
     return NextResponse.json({
       error: msg.includes('timed out') || msg.includes('timeout')
@@ -125,3 +130,6 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/scrape-job", "POST", POST_handler)
