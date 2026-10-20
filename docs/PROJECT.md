@@ -8792,3 +8792,19 @@ attachments, the B2B sender and face helpers. `lib/agency/db.ts` +
 schema). Tests: cookie-options, site-url, signin-code-limit,
 email-environment-guard, the source-scan helper. tsc clean, 292 pass, build
 clean (52 pages). Nothing needed on prod. Awaiting Ose.
+
+### Ports 1 and 2 merged to main; port 3/9 opened (20 Oct 2026)
+
+Ose: "merge both and start chunk 3". #63 (platform) merged as `2079a07`,
+#64 (auth) retargeted to `main` and merged as `20c4f00`; CI green on both
+pushes to `main` (the previous `main` push, 12 Aug, had been red).
+[osedman/cvtailor-saas#65](https://github.com/osedman/cvtailor-saas/pull/65),
+branch `port/3-crons`: `withTiming` on the course-sync cron, path-digest
+and its unsubscribe; the weekly dispatcher route deployed but NOT scheduled
+— `vercel.json` on main keeps path-digest Monday + course-sync daily until
+the agency cron needs the slot (move 2). `regions: dub1` left out as its
+own decision. tsc clean, 292 pass, build clean (53 pages). Nothing needed on
+prod. **Check before the Career Arc port (chunk 5):** #61's message said
+migration 019 had to be on prod before it merged; the prod ledger does not
+list 019 or 020 (hand-run migrations are not recorded), so confirm by
+querying the tables before chunk 5 deploys.
