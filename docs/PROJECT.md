@@ -8820,3 +8820,17 @@ test, `tailor-history-edit`, public-tool limits on parse-cv/scrape-job,
 and wrappers on tailor/history/cover-letter/company-analysis/
 interview-prep/pitches. Role mode and `header.tsx` deferred. tsc clean,
 298 pass, build clean (53 pages). Nothing needed on prod. Awaiting Ose.
+
+### Port 4/9 merged; port 5/9 (Career Arc) opened (20 Oct 2026)
+
+#66 merged as `d0091b1`. [osedman/cvtailor-saas#67](https://github.com/osedman/cvtailor-saas/pull/67),
+branch `port/5-career-arc`: the ledger rebuild (`ledger-view`,
+`reveal-card`, concept previews), share links (`lib/career-arc-share`,
+`/api/career-arc-share`, share modal + cards), the public `/arc/[token]`
+page, `sessionUser`/`withTiming` on `/api/career-evidence`, and migration
+files 019 + 020 (neither was in `main`). **Prod check done:** the
+`career_evidence` table is live on production with all 14 columns, so 019
+needs nothing; `career_arc_shares` does NOT exist on production, so **020
+must be run on prod before #67 merges** (also fixes `/api/admin/stats`,
+which already counts that table on `main`). tsc clean, 352 pass (36
+files), build clean (54 pages). Awaiting Ose + the 020 run.
