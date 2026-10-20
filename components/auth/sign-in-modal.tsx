@@ -7,9 +7,13 @@ import { createClient } from "@/lib/supabase/client"
 
 interface SignInModalProps {
   onClose: () => void
+  /** Called after a successful OTP verify. Defaults to onClose. */
+  onSuccess?: () => void
+  /** Relative path forwarded into the magic-link confirm URL (e.g. /admin). */
+  next?: string
 }
 
-export function SignInModal({ onClose }: SignInModalProps) {
+export function SignInModal({ onClose, onSuccess, next }: SignInModalProps) {
   const { signInWithEmail } = useAuth()
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
@@ -23,7 +27,7 @@ export function SignInModal({ onClose }: SignInModalProps) {
     if (!email) return
     setLoading(true)
     setError(null)
-    const { error } = await signInWithEmail(email)
+    const { error } = await signInWithEmail(email, { next })
     setLoading(false)
     if (error) {
       setError(error)
@@ -55,7 +59,7 @@ export function SignInModal({ onClose }: SignInModalProps) {
       /* ignore */
     }
     setVerifying(false)
-    onClose()
+    ;(onSuccess ?? onClose)()
   }
 
   return (
@@ -78,13 +82,13 @@ export function SignInModal({ onClose }: SignInModalProps) {
               <h2 className="text-base font-semibold text-[#1e1813] mb-2">Check your email</h2>
               <p className="text-sm text-gray-500">
                 We sent a sign-in link to <strong>{email}</strong>. On your phone, open the link
-                and tap <strong>Continue</strong> — or enter the 6-digit code below.
+                and tap <strong>Continue</strong> — or enter the code from that email below.
               </p>
             </div>
 
             <form onSubmit={handleVerifyCode} className="mt-5 space-y-3">
               <label className="block text-xs font-medium text-gray-500" htmlFor="otp-code">
-                6-digit code
+                Code from the email
               </label>
               <input
                 id="otp-code"

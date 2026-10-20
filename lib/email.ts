@@ -12,17 +12,122 @@ import { appPath, getMarketingOrigin, marketingPath } from '@/lib/site-url'
  * Returns { sent: boolean, skipped?, error? } and never throws, so callers can
  * fire-and-forget without risking the request they are attached to.
  */
+/**
+ * Outside production, email may only reach addresses on EMAIL_ALLOWLIST.
+ *
+ * Staging carries real people's CVs as fixtures, and the Art 14 candidate
+ * notice fires on a daily cron with no switch to skip a due one (by design).
+ * That combination means any stray staging cron run emails strangers, so the
+ * environment itself is the guard. An entry beginning "@" matches a domain.
+ * Production is unaffected.
+ */
+/**
+ * When EMAIL_ALLOWLIST is unset, these still receive mail outside production.
+ * Without a default, deploying the guard before the Vercel variable exists
+ * silently kills staging sign-in — the founder's own OTP would be the first
+ * thing blocked.
+ *
+ * SETTING THE VARIABLE REPLACES THIS LIST — it does not extend it. These
+ * addresses stop being special the moment EMAIL_ALLOWLIST holds anything, so
+ * an allowlist that omits them silently stops the founder's own mail: the
+ * guard returns a `skipped` reason, sendEmail never throws, and callers
+ * fire-and-forget, so nothing surfaces as an error anywhere.
+ *
+ * That is deliberate — a variable that could only ever ADD recipients could
+ * not be used to narrow the guard — and it is pinned by "a populated variable
+ * replaces the default list rather than extending strangers in" in
+ * lib/__tests__/email-environment-guard.test.ts. The practical rule: if you
+ * set EMAIL_ALLOWLIST at all, carry these three entries into it.
+ *
+ * An earlier version of this comment said the variable EXTENDS the list. It
+ * never did. That sentence cost a round of "why is my lean-frame account not
+ * receiving anything" on 29 Sep 2026 — the first place anyone looks when mail
+ * goes missing is the comment above the allowlist, and it ruled out the cause.
+ */
+const DEFAULT_NON_PROD_ALLOWLIST = ["o.oifoh@gmail.com", "ose@lean-frame.com", "@lean-frame.com"]
+
+/** Lowercase, and fold gmail plus-aliases (a+tag@gmail.com → a@gmail.com) so
+ * test candidates like founder+can01@gmail.com reach the founder's inbox. */
+function normalizeAddress(addr: string): string {
+  const a = addr.trim().toLowerCase()
+  const m = a.match(/^([^+@]+)\+[^@]*(@gmail\.com)$/)
+  return m ? m[1] + m[2] : a
+}
+
+function blockedByEnvironment(to: string): string | null {
+  if (process.env.VERCEL_ENV === "production") return null
+  const raw = (process.env.EMAIL_ALLOWLIST ?? "").trim()
+  const allowed = (raw ? raw.split(",") : DEFAULT_NON_PROD_ALLOWLIST)
+    .map(normalizeAddress)
+    .filter(Boolean)
+  const target = normalizeAddress(to)
+  const ok = allowed.some((a) => (a.startsWith("@") ? target.endsWith(a) : a === target))
+  return ok ? null : raw ? "recipient not on EMAIL_ALLOWLIST" : "recipient not on the default non-production allowlist (EMAIL_ALLOWLIST unset)"
+}
+
 export async function sendEmail(opts: {
   to: string
   subject: string
   html: string
   replyTo?: string
+  /** Override the From header (must be a verified sender domain). Defaults to
+   * WELCOME_FROM — agency candidate notices pass their own display name. */
+  from?: string
+  /**
+   * Files to attach. Added for the interview invitation's calendar file: an
+   * invite a candidate cannot put in their diary is a worse product than one
+   * they can.
+   *
+   * `content` is raw text or bytes; it is base64-encoded here rather than by
+   * every caller, so nobody has to remember. Keep attachments small — Resend
+   * caps a message at 40 MB and this is meant for .ics files, not documents.
+   */
+  attachments?: Array<{ filename: string; content: string | Buffer; contentType?: string }>
 }): Promise<{ sent: boolean; skipped?: string; error?: string }> {
   const key = process.env.RESEND_API_KEY
   if (!key) return { sent: false, skipped: "RESEND_API_KEY not set" }
 
-  const from = process.env.WELCOME_FROM || "Tailr <hello@gettailr.com>"
+  // Environment guard BEFORE any network call, so a blocked send costs nothing
+  // and can never be half-performed.
+  const blocked = blockedByEnvironment(opts.to)
+  if (blocked) return { sent: false, skipped: blocked }
 
+  const from = opts.from || process.env.WELCOME_FROM || "Tailr <hello@gettailr.com>"
+
+  // Resend rate-limits, and a burst of transactional mail is exactly what
+  // trips it: closing a role tells every candidate at once, and a cron batch
+  // fires back to back. Without this a 429 read as a permanent failure and the
+  // person was recorded as not-told. Three attempts, backing off, and only on
+  // the errors that are actually worth retrying.
+  const MAX_ATTEMPTS = 3
+  let lastError = ""
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const outcome = await attemptSend(key, from, opts)
+    if (outcome.sent || !outcome.retryable) return outcome
+    lastError = outcome.error ?? "unknown"
+    if (attempt < MAX_ATTEMPTS) {
+      // Honour Retry-After when Resend sends one; otherwise 500ms, 1s.
+      const wait = outcome.retryAfterMs ?? attempt * 500
+      await new Promise((r) => setTimeout(r, wait))
+    }
+  }
+  return { sent: false, error: `${lastError} (after ${MAX_ATTEMPTS} attempts)` }
+}
+
+/** One HTTP attempt. Separated so the retry loop above stays readable and the
+ * decision of WHAT is retryable lives in exactly one place. */
+async function attemptSend(
+  key: string,
+  from: string,
+  opts: {
+    to: string
+    subject: string
+    html: string
+    replyTo?: string
+    attachments?: Array<{ filename: string; content: string | Buffer; contentType?: string }>
+  }
+): Promise<{ sent: boolean; error?: string; retryable?: boolean; retryAfterMs?: number }> {
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -36,16 +141,38 @@ export async function sendEmail(opts: {
         subject: opts.subject,
         html: opts.html,
         ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
+        ...(opts.attachments?.length
+          ? {
+              attachments: opts.attachments.map((a) => ({
+                filename: a.filename,
+                content: Buffer.from(a.content).toString("base64"),
+                ...(a.contentType ? { content_type: a.contentType } : {}),
+              })),
+            }
+          : {}),
       }),
       signal: AbortSignal.timeout(10_000),
     })
     if (!res.ok) {
       const body = await res.text()
-      return { sent: false, error: `Resend ${res.status}: ${body.slice(0, 200)}` }
+      // 429 is the one worth waiting for; 5xx is worth one more go. A 4xx is
+      // our own mistake (bad address, unverified sender) and retrying it just
+      // makes the same error three times more slowly.
+      const retryable = res.status === 429 || res.status >= 500
+      const header = res.headers.get("retry-after")
+      const retryAfterMs = header ? Number(header) * 1000 : undefined
+      return {
+        sent: false,
+        error: `Resend ${res.status}: ${body.slice(0, 200)}`,
+        retryable,
+        retryAfterMs: Number.isFinite(retryAfterMs) ? retryAfterMs : undefined,
+      }
     }
     return { sent: true }
   } catch (err) {
-    return { sent: false, error: err instanceof Error ? err.message : String(err) }
+    // A timeout or a dropped connection says nothing about whether the send
+    // was accepted, but not retrying guarantees it was not.
+    return { sent: false, error: err instanceof Error ? err.message : String(err), retryable: true }
   }
 }
 
@@ -105,3 +232,4 @@ export function winBackEmailHtml(
 <p style="font-size:12px;color:#a8a29e;margin:28px 0 0;line-height:1.5;">You are receiving this because you signed up for Tailr at ${marketingHost}. Reply with the word UNSUBSCRIBE and we will remove you.</p>
 </div></body></html>`
 }
+

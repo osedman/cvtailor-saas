@@ -1,14 +1,22 @@
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { withAuthCookieOptions } from '@/lib/supabase/cookie-options'
+import { timedFetch } from '@/lib/server-timing'
 
 export async function createClient() {
   const cookieStore = await cookies()
+  // Which product this request is for decides the cookie's scope — the
+  // business host keeps its session to itself. x-forwarded-host first: behind
+  // Vercel, `host` is the internal one.
+  const headerStore = await headers()
+  const host = headerStore.get('x-forwarded-host') ?? headerStore.get('host')
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Counted per request into Server-Timing (lib/server-timing.ts).
+      global: { fetch: timedFetch },
       cookies: {
         getAll() {
           return cookieStore.getAll()
@@ -16,7 +24,7 @@ export async function createClient() {
         setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, withAuthCookieOptions(options) as Parameters<typeof cookieStore.set>[2])
+              cookieStore.set(name, value, withAuthCookieOptions(options, host) as Parameters<typeof cookieStore.set>[2])
             )
           } catch {
             // Ignored in Server Components; proxy handles session refresh
@@ -33,6 +41,6 @@ export function createAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
+    { auth: { autoRefreshToken: false, persistSession: false }, global: { fetch: timedFetch } }
   )
 }

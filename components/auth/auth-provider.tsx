@@ -7,7 +7,10 @@ import type { User } from "@supabase/supabase-js"
 interface AuthContextValue {
   user: User | null
   loading: boolean
-  signInWithEmail: (email: string) => Promise<{ error: string | null }>
+  signInWithEmail: (
+    email: string,
+    options?: { next?: string },
+  ) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
@@ -36,17 +39,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function signInWithEmail(email: string) {
+  async function signInWithEmail(email: string, options?: { next?: string }) {
     // Deliver via /api/auth/request-otp (Resend) — staging Supabase SMTP still
     // uses Resend's test From and returns "Error sending magic link email".
     try {
       const res = await fetch("/api/auth/request-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, next: options?.next }),
       })
       const body = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {
+        // A 429 is "wait", not "broken": the route's own sentence names the
+        // wait. If a 429 ever arrives without it (a proxy in front), say the
+        // same thing from Retry-After rather than a send failure.
+        if (res.status === 429 && !body.error) {
+          const secs = Number(res.headers.get("Retry-After")) || 60
+          const wait =
+            secs >= 3600 ? `${Math.ceil(secs / 3600)} hour(s)`
+            : secs >= 60 ? `${Math.ceil(secs / 60)} minute(s)` : `${secs} second(s)`
+          return { error: `You're doing that a lot — please wait ${wait} and try again.` }
+        }
         return { error: body.error || "Error sending magic link email" }
       }
       return { error: null }
@@ -57,6 +70,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signOut() {
     await supabase.auth.signOut()
+    // The agency preference is httpOnly with a year on it, so signOut() alone
+    // leaves one person's working context in the next person's browser.
+    // Best-effort: the session is already gone either way.
+    try {
+      await fetch("/api/agency/session", { method: "DELETE" })
+    } catch {
+      /* nothing to recover — the sign-out itself succeeded */
+    }
   }
 
   return (
