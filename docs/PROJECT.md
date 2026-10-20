@@ -8778,3 +8778,17 @@ Left for later chunks: `app/fonts.ts`, the `/hiring/*` redirects,
 `lib/public-tool-limit.ts` (needs session-user), the `.ns-switch` CSS. tsc
 clean, 266 pass, build clean (50 pages). Nothing needed on prod. Awaiting
 Ose's approval to merge.
+
+### Port 2/9 to main — auth (20 Oct 2026)
+
+[osedman/cvtailor-saas#64](https://github.com/osedman/cvtailor-saas/pull/64),
+branch `port/2-auth`, stacked on `port/1-platform` (#63). request-otp with
+the per-network ceiling and honest errors, routing by hat (`hat-routing`,
+`auth-paths`, the `/auth/landing` route), `sessionUser()` verifying the
+token locally, host-only cookies on business hosts, `site-url` + `proxy.ts`
+split rules, `/login`, `lib/email` with the allowlist guard / retries /
+attachments, the B2B sender and face helpers. `lib/agency/db.ts` +
+`types.ts` ride along as hat-routing's dependency (inert without the agency
+schema). Tests: cookie-options, site-url, signin-code-limit,
+email-environment-guard, the source-scan helper. tsc clean, 292 pass, build
+clean (52 pages). Nothing needed on prod. Awaiting Ose.
