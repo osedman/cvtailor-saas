@@ -20,6 +20,9 @@ import {
   resolveStoredCv,
   validateRephrase,
 } from '@/lib/career-evidence'
+import { errorMessage } from '@/lib/error-message'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
@@ -56,10 +59,10 @@ async function loadEvidence(supabase: Awaited<ReturnType<typeof createClient>>, 
   return (data ?? []) as EvidenceRow[]
 }
 
-export async function GET() {
+async function GET_handler() {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
@@ -80,15 +83,15 @@ export async function GET() {
 
     return NextResponse.json({ evidence, usage, usedCvCount })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
 
-export async function PATCH(req: NextRequest) {
+async function PATCH_handler(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
@@ -209,7 +212,7 @@ export async function PATCH(req: NextRequest) {
     const evidence = await loadEvidence(supabase, user.id)
     return NextResponse.json({ evidence })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     const status = (err as { status?: number })?.status
     if (status === 429) {
       return NextResponse.json({ error: 'Too many requests right now — please wait a moment and try again.' }, { status: 429 })
@@ -239,3 +242,7 @@ async function update(
   const { error } = await supabase.from('career_evidence').update(patch).eq('user_id', userId).eq('id', id)
   if (error) throw error
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/career-evidence", "GET", GET_handler)
+export const PATCH = withTiming("/api/career-evidence", "PATCH", PATCH_handler)
