@@ -1,0 +1,516 @@
+/**
+ * THE data-access layer for Tailr for Agencies.
+ *
+ * Rules (from docs/AGENCIES_SCHEMA.md — enforced here, not in routes):
+ *
+ * 1. This is the only module that builds queries against the `agency` schema.
+ *    Route handlers never touch Supabase directly.
+ * 2. Every function takes an AgencyContext as its first argument. The context
+ *    is resolved from the session by requireAgencyContext() — agency_id is
+ *    NEVER accepted from the client.
+ * 3. Audit-coupled tables (requirements, constraints, reviews, overrides,
+ *    decisions, scores, submissions, notices) are written ONLY through the
+ *    service-role client here, in the same function that writes the
+ *    agency.audit_log row. RLS blocks direct client writes as the backstop.
+ * 4. Because the service role bypasses RLS, every admin write is preceded by
+ *    an explicit agency ownership assertion (assertAgencyRow / ctx checks).
+ */
+
+import { timedFetch } from "@/lib/server-timing"
+import { cookies } from "next/headers"
+import { createServerClient } from "@supabase/ssr"
+import { createClient as createSupabaseJs, type SupabaseClient } from "@supabase/supabase-js"
+import type { AgencyContext, AuditEntry, JobRole, MemberRole, Requirement, Weight } from "./types"
+
+/** Schema-bound client. Loose generics on purpose: the repo carries no
+ * generated DB types, and the ssr/js clients disagree on schema literals. */
+export type AgencyClient = SupabaseClient<any, any, any, any, any>
+
+// ============================================================
+// Clients
+// ============================================================
+
+/** User-scoped client bound to the `agency` schema. RLS applies. */
+export async function agencyDb(): Promise<AgencyClient> {
+  const cookieStore = await cookies()
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      db: { schema: "agency" },
+      global: { fetch: timedFetch },
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll() {
+          // Read-only in route handlers; the proxy refreshes sessions.
+        },
+      },
+    }
+  )
+}
+
+/** Service-role client bound to the `agency` schema. Bypasses RLS — every
+ * write through this MUST assert agency ownership first. */
+export function agencyAdmin(): AgencyClient {
+  return createSupabaseJs(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      db: { schema: "agency" },
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { fetch: timedFetch },
+    }
+  )
+}
+
+// ============================================================
+// Context
+// ============================================================
+
+export type ContextFailure = "unauthenticated" | "no_agency"
+
+/** Cookie naming the agency the caller is currently working in. It is a
+ * PREFERENCE, never a permission: the value is matched against the caller's
+ * own active memberships on every request, and anything unrecognised falls
+ * back to the default. Forging it gains nothing. */
+export const AGENCY_COOKIE = "ag_agency"
+
+/**
+ * Resolve the caller's agency membership from the session. Returns the
+ * user-scoped agency client alongside the context so routes reuse one client.
+ *
+ * Most people are in exactly one agency (they are provisioned by hand), and
+ * for them nothing here has ever mattered. For anyone in two, the old rule —
+ * oldest membership wins, silently — meant the second agency was invisible
+ * with no switcher and no indication it existed. So the caller may name the
+ * agency they are working in via AGENCY_COOKIE, and every membership comes
+ * back on the context so the chrome can say which one that is.
+ *
+ * The cookie is validated against real memberships here; it can only ever
+ * select between agencies the caller already belongs to.
+ */
+export async function requireAgencyContext(): Promise<
+  | { ok: true; ctx: AgencyContext; db: AgencyClient }
+  | { ok: false; failure: ContextFailure }
+> {
+  const db = await agencyDb()
+  // SPEED (30 Sep 2026): getClaims, not getUser. getUser is a network round
+  // trip to Supabase Auth on EVERY API call — and the proxy had already made
+  // one for the same request. getClaims verifies the token's signature
+  // locally against the project's cached public keys, and falls back to
+  // getUser by itself when the project signs with a shared secret, so it is
+  // never slower and never less checked. What it does not see is a session
+  // revoked in the last hour: the token's own expiry bounds that.
+  const { data: claimsData } = await db.auth.getClaims()
+  const userId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : null
+  if (!userId) return { ok: false, failure: "unauthenticated" }
+
+  // Memberships and their agency names in ONE query (they were two, in
+  // series). Names come from agency.agencies, which members may read.
+  const [{ data: rows, error }, cookieStore] = await Promise.all([
+    db
+      .from("members")
+      .select("agency_id, role, created_at, agencies(name)")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .order("created_at", { ascending: true }),
+    cookies(),
+  ])
+
+  if (error || !rows || rows.length === 0) {
+    return { ok: false, failure: "no_agency" }
+  }
+
+  const nameOf = (r: { agencies?: unknown }) => {
+    const a = r.agencies as { name?: string } | Array<{ name?: string }> | null | undefined
+    return (Array.isArray(a) ? a[0]?.name : a?.name) ?? ""
+  }
+
+  const memberships = rows.map((r) => ({
+    agencyId: r.agency_id as string,
+    agencyName: nameOf(r),
+    role: r.role as MemberRole,
+  }))
+
+  // Preference, then the long-standing default of the oldest membership.
+  const preferred = cookieStore.get(AGENCY_COOKIE)?.value
+  const active = memberships.find((m) => m.agencyId === preferred) ?? memberships[0]
+
+  return {
+    ok: true,
+    db,
+    ctx: {
+      agencyId: active.agencyId,
+      agencyName: active.agencyName,
+      userId,
+      role: active.role,
+      memberships,
+    },
+  }
+}
+
+/**
+ * Re-scope a context onto another agency the caller ALREADY belongs to.
+ *
+ * The AGENCY_COOKIE picks which workspace the chrome shows; it was never
+ * meant to decide which work exists. Briefs made that distinction matter: a
+ * brief belongs to the agency it was sent to, so acting on one must resolve
+ * its agency from the BRIEF, not from whichever workspace the recruiter last
+ * clicked. Otherwise a brief in your other agency is unreachable without
+ * first switching — which is how four of them sat unseen for a week.
+ *
+ * Tenancy is unchanged and re-proven here: the target must appear in the
+ * caller's own memberships, resolved server-side by requireAgencyContext.
+ * Anything else throws rather than silently falling back to the active
+ * agency, because a silent fallback would act on the wrong tenant's data.
+ */
+export function contextForAgency(ctx: AgencyContext, agencyId: string): AgencyContext {
+  if (agencyId === ctx.agencyId) return ctx
+  const membership = (ctx.memberships ?? []).find((m) => m.agencyId === agencyId)
+  if (!membership) {
+    throw new AgencyAccessError("You are not a member of that agency")
+  }
+  return {
+    ...ctx,
+    agencyId: membership.agencyId,
+    agencyName: membership.agencyName,
+    role: membership.role,
+  }
+}
+
+/** Viewers read everything; only owners and recruiters change anything. */
+export function assertWriter(ctx: AgencyContext): void {
+  if (ctx.role === "viewer") {
+    throw new AgencyAccessError("viewers have read-only access")
+  }
+}
+
+export class AgencyAccessError extends Error {}
+
+/** Guard for service-role writes: the target row must belong to the caller's
+ * agency. Throws on cross-tenant access — never returns silently. */
+async function assertAgencyRow(
+  admin: AgencyClient,
+  table: string,
+  id: string,
+  agencyId: string
+): Promise<Record<string, unknown>> {
+  const { data, error } = await admin.from(table).select("*").eq("id", id).maybeSingle()
+  if (error) throw error
+  if (!data || data.agency_id !== agencyId) {
+    throw new AgencyAccessError(`${table} row not found in caller's agency`)
+  }
+  return data
+}
+
+// ============================================================
+// Audit
+// ============================================================
+
+/** Append-only. Called inside every audit-coupled mutation below — if you are
+ * writing one of those tables and not calling this, you are writing a bug. */
+export async function writeAudit(admin: AgencyClient, entry: AuditEntry): Promise<void> {
+  const { error } = await admin.from("audit_log").insert({
+    agency_id: entry.agencyId,
+    role_id: entry.roleId ?? null,
+    candidate_id: entry.candidateId ?? null,
+    actor_id: entry.actorId ?? null,
+    entity_type: entry.entityType,
+    entity_ref: entry.entityRef,
+    action: entry.action,
+    from_value: entry.fromValue ?? null,
+    to_value: entry.toValue ?? null,
+    reason: entry.reason ?? null,
+  })
+  if (error) throw error
+}
+
+// ============================================================
+// Roles
+// ============================================================
+
+export async function listJobRoles(db: AgencyClient, ctx: AgencyContext): Promise<JobRole[]> {
+  const { data, error } = await db
+    .from("job_roles")
+    .select("*")
+    .eq("agency_id", ctx.agencyId)
+    // Discarded roles leave every list (22 Sep 2026). A role created twice or
+    // by mistake used to have only "close" as a way out, and closing is an
+    // outcome: it starts the retention clock and tells candidates the role is
+    // filled. This is the other verb. Discarding is refused once the role has
+    // anyone on it — see discardJobRole().
+    .is("discarded_at", null)
+    .order("created_at", { ascending: false })
+  if (error) throw error
+  return (data ?? []) as JobRole[]
+}
+
+/**
+ * Discard a role — the way out of a typo, which "close" was never meant to be.
+ *
+ * REFUSED once the role is real: any candidate on it, any submission sent, any
+ * notice out. By then people are involved and their records hang off it, and
+ * making it vanish from the recruiter's screens would leave a candidate's data
+ * attached to something nobody can see. Closing is the honest act there.
+ *
+ * Soft, because job_roles is the parent of most of this schema: candidates,
+ * submissions, rounds, placements and audit rows all point at it with RESTRICT
+ * or CASCADE, and neither answer is right for a mistake.
+ */
+export async function discardJobRole(
+  ctx: AgencyContext,
+  roleId: string,
+  reason: string
+): Promise<void> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  const trimmed = (reason ?? "").trim().slice(0, 500)
+  // The DB constraint refuses a blank reason too — this is the readable error.
+  if (!trimmed) throw new AgencyAccessError("say why this role is being discarded")
+
+  const role = await getJobRole(admin, ctx, roleId)
+  if (!role) throw new AgencyAccessError("that role is not on this agency")
+  if (role.discarded_at) return
+
+  const [{ count: candidates }, { count: submissions }] = await Promise.all([
+    admin.from("candidates").select("id", { count: "exact", head: true }).eq("agency_id", ctx.agencyId).eq("role_id", roleId),
+    admin.from("submissions").select("id", { count: "exact", head: true }).eq("agency_id", ctx.agencyId).eq("role_id", roleId),
+  ])
+  if ((candidates ?? 0) > 0 || (submissions ?? 0) > 0) {
+    throw new AgencyAccessError(
+      "this role has people on it — close it instead, which tells them and starts the retention clock"
+    )
+  }
+
+  const { error } = await admin
+    .from("job_roles")
+    .update({ discarded_at: new Date().toISOString(), discarded_by: ctx.userId, discard_reason: trimmed })
+    .eq("id", roleId)
+    .eq("agency_id", ctx.agencyId)
+    .is("discarded_at", null)
+  if (error) throw error
+
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    roleId,
+    actorId: ctx.userId,
+    entityType: "role",
+    entityRef: role.ref,
+    action: "discarded",
+    reason: trimmed,
+  })
+}
+
+export async function getJobRole(
+  db: AgencyClient,
+  ctx: AgencyContext,
+  roleId: string
+): Promise<JobRole | null> {
+  const { data, error } = await db
+    .from("job_roles")
+    .select("*")
+    .eq("id", roleId)
+    .eq("agency_id", ctx.agencyId)
+    // A discarded role is not a role (23 Sep E2E): without this, /parse,
+    // /submission and /brief kept serving and mutating one that had left
+    // every list.
+    .is("discarded_at", null)
+    .maybeSingle()
+  if (error) throw error
+  return (data as JobRole) ?? null
+}
+
+export async function createJobRole(
+  db: AgencyClient,
+  ctx: AgencyContext,
+  input: Partial<Pick<JobRole, "title" | "company" | "company_context" | "salary_band" | "location" | "seniority" | "jd_raw" | "recruiter_notes">>
+): Promise<JobRole> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+
+  const { data: ref, error: refError } = await admin.rpc("next_role_ref", {
+    p_agency: ctx.agencyId,
+  })
+  if (refError) throw refError
+
+  // Insert through the USER client so RLS re-checks membership and role.
+  const { data, error } = await db
+    .from("job_roles")
+    .insert({
+      agency_id: ctx.agencyId,
+      ref,
+      title: input.title ?? "Untitled role",
+      company: input.company ?? "",
+      company_context: input.company_context ?? "",
+      salary_band: input.salary_band ?? "",
+      location: input.location ?? "",
+      seniority: input.seniority ?? "",
+      jd_raw: input.jd_raw ?? "",
+      recruiter_notes: input.recruiter_notes ?? "",
+      created_by: ctx.userId,
+    })
+    .select("*")
+    .single()
+  if (error) throw error
+
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    roleId: data.id,
+    actorId: ctx.userId,
+    entityType: "role",
+    entityRef: ref as string,
+    action: "created",
+    toValue: { title: data.title },
+  })
+
+  return data as JobRole
+}
+
+// ============================================================
+// Requirements (audit-coupled: service-role writes only)
+// ============================================================
+
+/** Persist the parse output for a role. Replaces any existing parsed set that
+ * has not been recruiter-edited; one audit row per requirement created. */
+export async function saveParsedRequirements(
+  ctx: AgencyContext,
+  roleId: string,
+  parsed: Array<{ text: string; weight: Weight; category?: string }>
+): Promise<Requirement[]> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  await assertAgencyRow(admin, "job_roles", roleId, ctx.agencyId)
+
+  const rows = parsed.map((p, i) => ({
+    agency_id: ctx.agencyId,
+    role_id: roleId,
+    ref: `R${String(i + 1).padStart(2, "0")}`,
+    text: p.text,
+    weight: p.weight,
+    category: p.category ?? "",
+    origin: "parsed" as const,
+    sort_order: i,
+  }))
+
+  const { data, error } = await admin
+    .from("requirements")
+    .upsert(rows, { onConflict: "role_id,ref" })
+    .select("*")
+  if (error) throw error
+
+  for (const row of data ?? []) {
+    await writeAudit(admin, {
+      agencyId: ctx.agencyId,
+      roleId,
+      actorId: ctx.userId,
+      entityType: "requirement",
+      entityRef: row.ref,
+      action: "created",
+      toValue: { text: row.text, weight: row.weight },
+      reason: "jd_parse",
+    })
+  }
+
+  return (data ?? []) as Requirement[]
+}
+
+/** Persist parsed role constraints (C01…). Same audit coupling as requirements. */
+export async function saveParsedConstraints(
+  ctx: AgencyContext,
+  roleId: string,
+  parsed: Array<{ text: string; kind: "location" | "work-mode" | "comp" | "other" }>
+): Promise<void> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  await assertAgencyRow(admin, "job_roles", roleId, ctx.agencyId)
+
+  const rows = parsed.map((c, i) => ({
+    agency_id: ctx.agencyId,
+    role_id: roleId,
+    ref: `C${String(i + 1).padStart(2, "0")}`,
+    text: c.text,
+    kind: c.kind,
+    sort_order: i,
+  }))
+  if (rows.length === 0) return
+
+  const { data, error } = await admin
+    .from("role_constraints")
+    .upsert(rows, { onConflict: "role_id,ref" })
+    .select("ref, text")
+  if (error) throw error
+
+  for (const row of data ?? []) {
+    await writeAudit(admin, {
+      agencyId: ctx.agencyId,
+      roleId,
+      actorId: ctx.userId,
+      entityType: "constraint",
+      entityRef: row.ref,
+      action: "created",
+      toValue: { text: row.text },
+      reason: "jd_parse",
+    })
+  }
+}
+
+/** Recruiter edit of a single requirement (text, weight, or both). */
+export async function updateRequirement(
+  ctx: AgencyContext,
+  requirementId: string,
+  patch: Partial<Pick<Requirement, "text" | "weight" | "category" | "sort_order">>,
+  reason?: string
+): Promise<Requirement> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  const existing = await assertAgencyRow(admin, "requirements", requirementId, ctx.agencyId)
+
+  const { data, error } = await admin
+    .from("requirements")
+    .update({ ...patch, origin: "recruiter" })
+    .eq("id", requirementId)
+    .select("*")
+    .single()
+  if (error) throw error
+
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    roleId: existing.role_id as string,
+    actorId: ctx.userId,
+    entityType: "requirement",
+    entityRef: existing.ref as string,
+    action: "edited",
+    fromValue: { text: existing.text, weight: existing.weight },
+    toValue: { text: data.text, weight: data.weight },
+    reason,
+  })
+
+  return data as Requirement
+}
+
+export async function deleteRequirement(
+  ctx: AgencyContext,
+  requirementId: string,
+  reason?: string
+): Promise<{ role_id: string }> {
+  assertWriter(ctx)
+  const admin = agencyAdmin()
+  const existing = await assertAgencyRow(admin, "requirements", requirementId, ctx.agencyId)
+
+  const { error } = await admin.from("requirements").delete().eq("id", requirementId)
+  if (error) throw error
+
+  await writeAudit(admin, {
+    agencyId: ctx.agencyId,
+    roleId: existing.role_id as string,
+    actorId: ctx.userId,
+    entityType: "requirement",
+    entityRef: existing.ref as string,
+    action: "deleted",
+    fromValue: { text: existing.text, weight: existing.weight },
+    reason,
+  })
+  return { role_id: existing.role_id as string }
+}
