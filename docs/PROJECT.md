@@ -8766,3 +8766,15 @@ ran course-sync daily; on staging it runs Sundays via the weekly dispatcher
 because the daily slot is the agency cron — fold course-sync into the daily
 agency cron if daily matters. `main`'s 28 Jul–12 Aug PROJECT.md rows stay
 in `main`'s history; the three admin rows are summarised above.
+
+### Port 1/9 to main — platform (20 Oct 2026)
+
+[osedman/cvtailor-saas#63](https://github.com/osedman/cvtailor-saas/pull/63),
+branch `port/1-platform` off `main`. `ProductAnalytics` (drops events on
+token-bearing paths), `suppressHydrationWarning`, the rate-limit tiers and
+`limitedResponse()`, `lib/server-timing`, `lib/net/public-fetch`,
+`lib/error-message`, `lib/format-date`, `lib/use-dialog`, two test files.
+Left for later chunks: `app/fonts.ts`, the `/hiring/*` redirects,
+`lib/public-tool-limit.ts` (needs session-user), the `.ns-switch` CSS. tsc
+clean, 266 pass, build clean (50 pages). Nothing needed on prod. Awaiting
+Ose's approval to merge.
