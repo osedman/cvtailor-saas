@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from 'sonner'
+import { ProductAnalytics } from '@/components/analytics'
 import { AuthProvider } from '@/components/auth/auth-provider'
 import { Onboarding } from '@/components/onboarding/onboarding'
 import './globals.css'
@@ -27,15 +27,19 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // suppressHydrationWarning is required by next-themes and scoped to THIS
+  // element's attributes: the agency shell's theme script writes
+  // data-ag-theme and color-scheme onto <html> before React hydrates, so the
+  // server markup legitimately differs. It suppresses nothing else in the tree.
   return (
-    <html lang="en" className="bg-white">
+    <html lang="en" className="bg-white" suppressHydrationWarning>
       <body className={`font-sans antialiased bg-white text-[#1e1813] ${_geist.variable} ${_geistMono.variable}`}>
         <AuthProvider>
           {children}
           <Onboarding />
           <Toaster position="bottom-right" />
         </AuthProvider>
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        {process.env.NODE_ENV === 'production' && <ProductAnalytics />}
       </body>
     </html>
   )
