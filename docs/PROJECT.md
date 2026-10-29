@@ -8834,3 +8834,15 @@ needs nothing; `career_arc_shares` does NOT exist on production, so **020
 must be run on prod before #67 merges** (also fixes `/api/admin/stats`,
 which already counts that table on `main`). tsc clean, 352 pass (36
 files), build clean (54 pages). Awaiting Ose + the 020 run.
+
+### Migration 020 run on production (29 Oct 2026)
+
+Ose asked for it to be run. `020_career_arc_shares` applied to the
+production project (`wgpaaafseibcqagiiavt`) via the Supabase connector:
+`career_arc_shares` + 4 own-row policies + `increment_arc_share_views`.
+Before: table absent, function absent. Verified by effect in a rolled-back
+block: as `service_role` a share row inserts and the bump takes
+`view_count` 0 → 1; `anon` and `authenticated` cannot execute the function;
+4 policies present; 0 rows left afterwards. This unblocks
+[osedman/cvtailor-saas#67](https://github.com/osedman/cvtailor-saas/pull/67)
+(port 5/9, Career Arc) and the `/api/admin/stats` count on `main`.
