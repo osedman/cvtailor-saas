@@ -8919,3 +8919,36 @@ its last message offers "start chunk 6", which is already merged).
   real apply; drop it afterwards.
 - **Real apply:** awaits Ose's go. Then the Vercel production variables,
   Resend verification and the agency code port (move 2).
+
+### Agency migrations applied to production (30 Oct 2026)
+
+Ose: "apply the migrations". The same 56 files that passed the rehearsal,
+from the same md5-checked text, run in ONE transaction with a history row
+per file in `supabase_migrations.schema_migrations` (version = filename
+timestamp, `created_by` = "claude-code (rehearsed 30 Oct 2026)"). The two
+hardening migrations are still held back.
+
+Verified by effect afterwards:
+- 43 agency tables, 11 agency functions, 6 new public tables; buckets
+  `agency-briefs`, `agency-cvs`, `agency-recordings`, all private; every new
+  table has RLS on; ledger 11 → 67 rows (20260805120000..20261002120000).
+- Rolled-back write test: `service_role` writes on all 17 route-written
+  tables; a signed-in user can still update their own `profiles` row;
+  `anon` has no read on `agency.candidates` or `role_recommendations`.
+- No test rows left (0 agencies, 0 calendar connections); `rehearsal_tmp`
+  dropped.
+- Supabase security advisor after the apply: the new tables with RLS and no
+  policy are server-only by design (candidate_identities,
+  notice_suppressions, notification_prefs, search_brief_files,
+  calendar_connections, match_scan_marks). New WARNs from these files:
+  mutable search_path on `matching_evidence_is_well_formed` and
+  `interview_settings_role_matches_agency`, and `guard_recommendation_state`
+  executable by anon/authenticated (a trigger function, so an RPC call
+  cannot run it). The other WARNs (`consume_rate_limit`,
+  `increment_tailors_used`, `get_monthly_usage`, `handle_new_user`,
+  `handle_new_subscription` callable by anon; leaked-password protection
+  off) were already on production — the held-back hardening migrations are
+  where those get decided.
+
+Nothing reads these tables on production yet: the agency code port (move 2)
+comes after the Vercel production variables and Resend.
