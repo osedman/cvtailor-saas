@@ -11,6 +11,7 @@ import { EMAIL_SANS } from "@/lib/email-style"
 import { agencyNoticeFrom } from "@/lib/email-senders"
 import { getAppOrigin } from "@/lib/site-url"
 import { writeAudit, type AgencyClient } from "./db"
+import { mintRightsLinkOrNone } from "./rights-link"
 
 export type NoticeOutcome =
   | "sent"
@@ -33,7 +34,7 @@ export async function sendOneNotice(admin: AgencyClient, noticeId: string): Prom
 
   const { data: candidate } = await admin
     .from("candidates")
-    .select("id, agency_id, role_id, ref, full_name, email, rights_token")
+    .select("id, agency_id, role_id, ref, full_name, email")
     .eq("id", notice.candidate_id)
     .maybeSingle()
   if (!candidate) {
@@ -96,6 +97,7 @@ export async function sendOneNotice(admin: AgencyClient, noticeId: string): Prom
   ])
 
   const agencyName = agency?.notice_from_name || agency?.name || "A recruitment agency"
+  const rightsToken = await mintRightsLinkOrNone(admin, { id: candidate.id, agencyId: candidate.agency_id })
   const result = await sendEmail({
     to: candidate.email,
     subject: `${agencyName} is considering you for a role`,
@@ -110,9 +112,7 @@ export async function sendOneNotice(admin: AgencyClient, noticeId: string): Prom
       // NEXT_PUBLIC_SITE_URL directly with an apex default, which is a third
       // answer to a question lib/site-url.ts already answers — and the rights
       // doorway belongs to the candidate, so it stays off the agency domain.
-      rightsUrl: candidate.rights_token
-        ? `${getAppOrigin()}/rights/${candidate.rights_token}`
-        : "",
+      rightsUrl: rightsToken ? `${getAppOrigin()}/rights/${rightsToken}` : "",
     }),
     from: agencyNoticeFrom(agencyName),
     replyTo: agency?.notice_reply_to || undefined,

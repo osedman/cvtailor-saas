@@ -11,17 +11,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { readFileSync, readdirSync, statSync } from "fs"
 import path from "path"
+import { createHash } from "crypto"
 
 type Row = Record<string, unknown>
 const store = vi.hoisted(() => ({
   candidates: [] as Row[],
+  rights_links: [] as Row[],
   updates: [] as Row[],
   audit: [] as Row[],
 }))
 
 const admin = vi.hoisted(() => ({
   from(table: string) {
-    if (table !== "candidates") throw new Error(`unexpected table ${table}`)
+    if (table !== "candidates" && table !== "rights_links") throw new Error(`unexpected table ${table}`)
+    const source = () => (table === "candidates" ? store.candidates : store.rights_links)
     const filters: Array<(r: Row) => boolean> = []
     let mode: "select" | "update" = "select"
     let patch: Row = {}
@@ -30,7 +33,7 @@ const admin = vi.hoisted(() => ({
     chain.eq = (c: string, v: unknown) => { filters.push((r) => r[c] === v); return chain }
     chain.in = (c: string, vs: unknown[]) => { filters.push((r) => vs.includes(r[c])); return chain }
     chain.update = (p: Row) => { mode = "update"; patch = p; return chain }
-    const rows = () => store.candidates.filter((r) => filters.every((f) => f(r)))
+    const rows = () => source().filter((r) => filters.every((f) => f(r)))
     const settle = () => {
       if (mode === "update") {
         const hit = rows()
@@ -61,7 +64,11 @@ const TOKEN = "a".repeat(48)
 
 beforeEach(() => {
   store.candidates = [
-    { id: "c1", agency_id: "a1", role_id: "r1", ref: "CAN-01", rights_token: TOKEN, represent_status: "unanswered" },
+    { id: "c1", agency_id: "a1", role_id: "r1", ref: "CAN-01", represent_status: "unanswered", retention_expires_at: null },
+  ]
+  // Only the hash is stored (lib/agency/rights-link.ts, 30 Oct 2026).
+  store.rights_links = [
+    { candidate_id: "c1", token_hash: createHash("sha256").update(TOKEN).digest("hex"), expires_at: "2999-01-01T00:00:00Z" },
   ]
   store.updates = []; store.audit = []
 })
@@ -101,6 +108,18 @@ describe("the candidate's answer", () => {
     await answerRepresent(TOKEN, "agree")
     expect(await answerRepresent(TOKEN, "agree")).toBe("unchanged")
     expect(store.audit).toHaveLength(1)
+  })
+
+  it("an expired link opens nothing", async () => {
+    store.rights_links[0]!.expires_at = "2000-01-01T00:00:00Z"
+    expect(await answerRepresent(TOKEN, "agree")).toBe("not_found")
+  })
+
+  it("a link stops working 30 days after the candidate's retention date", async () => {
+    store.candidates[0]!.retention_expires_at = new Date(Date.now() - 31 * 86_400_000).toISOString()
+    expect(await answerRepresent(TOKEN, "agree")).toBe("not_found")
+    store.candidates[0]!.retention_expires_at = new Date(Date.now() - 29 * 86_400_000).toISOString()
+    expect(await answerRepresent(TOKEN, "agree")).toBe("agreed")
   })
 
   it("a bad token learns nothing", async () => {
