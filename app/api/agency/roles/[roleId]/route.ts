@@ -1,0 +1,255 @@
+/**
+ * One role: detail for the workflow shell, and intake field updates.
+ * Field edits go through the user client so RLS enforces membership; the
+ * jd_raw and recruiter_notes never leave the agency (the submission snapshot
+ * is built elsewhere and excludes them).
+ */
+
+import { NextRequest, NextResponse } from "next/server"
+import { AgencyAccessError, agencyAdmin, discardJobRole, getJobRole, requireAgencyContext, writeAudit } from "@/lib/agency/db"
+import { setRoleOwner } from "@/lib/agency/role-owner"
+import { derivePhase } from "@/lib/agency/phases"
+import { sendClosureNotices, type ClosureResult } from "@/lib/agency/closure"
+import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
+
+export const maxDuration = 30
+
+const FIELD_LIMITS: Record<string, number> = {
+  title: 200,
+  company: 200,
+  company_context: 4000,
+  salary_band: 200,
+  location: 200,
+  seniority: 100,
+  jd_raw: 30_000,
+  recruiter_notes: 8000,
+}
+
+function authFail(failure: "unauthenticated" | "no_agency") {
+  return NextResponse.json(
+    { error: failure === "unauthenticated" ? "Unauthorised" : "No agency membership" },
+    { status: failure === "unauthenticated" ? 401 : 403 }
+  )
+}
+
+async function GET_handler(
+  _req: NextRequest,
+  { params }: { params: Promise<{ roleId: string }> }
+) {
+  try {
+    const { roleId } = await params
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+
+    const role = await getJobRole(auth.db, auth.ctx, roleId)
+    if (!role) return NextResponse.json({ error: "Role not found" }, { status: 404 })
+
+    const [requirements, constraints, agency, brief, submission, handover] = await Promise.all([
+      auth.db
+        .from("requirements")
+        .select("id, ref, text, weight, category, origin, sort_order")
+        .eq("role_id", roleId)
+        .order("sort_order"),
+      auth.db
+        .from("role_constraints")
+        .select("id, ref, text, kind, sort_order")
+        .eq("role_id", roleId)
+        .order("sort_order"),
+      // The client document signs itself "prepared by <agency>", so the
+      // workflow needs the agency's own name, not just the client's.
+      auth.db.from("agencies").select("name").eq("id", auth.ctx.agencyId).maybeSingle(),
+      // The client's own JD, if this role was minted from a brief that
+      // carried one. Read so intake can offer "pull the JD from the brief"
+      // when the box is empty or has drifted — accept copies it in, but a
+      // recruiter can paste over it and want the original back.
+      auth.db
+        .from("role_briefs")
+        .select("jd_raw, contact_id")
+        .eq("role_id", roleId)
+        .maybeSingle(),
+      // The two facts a phase is derived from (lib/agency/phases.ts). Existence
+      // only — no snapshot, no payload. Every screen that belongs to a role
+      // already calls this endpoint, so serving them here means the rail is
+      // consistent across the workflow, interviews and close-out without a
+      // second round trip or a second definition.
+      auth.db.from("submissions").select("id").eq("role_id", roleId).limit(1),
+      auth.db.from("handover_packs").select("id").eq("role_id", roleId).limit(1),
+    ])
+
+    return NextResponse.json({
+      role,
+      requirements: requirements.data ?? [],
+      constraints: constraints.data ?? [],
+      agency: agency.data ?? null,
+      brief_jd: ((brief.data?.jd_raw as string | undefined) ?? "").trim() || null,
+      brief_contact_id: (brief.data?.contact_id as string | null | undefined) ?? null,
+      caller_role: auth.ctx.role,
+      // null rather than a guess when either read failed: the rail renders
+      // nothing on null, and telling a recruiter in handover that they are at
+      // the start of the shortlist is worse than telling them nothing.
+      phase:
+        submission.error || handover.error
+          ? null
+          : derivePhase({
+              hasSubmission: (submission.data ?? []).length > 0,
+              hasHandoverPack: (handover.data ?? []).length > 0,
+            }),
+    })
+  } catch (error) {
+    return NextResponse.json(
+      { error: errorMessage(error) },
+      { status: 500 }
+    )
+  }
+}
+
+async function PATCH_handler(
+  req: NextRequest,
+  { params }: { params: Promise<{ roleId: string }> }
+) {
+  try {
+    const { roleId } = await params
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+    if (auth.ctx.role === "viewer") {
+      return NextResponse.json({ error: "Viewers have read only access" }, { status: 403 })
+    }
+
+    const body = await req.json()
+
+    // Ownership is not a field edit: it is commission attribution, validated
+    // against active membership and audit-coupled in lib/agency/db. Handled
+    // first and alone — mixing it into the RLS field patch would let it ride
+    // unaudited.
+    if (typeof body?.ownerId === "string" && body.ownerId) {
+      try {
+        await setRoleOwner(auth.ctx, roleId, body.ownerId)
+      } catch (e) {
+        if (e instanceof AgencyAccessError) {
+          return NextResponse.json({ error: e.message }, { status: 400 })
+        }
+        throw e
+      }
+      return NextResponse.json({ ok: true, ownerId: body.ownerId })
+    }
+
+    const patch: Record<string, string> = {}
+    for (const [field, limit] of Object.entries(FIELD_LIMITS)) {
+      if (typeof body?.[field] === "string") patch[field] = body[field].slice(0, limit)
+    }
+    // The brief's own facts (Wave 5a): the planned round count is a plan,
+    // never a gate; the start target is free text; the contact is this
+    // agency's own row, checked before it is written so a role can never
+    // point at another agency's client.
+    const typed: Record<string, unknown> = {}
+    if (body?.planned_rounds === null || (Number.isInteger(body?.planned_rounds) && body.planned_rounds >= 1 && body.planned_rounds <= 6)) {
+      typed.planned_rounds = body.planned_rounds
+    }
+    if (typeof body?.start_target === "string") typed.start_target = body.start_target.slice(0, 200)
+    if (body?.contact_id === null) typed.contact_id = null
+    else if (typeof body?.contact_id === "string" && body.contact_id) {
+      const { data: contact } = await auth.db
+        .from("client_contacts")
+        .select("id")
+        .eq("agency_id", auth.ctx.agencyId)
+        .eq("id", body.contact_id)
+        .maybeSingle()
+      if (!contact) return NextResponse.json({ error: "That contact is not in your agency" }, { status: 400 })
+      typed.contact_id = body.contact_id
+    }
+
+    // Status is not a plain field edit. Closing a role starts the retention
+    // clock on every candidate attached to it (DB trigger), so the change is
+    // audit logged with the before value.
+    const nextStatus = ["draft", "open", "submitted", "closed"].includes(body?.status)
+      ? (body.status as string)
+      : null
+    const before = nextStatus ? await getJobRole(auth.db, auth.ctx, roleId) : null
+    if (nextStatus && !before) {
+      return NextResponse.json({ error: "Role not found" }, { status: 404 })
+    }
+    if (nextStatus) patch.status = nextStatus
+
+    if (Object.keys(patch).length === 0 && Object.keys(typed).length === 0) {
+      return NextResponse.json({ error: "Nothing to update" }, { status: 400 })
+    }
+
+    const { data, error } = await auth.db
+      .from("job_roles")
+      .update({ ...patch, ...typed })
+      .eq("id", roleId)
+      .eq("agency_id", auth.ctx.agencyId)
+      .select("id, ref, title, status, closed_at, updated_at")
+      .maybeSingle()
+    if (error) throw error
+    if (!data) return NextResponse.json({ error: "Role not found" }, { status: 404 })
+
+    if (nextStatus && before && before.status !== nextStatus) {
+      await writeAudit(agencyAdmin(), {
+        agencyId: auth.ctx.agencyId,
+        roleId,
+        actorId: auth.ctx.userId,
+        entityType: "role",
+        entityRef: data.ref,
+        action: nextStatus === "closed" ? "closed" : "status_changed",
+        fromValue: { status: before.status },
+        toValue: { status: nextStatus, closed_at: data.closed_at },
+        reason:
+          nextStatus === "closed"
+            ? "retention clock started on all candidates for this role"
+            : undefined,
+      })
+    }
+
+    // Closing the loop: the candidates who were in this process are told it
+    // ended. Awaited so the response can say how many, but guarded — the role
+    // is already closed, and a mail failure must not make the close look
+    // failed. Idempotent per person (closure_notified_at), so re-closing a
+    // reopened role emails nobody twice.
+    let closure: ClosureResult | null = null
+    if (nextStatus === "closed" && before && before.status !== "closed") {
+      try {
+        closure = await sendClosureNotices(agencyAdmin(), roleId)
+      } catch {
+        closure = null
+      }
+    }
+
+
+    return NextResponse.json({ role: data, closure })
+  } catch (error) {
+    return NextResponse.json(
+      { error: errorMessage(error) },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * DELETE { reason } → discard this role.
+ *
+ * The way out of a role created twice or by mistake. NOT "close": closing is
+ * an outcome that starts the retention clock and tells candidates the role is
+ * filled. Refused once anyone is on the role, with that explanation — see
+ * discardJobRole().
+ */
+async function DELETE_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  try {
+    const { roleId } = await params
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+    const body = await req.json().catch(() => ({}))
+    const reason = typeof body?.reason === "string" ? body.reason : ""
+    await discardJobRole(auth.ctx, roleId, reason)
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    if (error instanceof AgencyAccessError) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+  }
+}
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]", "GET", GET_handler)
+export const PATCH = withTiming("/api/agency/roles/[roleId]", "PATCH", PATCH_handler)
+export const DELETE = withTiming("/api/agency/roles/[roleId]", "DELETE", DELETE_handler)

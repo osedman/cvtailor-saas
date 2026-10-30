@@ -1,0 +1,30 @@
+Olivia Brennan
+London · o.oifoh+po13@gmail.com · 07700 900213
+
+SUMMARY
+Associate Product Owner with two years in a health-tech company, working on a patient booking app. Ready for a first full Product Owner role.
+
+EXPERIENCE
+
+Associate Product Owner — Saltmarsh Health Tech (2024–present)
+- Share ownership of the backlog for a physiotherapy booking app with the Senior Product Owner; I own the notifications and reminders epic.
+- Write user stories and acceptance criteria and run refinement for my epic.
+- Work with physiotherapists and clinic receptionists to gather feedback and triage requests.
+- Shipped appointment reminders by SMS and push; reminder-driven cancellations rose from 12% to 30% of all cancellations, freeing slots for rebooking.
+- Pull basic reports from GA4; learning SQL.
+- Contribute to the roadmap but the Senior PO sets priorities and outcome targets.
+- Sat in on usability sessions run by our designer.
+- Wrote acceptance criteria for the reminders service integration with the SMS supplier and joined the supplier's weekly delivery call.
+- Took part in a WCAG 2.2 accessibility review of the booking flow and fixed the issues in my epic.
+- Covered the Senior PO's sprint ceremonies during two weeks of leave.
+- Know the basics of UK GDPR from our annual training; not involved in clinical safety or DSPT work.
+
+Customer Success Associate — Saltmarsh Health Tech (2022–2024)
+- Onboarded clinics onto the booking platform and handled escalations.
+- Wrote release notes and help-centre articles.
+
+EDUCATION
+BSc Sport and Exercise Science — Loughborough University
+
+SKILLS
+Backlog management · User stories · Acceptance criteria · Scrum · Clinic stakeholder engagement · GA4 · Jira · Customer success

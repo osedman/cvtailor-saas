@@ -1,0 +1,40 @@
+Product Owner — Digital Patient Services
+Meridian Health · London (hybrid, 2 days a week on site in Fitzrovia) · £70,000–£80,000 + bonus
+Recruiting agency: Halcyon Search
+
+ABOUT THE ROLE
+Meridian Health is a UK private healthcare group running outpatient clinics, diagnostics centres and two surgical hospitals. Around 60,000 patients a month now book, pay, check in and read their results through our digital channels: the Meridian app, the patient portal and online booking on our website.
+
+We are looking for a Product Owner to lead the Digital Patient Services team: seven engineers, a designer, a QA and a part-time user researcher. You will own what the team builds and why, working day to day with clinicians, clinic operations, contact centre leads and our clinical safety officer. This is a hands-on role: you will write the stories, run the refinement, and be accountable for the numbers.
+
+WHAT YOU WILL DO
+- Own and prioritise the backlog for booking, the patient portal and the app
+- Set the quarterly roadmap and the outcome metrics it is measured against
+- Turn clinical and operational needs into clear, testable user stories
+- Use product analytics to decide what to build next and to show what worked
+- Work with our platform suppliers on integrations, releases and SLAs
+
+WHAT YOU'LL NEED
+
+Must have
+1. At least three years owning a product backlog as a Product Owner in a Scrum team
+2. Strong writing of user stories and acceptance criteria that engineers can build and test against
+3. Stakeholder management with clinicians and operational teams, including handling competing priorities
+4. Experience delivering patient-facing or customer-facing digital products such as online booking, portals or mobile apps
+5. Data-informed prioritisation using product analytics (Amplitude, GA4 or similar) and enough SQL to answer your own questions
+6. Ownership of a product roadmap tied to measurable outcome metrics
+
+Nice to have
+7. Knowledge of healthcare regulation and assurance: DSPT, clinical safety standards DCB0129/DCB0160, and UK GDPR for health data
+8. Working knowledge of accessibility standards, ideally WCAG 2.2 AA
+9. Experience working closely with UX research, including planning and acting on usability studies
+10. Vendor or supplier management, including contracts, roadmaps and service levels
+
+WHAT WE OFFER
+- £70,000–£80,000 base, plus up to 10% annual bonus
+- Hybrid working: two days a week in our Fitzrovia office, the rest remote
+- Private medical cover through Meridian, 27 days' holiday plus bank holidays
+- £1,500 annual learning budget
+
+HOW TO APPLY
+Halcyon Search is recruiting this role on behalf of Meridian Health. Interviews are in two stages: a conversation with the Head of Digital, then a prioritisation exercise with the team.

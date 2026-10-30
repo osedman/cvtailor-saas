@@ -1,0 +1,32 @@
+Hamish Drummond
+Edinburgh (open to hybrid in London)
+
+SUMMARY
+Product Owner with four years owning a patient-facing booking product for a network of private physiotherapy and podiatry clinics. Solid on backlog, stories and clinicians; lighter on analytics and formal roadmap ownership.
+
+EXPERIENCE
+
+Product Owner — Tollgate Physio Network (2022–present)
+- Own the backlog for the online booking site and the clinic check-in app for a Scrum team of five.
+- Write user stories and acceptance criteria; run refinement, sprint planning and reviews.
+- Work weekly with physiotherapists, podiatrists and regional clinic managers to agree priorities and resolve conflicts between clinic teams.
+- Launched online booking for podiatry, which now takes 35% of new podiatry appointments.
+- Introduced a patient waiting-list self-service page that reduced calls to clinics.
+- Maintain the release plan; the product roadmap and targets are set by the Head of Digital.
+- Rely on the operations team's monthly reports for booking numbers; no hands-on product analytics or SQL.
+- Worked with our booking-platform supplier on integration issues and release scheduling.
+- Joined usability testing sessions run by an external research agency.
+
+Business Analyst — Kestrel Vale NHS Foundation Trust (2019–2022)
+- Requirements for the therapies scheduling system; process mapping with therapy managers.
+- Wrote test scripts and supported user acceptance testing.
+- Completed UK GDPR training and supported a DPIA for the new system.
+
+Administrator, Outpatient Therapies — Kestrel Vale NHS Foundation Trust (2017–2019)
+- Booked appointments and managed clinic lists for physiotherapy and occupational therapy.
+
+EDUCATION
+MA Business Management — University of Stirling
+
+SKILLS
+Product ownership · Scrum · User stories · Acceptance criteria · Clinical stakeholder management · Online booking · Supplier liaison · UAT · Process mapping · Jira

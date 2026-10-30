@@ -1,0 +1,107 @@
+/**
+ * Which agency am I working in, and let me change it.
+ *
+ * Most recruiters belong to one agency and will never see this. It exists
+ * because anyone in two used to get the oldest one silently, with no way to
+ * reach the other and nothing on screen admitting it existed.
+ *
+ * The cookie this sets is a PREFERENCE, not a permission. requireAgencyContext
+ * re-validates it against real memberships on every request, so the worst a
+ * forged value can do is be ignored. The POST still refuses unknown ids
+ * outright rather than silently falling back, because a switch that quietly
+ * does nothing is how someone ends up editing the wrong agency's role.
+ */
+
+import { NextRequest, NextResponse } from "next/server"
+import { AGENCY_COOKIE, requireAgencyContext } from "@/lib/agency/db"
+import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
+
+export const maxDuration = 10
+
+function authFail(failure: "unauthenticated" | "no_agency") {
+  return NextResponse.json(
+    { error: failure === "unauthenticated" ? "Unauthorised" : "No agency membership" },
+    { status: failure === "unauthenticated" ? 401 : 403 }
+  )
+}
+
+/**
+ * Forget the preference. Called on sign-out.
+ *
+ * The cookie is httpOnly with a year on it, and signOut() only clears the
+ * Supabase session — so it outlived the person who set it. It grants nothing
+ * (requireAgencyContext re-validates against real memberships, and an id the
+ * next user is not in is ignored), but on a shared machine it is still one
+ * account's working context sitting in the next account's browser, and the
+ * agency name it selects is visible in the switcher. Deliberately requires no
+ * session: the whole point is to clear state when there is no longer one.
+ */
+async function DELETE_handler() {
+  const res = NextResponse.json({ cleared: true })
+  res.cookies.set(AGENCY_COOKIE, "", { path: "/", maxAge: 0 })
+  return res
+}
+
+async function GET_handler() {
+  try {
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+
+    return NextResponse.json({
+      current: {
+        agencyId: auth.ctx.agencyId,
+        agencyName: auth.ctx.agencyName ?? "",
+        role: auth.ctx.role,
+      },
+      memberships: auth.ctx.memberships ?? [],
+    })
+  } catch (error) {
+    return NextResponse.json(
+      { error: errorMessage(error) },
+      { status: 500 }
+    )
+  }
+}
+
+async function POST_handler(req: NextRequest) {
+  try {
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+
+    const body = (await req.json().catch(() => ({}))) as { agencyId?: unknown }
+    const wanted = typeof body.agencyId === "string" ? body.agencyId : ""
+    if (!wanted) {
+      return NextResponse.json({ error: "agencyId is required" }, { status: 400 })
+    }
+
+    // The membership list is the caller's own, resolved server-side. An id
+    // outside it is refused — never silently ignored.
+    const match = (auth.ctx.memberships ?? []).find((m) => m.agencyId === wanted)
+    if (!match) {
+      return NextResponse.json({ error: "You are not a member of that agency" }, { status: 403 })
+    }
+
+    const res = NextResponse.json({
+      current: { agencyId: match.agencyId, agencyName: match.agencyName, role: match.role },
+    })
+    res.cookies.set(AGENCY_COOKIE, match.agencyId, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+    })
+    return res
+  } catch (error) {
+    return NextResponse.json(
+      { error: errorMessage(error) },
+      { status: 500 }
+    )
+  }
+}
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const DELETE = withTiming("/api/agency/session", "DELETE", DELETE_handler)
+export const GET = withTiming("/api/agency/session", "GET", GET_handler)
+export const POST = withTiming("/api/agency/session", "POST", POST_handler)

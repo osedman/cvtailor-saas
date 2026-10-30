@@ -1,0 +1,32 @@
+Dr Imran Qureshi
+London (hybrid) · o.oifoh+po17@gmail.com · 07700 900217
+
+SUMMARY
+GP with ten years in clinical practice and three years as a clinical adviser on digital projects. I am moving into product and bring deep knowledge of patient needs and clinical safety, but limited hands-on product ownership.
+
+EXPERIENCE
+
+Clinical Safety Officer (sessional) — Linmere Digital Health (2023–present)
+- Two sessions a week as CSO for a patient portal supplier; author and maintain the DCB0129 clinical safety case and hazard log.
+- Review new features for clinical risk and sign off safety reports before release.
+- Advise the Product Owner on clinical requirements and join refinement sessions when a story has clinical risk.
+- Support customers' DCB0160 assessments and answer clinical safety questions in DSPT and procurement reviews.
+
+Clinical Lead for Digital — Harrowgate Community Health (2022–present, one session a week)
+- Clinical voice on the programme board for the community patient app.
+- Chaired clinical engagement sessions with GPs, nurses and therapists and fed their views to the delivery team.
+- Took part in two usability studies as a clinical observer.
+
+General Practitioner — Brambleford Health Partners (2015–present)
+- Salaried GP, currently three sessions a week.
+- Practice lead for online consultations; trained colleagues and reviewed how patients used the system.
+- Worked with the practice manager and the online consultation supplier to change triage settings after patient complaints about response times.
+- Have not owned a backlog, written user stories as a Product Owner, or used product analytics tools.
+
+EDUCATION
+MBBS — St George's, University of London
+MRCGP
+NHS Digital Academy, Digital Health Leadership programme
+
+SKILLS
+Clinical safety · DCB0129 · DCB0160 · DSPT · Clinical risk management · Clinical engagement · Patient pathways · Online consultation · UK GDPR for health data · Stakeholder communication

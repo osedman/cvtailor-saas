@@ -1,0 +1,182 @@
+/**
+ * The candidate's own rights surface. Anonymous, reached by the capability
+ * link in the Art 14 notice email.
+ *
+ * GET  tells the person plainly what is held about them and by whom. It shows
+ *      their own name, the role they are being considered for, the agency,
+ *      when the data arrived and when it expires. It never exposes the
+ *      agency's assessment of them: scores, evidence strengths and recruiter
+ *      notes are the agency's working record, not part of a subject access
+ *      response served by a web page (a real access request is fulfilled by
+ *      the agency, which is exactly what this files).
+ *
+ * POST files a request: access, rectification, erasure or objection. It always
+ *      creates a PENDING row for the agency to action and never deletes
+ *      anything itself, so a forwarded link cannot erase someone's record.
+ *      Every filing is audit logged.
+ */
+
+import { NextRequest, NextResponse } from "next/server"
+import { agencyAdmin, writeAudit } from "@/lib/agency/db"
+import { answerRepresent } from "@/lib/agency/represent"
+import { withTiming } from "@/lib/server-timing"
+import { checkDoorwayLimit, checkDoorwayWriteLimit } from "@/lib/rate-limit"
+
+export const maxDuration = 15
+
+const KINDS = ["access", "rectification", "erasure", "objection"] as const
+
+async function resolve(token: string) {
+  if (!token || token.length < 24 || token.length > 96 || !/^[a-f0-9]+$/i.test(token)) return null
+  const admin = agencyAdmin()
+  const { data } = await admin
+    .from("candidates")
+    .select("id, agency_id, role_id, ref, full_name, ingested_at, retention_expires_at, source, represent_status, represent_answered_at")
+    .eq("rights_token", token)
+    .maybeSingle()
+  if (!data) return null
+  return { admin, candidate: data }
+}
+
+/** Same ceilings as the consent and reference doorways (30 Sep 2026 access audit). */
+function ipOf(req: NextRequest): string {
+  return (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown"
+}
+
+async function GET_handler(
+  req: NextRequest,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  try {
+    const { token } = await params
+    const limited = await checkDoorwayLimit("rights", ipOf(req), token)
+    if (limited) return limited
+    const resolved = await resolve(token)
+    if (!resolved) {
+      return NextResponse.json({ error: "This link is no longer valid" }, { status: 404 })
+    }
+    const { admin, candidate } = resolved
+
+    const [{ data: agency }, { data: role }, { data: pending }] = await Promise.all([
+      admin.from("agencies").select("name, retention_days, notice_reply_to").eq("id", candidate.agency_id).single(),
+      admin.from("job_roles").select("title, location, status").eq("id", candidate.role_id).maybeSingle(),
+      admin
+        .from("rights_requests")
+        .select("kind, status, requested_at")
+        .eq("candidate_id", candidate.id)
+        .order("requested_at", { ascending: false })
+        .limit(5),
+    ])
+
+    return NextResponse.json({
+      full_name: candidate.full_name,
+      agency: agency?.name ?? "the agency",
+      reply_to: agency?.notice_reply_to ?? null,
+      role_title: role?.title ?? "a role",
+      role_location: role?.location ?? "",
+      role_open: role?.status !== "closed",
+      held_since: candidate.ingested_at,
+      source: candidate.source,
+      retention_days: agency?.retention_days ?? 180,
+      retention_expires_at: candidate.retention_expires_at,
+      requests: pending ?? [],
+      // The right-to-represent ask. Applied candidates arrive 'agreed' — the
+      // manifest they confirmed is the record — so the doorway shows their
+      // standing answer rather than asking again.
+      represent_status: candidate.represent_status,
+      represent_answered_at: candidate.represent_answered_at,
+    })
+  } catch (error) {
+    // Unauthenticated doorway: never the database's words (Postgres quotes row
+    // values, and these rows hold names and addresses), and name/code only in
+    // the log.
+    console.error("[rights] failed", {
+      name: error instanceof Error ? error.name : typeof error,
+      code: (error as { code?: string })?.code,
+    })
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 })
+  }
+}
+
+async function POST_handler(
+  req: NextRequest,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  try {
+    const { token } = await params
+    const limited = (await checkDoorwayLimit("rights", ipOf(req), token)) ?? (await checkDoorwayWriteLimit("rights", token))
+    if (limited) return limited
+    const resolved = await resolve(token)
+    if (!resolved) {
+      return NextResponse.json({ error: "This link is no longer valid" }, { status: 404 })
+    }
+    const { admin, candidate } = resolved
+
+    const body = await req.json()
+
+    // The represent answer shares the doorway's credential but is not a
+    // rights request: it has its own states, its own audit actions, and no
+    // pending-cap — a person may always change this answer.
+    if (body?.represent === "agree" || body?.represent === "decline") {
+      const outcome = await answerRepresent(token, body.represent)
+      if (outcome === "not_found") {
+        return NextResponse.json({ error: "This link is no longer valid" }, { status: 404 })
+      }
+      return NextResponse.json({ ok: true, represent_status: outcome === "unchanged" ? candidate.represent_status : outcome })
+    }
+
+    const kind = body?.kind
+    if (!KINDS.includes(kind)) {
+      return NextResponse.json({ error: "Unknown request type" }, { status: 400 })
+    }
+    const note = typeof body?.note === "string" ? body.note.slice(0, 2000) : ""
+
+    const { count } = await admin
+      .from("rights_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("candidate_id", candidate.id)
+      .eq("status", "pending")
+    if ((count ?? 0) >= 4) {
+      return NextResponse.json(
+        { error: "You already have requests open with this agency. They will respond to those first." },
+        { status: 429 }
+      )
+    }
+
+    const { error } = await admin.from("rights_requests").insert({
+      agency_id: candidate.agency_id,
+      candidate_id: candidate.id,
+      candidate_ref: candidate.ref,
+      kind,
+      channel: "candidate",
+      status: "pending",
+      note,
+    })
+    if (error) throw error
+
+    await writeAudit(admin, {
+      agencyId: candidate.agency_id,
+      roleId: candidate.role_id,
+      candidateId: candidate.id,
+      entityType: "rights_request",
+      entityRef: candidate.ref,
+      action: `requested_${kind}`,
+      reason: note || undefined,
+    })
+
+    return NextResponse.json({ filed: true, kind }, { status: 201 })
+  } catch (error) {
+    // Unauthenticated doorway: never the database's words (Postgres quotes row
+    // values, and these rows hold names and addresses), and name/code only in
+    // the log.
+    console.error("[rights] failed", {
+      name: error instanceof Error ? error.name : typeof error,
+      code: (error as { code?: string })?.code,
+    })
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 })
+  }
+}
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/rights/[token]", "GET", GET_handler)
+export const POST = withTiming("/api/rights/[token]", "POST", POST_handler)

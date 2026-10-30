@@ -62,19 +62,29 @@ describe('course repository wiring', () => {
     expect(route).toMatch(/\.in\('id', writtenIds\)/)
   })
 
-  it('registers a secret-protected daily sync', () => {
+  it('registers a secret-protected weekly sync', () => {
+    // Vercel Hobby allows two cron jobs. The daily slot belongs to agency
+    // housekeeping; course-sync and path-digest share the weekly dispatcher,
+    // which forwards the CRON_SECRET Authorization header on the right day.
     const route = read('app/api/cron/course-sync/route.ts')
+    const dispatcher = read('app/api/cron/weekly/route.ts')
     const vercel = JSON.parse(read('vercel.json')) as {
       crons: Array<{ path: string; schedule: string }>
     }
     expect(route).toContain('Bearer ${secret}')
     expect(route).toContain('createAdminClient()')
-    // Daily on main until the agency cron needs the slot (move 2, port 3
-    // decision 20 Oct 2026); staging runs it through the weekly dispatcher.
+    expect(dispatcher).toContain('Bearer ${secret}')
+    expect(dispatcher).toContain('"/api/cron/course-sync"')
+    expect(dispatcher).toContain('"/api/path-digest"')
     expect(vercel.crons).toContainEqual({
-      path: '/api/cron/course-sync',
-      schedule: '0 3 * * *',
+      path: '/api/cron/weekly',
+      schedule: '0 9 * * 0,1',
     })
+    expect(vercel.crons).toContainEqual({
+      path: '/api/agency/cron',
+      schedule: '30 3 * * *',
+    })
+    expect(vercel.crons).toHaveLength(2)
   })
 
   it('offers a browser-friendly sync only to a signed-in admin', () => {

@@ -1,0 +1,30 @@
+Kofi Mensah
+Luton (hybrid) · o.oifoh+po10@gmail.com · 07700 900210
+
+SUMMARY
+Product Owner with five years in NHS digital, owning internal clinical and operational tools rather than patient-facing products. Comfortable with clinicians, data and regulation.
+
+EXPERIENCE
+
+Product Owner, Clinical Systems — Kestrel Vale NHS Foundation Trust (2021–present)
+- Own the backlog for the trust's bed management and theatre scheduling tools, used by 2,500 staff; Scrum team of six.
+- Write user stories and acceptance criteria with clinical and operational input; run refinement, planning and reviews.
+- Work daily with ward managers, theatre coordinators, consultants and the site operations team; chair the monthly clinical user group.
+- Reduced theatre list changes on the day by 23% through a new scheduling view.
+- Use Power BI and SQL against the trust data warehouse to size problems and track adoption.
+- Own the roadmap for clinical systems and report outcomes to the digital programme board.
+- Contributed to DCB0160 hazard logs and DSPT evidence for every release.
+- Cut the time porters spend waiting for bed status updates by around 40 minutes per shift, measured through system timestamps.
+- Ran shadowing sessions on wards with the trust's UX designer to understand how nurses actually use the tools on shift.
+- No experience of patient-facing apps, portals or online booking; all of my products are used by staff.
+- Supported the EPR supplier relationship on integration changes and release scheduling.
+
+Business Analyst — Kestrel Vale NHS Foundation Trust (2019–2021)
+- Requirements for the electronic observations rollout.
+- Worked with the EPR supplier on configuration and change requests.
+
+EDUCATION
+BSc Computer Science — University of Hertfordshire
+
+SKILLS
+Product ownership · Scrum · User stories · Acceptance criteria · Clinical stakeholders · Power BI · SQL · Roadmaps · DCB0160 · DSPT · Supplier liaison · Jira · Confluence

@@ -1,0 +1,32 @@
+Megan Lloyd
+Bristol (hybrid) · o.oifoh+po18@gmail.com · 07700 900218
+
+SUMMARY
+Certified Scrum Master with six years coaching agile teams in insurance and public sector digital. I facilitate the process and help teams improve; product decisions have always sat with the Product Owner.
+
+EXPERIENCE
+
+Scrum Master — Wrenfield Insurance (2022–present)
+- Scrum Master for two teams building the customer claims app and web portal.
+- Facilitate sprint planning, daily stand-ups, reviews and retrospectives; improved sprint predictability from 60% to 85%.
+- Coach Product Owners on backlog refinement and on writing clearer user stories and acceptance criteria.
+- Remove impediments across teams and with the platform supplier's delivery team.
+- Introduced flow metrics (cycle time, throughput) and a team health check every quarter.
+- Worked with stakeholders from claims operations to agree release dates and communication.
+- Ran a quarterly big-room planning session across three teams and the product leads.
+- Did not own the backlog, the roadmap or the product metrics; those sat with the Product Owners I supported.
+
+Scrum Master — Quillon Council Digital Services (2019–2022)
+- Scrum Master for a team rebuilding online council tax and parking permit services.
+- Helped the team through a GDS service assessment; supported the accessibility work towards WCAG 2.1 AA.
+- Ran PI planning events for a group of four teams.
+
+Delivery Coordinator — Quillon Council Digital Services (2018–2019)
+- Tracked delivery plans and risks for the digital programme.
+
+EDUCATION
+BA Politics — University of Bristol
+Professional Scrum Master II (PSM II) · SAFe Scrum Master
+
+SKILLS
+Scrum · Kanban · Agile coaching · Facilitation · Flow metrics · Jira · Confluence · Miro · Retrospectives · Team health · Stakeholder communication

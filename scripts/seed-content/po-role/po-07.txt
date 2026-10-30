@@ -1,0 +1,29 @@
+Zofia Kowalczyk
+London (hybrid) · o.oifoh+po07@gmail.com · 07700 900207
+
+SUMMARY
+Product Owner with five years in fintech, owning customer-facing mobile and web journeys. Strong on analytics and delivery; looking to move into a sector where the product does more good.
+
+EXPERIENCE
+
+Product Owner, Mobile App — Corrin Bank (2021–present)
+- Own the backlog for the retail banking app (1.1 million monthly active users) for a Scrum team of eight.
+- Write user stories and acceptance criteria and run refinement twice a week; the team's sprint predictability sits above 85%.
+- Grew in-app savings account openings from 2,400 to 9,800 a month through a redesigned onboarding flow.
+- Use Amplitude and SQL daily; built the team's funnel dashboards and run A/B tests on every major change.
+- Own the quarterly roadmap and outcome metrics (activation, retention, app rating); app rating rose from 3.8 to 4.6.
+- Stakeholders include compliance, fraud, customer operations and marketing; I run the fortnightly prioritisation call.
+- Worked with the accessibility lead on WCAG 2.1 AA fixes for the app.
+- Partnered with the in-house research team on concept tests for a new budgeting feature; the findings cut the scope by a third before build.
+- Wrote the product requirements for Open Banking consent screens and worked through FCA consumer duty reviews with compliance.
+- Mentored two associate product owners on story writing and backlog hygiene.
+
+Associate Product Owner — Quillon Payments (2019–2021)
+- Owned the merchant dashboard backlog; wrote user stories and ran sprint reviews.
+- Managed a third-party KYC supplier and its SLA reporting.
+
+EDUCATION
+BSc Mathematics — University of Bath
+
+SKILLS
+Product ownership · Scrum · User stories & acceptance criteria · Amplitude · SQL · A/B testing · Roadmaps & OKRs · Stakeholder management · WCAG 2.1 · Supplier management · Jira

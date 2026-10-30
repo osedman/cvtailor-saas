@@ -1,0 +1,30 @@
+Mei Ling Chua
+London · o.oifoh+po03@gmail.com · 07700 900203
+
+SUMMARY
+Product Owner with eight years in consumer digital, the last five in healthcare. I own booking and payment journeys end to end and I am happiest when the numbers and the clinicians agree.
+
+EXPERIENCE
+
+Lead Product Owner, Online Booking — Tollgate Physio Network (2021–present)
+- Own the backlog for online booking, payments and the patient app across 90 physiotherapy and imaging clinics; Scrum team of ten.
+- Grew online bookings from 22,000 to 58,000 a month in three years while reducing booking-related complaints by 40%.
+- Write user stories and acceptance criteria and pair with QA on test scenarios; introduced a definition of ready that cut mid-sprint scope changes by half.
+- Work weekly with clinical leads and regional operations managers; negotiated a single booking rules model across physio, MSK imaging and sports medicine.
+- Instrumented the booking funnel in Amplitude and run cohort analyses in SQL; A/B tested 23 changes in 2024, 9 shipped with measurable lift.
+- Own the annual roadmap and quarterly outcome targets (conversion, cancellation rate, time to appointment).
+- Led a WCAG 2.2 AA audit response; booking and payment flows now pass with no critical issues.
+- Manage two suppliers (payments and clinical system integration), including SLAs and change requests.
+
+Product Owner — Wrenfield Insurance (2018–2021)
+- Owned the claims tracking app backlog; raised app store rating from 2.9 to 4.5.
+- Ran usability testing with the in-house research team every sprint.
+
+Digital Analyst — Wrenfield Insurance (2016–2018)
+- GA reporting, SQL and dashboarding for the digital team.
+
+EDUCATION
+BSc Economics — University of Warwick
+
+SKILLS
+Product ownership · Scrum · User stories & acceptance criteria · Amplitude · SQL · A/B testing · Roadmapping · Clinical and operational stakeholders · WCAG 2.2 · Supplier management · UK GDPR · Jira · Figma

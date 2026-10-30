@@ -1,0 +1,23 @@
+Priyanka Nair
+London · o.oifoh+ba03@gmail.com · 07700 900903
+
+SUMMARY
+Business Analyst with seven years in professional services, the last three on AI and automation programmes. Comfortable in the space between data scientists, lawyers and operations.
+
+EXPERIENCE
+
+Business Analyst, AI and Automation — Whitlock Advisory (2022–present)
+- Proven experience as a Business Analyst delivering innovation and change projects: four AI initiatives taken from idea to production, including a generative AI research assistant for the tax and legal practice.
+- Strong understanding of AI concepts including NLP, machine learning and generative AI, and their applications in a professional services context; wrote the firm's internal primer.
+- Process mapping, requirements documentation and data analysis (SQL, Python pandas) for every initiative; owned the benefits tracking.
+- Agile environment (Scrum): backlog management, sprint planning and user story creation with a cross-functional squad.
+- Stakeholder management across all seniority levels and disciplines: partners, IT, compliance, risk and vendors.
+- Facilitated workshops, interviews and cross-functional collaboration sessions with more than 200 participants.
+- Translated complex technical concepts into clear business language for technical and non-technical audiences.
+- Awareness of data privacy, legal privilege and ethical considerations in AI deployment; sat on the responsible AI review board.
+
+Business Analyst — Whitlock Advisory (2019–2022)
+- Finance transformation and workflow automation projects; some exposure to legal document management through a Legal Ops engagement.
+
+SKILLS
+Business analysis · Requirements · Process mapping · SQL · Python · Scrum · Jira · Azure DevOps · Generative AI, NLP, ML concepts · Responsible AI · Workshop facilitation

@@ -1,0 +1,445 @@
+"use client"
+
+import type { BookingView } from "@/lib/agency/booking"
+import { bookingAnswerMessage, bookingChoiceMessage } from "@/lib/agency/booking-messages"
+import { doorwayLoadState, retryAfterSeconds, type DoorwayLoadState } from "@/lib/agency/doorway-messages"
+import { DoorwayLoadIssue } from "@/components/agency/doorway-load-issue"
+
+/**
+ * Confirm or rearrange an interview — Figma "Candidate · Interview invitation".
+ *
+ * Four states, and the copy is the feature in every one of them.
+ *
+ * It NAMES THE COMPANY, which the data-protection notice deliberately does
+ * not: you cannot ask somebody to give up a morning without telling them who
+ * they are meeting. A considered exception, not an oversight.
+ *
+ * The JOINING LINK IS WITHHELD until confirmation. A live meeting URL sitting
+ * in an unconfirmed inbox is a call somebody can walk into unannounced.
+ *
+ * DECLINING ASKS FOR NO REASON, and there is no free-text box inviting one. A
+ * candidate explaining a hospital appointment to their recruiter's software is
+ * a worse product than one that simply asks when suits. The time goes back to
+ * the client's board and a person arranges the next one.
+ */
+
+import { useCallback, useEffect, useState } from "react"
+import { use } from "react"
+
+/**
+ * The doorway renders exactly what peekBooking returns, so it uses that
+ * type rather than a copy of it.
+ *
+ * It WAS a copy — ten fields restated by hand — which is how the shape was
+ * allowed to drift: the server grew a reason for an empty window list and
+ * this file had no way to know. A type is erased at build time and carries
+ * no imports with it, so pulling it from lib/agency/booking.ts drags no
+ * server code into the browser bundle (the rule that keeps runtime
+ * constants out of files like this does not apply to `import type`).
+ */
+type Booking = BookingView
+
+function whenText(iso: string | null, minutes: number): string {
+  if (!iso) return "Time to be confirmed"
+  const d = new Date(iso)
+  const day = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })
+  const from = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+  const to = new Date(d.getTime() + minutes * 60_000).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+  return `${day}, ${from} – ${to}`
+}
+
+export default function BookingPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = use(params)
+  const [booking, setBooking] = useState<Booking | null>(null)
+  const [showMove, setShowMove] = useState(false)
+  /*
+   * Why the page could not load, when it could not. It used to be one
+   * boolean, `dead`, set by ANY non-OK answer — so a 429 from the rate
+   * limiter (a second candidate on the same network, 28 Sep 2026) told the
+   * person their perfectly good link was not valid. Now only a 404 is dead;
+   * busy waits and retries on its own, and our own failures offer a retry.
+   */
+  const [loadIssue, setLoadIssue] = useState<DoorwayLoadState | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/booking/${encodeURIComponent(token)}`)
+      const issue = doorwayLoadState({
+        status: res.status,
+        retryAfter: retryAfterSeconds(res.headers.get("Retry-After")),
+        what: "your interview",
+      })
+      if (issue) return setLoadIssue(issue)
+      const body = await res.json()
+      setLoadIssue(null)
+      setBooking(body.booking as Booking)
+    } catch {
+      setLoadIssue(doorwayLoadState({ status: null, retryAfter: null, what: "your interview" }))
+    }
+  }, [token])
+
+  const reload = useCallback(() => {
+    setLoadIssue(null)
+    void load()
+  }, [load])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  async function answer(value: "confirmed" | "declined") {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/booking/${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answer: value }),
+      })
+      const body = await res.json().catch(() => ({}))
+      const message = bookingAnswerMessage({
+        status: res.status,
+        retryAfter: retryAfterSeconds(res.headers.get("Retry-After")),
+        error: body?.error,
+      })
+      if (message) {
+        setError(message)
+        return
+      }
+      setBooking(body.booking as Booking)
+    } catch {
+      setError(bookingAnswerMessage({ status: null, retryAfter: null }))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (loadIssue && loadIssue.kind !== "dead") {
+    // Busy (429) counts down and retries on its own; our own failure offers
+    // a retry. Neither is the link's fault, so neither says it is dead.
+    return <DoorwayLoadIssue issue={loadIssue} onRetry={reload} eyebrow="Interview" />
+  }
+
+  if (loadIssue?.kind === "dead") {
+    return (
+      <main className="cs-wrap">
+        <div className="cs-card">
+          <p className="cs-eyebrow">Interview</p>
+          <h1 className="cs-title">That link is not valid.</h1>
+          <p className="cs-body">
+            It may have been used already, or the interview may have been rearranged. Reply to the
+            email it came from and someone will sort it out.
+          </p>
+        </div>
+      </main>
+    )
+  }
+
+  if (!booking) {
+    return (
+      <main className="cs-wrap">
+        <div className="cs-card">
+          <p className="cs-quiet" aria-live="polite">
+            Loading…
+          </p>
+        </div>
+      </main>
+    )
+  }
+
+  async function claim(slotId: string, move = false) {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/booking/${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(move ? { slotId, move: true } : { slotId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (body?.booking) setBooking(body.booking as Booking)
+      // "not_open" is what the second person to pick the same time gets —
+      // the window was already hidden from the list — so it says "taken"
+      // too, instead of the choice silently vanishing.
+      setError(
+        bookingChoiceMessage({
+          status: res.status,
+          outcome: body?.outcome,
+          retryAfter: retryAfterSeconds(res.headers.get("Retry-After")),
+        })
+      )
+    } catch {
+      setError(bookingChoiceMessage({ status: null, retryAfter: null }))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const where = booking.company || "the company"
+  const when = whenText(booking.scheduledAt, booking.durationMinutes)
+
+  return (
+    <main className="cs-wrap">
+      <div className="cs-card">
+        {/*
+          SELF-BOOKING (11 Sep 2026). An invitation with no time held is an
+          invitation to CHOOSE: the candidate picks from what is still free,
+          in their own timezone, and the window disappears for everyone else
+          the moment they take it. The fixed-time invitation below still
+          exists — a recruiter can hold a slot for someone — so the doorway
+          answers both.
+        */}
+        {booking.state === "invited" && booking.needsChoice && (
+          <>
+            <p className="cs-eyebrow">Your interview</p>
+            <h1 className="cs-title">Choose a time that suits you.</h1>
+            <p className="cs-body">
+              {booking.agencyName} has arranged an interview with {where}. Pick whichever of these
+              works — the times are shown in your own timezone.
+            </p>
+            {booking.venue.kind === "in_person" && booking.venue.address && (
+              <p className="cs-body">In person, at {booking.venue.address}.</p>
+            )}
+            {error && (
+              <p className="cs-error" role="alert">
+                {error}
+              </p>
+            )}
+            {booking.openWindows.length === 0 ? (
+              /* The reason comes from the server, because the doorway cannot
+                 tell the three causes apart and used to assert the wrong one:
+                 it said every time had been TAKEN whenever the real reason was
+                 that the remaining times were inside the minimum notice. Being
+                 told a false reason is worse than being told none — it implies
+                 other candidates moved faster than you did. */
+              <p className="cs-body">
+                {booking.noWindowsBecause === "all_taken" ? (
+                  <>
+                    Every time has been taken. Your recruiter will be in touch with more — nothing
+                    about your application has changed.
+                  </>
+                ) : booking.noWindowsBecause === "unbookable" ? (
+                  <>
+                    The times still open are too soon to book here. Your recruiter will arrange one
+                    with you directly — nothing about your application has changed.
+                  </>
+                ) : (
+                  <>
+                    No times have been offered yet. Your recruiter will send some — nothing about
+                    your application has changed, and this link will keep working.
+                  </>
+                )}
+              </p>
+            ) : (
+              <div className="bk-slots">
+                {booking.openWindows.map((w) => (
+                  <button key={w.slotId} className="bk-slot" disabled={busy} onClick={() => void claim(w.slotId)}>
+                    <span className="bk-slot-day">
+                      {new Date(w.start).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+                    </span>
+                    <span className="bk-slot-time">
+                      {new Date(w.start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                      {" – "}
+                      {new Date(w.end).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="cs-choice" style={{ marginTop: 14 }}>
+              <button className="cs-btn cs-btn-quiet" disabled={busy} onClick={() => answer("declined")}>
+                None of these work
+              </button>
+            </div>
+            <p className="cs-small">
+              No account needed. If none of them work, say so and your recruiter arranges more — it
+              is not a comment on the role, and nothing about your application changes.
+            </p>
+          </>
+        )}
+
+        {booking.state === "invited" && !booking.needsChoice && (
+          <>
+            <p className="cs-eyebrow">Your interview</p>
+            <h1 className="cs-title">A time has been held for you.</h1>
+            <p className="cs-body">
+              {booking.agencyName} has arranged an interview with {where}. Please say whether it
+              works.
+            </p>
+            <p className="bk-when">{when}</p>
+            <dl className="bk-rows">
+              <div className="bk-row">
+                <dt>Who with</dt>
+                <dd>
+                  {where} · round {booking.roundNumber}
+                </dd>
+              </div>
+              <div className="bk-row">
+                <dt>How</dt>
+                <dd>
+                  {booking.venue.kind === "in_person"
+                    ? `In person${booking.venue.address ? ` — ${booking.venue.address}` : ""}. Which floor and what to do on arrival appear here once you confirm`
+                    : booking.venue.kind === "phone"
+                      ? "Phone call"
+                      : "Video call — the joining link appears here once you confirm"}
+                </dd>
+              </div>
+              <div className="bk-row">
+                <dt>Arranged by</dt>
+                <dd>{booking.agencyName}</dd>
+              </div>
+            </dl>
+            {error && (
+              <p className="cs-error" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="cs-choice">
+              <button className="cs-btn" disabled={busy} onClick={() => answer("confirmed")}>
+                {busy ? "Saving…" : "Confirm this time"}
+              </button>
+              <button className="cs-btn cs-btn-quiet" disabled={busy} onClick={() => answer("declined")}>
+                I can&apos;t make it
+              </button>
+            </div>
+            <p className="cs-small">
+              No account needed. If you cannot make it, the time goes back and someone arranges
+              another — it is not a comment on the role, and nothing about your application changes.
+            </p>
+          </>
+        )}
+
+        {/* Moving a time they already hold. The policy and the allowance are
+            the client's (interview_settings); the doorway only ever shows
+            what those permit, and says why when they do not. */}
+        {booking.state === "confirmed" && booking.reschedule.allowed && showMove && (
+          <>
+            <p className="cs-eyebrow">Move your interview</p>
+            <h1 className="cs-title">Pick a different time.</h1>
+            <p className="cs-body">
+              Your current time stays yours until you choose another, so you cannot end up with none.
+            </p>
+            {error && (
+              <p className="cs-error" role="alert">
+                {error}
+              </p>
+            )}
+            {booking.openWindows.length === 0 ? (
+              <p className="cs-body">There are no other times free at the moment. Reply to your recruiter and they will sort it out.</p>
+            ) : (
+              <div className="bk-slots">
+                {booking.openWindows.map((w) => (
+                  <button key={w.slotId} className="bk-slot" disabled={busy} onClick={() => void claim(w.slotId, true)}>
+                    <span className="bk-slot-day">
+                      {new Date(w.start).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+                    </span>
+                    <span className="bk-slot-time">
+                      {new Date(w.start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                      {" – "}
+                      {new Date(w.end).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="cs-choice" style={{ marginTop: 14 }}>
+              <button className="cs-btn cs-btn-quiet" disabled={busy} onClick={() => setShowMove(false)}>
+                Keep the time I have
+              </button>
+            </div>
+          </>
+        )}
+
+        {booking.state === "confirmed" && !showMove && (
+          <>
+            <p className="cs-eyebrow">Confirmed</p>
+            <h1 className="cs-title">You are booked in.</h1>
+            <p className="bk-when">{when}</p>
+            <dl className="bk-rows">
+              <div className="bk-row">
+                <dt>Who with</dt>
+                <dd>
+                  {where} · round {booking.roundNumber}
+                </dd>
+              </div>
+              {booking.venue.kind === "in_person" && (
+                <>
+                  {booking.venue.address && (
+                    <div className="bk-row">
+                      <dt>Where</dt>
+                      <dd>{booking.venue.address}</dd>
+                    </div>
+                  )}
+                  {booking.venue.room && (
+                    <div className="bk-row">
+                      <dt>Floor or room</dt>
+                      <dd>{booking.venue.room}</dd>
+                    </div>
+                  )}
+                  {booking.venue.arrival && (
+                    <div className="bk-row">
+                      <dt>On arrival</dt>
+                      <dd>{booking.venue.arrival}</dd>
+                    </div>
+                  )}
+                </>
+              )}
+              {booking.meetingUrl && (
+                <div className="bk-row">
+                  <dt>Joining link</dt>
+                  <dd className="bk-link">
+                    <a href={booking.meetingUrl} rel="noopener noreferrer nofollow">
+                      {booking.meetingUrl}
+                    </a>
+                  </dd>
+                </div>
+              )}
+            </dl>
+            {booking.reschedule.allowed ? (
+              <div className="cs-choice" style={{ marginTop: 14 }}>
+                <button className="cs-btn cs-btn-quiet" onClick={() => setShowMove(true)}>
+                  Move this interview
+                </button>
+              </div>
+            ) : booking.reschedule.because ? (
+              <p className="cs-small">{booking.reschedule.because}</p>
+            ) : null}
+            <p className="cs-small">
+              The calendar file was attached to the email. If anything else changes, reply to that
+              email and {booking.agencyName} will sort it out.
+            </p>
+          </>
+        )}
+
+        {booking.state === "declined" && (
+          <>
+            <p className="cs-eyebrow">Thanks for saying</p>
+            <h1 className="cs-title">That time is back on the board.</h1>
+            <p className="cs-body">
+              {booking.agencyName} has been told, and someone will be in touch about another time.
+              You are still being considered — declining a time says nothing about the role.
+            </p>
+            <p className="cs-small">You can close this page.</p>
+          </>
+        )}
+
+        {booking.state === "cancelled" && (
+          <>
+            <p className="cs-eyebrow">Interview</p>
+            <h1 className="cs-title">This interview is no longer scheduled.</h1>
+            <p className="cs-body">
+              It was cancelled after the invitation went out. Reply to the email it came from and
+              {" "}
+              {booking.agencyName} will explain where things stand.
+            </p>
+          </>
+        )}
+      </div>
+    </main>
+  )
+}
