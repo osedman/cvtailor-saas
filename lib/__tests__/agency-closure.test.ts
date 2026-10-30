@@ -9,6 +9,7 @@
  * close again emails nobody twice.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import { createHash } from "crypto"
 
 type Row = Record<string, unknown>
 const store = vi.hoisted(() => ({
@@ -35,6 +36,10 @@ const admin = vi.hoisted(() => ({
     let sortBy: { col: string; asc: boolean } | null = null
     chain.order = (col: string, o?: { ascending?: boolean }) => { sortBy = { col, asc: o?.ascending !== false }; return chain }
     chain.update = (p: Row) => { mode = "update"; patch = p; return chain }
+    chain.insert = (row: Row) => {
+      ;(store.tables[table] ??= []).push(row)
+      return Promise.resolve({ data: null, error: null })
+    }
     const rows = () => {
       const out = (store.tables[table] ?? []).filter((r) => filters.every((f) => f(r)))
       if (sortBy) { const { col, asc } = sortBy; out.sort((x, y) => (String(x[col]) < String(y[col]) ? -1 : 1) * (asc ? 1 : -1)) }
@@ -75,15 +80,15 @@ function seed() {
     agencies: [{ id: "a1", name: "Halcyon Search", notice_from_name: "", notice_reply_to: "", retention_days: 180 }],
     candidates: [
       // Interviewed, notice sent — the archetype.
-      { id: "c1", agency_id: "a1", role_id: "role-1", ref: "CAN-01", full_name: "Amara Okafor", email: "amara@x.test", rights_token: "tok1", closure_notified_at: null },
+      { id: "c1", agency_id: "a1", role_id: "role-1", ref: "CAN-01", full_name: "Amara Okafor", email: "amara@x.test", closure_notified_at: null },
       // Notice sent, never interviewed — still told, the loop was opened.
-      { id: "c2", agency_id: "a1", role_id: "role-1", ref: "CAN-02", full_name: "Jonas Berg", email: "jonas@x.test", rights_token: null, closure_notified_at: null },
+      { id: "c2", agency_id: "a1", role_id: "role-1", ref: "CAN-02", full_name: "Jonas Berg", email: "jonas@x.test", closure_notified_at: null },
       // Notice SUPPRESSED, never interviewed — first contact would be closure. No.
-      { id: "c3", agency_id: "a1", role_id: "role-1", ref: "CAN-03", full_name: "Priya Nair", email: "priya@x.test", rights_token: null, closure_notified_at: null },
+      { id: "c3", agency_id: "a1", role_id: "role-1", ref: "CAN-03", full_name: "Priya Nair", email: "priya@x.test", closure_notified_at: null },
       // Placed (accepted) — their news arrived differently.
-      { id: "c4", agency_id: "a1", role_id: "role-1", ref: "CAN-04", full_name: "Dan Kovac", email: "dan@x.test", rights_token: null, closure_notified_at: null },
+      { id: "c4", agency_id: "a1", role_id: "role-1", ref: "CAN-04", full_name: "Dan Kovac", email: "dan@x.test", closure_notified_at: null },
       // Interviewed but no email on file.
-      { id: "c5", agency_id: "a1", role_id: "role-1", ref: "CAN-05", full_name: "Lena Ode", email: null, rights_token: null, closure_notified_at: null },
+      { id: "c5", agency_id: "a1", role_id: "role-1", ref: "CAN-05", full_name: "Lena Ode", email: null, closure_notified_at: null },
     ],
     interview_rounds: [
       { role_id: "role-1", candidate_id: "c1" },
@@ -159,6 +164,21 @@ describe("idempotency", () => {
   })
 })
 
+describe("the rights link", () => {
+  it("each email carries a fresh link, and only its hash is stored", async () => {
+    await sendClosureNotices(admin as never, "role-1", { spacingMs: 0 })
+    const links = store.tables.rights_links ?? []
+    expect(links).toHaveLength(store.mail.length)
+    for (const m of store.mail) {
+      const raw = m.html.match(/\/rights\/([a-f0-9]{48})/)?.[1]
+      expect(raw).toBeTruthy()
+      // The raw value is in the email, never in the row.
+      expect(JSON.stringify(links)).not.toContain(raw!)
+      expect(links.some((l) => l.token_hash === createHash("sha256").update(raw!).digest("hex"))).toBe(true)
+    }
+  })
+})
+
 describe("what it says", () => {
   it("names no winner and gives no reason — the role ended, full stop", async () => {
     await sendClosureNotices(admin as never, "role-1")
@@ -187,7 +207,7 @@ describe("volume", () => {
   function seedMany(n: number) {
     store.tables.candidates = Array.from({ length: n }, (_, i) => ({
       id: `c${i}`, agency_id: "a1", role_id: "role-1", ref: `CAN-${i}`,
-      full_name: `Person ${i}`, email: `p${i}@x.test`, rights_token: null,
+      full_name: `Person ${i}`, email: `p${i}@x.test`,
       closure_notified_at: null,
     }))
     store.tables.candidate_notices = store.tables.candidates!.map((c) => ({

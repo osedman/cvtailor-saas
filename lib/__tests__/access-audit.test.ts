@@ -157,6 +157,43 @@ describe("the rest of the audit", () => {
     expect(src).toMatch(/checkDoorwayWriteLimit\("rights", token\)/)
   })
 
+  it("rights links are stored hashed and expire (30 Oct 2026)", () => {
+    // No raw token left anywhere the app reads or writes.
+    for (const f of ["app/api/rights/[token]/route.ts", "lib/agency/represent.ts", "lib/agency/notices.ts", "lib/agency/closure.ts"]) {
+      expect(read(f)).not.toMatch(/rights_token/)
+    }
+    const lib = read("lib/agency/rights-link.ts")
+    expect(lib).toMatch(/token_hash: hashRightsToken\(raw\)/)
+    expect(lib).toMatch(/expires_at/)
+    const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261030120000_rights_links_hashed.sql"), "utf8")
+    expect(sql).toMatch(/token_hash\s+text not null unique/)
+    expect(sql).toMatch(/revoke all on agency\.rights_links from public, anon, authenticated/)
+    expect(sql).not.toMatch(/returning id, rights_token/)
+  })
+
+  it("a team invite never creates a confirmed account (30 Oct 2026)", () => {
+    const src = read("app/api/agency/team/route.ts")
+    expect(src).not.toMatch(/email_confirm/)
+    expect(src).toMatch(/generateLink\(\{\s*type: "invite"/)
+  })
+
+  it("agencies and job_roles take column-level writes only (30 Oct 2026)", () => {
+    const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261030120200_agency_column_grants.sql"), "utf8")
+    expect(sql).toMatch(/revoke insert, update, delete on agency\.agencies from anon, authenticated/)
+    expect(sql).toMatch(/revoke insert, update, delete on agency\.job_roles from anon, authenticated/)
+    const update = sql.match(/grant update \(([^)]*)\)\s+on agency\.job_roles/)?.[1] ?? ""
+    for (const col of ["owner_id", "discarded_at", "brief_id", "closed_at", "agency_id"]) {
+      expect(update).not.toMatch(new RegExp(`\\b${col}\\b`))
+    }
+    // Every field the role editor sends is granted, or the save would fail.
+    const route = read("app/api/agency/roles/[roleId]/route.ts")
+    const fields = [...(route.match(/FIELD_LIMITS[^{]*\{([^}]*)\}/)?.[1] ?? "").matchAll(/(\w+):/g)].map((m) => m[1])
+    expect(fields.length).toBeGreaterThan(5)
+    for (const f of [...fields, "status", "planned_rounds", "start_target", "contact_id"]) {
+      expect(update).toMatch(new RegExp(`\\b${f}\\b`))
+    }
+  })
+
   it("the tailor page's CV reader and job fetcher are rate limited", () => {
     expect(read("app/api/parse-cv/route.ts")).toMatch(/checkPublicToolLimit\(req, "parse-cv"\)/)
     expect(read("app/api/scrape-job/route.ts")).toMatch(/checkPublicToolLimit\(req, "scrape-job"\)/)

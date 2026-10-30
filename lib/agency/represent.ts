@@ -22,6 +22,7 @@
  */
 
 import { agencyAdmin, writeAudit } from "./db"
+import { resolveRightsCandidate } from "./rights-link"
 
 /** Stamped on every agreement so the record says which copy they saw. Bump on
  * any wording change to the ask. */
@@ -40,15 +41,8 @@ export async function answerRepresent(
   rawToken: string,
   answer: "agree" | "decline"
 ): Promise<RepresentOutcome> {
-  if (!rawToken || rawToken.length < 24 || rawToken.length > 96 || !/^[a-f0-9]+$/i.test(rawToken)) {
-    return "not_found"
-  }
   const admin = agencyAdmin()
-  const { data: candidate } = await admin
-    .from("candidates")
-    .select("id, agency_id, role_id, ref, represent_status")
-    .eq("rights_token", rawToken)
-    .maybeSingle()
+  const candidate = await resolveRightsCandidate(admin, rawToken, "id, agency_id, role_id, ref, represent_status")
   if (!candidate) return "not_found"
 
   const current = candidate.represent_status as RepresentStatus

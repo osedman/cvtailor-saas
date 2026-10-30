@@ -9043,3 +9043,31 @@ on staging and in #71. Prod DB is Frankfurt, so prod requests drop from
 from ~2 s to ~1 s. Staging's DB is in Ireland, so staging gets ~25 ms per
 round trip slower (50-candidate submission ≈ 0.7 s → ~2 s); still far under
 `maxDuration` 60.
+
+### 30 Oct 2026 — the three open items from the 30 Sep access audit, fixed on staging
+
+1. **Rights links hashed and expiring.** The rights link was the one doorway
+   stored raw (`agency.candidates.rights_token`, readable by every recruiter
+   in the agency, so anyone with row access could file erasure or objection
+   requests as the candidate), and it never expired. Now each email mints a
+   fresh link and only its sha256 is stored (`agency.rights_links`, server
+   only). A link works for a year, and never past 30 days after the
+   candidate's retention date. Links die with the candidate at purge. The 78
+   existing tokens were copied in as hashes, so emails already sent keep
+   working. `lib/agency/rights-link.ts`; migration
+   `20261030120000_rights_links_hashed.sql` (applied to staging). The raw
+   column is dropped by `20261030120100_drop_raw_rights_token.sql` once this
+   code is live.
+2. **Team invites no longer create confirmed accounts.** A new address now
+   gets an unconfirmed account and a Supabase invite link in the email;
+   clicking it is what confirms the address. Existing accounts are unchanged.
+3. **Column-level grants on `agencies` and `job_roles`.** Signed-in users
+   lose all direct writes to `agencies` and keep only the `job_roles` columns
+   the app writes with their session. `owner_id`, `discarded_at`, brief links
+   and closure fields now move only through the audited server paths.
+   Migration `20261030120200_agency_column_grants.sql` (applied to staging).
+
+Verified on staging by effect (rolled back): owner edits a role title, yes;
+writes `owner_id`, `discarded_at` or agency retention directly, refused;
+`rights_links` unreadable to signed-in users; 78/78 hashes match.
+Production: all three migrations wait for Ose, and for #71.

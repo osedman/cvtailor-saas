@@ -3,8 +3,10 @@
  *
  * GET    — the member list with names, for any member.
  * POST   — owner invites by email: existing Tailr users are matched by
- *          profile, new addresses get an account created (no password; they
- *          sign in with the normal magic link flow and land in the agency).
+ *          profile. A new address gets an UNCONFIRMED account and a Supabase
+ *          invite link in the email; clicking it is what confirms the address
+ *          (30 Sep 2026 access audit — this used to create the account
+ *          already confirmed, so an owner could vouch for any inbox).
  *          Audit logged; a plain notification email goes to the invitee.
  *          The response says whether that email ACTUALLY went: staging only
  *          mails EMAIL_ALLOWLIST, and a bare {added:true} over a refused send
@@ -100,9 +102,15 @@ async function POST_handler(req: NextRequest) {
       return NextResponse.json({ error: "Role must be recruiter or viewer" }, { status: 400 })
     }
 
-    // Match an existing Tailr account by email, otherwise create one. New
-    // accounts have no password; the normal magic link flow signs them in.
+    // Match an existing Tailr account by email, otherwise invite one. New
+    // accounts have no password and stay unconfirmed until the invitee
+    // clicks the link we send: only the inbox owner can confirm an address.
     const publicAdmin = createAdminClient()
+    // The business origin, not req.nextUrl.origin: this invites a recruiter to
+    // the agency product, and the link must land on the business door however
+    // the calling request happened to arrive (a preview host, an internal
+    // hostname, an apex redirect).
+    const origin = getBusinessOrigin()
     const { data: existing } = await publicAdmin
       .from("profiles")
       .select("id")
@@ -110,13 +118,16 @@ async function POST_handler(req: NextRequest) {
       .maybeSingle()
 
     let userId = existing?.id as string | undefined
+    let inviteHash: string | null = null
     if (!userId) {
-      const { data: created, error: createError } = await publicAdmin.auth.admin.createUser({
+      const { data: invited, error: inviteError } = await publicAdmin.auth.admin.generateLink({
+        type: "invite",
         email,
-        email_confirm: true,
+        options: { redirectTo: `${origin}/auth/confirm` },
       })
-      if (createError) throw createError
-      userId = created.user?.id
+      if (inviteError) throw inviteError
+      userId = invited.user?.id
+      inviteHash = invited.properties?.hashed_token ?? null
     }
     if (!userId) throw new Error("Could not resolve or create the invitee account")
 
@@ -163,15 +174,15 @@ async function POST_handler(req: NextRequest) {
       .select("name")
       .eq("id", auth.ctx.agencyId)
       .single()
-    // The business origin, not req.nextUrl.origin: this invites a recruiter to
-    // the agency product, and the link must land on the business door however
-    // the calling request happened to arrive (a preview host, an internal
-    // hostname, an apex redirect).
-    const origin = getBusinessOrigin()
+    // A new account gets its invite link (confirms the address and signs them
+    // in); an existing one signs in the usual way.
+    const signInUrl = inviteHash
+      ? `${origin}/auth/confirm?token_hash=${encodeURIComponent(inviteHash)}&type=invite&next=${encodeURIComponent("/agencies")}`
+      : `${origin}/login`
     const mail = await sendEmail({ from: b2bFrom(),
       to: email,
       subject: `You have been added to ${agencyRow?.name ?? "an agency"} on Tailr`,
-      html: `<div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fffdfa;color:#1e1813;padding:32px 28px;"><p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#dc4f33;font-weight:700;">Tailr for Agencies</p><h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;">You are on the team.</h1><p style="margin:0 0 16px;line-height:1.6;">${escapeHtml(agencyRow?.name ?? "An agency")} has added you as a ${role} on Tailr. There is no password. Sign in with this email address and a login link arrives in your inbox.</p><p style="margin:0 0 16px;"><a href="${origin}/login" style="display:inline-block;background:#1e1813;color:#fffdfa;border-radius:8px;padding:10px 16px;font-weight:600;text-decoration:none;">Sign in to Tailr</a></p></div>`,
+      html: `<div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fffdfa;color:#1e1813;padding:32px 28px;"><p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#dc4f33;font-weight:700;">Tailr for Agencies</p><h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;">You are on the team.</h1><p style="margin:0 0 16px;line-height:1.6;">${escapeHtml(agencyRow?.name ?? "An agency")} has added you as a ${role} on Tailr. There is no password. ${inviteHash ? "Use the button below to confirm this address and sign in. After that, sign in with this email address and a login link arrives in your inbox." : "Sign in with this email address and a login link arrives in your inbox."}</p><p style="margin:0 0 16px;"><a href="${signInUrl}" style="display:inline-block;background:#1e1813;color:#fffdfa;border-radius:8px;padding:10px 16px;font-weight:600;text-decoration:none;">Sign in to Tailr</a></p></div>`,
     })
 
     return NextResponse.json(

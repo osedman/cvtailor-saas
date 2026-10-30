@@ -28,6 +28,7 @@ import { EMAIL_SANS } from "@/lib/email-style"
 import { agencyNoticeFrom } from "@/lib/email-senders"
 import { getAppOrigin } from "@/lib/site-url"
 import { writeAudit, type AgencyClient } from "./db"
+import { mintRightsLinkOrNone } from "./rights-link"
 
 export interface ClosureResult {
   sent: number
@@ -93,7 +94,7 @@ export async function sendClosureNotices(
         .single(),
       admin
         .from("candidates")
-        .select("id, ref, full_name, email, rights_token, closure_notified_at")
+        .select("id, ref, full_name, email, closure_notified_at")
         .eq("role_id", roleId)
         .eq("agency_id", agencyId),
       admin.from("interview_rounds").select("candidate_id").eq("role_id", roleId),
@@ -214,6 +215,7 @@ export async function sendClosureNotices(
     if (attempted > 0 && spacingMs > 0) await new Promise((r) => setTimeout(r, spacingMs))
     attempted += 1
 
+    const rightsToken = await mintRightsLinkOrNone(admin, { id, agencyId })
     const send = await sendEmail({
       to: candidate.email as string,
       subject: `An update on the ${role.title as string} role`,
@@ -222,9 +224,7 @@ export async function sendClosureNotices(
         agencyName,
         roleTitle: (role.title as string) ?? "the role",
         retentionDays,
-        rightsUrl: candidate.rights_token
-          ? `${getAppOrigin()}/rights/${candidate.rights_token}`
-          : "",
+        rightsUrl: rightsToken ? `${getAppOrigin()}/rights/${rightsToken}` : "",
       }),
       from: agencyNoticeFrom(agencyName),
       replyTo: (agency?.notice_reply_to as string) || undefined,

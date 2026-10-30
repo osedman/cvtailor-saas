@@ -21,21 +21,35 @@ import { agencyAdmin, writeAudit } from "@/lib/agency/db"
 import { answerRepresent } from "@/lib/agency/represent"
 import { withTiming } from "@/lib/server-timing"
 import { checkDoorwayLimit, checkDoorwayWriteLimit } from "@/lib/rate-limit"
+import { resolveRightsCandidate } from "@/lib/agency/rights-link"
 
 export const maxDuration = 15
 
 const KINDS = ["access", "rectification", "erasure", "objection"] as const
 
+interface RightsCandidate {
+  id: string
+  agency_id: string
+  role_id: string
+  ref: string
+  full_name: string
+  ingested_at: string
+  retention_expires_at: string | null
+  source: string
+  represent_status: string
+  represent_answered_at: string | null
+}
+
+/** Hashed, expiring links (lib/agency/rights-link.ts, 30 Oct 2026). */
 async function resolve(token: string) {
-  if (!token || token.length < 24 || token.length > 96 || !/^[a-f0-9]+$/i.test(token)) return null
   const admin = agencyAdmin()
-  const { data } = await admin
-    .from("candidates")
-    .select("id, agency_id, role_id, ref, full_name, ingested_at, retention_expires_at, source, represent_status, represent_answered_at")
-    .eq("rights_token", token)
-    .maybeSingle()
+  const data = await resolveRightsCandidate(
+    admin,
+    token,
+    "id, agency_id, role_id, ref, full_name, ingested_at, source, represent_status, represent_answered_at"
+  )
   if (!data) return null
-  return { admin, candidate: data }
+  return { admin, candidate: data as unknown as RightsCandidate }
 }
 
 /** Same ceilings as the consent and reference doorways (30 Sep 2026 access audit). */
