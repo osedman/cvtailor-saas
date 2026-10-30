@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { isAdminEmail } from '@/lib/admin'
 import { isMarketEnabled, fetchMarket } from '@/lib/job-market'
+import { errorMessage } from '@/lib/error-message'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
 
@@ -15,9 +18,9 @@ export const maxDuration = 30
  *
  * Reports presence and lengths only — never the key itself.
  */
-export async function GET() {
+async function GET_handler() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await sessionUser(supabase)
   if (!user || !isAdminEmail(user.email)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
@@ -57,7 +60,7 @@ export async function GET() {
         bodyPreview: text.slice(0, 200),
       }
     } catch (err) {
-      directProbe = { threw: err instanceof Error ? err.message : String(err) }
+      directProbe = { threw: errorMessage(err) }
     }
   }
 
@@ -69,8 +72,11 @@ export async function GET() {
       ? { returned: 'data', totalRoles: m.totalRoles, hasBand: !!m.band, jobs: m.jobs.length }
       : { returned: 'null' }
   } catch (err) {
-    viaFetchMarket = { threw: err instanceof Error ? err.message : String(err) }
+    viaFetchMarket = { threw: errorMessage(err) }
   }
 
   return NextResponse.json({ env, directProbe, viaFetchMarket })
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/admin/market-check", "GET", GET_handler)
