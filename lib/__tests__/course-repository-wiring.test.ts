@@ -69,9 +69,8 @@ describe('course repository wiring', () => {
     }
     expect(route).toContain('Bearer ${secret}')
     expect(route).toContain('createAdminClient()')
-    // Daily, not weekly: discovery feeds the approval queue every morning, and
-    // the link-rot sweep only covers the catalog in reasonable time at this
-    // cadence. Stays within Hobby's one-trigger-per-day cron limit.
+    // Daily on main until the agency cron needs the slot (move 2, port 3
+    // decision 20 Oct 2026); staging runs it through the weekly dispatcher.
     expect(vercel.crons).toContainEqual({
       path: '/api/cron/course-sync',
       schedule: '0 3 * * *',
@@ -80,7 +79,8 @@ describe('course repository wiring', () => {
 
   it('offers a browser-friendly sync only to a signed-in admin', () => {
     const route = read('app/api/admin/course-sync/route.ts')
-    expect(route).toContain('supabase.auth.getUser()')
+    // The session's verified token (sessionUser → getClaims, 30 Sep 2026).
+    expect(route).toContain('sessionUser(supabase)')
     expect(route).toContain('isAdminEmail(user.email)')
     expect(route).toContain("searchParams.get('confirm')")
     expect(route).toContain('createAdminClient()')

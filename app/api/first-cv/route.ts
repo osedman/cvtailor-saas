@@ -5,6 +5,8 @@ import { checkRateLimit } from "@/lib/rate-limit"
 import { cleanString, isEvidenceCategory, type CvEvidenceItem } from "@/lib/first-cv"
 import { sanitizeDeep } from "@/lib/sanitize"
 import { errMessage } from "@/lib/err"
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
@@ -35,11 +37,11 @@ const CV_TOOL = {
 
 async function auth() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await sessionUser(supabase)
   return { supabase, user }
 }
 
-export async function GET() {
+async function GET_handler() {
   try {
     const { supabase, user } = await auth()
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
@@ -55,7 +57,7 @@ export async function GET() {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const { supabase, user } = await auth()
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
@@ -140,7 +142,7 @@ ${evidenceText}`
   }
 }
 
-export async function PATCH(req: NextRequest) {
+async function PATCH_handler(req: NextRequest) {
   try {
     const { supabase, user } = await auth()
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
@@ -158,3 +160,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: errMessage(error) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/first-cv", "GET", GET_handler)
+export const POST = withTiming("/api/first-cv", "POST", POST_handler)
+export const PATCH = withTiming("/api/first-cv", "PATCH", PATCH_handler)

@@ -3,6 +3,8 @@ import { isAdminEmail } from '@/lib/admin'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { syncCourseCatalog } from '@/lib/course-sync'
 import { errMessage } from '@/lib/err'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
@@ -11,9 +13,9 @@ export const maxDuration = 300
  * CRON_SECRET-only; this endpoint requires a real signed-in admin session and
  * an explicit confirmation query so merely visiting the path cannot write.
  */
-export async function GET(req: NextRequest) {
+async function GET_handler(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await sessionUser(supabase)
   if (!user || !isAdminEmail(user.email)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
@@ -35,3 +37,6 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/admin/course-sync", "GET", GET_handler)

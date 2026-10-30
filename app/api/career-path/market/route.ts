@@ -8,6 +8,8 @@ import {
 } from "@/lib/job-market"
 import type { CareerRoadmapItem } from "@/lib/anthropic"
 import { loadItems } from "@/lib/roadmap-store"
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 60
 
@@ -58,10 +60,10 @@ async function summarise(
  * cached weekly snapshot shared across users, so a cold chooser costs at most
  * 4 upstream calls and a warm one costs none.
  */
-export async function POST(req: Request) {
+async function POST_handler(req: Request) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
     if (!isMarketEnabled()) return NextResponse.json({ enabled: false })
@@ -86,10 +88,10 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET() {
+async function GET_handler() {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
     if (!isMarketEnabled()) return NextResponse.json({ enabled: false })
@@ -167,3 +169,7 @@ export async function GET() {
     return NextResponse.json({ error: errMessage(err) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/career-path/market", "POST", POST_handler)
+export const GET = withTiming("/api/career-path/market", "GET", GET_handler)
