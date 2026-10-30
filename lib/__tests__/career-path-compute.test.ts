@@ -7,6 +7,8 @@ import {
   rankGapsByUnlock,
   computeReadiness,
   readinessFromTargetSkills,
+  planPreview,
+  weeksAtPace,
   splitByEffort,
   forecastReadyDate,
   daysSinceLastStitch,
@@ -250,3 +252,44 @@ describe("splitByEffort", () => {
   })
 })
 
+
+describe("planPreview", () => {
+  const item = (skill: string, status = "todo") => ({ skill, status })
+
+  it("takes the top N open skills and reports the true total", () => {
+    const p = planPreview([item("a"), item("b"), item("c"), item("d"), item("e")], 3)
+    expect(p.top.map((i) => i.skill)).toEqual(["a", "b", "c"])
+    expect(p.total).toBe(5)
+  })
+
+  it("ignores closed skills", () => {
+    const p = planPreview([item("a", "done"), item("b"), item("c")], 3)
+    expect(p.top.map((i) => i.skill)).toEqual(["b", "c"])
+    expect(p.total).toBe(2)
+  })
+
+  it("handles fewer items than the take", () => {
+    expect(planPreview([item("a")], 3).top).toHaveLength(1)
+  })
+})
+
+describe("weeksAtPace", () => {
+  it("converts effort hours to weeks at the user's pace", () => {
+    expect(weeksAtPace(9, 3)).toBe(3)
+    expect(weeksAtPace(20, 5)).toBe(4)
+  })
+
+  it("defaults to 3 hrs/week when pace is unset", () => {
+    expect(weeksAtPace(9, null)).toBe(3)
+  })
+
+  it("never returns less than a week for real effort", () => {
+    expect(weeksAtPace(1, 10)).toBe(1)
+  })
+
+  it("returns null rather than inventing a timeframe", () => {
+    expect(weeksAtPace(null, 3)).toBeNull()
+    expect(weeksAtPace(0, 3)).toBeNull()
+    expect(weeksAtPace(undefined, 3)).toBeNull()
+  })
+})

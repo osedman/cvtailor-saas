@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isAdminEmail } from '@/lib/admin'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { errMessage } from '@/lib/err'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 60
 
@@ -25,10 +27,10 @@ function gate(email: string | undefined | null) {
   return !!email && isAdminEmail(email)
 }
 
-export async function GET(req: NextRequest) {
+async function GET_handler(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!gate(user?.email)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const sp = req.nextUrl.searchParams
@@ -80,10 +82,10 @@ export async function GET(req: NextRequest) {
 }
 
 /** Retire (or restore) catalogue entries. */
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!gate(user?.email)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await req.json().catch(() => ({}))
@@ -106,3 +108,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: errMessage(err) }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/admin/course-catalog", "GET", GET_handler)
+export const POST = withTiming("/api/admin/course-catalog", "POST", POST_handler)

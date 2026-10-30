@@ -23,10 +23,12 @@ import {
   loadItems, replaceItems, addItems, setItemStatus, removeSkill as storeRemoveSkill,
   expireStaleUpskillItems, type StoredRoadmapItem,
 } from '@/lib/roadmap-store'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
 
-const ROADMAP_COLS = 'id, created_at, updated_at, target_role, hours_per_week, current_title, milestones, intention, target_skills, findings'
+const ROADMAP_COLS = 'id, created_at, updated_at, target_role, hours_per_week, current_title, milestones, intention, target_skills, findings, plan_started_at'
 
 /**
  * Attach items from career_roadmap_items to a roadmap row.
@@ -83,10 +85,10 @@ function calibration(cv: string, intention: string): string {
 /** Surface real messages from Supabase/Postgrest errors, which are plain
  * objects (not Error instances) — otherwise String(err) yields "[object Object]". */
 
-export async function GET() {
+async function GET_handler() {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
@@ -146,11 +148,12 @@ export async function GET() {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function POST_handler(req: NextRequest) {
   const t0 = Date.now()
+  let bodyMode = 'unknown'
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
@@ -158,6 +161,7 @@ export async function POST(req: NextRequest) {
     if (limited) return limited
 
     const body = await req.json()
+    bodyMode = String(body?.mode ?? 'generate')
     const { targetRole, hoursPerWeek, skills, intention } = body
 
     // Set the weekly learning pace — drives the forecast, never a deadline.
@@ -175,6 +179,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Set/update the stated intention (goal) on its own.
+    // Acknowledge the plan review (design handoff Screen C). Either button
+    // leaves the review for good; "Start first skill" also puts the top gap in
+    // progress so the living path opens with momentum rather than a to-do list.
+    if (body?.mode === 'start-plan') {
+      const startFirst = body?.startFirst === true
+      const skill = String(body?.skill ?? '').trim()
+      if (startFirst && skill) {
+        await setItemStatus(supabase, user.id, skill, 'in_progress')
+      }
+      const { data: saved, error } = await supabase
+        .from('career_roadmaps')
+        .update({ plan_started_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .select(ROADMAP_COLS).single()
+      if (error) throw error
+      return NextResponse.json({ roadmap: await withItems(supabase, user.id, saved) })
+    }
+
     if (body?.mode === 'set-intention') {
       const value = String(body.intention ?? '').slice(0, 400)
       const { data: saved, error } = await supabase
@@ -283,7 +305,8 @@ export async function POST(req: NextRequest) {
         status: 'todo' as const,
       }))
 
-      const clean = sanitizeDeep({ target_role: role, target_skills: roleSkills })
+      // plan_started_at resets: a new North Star means a new plan to review.
+      const clean = sanitizeDeep({ target_role: role, target_skills: roleSkills, plan_started_at: null })
       const { data: savedRow, error } = await supabase
         .from('career_roadmaps')
         .upsert({ user_id: user.id, ...clean, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
@@ -373,7 +396,15 @@ export async function POST(req: NextRequest) {
         const isPlaceholder = (it.resources ?? []).length === 0 && !it.projectBrief
         const plan = planBySkill.get(it.skill.trim().toLowerCase())
         if (!isPlaceholder || !plan) return it
-        return { ...plan, skill: it.skill, status: it.status }
+        // effortHours is what the model returns; effortEstimateHours is the
+        // stored column. Without this map the estimate is generated and thrown
+        // away, and the plan review can't show a time cost.
+        return {
+          ...plan,
+          skill: it.skill,
+          status: it.status,
+          effortEstimateHours: plan.effortHours ?? null,
+        }
       })
       const savedItems = await replaceItems(
         supabase, user.id, row.id as string,
@@ -723,14 +754,18 @@ export async function POST(req: NextRequest) {
     if (status === 429) {
       return NextResponse.json({ error: 'Too many requests right now — please wait a moment and try again.' }, { status: 429 })
     }
+    // Log server-side too. Returning the message only in the response body
+    // makes a 500 invisible in the logs, which turned a one-line enrichment
+    // bug into a guessing game (6 Aug 2026).
+    console.error('[career-path] POST failed', { mode: bodyMode, error: msg })
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
 
-export async function PATCH(req: NextRequest) {
+async function PATCH_handler(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
 
@@ -763,3 +798,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/career-path", "GET", GET_handler)
+export const POST = withTiming("/api/career-path", "POST", POST_handler)
+export const PATCH = withTiming("/api/career-path", "PATCH", PATCH_handler)
