@@ -8973,3 +8973,42 @@ secrets; the seed CVs' addresses are plus-tags of one mailbox already on
 on Vercel + auto-renew, Supabase prod redirect URLs and magic-link template,
 Production variables (`NEXT_PUBLIC_BUSINESS_URL`, `CRON_SECRET`, then
 `DOMAIN_SPLIT_ENABLED`), Resend verification, and the hardening decision.
+
+### Hardening migrations rehearsed on production; 50-candidate submission measured (30 Oct 2026)
+
+Ose: "start the hardening rehearsal and load test".
+
+**Hardening rehearsal (prod, rolled back).** `20260930120000_harden_public`
+in full and `20260930120100_harden_agency` (grants + search_path) applied
+cleanly in one rolled-back transaction, then checked by behaviour as a real
+signed-in user and as anon:
+- own name / CV template edit still works (1 row); own `plan` edit now
+  refused (it was allowed);
+- `increment_tailors_used`: own counter 0→1, someone else's 0→0 (before,
+  anyone could raise anyone's count);
+- anon loses `consume_rate_limit`, `agency.has_role`, `handle_new_user`;
+  signed-in users keep `agency.has_role` (the policies need it).
+The 79 `harden_agency` index statements were checked separately: every
+table.column they name exists on prod (79/79). Code on `main` and #71 is
+unaffected: the only browser-scoped `profiles` write is `cv_template`;
+`path_digest_opt_out` and `recruiter_visibility` are written by the admin
+client; the tailor route calls the counter with the user's own id.
+Rollback verified. **Applying it awaits Ose.**
+
+**Submission load (50 candidates).** The route already pools the rebuild 5
+at a time (13 Sep fix), ~5 sequential DB round trips per candidate, so 50
+candidates ≈ 10 batches × 5 ≈ 50 sequential round trips + ~10 fixed.
+Database time measured on staging (ROL-2421, read-only, 50 iterations of
+the route's per-candidate reads): **76 ms total**, avg 1.5 ms, max 49 ms
+(cold). So wall-clock is network: staging (Vercel `dub1` ↔ Supabase
+eu-west-1) ≈ 0.7 s; production after #71 (`dub1` ↔ eu-central-1, ~25 ms
+RTT) ≈ 2 s; production on main today (no `regions` → `iad1` ↔ Frankfurt,
+~90 ms) ≈ 6 s. All far under `maxDuration` 60. Estimated from measured DB
+time and published region latencies, not an end-to-end request (no
+recruiter session from the cloud session; Vercel logs return 403 to the
+connector).
+
+**Finding:** production's Supabase is in Frankfurt but `main` runs
+functions in Washington (no `regions` key). #71 sets `dub1` (staging's DB
+is in Ireland). `fra1` would be closest for prod; it is one setting for both
+environments, so it is Ose's call.
