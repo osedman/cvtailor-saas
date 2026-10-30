@@ -9012,3 +9012,34 @@ connector).
 functions in Washington (no `regions` key). #71 sets `dub1` (staging's DB
 is in Ireland). `fra1` would be closest for prod; it is one setting for both
 environments, so it is Ose's call.
+
+### 30 Oct 2026 — hardening applied to production; functions moved to `fra1`
+
+**Hardening applied** (Ose: "apply the hardening"). `20260930120000_harden_public`
+and `20260930120100_harden_agency` ran on prod (`wgpaaafseibcqagiiavt`) as one
+DO block: source md5-checked against `origin/staging`, both files executed,
+two ledger rows written (ledger 67 → 69). Verified by effect afterwards:
+- 79 agency + 6 public `_fk_idx` indexes present; 0 public policies left
+  calling `auth.uid()` per row;
+- `consume_rate_limit`: anon no, signed-in no, service role yes;
+  `agency.has_role`: anon no, signed-in yes; `increment_tailors_used`: anon no;
+  `handle_new_user`: signed-in no;
+- `profiles`: signed-in has column update on `cv_template`, none on `plan`,
+  no table-wide update;
+- behaviour, in a transaction that rolled back: own CV-template edit works,
+  own `plan` edit refused, own counter +1, someone else's +0.
+
+**Advisors after**: the hardening's WARNs are gone. What remains is prod-only
+legacy that staging never had: `public.get_monthly_usage(p_user_id)` (SECURITY
+DEFINER, callable by anon with any id, no search_path), `handle_new_subscription()`
+exposed as RPC, duplicate `profiles` policies ("Users can view/update own
+profile"), per-row `auth.uid()` on `subscriptions`/`usage_logs`, two
+unindexed FKs on those tables, and leaked-password protection off. Not
+touched — needs Ose's go and a check of what still reads those tables.
+
+**Region → `fra1`** (Ose: "use fra1"). `vercel.json` `regions` `dub1` → `fra1`
+on staging and in #71. Prod DB is Frankfurt, so prod requests drop from
+~25 ms RTT (`dub1`) to a few ms; the 50-candidate submission estimate goes
+from ~2 s to ~1 s. Staging's DB is in Ireland, so staging gets ~25 ms per
+round trip slower (50-candidate submission ≈ 0.7 s → ~2 s); still far under
+`maxDuration` 60.

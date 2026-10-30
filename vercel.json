@@ -3,7 +3,7 @@
   "buildCommand": "pnpm build",
   "installCommand": "pnpm install",
   "regions": [
-    "dub1"
+    "fra1"
   ],
   "functions": {
     "app/api/tailor/route.ts": {
