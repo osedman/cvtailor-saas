@@ -1,0 +1,471 @@
+/**
+ * Cross-wall notifications: the silent return leg of every doorway.
+ *
+ * Tailr already mails the ASK — consent, reference request, client invite,
+ * team invite. What it never mailed was the ANSWER. A hiring manager filed a
+ * brief and it sat in the recruiter's inbox until somebody happened to look;
+ * briefs sat invisible for days. Everything here exists to close that leg.
+ *
+ * Three rules hold it together.
+ *
+ * 1. A notification carries a POINTER, never the payload. No candidate names,
+ *    no brief bodies, no write-up text, no consent answers. Email is an
+ *    insecure, un-revocable channel that gets forwarded to people who were
+ *    never on the thread — and getting the reader INTO the app is the whole
+ *    job anyway. This is the audit log's existing rule (counts, not content)
+ *    applied to the outbox.
+ *
+ * 2. The actor is never told about their own action. A recruiter who writes up
+ *    a round does not need an email announcing that a round was written up.
+ *    That one check is the difference between a signal and a folder rule.
+ *
+ * 3. Which side of the wall an event faces is declared once, in facesClient(),
+ *    so a new event cannot accidentally mail a hiring manager something only
+ *    the agency may see. The consent promise depends on this: the panel
+ *    interviewing someone is never told what that person chose.
+ *
+ * Every outcome writes an audit row, and nothing here throws — a notification
+ * that fails must never fail the write it is attached to.
+ */
+
+import { sendEmail } from "@/lib/email"
+import { EMAIL_SANS } from "@/lib/email-style"
+import { b2bFrom } from "@/lib/email-senders"
+import { createAdminClient } from "@/lib/supabase/server"
+import { getBusinessOrigin } from "@/lib/site-url"
+import { writeAudit, type AgencyClient } from "./db"
+
+export type NotifyOutcome =
+  | "sent"
+  | "skipped_actor"
+  | "skipped_no_recipient"
+  | "skipped_disabled"
+  | "partial"
+  | "failed"
+
+/** The events that cross the wall. Each one is the answer to an ask Tailr
+ * already sends. brief_filed and brief_answered went with the client-brief
+ * flow (22 Sep 2026). */
+export type NotifyEvent =
+  | { kind: "invite_accepted"; contactId: string }
+  /** Client-facing: the employer contact the pack was delivered to. */
+  | { kind: "handover_delivered"; contactId: string; roleId: string; roleTitle: string }
+  /**
+   * The client brief (23 Sep 2026, frame 25). Three face the CLIENT — a
+   * brief was sent to them, changed under them, or approved by both — and
+   * two face the AGENCY — the client changed or signed it. The contact id
+   * routes both directions: to the contact for client-facing kinds, and
+   * through whoever invited that contact for agency-facing ones.
+   */
+  | { kind: "brief_sent"; contactId: string; briefId: string; briefTitle: string; agencyName: string; version: number }
+  | { kind: "brief_changed"; contactId: string; briefId: string; briefTitle: string; agencyName: string; version: number; changed: number }
+  | { kind: "brief_approved"; contactId: string; briefId: string; briefTitle: string; agencyName: string; version: number }
+  // roleId: the role the brief belongs to, when it has one — the recruiter's
+  // email opens that role's Role & brief step (the Briefs tab retired 5 Oct 2026).
+  | { kind: "brief_amended_by_client"; contactId: string; briefId: string; briefTitle: string; version: number; changed: number; roleId?: string | null }
+  | { kind: "brief_approved_by_client"; contactId: string; briefId: string; briefTitle: string; version: number; both: boolean; roleId?: string | null }
+  | { kind: "debrief_recorded"; roleId: string; candidateRef: string }
+  | { kind: "consent_answered"; roleId: string; candidateRef: string }
+  | { kind: "reference_submitted"; roleId: string; candidateRef: string }
+  | { kind: "booking_answered"; roleId: string; candidateRef: string }
+
+export type NotifyInput = NotifyEvent & {
+  agencyId: string
+  /** Whoever caused this. Never notified about their own action. */
+  actorId?: string | null
+}
+
+type Recipient = { email: string; name: string; userId: string | null }
+
+/**
+ * Does this event face the client side of the wall?
+ *
+ * Deliberately a whitelist of one. Everything else is agency-bound, so adding
+ * an event defaults to the safe side: a new kind cannot leak to a hiring
+ * manager unless somebody edits this function on purpose.
+ */
+export function facesClient(kind: NotifyEvent["kind"]): boolean {
+  // handover_delivered (22 Sep 2026): the pack is for the employer, so the
+  // contact it was delivered to is told it is ready.
+  // brief_sent / brief_changed / brief_approved (23 Sep 2026): the brief is
+  // addressed to the contact by name and they are one of its two signatures.
+  // Nothing about a candidate travels in any of them — a brief is terms.
+  return kind === "handover_delivered" || kind === "brief_sent" || kind === "brief_changed" || kind === "brief_approved"
+}
+
+/**
+ * Whether one person wants one kind of notification.
+ *
+ * Two layers, resolved in this order and nowhere else: the person's own row
+ * wins if they have one; otherwise the agency's default (the row with a null
+ * user_id); otherwise ON. Absent means on because an unheard event is the
+ * problem this whole file exists to solve — silence is something somebody
+ * chooses, never something that happens by omission.
+ *
+ * Exported so the settings screen resolves it the same way rather than
+ * reimplementing the precedence and drifting.
+ */
+export function resolvePreference(
+  rows: Array<{ user_id: string | null; enabled: boolean }>,
+  userId: string | null
+): boolean {
+  if (userId) {
+    const mine = rows.find((r) => r.user_id === userId)
+    if (mine) return mine.enabled
+  }
+  const agencyDefault = rows.find((r) => r.user_id === null)
+  if (agencyDefault) return agencyDefault.enabled
+  return true
+}
+
+/**
+ * Send one notification. Callers decide only that the event happened; this
+ * decides who hears about it, whether they should, and what they are told.
+ */
+export async function notify(admin: AgencyClient, input: NotifyInput): Promise<NotifyOutcome> {
+  try {
+    return await notifyInner(admin, input)
+  } catch {
+    // A broken notification must never break the write it followed. The audit
+    // attempt below is best-effort for the same reason.
+    try {
+      await audit(admin, input, "failed", "notify_threw")
+    } catch {
+      /* nothing left to do */
+    }
+    return "failed"
+  }
+}
+
+async function notifyInner(admin: AgencyClient, input: NotifyInput): Promise<NotifyOutcome> {
+  const recipients = facesClient(input.kind)
+    ? await clientRecipient(admin, input)
+    : await agencyRecipients(admin, input)
+
+  // The actor caused this; they already know.
+  const targets = recipients.filter((r) => !r.userId || r.userId !== input.actorId)
+  if (recipients.length > 0 && targets.length === 0) {
+    await audit(admin, input, "skipped_actor")
+    return "skipped_actor"
+  }
+  if (targets.length === 0) {
+    await audit(admin, input, "skipped_no_recipient")
+    return "skipped_no_recipient"
+  }
+
+  // Preferences are personal, so this is per recipient, not per event. A
+  // client-facing notification is never filtered: brief_answered is a message
+  // to somebody's client about their own brief, not a preference a recruiter
+  // holds, and the table's check constraint refuses to store one.
+  let wanted = targets
+  if (!facesClient(input.kind)) {
+    const { data: prefRows } = await admin
+      .from("notification_prefs")
+      .select("user_id, enabled")
+      .eq("agency_id", input.agencyId)
+      .eq("event_kind", input.kind)
+    const rows = (prefRows ?? []) as Array<{ user_id: string | null; enabled: boolean }>
+    wanted = targets.filter((t) => resolvePreference(rows, t.userId))
+    if (wanted.length === 0) {
+      await audit(admin, input, "skipped_disabled", undefined, { of: targets.length })
+      return "skipped_disabled"
+    }
+  }
+
+  const { subject, html } = notificationHtml(input)
+  let sent = 0
+  const failures: string[] = []
+
+  for (const target of wanted) {
+    const result = await sendEmail({ from: b2bFrom(), to: target.email, subject, html })
+    if (result.sent) sent += 1
+    else failures.push(result.error ?? result.skipped ?? "unknown")
+  }
+
+  const silenced = targets.length - wanted.length
+  if (sent === wanted.length) {
+    await audit(admin, input, "sent", undefined, { recipients: wanted.length, silenced })
+    return "sent"
+  }
+  if (sent > 0) {
+    await audit(admin, input, "partial", failures[0], { sent, of: wanted.length, silenced })
+    return "partial"
+  }
+  await audit(admin, input, "failed", failures[0], { of: wanted.length, silenced })
+  return "failed"
+}
+
+/**
+ * The hiring manager who owns this client contact.
+ *
+ * One row, one address, and only ever the contact the event is about — a
+ * client is never told about another client's brief.
+ */
+async function clientRecipient(admin: AgencyClient, input: NotifyInput): Promise<Recipient[]> {
+  const contactId = "contactId" in input ? input.contactId : ""
+  if (!contactId) return []
+  const { data } = await admin
+    .from("client_contacts")
+    .select("email, full_name, agency_id")
+    .eq("id", contactId)
+    .eq("agency_id", input.agencyId)
+    .maybeSingle()
+  if (!data?.email) return []
+  return [{ email: data.email as string, name: (data.full_name as string) || "there", userId: null }]
+}
+
+/**
+ * Who on the agency side hears about this.
+ *
+ * The role's OWNER hears about role events (migration 32) — ownership is the
+ * relationship, and created_by is only the fallback it was before ownership
+ * existed. Contact events still resolve through who invited the contact. When
+ * every pointer is null (both null out on account deletion, deliberately) it
+ * falls back to the agency's owners, because an unheard event is the bug this
+ * file exists to fix.
+ */
+async function agencyRecipients(admin: AgencyClient, input: NotifyInput): Promise<Recipient[]> {
+  let preferred: string | null = null
+
+  if ("roleId" in input && input.roleId) {
+    const { data } = await admin
+      .from("job_roles")
+      .select("owner_id, created_by")
+      .eq("id", input.roleId)
+      .eq("agency_id", input.agencyId)
+      .maybeSingle()
+    // The owner runs this role (migration 32); created_by is provenance and
+    // only ever the fallback it was before ownership existed.
+    preferred = (data?.owner_id as string | null) ?? (data?.created_by as string | null) ?? null
+  } else if ("contactId" in input && input.contactId) {
+    const { data } = await admin
+      .from("client_contacts")
+      .select("created_by")
+      .eq("id", input.contactId)
+      .eq("agency_id", input.agencyId)
+      .maybeSingle()
+    preferred = (data?.created_by as string | null) ?? null
+  }
+
+  const { data: members } = await admin
+    .from("members")
+    .select("user_id, role, status")
+    .eq("agency_id", input.agencyId)
+    .eq("status", "active")
+
+  const active = members ?? []
+  if (active.length === 0) return []
+
+  // Viewers are read-only and are not the person who acts on this.
+  const actionable = active.filter((m) => m.role === "owner" || m.role === "recruiter")
+  const preferredRow = preferred ? actionable.find((m) => m.user_id === preferred) : undefined
+  const chosen = preferredRow ? [preferredRow] : actionable.filter((m) => m.role === "owner")
+  if (chosen.length === 0) return []
+
+  const ids = chosen.map((m) => m.user_id as string)
+  const publicAdmin = createAdminClient()
+  const { data: profiles } = await publicAdmin
+    .from("profiles")
+    .select("id, full_name, email")
+    .in("id", ids)
+
+  type ProfileRow = { id: string; full_name: string | null; email: string | null }
+  return ((profiles ?? []) as ProfileRow[])
+    .filter((p): p is ProfileRow & { email: string } => typeof p.email === "string" && !!p.email)
+    .map((p) => ({
+      email: p.email,
+      name: (p.full_name || "").split(" ")[0] || "there",
+      userId: p.id,
+    }))
+}
+
+async function audit(
+  admin: AgencyClient,
+  input: NotifyInput,
+  action: string,
+  reason?: string,
+  toValue?: Record<string, unknown>
+): Promise<void> {
+  await writeAudit(admin, {
+    agencyId: input.agencyId,
+    roleId: "roleId" in input ? input.roleId : undefined,
+    actorId: input.actorId ?? undefined,
+    entityType: "notification",
+    // The event kind, never its content — an entity_ref is read by people who
+    // are not entitled to the payload.
+    entityRef: input.kind,
+    action,
+    reason,
+    toValue: { ...(toValue ?? {}), faces: facesClient(input.kind) ? "client" : "agency" },
+  })
+}
+
+type Copy = {
+  subject: string
+  eyebrow: string
+  heading: string
+  body: string
+  ctaLabel: string
+  ctaUrl: string
+}
+
+/**
+ * What each event says. Pointers only: a role title, a candidate ref, a
+ * company name — all of it the agency's own shorthand, none of it the
+ * substance of what was said or decided.
+ */
+/** The rendered notification, exported so it can be previewed and signed off
+ * without sending anything — the same reason notices.ts exports noticeHtml. */
+export function notificationHtml(input: NotifyInput): { subject: string; html: string } {
+  const copy = copyFor(input)
+  return {
+    subject: copy.subject,
+    html: shell({
+      eyebrow: copy.eyebrow,
+      heading: copy.heading,
+      body: copy.body,
+      ctaLabel: copy.ctaLabel,
+      ctaUrl: copy.ctaUrl,
+    }),
+  }
+}
+
+function copyFor(input: NotifyInput): Copy {
+  const agencyOrigin = getBusinessOrigin()
+
+  switch (input.kind) {
+    case "handover_delivered":
+      return {
+        subject: `Your handover pack is ready: ${input.roleTitle}`,
+        eyebrow: "Handover",
+        heading: "Your handover pack is ready.",
+        body: `Your recruiter has handed over the record for ${esc(input.roleTitle)} — the evidence, your interview write-ups, the references and what was never evidenced. It is in your workspace to read, print or save.`,
+        ctaLabel: "Open the handover",
+        ctaUrl: `${agencyOrigin}/hiring/roles/${input.roleId}/handover`,
+      }
+
+    case "brief_sent":
+      return {
+        subject: `${input.agencyName} sent you a brief to approve: ${input.briefTitle}`,
+        eyebrow: "The brief",
+        heading: "How the search will run — for you to approve.",
+        body: `${esc(input.agencyName)} has set out the terms of the ${esc(input.briefTitle)} search: the rounds, how quickly you will decide, what you will be shown, and the feedback promise. Four things to agree, the rest to read. Change any line and it comes back to them as a new version.`,
+        ctaLabel: "Review the brief",
+        ctaUrl: `${agencyOrigin}/hiring/briefs/${input.briefId}`,
+      }
+
+    case "brief_changed":
+      return {
+        subject: `${input.agencyName} changed the brief: ${input.briefTitle} (v${input.version})`,
+        eyebrow: "The brief",
+        heading: "The brief has changed.",
+        body: `${esc(input.agencyName)} has sent v${input.version} of the ${esc(input.briefTitle)} brief, with ${input.changed === 1 ? "one line" : `${input.changed} lines`} changed and marked. Your earlier approval was on the previous version, so this one needs your signature again.`,
+        ctaLabel: "Read what changed",
+        ctaUrl: `${agencyOrigin}/hiring/briefs/${input.briefId}`,
+      }
+
+    case "brief_approved":
+      return {
+        subject: `Agreed: the brief for ${input.briefTitle} (v${input.version})`,
+        eyebrow: "The brief",
+        heading: "Both sides have signed.",
+        body: `You and ${esc(input.agencyName)} have approved v${input.version} of the ${esc(input.briefTitle)} brief. These are now the agreed terms for the role, and anywhere it departs from them you will be shown the difference.`,
+        ctaLabel: "Open the brief",
+        ctaUrl: `${agencyOrigin}/hiring/briefs/${input.briefId}`,
+      }
+
+    case "brief_amended_by_client":
+      return {
+        subject: `Your client changed the brief: ${input.briefTitle} (v${input.version})`,
+        eyebrow: "The brief",
+        heading: "The client sent back a change.",
+        body: `v${input.version} of the ${esc(input.briefTitle)} brief has ${input.changed === 1 ? "one line" : `${input.changed} lines`} changed by the client and marked. Their signature is on it; yours is needed again.`,
+        ctaLabel: "Read what changed",
+        ctaUrl: input.roleId ? `${agencyOrigin}/agencies/roles/${input.roleId}?step=intake` : `${agencyOrigin}/agencies/briefs/${input.briefId}`,
+      }
+
+    case "brief_approved_by_client":
+      return {
+        subject: input.both ? `Agreed: the brief for ${input.briefTitle} (v${input.version})` : `Your client approved the brief: ${input.briefTitle}`,
+        eyebrow: "The brief",
+        heading: input.both ? "Both sides have signed." : "The client has signed.",
+        body: input.both
+          ? `v${input.version} of the ${esc(input.briefTitle)} brief is approved by both sides. These are now the agreed terms, and the role follows them.`
+          : `The client has approved v${input.version} of the ${esc(input.briefTitle)} brief. It is waiting on your signature to become the agreed terms.`,
+        ctaLabel: "Open the brief",
+        ctaUrl: input.roleId ? `${agencyOrigin}/agencies/roles/${input.roleId}?step=intake` : `${agencyOrigin}/agencies/briefs/${input.briefId}`,
+      }
+
+    case "invite_accepted":
+      return {
+        subject: "Your client activated their access",
+        eyebrow: "Client access",
+        heading: "Your client is in.",
+        body: "The hiring manager you invited has signed in for the first time. They can now give availability and write up rounds without going through you.",
+        ctaLabel: "Open clients",
+        ctaUrl: `${agencyOrigin}/agencies/clients`,
+      }
+
+    case "debrief_recorded":
+      return {
+        subject: `Write-up in for ${input.candidateRef}`,
+        eyebrow: "A round was written up",
+        heading: "A write-up landed.",
+        body: `The hiring manager has written up their round with ${esc(input.candidateRef)}. The answers are on the candidate's dossier.`,
+        ctaLabel: "Read the write-up",
+        ctaUrl: `${agencyOrigin}/agencies/roles/${encodeURIComponent(input.roleId)}`,
+      }
+
+    case "consent_answered":
+      return {
+        subject: `${input.candidateRef} answered the recording ask`,
+        eyebrow: "A candidate replied",
+        heading: "A candidate answered.",
+        body: `${esc(input.candidateRef)} has responded to the ask about recording their interview. Their answer is on the round, and it stays between you and them.`,
+        ctaLabel: "Open the round",
+        ctaUrl: `${agencyOrigin}/agencies/roles/${encodeURIComponent(input.roleId)}`,
+      }
+
+    case "booking_answered":
+      return {
+        subject: `${input.candidateRef} answered their interview time`,
+        eyebrow: "A candidate replied",
+        heading: "A candidate answered their invitation.",
+        body: `${esc(input.candidateRef)} has responded to the time you booked. If they could not make it the slot has already gone back to the client's board, so nothing is being held.`,
+        ctaLabel: "Open the round",
+        ctaUrl: `${agencyOrigin}/agencies/roles/${encodeURIComponent(input.roleId)}`,
+      }
+
+    case "reference_submitted":
+      return {
+        subject: `A reference came back for ${input.candidateRef}`,
+        eyebrow: "A reference arrived",
+        heading: "A reference came back.",
+        body: `A referee has completed their reference for ${esc(input.candidateRef)}. It is on the candidate's dossier with the rest of their evidence.`,
+        ctaLabel: "Read the reference",
+        ctaUrl: `${agencyOrigin}/agencies/roles/${encodeURIComponent(input.roleId)}`,
+      }
+  }
+}
+
+/** One shell for every notification, matching the notice and team templates:
+ * inline styles, brand tokens, dash-free prose. */
+function shell(o: { eyebrow: string; heading: string; body: string; ctaLabel: string; ctaUrl: string }): string {
+  return `
+<div style="max-width:560px;margin:0 auto;font-family:${EMAIL_SANS};background:#fffdfa;color:#1e1813;padding:32px 28px;">
+  <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#dc4f33;font-weight:700;">${esc(o.eyebrow)}</p>
+  <h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;">${esc(o.heading)}</h1>
+  <p style="margin:0 0 20px;line-height:1.6;">${o.body}</p>
+  <p style="margin:0 0 20px;"><a href="${o.ctaUrl}" style="display:inline-block;background:#1e1813;color:#fffdfa;border-radius:8px;padding:10px 16px;font-weight:600;text-decoration:none;">${esc(o.ctaLabel)}</a></p>
+  <p style="margin:24px 0 0;font-size:12px;color:#7a7266;line-height:1.5;">Tailr sends this because something you are working on moved. The detail stays in the app rather than in your inbox.</p>
+</div>`
+}
+
+function esc(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}

@@ -1,0 +1,25 @@
+Elena Márquez
+Edinburgh · o.oifoh+can09@gmail.com · 07700 900009
+
+SUMMARY
+Data engineer, 6 years, strong streaming background. Currently in gaming.
+
+EXPERIENCE
+
+Senior Data Engineer — Aurora Interactive (2021–present)
+- Real-time event pipeline: Kafka, 12TB/day at peak, player telemetry.
+- Flink jobs for session aggregation.
+- Python throughout, 6 years.
+- BigQuery warehouse; I tune the expensive queries.
+- Terraform for our streaming infrastructure.
+
+Data Engineer — Aurora Interactive (2019–2021)
+
+NOTES
+We use Dagster rather than Airflow — the concepts carry over but I have not run
+Airflow in production. No dbt; our transforms are in Flink and raw SQL. No
+regulated-domain work and no formal mentoring yet, though I run the internal
+streaming guild.
+
+SKILLS
+Python · Kafka · Flink · BigQuery · Terraform · Dagster · SQL

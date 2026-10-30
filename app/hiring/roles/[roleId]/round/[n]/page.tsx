@@ -1,0 +1,175 @@
+"use client"
+
+/**
+ * The role room · one round — Figma frame 23, band C (22 Sep 2026).
+ *
+ * WHAT IS LIVE IS OPEN, WHAT IS DONE IS ONE LINE. This page shows only this
+ * round's people and only what is owed on them: a write-up once the interview
+ * has happened, then a decision. Everyone else in the round is one line
+ * saying where they are (booked, choosing a time, decided). Earlier rounds
+ * collapse to a line each — history one click away, never gone, never a wall
+ * of full cards beside the live ones (which is what the old role page drew).
+ */
+
+import { use } from "react"
+import Link from "next/link"
+import { HandOff, HmFrame, RoomHeader, useRoom } from "@/components/agency/hm-room"
+import { DECISION_LABEL, RoundActions, fmtWhen } from "@/components/agency/hm-shared"
+import { CaseSummary, displayName, useSubmittedCases } from "@/components/agency/hm-case"
+import { Hint } from "@/components/agency/hint"
+import { owedOn, plannedFor, roundEnded, stageHref } from "@/lib/agency/hm-room"
+import type { HiringRound } from "@/lib/agency/types"
+
+function standing(r: HiringRound, now: number): string {
+  if (r.latest_decision) return DECISION_LABEL[r.latest_decision]
+  if (roundEnded(r, now)) return r.has_debrief ? "Written up — decision owed" : "Interview held — write-up owed"
+  if (r.scheduled_at) return `Booked · ${fmtWhen(r.scheduled_at)}`
+  return "Choosing a time from your windows"
+}
+
+export default function RoundStage({ params }: { params: Promise<{ roleId: string; n: string }> }) {
+  const { roleId, n: nParam } = use(params)
+  const n = Math.max(1, Number.parseInt(nParam, 10) || 1)
+  const room = useRoom(roleId)
+  // Board 31, band A: the case the recruiter submitted, beside every
+  // decision. One read for the page; cards look their person up by ref.
+  const { cases } = useSubmittedCases(roleId)
+  const nameOf = (ref: string) => displayName(cases.state === "ready" ? cases.byRef.get(ref) : undefined, ref)
+  const now = room.nowMs
+  const planned = plannedFor(room.rounds)
+
+  const inRound = room.rounds.filter((r) => r.round_number === n && r.status !== "cancelled")
+  const owed = inRound.filter((r) => owedOn(r, now) !== null)
+  const rest = inRound.filter((r) => owedOn(r, now) === null)
+  const earlier = Array.from({ length: n - 1 }, (_, i) => i + 1)
+    .map((k) => ({ k, rounds: room.rounds.filter((r) => r.round_number === k && r.status !== "cancelled") }))
+    .filter((g) => g.rounds.length > 0)
+
+  const allDecided = inRound.length > 0 && inRound.every((r) => r.latest_decision !== null)
+  const anyAdvanced = inRound.some((r) => r.latest_decision === "advance")
+  const nextStage = anyAdvanced && n < planned ? ({ key: "round", n: n + 1 } as const) : ({ key: "decision" } as const)
+
+  const summary = (rs: HiringRound[]) => {
+    const adv = rs.filter((r) => r.latest_decision === "advance").length
+    const dec = rs.filter((r) => r.latest_decision === "decline").length
+    const hold = rs.filter((r) => r.latest_decision === "hold").length
+    const parts = [adv && `${adv} advanced`, dec && `${dec} not advanced`, hold && `${hold} on hold`].filter(Boolean)
+    return parts.length ? parts.join(", ") : "no decisions yet"
+  }
+
+  return (
+    <HmFrame screen={room.screen} crumb={`Hiring / Roles / Round ${n}`}>
+      <RoomHeader room={room} roleId={roleId} here={{ key: "round", n }} />
+
+      {inRound.length === 0 ? (
+        <section className="agd-band">
+          <div className="hm-note-card">
+            <p className="hm-note-title">Round {n} has not started.</p>
+            <p>
+              {n === 1
+                ? "Nobody invited yet. Choose who to interview on the shortlist."
+                : `Candidates you advance from round ${n - 1} book in here.`}
+            </p>
+            <Link className="agd-tbtn" href={n === 1 ? stageHref(roleId, { key: "shortlist" }) : `/hiring/roles/${roleId}/interviews`}>
+              {n === 1 ? "Go to the shortlist" : "Offer times"} →
+            </Link>
+          </div>
+        </section>
+      ) : (
+        <>
+          {owed.length > 0 && (
+            <section className="agd-band" aria-labelledby="hm-owed">
+              <div className="agd-eyebrow-row">
+                <h2 className="agd-eyebrow" id="hm-owed">
+                  {/* Information, not a gate: the write-up is still offered.
+                      Said once for the section, as a hint on its status
+                      (board 32; frame 44). */}
+                  {owed.some((r) => r.status === "scheduled") ? (
+                    <Hint bare text="Not yet confirmed as held by your recruiter. You can still write it up.">
+                      Round {n} · {owed.length === 1 ? "one needs you" : `${owed.length} need you`}
+                    </Hint>
+                  ) : (
+                    <>
+                      Round {n} · {owed.length === 1 ? "one needs you" : `${owed.length} need you`}
+                    </>
+                  )}
+                </h2>
+                <span className="agd-rule" />
+              </div>
+              <p className="agd-sub hm-stage-lede">Write up each interview, then decide.</p>
+              <div className="ag-stack" style={{ gap: 12 }}>
+                {owed.map((r) => (
+                  <RoundActions
+                    key={r.id}
+                    round={r}
+                    onDone={() => void room.reload()}
+                    who={{ name: nameOf(r.candidate_ref), title: cases.state === "ready" ? cases.byRef.get(r.candidate_ref)?.currentTitle : null }}
+                    caseSlot={<CaseSummary roleId={roleId} refId={r.candidate_ref} cases={cases} hideWho />}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {rest.length > 0 && (
+            <section className="agd-band" aria-labelledby="hm-rest">
+              <div className="agd-eyebrow-row">
+                <h2 className="agd-eyebrow" id="hm-rest">
+                  {owed.length > 0 ? `Everyone else in round ${n}` : `Round ${n}`}
+                </h2>
+                <span className="agd-rule" />
+              </div>
+              <ul className="hm-quiet-list">
+                {rest.map((r) => (
+                  <li key={r.id}>
+                    <Link href={`/hiring/roles/${roleId}/rounds/${encodeURIComponent(r.candidate_ref)}`}>{nameOf(r.candidate_ref)}</Link>
+                    <span data-decision={r.latest_decision ?? undefined}>{standing(r, now)}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
+      )}
+
+      {earlier.length > 0 && (
+        <section className="agd-band" aria-labelledby="hm-earlier">
+          <div className="agd-eyebrow-row">
+            <h2 className="agd-eyebrow" id="hm-earlier">Earlier rounds</h2>
+            <span className="agd-rule" />
+          </div>
+          <div className="ag-stack" style={{ gap: 8 }}>
+            {earlier.map((g) => (
+              <details key={g.k} className="hm-history">
+                <summary>
+                  <span>Round {g.k}</span>
+                  <span className="hm-history-sum">{summary(g.rounds)}</span>
+                  <span className="hm-history-open">Show</span>
+                </summary>
+                <ul className="hm-quiet-list">
+                  {g.rounds.map((r) => (
+                    <li key={r.id}>
+                      <Link href={`/hiring/roles/${roleId}/rounds/${encodeURIComponent(r.candidate_ref)}`}>
+                        {nameOf(r.candidate_ref)} · open their round
+                      </Link>
+                      <span data-decision={r.latest_decision ?? undefined}>{standing(r, now)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {inRound.length > 0 && (
+        <HandOff
+          text=""
+          href={stageHref(roleId, nextStage)}
+          label={nextStage.key === "round" ? `Round ${n + 1}` : "Decision"}
+          ready={allDecided}
+        />
+      )}
+    </HmFrame>
+  )
+}

@@ -1,0 +1,50 @@
+/**
+ * The hiring-manager (client actor) shell.
+ *
+ * Same design system as Tailr for Agencies — the HM surface is the agencies
+ * product seen from the client's side of the wall, not a second product, so it
+ * loads agencies.css and the same faces (Noto Sans body and display, Geist
+ * Mono chrome) rather than forking a token set.
+ *
+ * Theme: dark is a user TOGGLE now (`data-ag-theme` on <html>, applied to
+ * `.ag-themed`), not a property of this surface. The older note here said
+ * agencies.css turned dark for `.ag-app:has(.agd-main)` — that stopped being
+ * true when dark became a mode, and it misled a session on 19 Sep 2026 into
+ * treating "should /hiring be light?" as an open question when the hiring
+ * manager already chooses.
+ *
+ * THE RAIL LIVES HERE, not in each page (19 Sep 2026, Figma frame 15). Five
+ * places rendered per-page is five chances for them to disagree, and the
+ * first version of this shipped as a horizontal strip inside <main> for
+ * exactly that reason — it was easier to add to a page than to the shell.
+ * `.ag-app` is display:flex, so the rail is a sibling of <main> and the
+ * recruiter's own sidebar already works this way. HiringSidebar returns null
+ * on the invite doorway, which is not the workspace.
+ *
+ * Access model (docs/AGENCIES_SCHEMA.md §5.4): hiring managers hold no RLS
+ * grants at all. Nothing under /hiring reads Supabase from the client — every
+ * read goes through lib/agency/client-auth.ts on the server.
+ */
+
+import type { Metadata } from "next"
+import { agMono, agSans } from "@/app/fonts"
+import { AgencyShell } from "@/components/agency/agency-shell"
+import { HiringSidebar } from "@/components/agency/hiring-sidebar"
+import "../agencies/agencies.css"
+import "./hiring.css"
+
+export const metadata: Metadata = {
+  title: "Hiring — Tailr",
+  description: "Your interviews and decisions, from the agency working your roles.",
+  // A private workspace reached only by invite; never indexed.
+  robots: { index: false, follow: false },
+}
+
+export default function HiringLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AgencyShell className={`${agSans.variable} ${agMono.variable}`}>
+      <HiringSidebar />
+      {children}
+    </AgencyShell>
+  )
+}

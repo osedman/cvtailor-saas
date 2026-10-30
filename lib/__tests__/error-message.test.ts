@@ -63,5 +63,15 @@ describe("errorMessage", () => {
   })
 })
 
-// The "publish route uses it" guard travels with the matching publish route
-// (staging → main port, move 2); on main that route does not exist yet.
+describe("the publish route uses it", () => {
+  it("does not fall back to String(error)", async () => {
+    const { readFileSync } = await import("fs")
+    const { join } = await import("path")
+    const route = readFileSync(
+      join(process.cwd(), "app/api/agency/roles/[roleId]/matching/route.ts"),
+      "utf8"
+    )
+    expect(route).toMatch(/errorMessage\(error\)/)
+    expect(route).not.toMatch(/: String\(error\)/)
+  })
+})

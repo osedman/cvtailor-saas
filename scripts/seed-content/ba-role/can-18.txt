@@ -1,0 +1,19 @@
+George Adeyemi
+Milton Keynes (hybrid) · o.oifoh+ba18@gmail.com · 07700 900918
+
+SUMMARY
+Scrum Master with six years across two software teams. Some business analysis exposure but primarily delivery and coaching.
+
+EXPERIENCE
+
+Scrum Master — Ouse Systems (2020–present)
+- Run Scrum for two teams: backlog refinement with the product owner, sprint planning, reviews and retrospectives.
+- Coach the team on user story creation and Kanban flow metrics.
+- Facilitate cross-functional collaboration sessions and retrospectives.
+- Occasionally step in to help the product owner document requirements.
+
+Developer — Ouse Systems (2018–2020)
+- Java developer on the billing platform.
+
+SKILLS
+Scrum · Kanban · Jira · Facilitation · Coaching · Java (former)

@@ -1,0 +1,295 @@
+/**
+ * References and the handover pack — the end of the loop.
+ *
+ * What matters here:
+ *   1. A referee is a third party who never asked to be involved, so the
+ *      fair-processing notice goes out WITH the request and `notice_sent_at`
+ *      cannot claim otherwise.
+ *   2. The handover snapshot is frozen. Gaps are stated plainly rather than
+ *      omitted, and an outstanding reference stays visibly outstanding — an
+ *      employer inheriting this person is entitled to both.
+ *   3. The confidentiality footer survives. It has been dropped once already
+ *      during a layout rebuild, on the client document.
+ */
+import { describe, it, expect, vi, beforeEach } from "vitest"
+
+const admin = vi.hoisted(() => ({ from: vi.fn() }))
+const writeAudit = vi.hoisted(() => vi.fn())
+
+vi.mock("@/lib/agency/db", async () => {
+  const actual = await vi.importActual<typeof import("../agency/db")>("../agency/db")
+  return {
+    ...actual,
+    agencyAdmin: () => admin,
+    writeAudit,
+    assertWriter: (ctx: { role: string }) => {
+      if (ctx.role === "viewer") throw new actual.AgencyAccessError("viewers are read-only")
+    },
+  }
+})
+
+import { requestReference, recordReference } from "../agency/references"
+import { readFileSync } from "fs"
+import { join } from "path"
+import { generateHandoverPack, HANDOVER_FOOTER } from "../agency/handover"
+import { AgencyAccessError } from "../agency/db"
+import type { AgencyContext } from "../agency/types"
+
+const CTX: AgencyContext = { agencyId: "agency-1", userId: "rec-1", role: "owner" }
+const TOKEN = "b".repeat(32)
+
+function table(result: unknown, capture?: (payload: unknown) => void) {
+  const chain: Record<string, unknown> = {}
+  for (const m of ["select", "eq", "in", "is", "not", "neq", "order", "limit"]) chain[m] = () => chain
+  chain.insert = (p: unknown) => {
+    capture?.(p)
+    return chain
+  }
+  chain.update = (p: unknown) => {
+    capture?.(p)
+    return chain
+  }
+  chain.single = () => Promise.resolve(result)
+  chain.maybeSingle = () => Promise.resolve(result)
+  chain.then = (r: (v: unknown) => unknown) => r(result)
+  return chain
+}
+
+beforeEach(() => vi.clearAllMocks())
+
+describe("requestReference", () => {
+  const REF = {
+    id: "ref-1",
+    agency_id: "agency-1",
+    candidate_id: "cand-1",
+    referee_name: "Dr Sarah Lindqvist",
+    referee_email: "s@example.com",
+    status: "drafted",
+    notice_sent_at: null,
+  }
+
+  it("does NOT stamp notice_sent_at before the email is attempted — the notice is the email", async () => {
+    let patch: Record<string, unknown> = {}
+    admin.from.mockImplementation((t: string) => {
+      if (t === "candidate_references")
+        return table({ data: REF, error: null }, (p) => (patch = p as Record<string, unknown>))
+      if (t === "candidates") return table({ data: { full_name: "Amara", ref: "CAN-02" }, error: null })
+      if (t === "agencies") return table({ data: { name: "Halcyon" }, error: null })
+      return table({ data: null, error: null })
+    })
+    await requestReference(CTX, "ref-1")
+    // 21 Sep 2026: stamping here recorded "notice sent" for failed sends.
+    expect("notice_sent_at" in patch).toBe(false)
+    expect(patch.status).toBe("requested")
+  })
+
+  it("a chase does not re-stamp the notice — it is not a new one", async () => {
+    let patch: Record<string, unknown> = {}
+    const already = "2026-08-01T00:00:00.000Z"
+    admin.from.mockImplementation((t: string) => {
+      if (t === "candidate_references")
+        return table(
+          { data: { ...REF, status: "requested", notice_sent_at: already }, error: null },
+          (p) => (patch = p as Record<string, unknown>)
+        )
+      if (t === "candidates") return table({ data: { full_name: "A", ref: "CAN-02" }, error: null })
+      return table({ data: null, error: null })
+    })
+    const res = await requestReference(CTX, "ref-1")
+    expect(res.isChase).toBe(true)
+    expect("notice_sent_at" in patch).toBe(false)
+    expect(patch.status).toBe("chasing")
+  })
+
+  it("will not re-ask a referee who declined", async () => {
+    admin.from.mockImplementation(() => table({ data: { ...REF, status: "declined" }, error: null }))
+    await expect(requestReference(CTX, "ref-1")).rejects.toThrow(/declined/)
+  })
+
+  it("keeps the referee's name and address out of the audit row", async () => {
+    admin.from.mockImplementation((t: string) => {
+      if (t === "candidate_references") return table({ data: REF, error: null })
+      if (t === "candidates") return table({ data: { full_name: "A", ref: "CAN-02" }, error: null })
+      return table({ data: null, error: null })
+    })
+    await requestReference(CTX, "ref-1")
+    const entry = JSON.stringify(writeAudit.mock.calls[0]?.[1] ?? {})
+    expect(entry).not.toContain("s@example.com")
+    expect(entry).not.toContain("Lindqvist")
+  })
+})
+
+describe("recordReference", () => {
+  it("spends the token so a reply link cannot be reused", async () => {
+    let patch: Record<string, unknown> = {}
+    admin.from.mockImplementation(() =>
+      table(
+        { data: { id: "ref-1", agency_id: "agency-1", candidate_id: "cand-1", candidate_ref: "CAN-02", status: "requested" }, error: null },
+        (p) => (patch = p as Record<string, unknown>)
+      )
+    )
+    await recordReference(TOKEN, { answers: [{ key: "Q1", question: "How long?", answer: "3 years" }] })
+    expect(patch.request_token_hash).toBeNull()
+    expect(patch.status).toBe("received")
+  })
+
+  it("records a refusal as a state — silence and refusal are different", async () => {
+    let patch: Record<string, unknown> = {}
+    admin.from.mockImplementation(() =>
+      table(
+        { data: { id: "ref-1", agency_id: "agency-1", candidate_id: "cand-1", candidate_ref: "CAN-02", status: "requested" }, error: null },
+        (p) => (patch = p as Record<string, unknown>)
+      )
+    )
+    const res = await recordReference(TOKEN, { decline: true })
+    expect(res?.declined).toBe(true)
+    expect(patch.status).toBe("declined")
+  })
+
+  it("returns null for an already-answered reference", async () => {
+    admin.from.mockImplementation(() =>
+      table({ data: { id: "ref-1", agency_id: "agency-1", candidate_id: "c", candidate_ref: "", status: "received" }, error: null })
+    )
+    expect(await recordReference(TOKEN, { answers: [] })).toBeNull()
+  })
+})
+
+describe("generateHandoverPack", () => {
+  let packCalls = 0
+  beforeEach(() => {
+    packCalls = 0
+  })
+  function wire(evidence: unknown[]) {
+    admin.from.mockImplementation((t: string) => {
+      if (t === "job_roles")
+        return table({ data: { id: "role-1", ref: "ROL-2402", title: "SDE", company: "Meridian", location: "Leeds" }, error: null })
+      if (t === "candidates")
+        return table({ data: { id: "cand-1", ref: "CAN-02", full_name: "Amara Okafor", role_id: "role-1" }, error: null })
+      if (t === "agencies") return table({ data: { name: "Halcyon" }, error: null })
+      if (t === "requirements")
+        return table({
+          data: [
+            { id: "r1", ref: "R01", text: "Kafka at production scale", weight: "must" },
+            { id: "r2", ref: "R02", text: "NHS data standards", weight: "important" },
+          ],
+          error: null,
+        })
+      if (t === "candidate_evidence") return table({ data: evidence, error: null })
+      if (t === "interview_rounds") return table({ data: [], error: null })
+      if (t === "candidate_references") return table({ data: [], error: null })
+      if (t === "handover_packs") {
+        // First touch is the frozen-means-frozen existence check (no pack
+        // yet); the second is the insert. Answering both with a row is the
+        // "mock that does not implement the filter" trap.
+        packCalls += 1
+        return packCalls === 1
+          ? table({ data: null, error: null })
+          : table({ data: { id: "pack-1" }, error: null })
+      }
+      return table({ data: [], error: null })
+    })
+  }
+
+  it("returns the existing pack instead of minting a second — frozen means frozen", async () => {
+    const stored = { role: { ref: "ROL-2402" }, footer: "the footer", evidence: [], gaps: [] }
+    admin.from.mockImplementation((t: string) => {
+      if (t === "handover_packs")
+        return table({
+          data: { id: "pack-original", snapshot: stored, delivered_to_contact_id: "contact-9", delivered_at: "2026-08-23T22:00:00Z" },
+          error: null,
+        })
+      // Reaching any other table means it went on to re-derive — the failure.
+      throw new Error(`re-derived via ${t} despite an existing pack`)
+    })
+    const result = await generateHandoverPack(CTX, { roleId: "role-1", candidateId: "cand-1" })
+    expect(result.packId).toBe("pack-original")
+    expect(result.snapshot).toEqual(stored)
+    expect(result.deliveredToContactId).toBe("contact-9")
+  })
+
+  it("freezes right-to-work as words, with the employer notice", async () => {
+    // The vocabulary is load-bearing: the pack must carry "Evidence seen" and
+    // "They say none needed" — acts and reported answers — never the machine
+    // values, and never without the employer's own-check notice.
+    let packCallsLocal = 0
+    admin.from.mockImplementation((t: string) => {
+      if (t === "job_roles")
+        return table({ data: { id: "role-1", ref: "ROL-2402", title: "SDE", company: "Meridian", location: "Leeds" }, error: null })
+      if (t === "candidates")
+        return table({ data: { id: "cand-1", ref: "CAN-02", full_name: "Amara Okafor", role_id: "role-1", agency_id: "agency-1" }, error: null })
+      if (t === "agencies") return table({ data: { name: "Halcyon" }, error: null })
+      if (t === "candidate_compliance")
+        return table({
+          data: {
+            rtw_evidence: "seen",
+            rtw_note: "Passport seen on video call",
+            rtw_checked_at: "2026-08-24T09:00:00Z",
+            rtw_expires_on: null,
+            rtw_sponsorship: "not_required",
+            notice_period: "4 weeks",
+          },
+          error: null,
+        })
+      if (t === "handover_packs") {
+        packCallsLocal += 1
+        return packCallsLocal === 1
+          ? table({ data: null, error: null })
+          : table({ data: { id: "pack-1" }, error: null })
+      }
+      return table({ data: [], error: null })
+    })
+    const { snapshot } = await generateHandoverPack(CTX, { roleId: "role-1", candidateId: "cand-1" })
+    expect(snapshot.compliance).not.toBeNull()
+    expect(snapshot.compliance?.evidence).toBe("Evidence seen")
+    expect(snapshot.compliance?.sponsorship).toBe("They say none needed")
+    expect(snapshot.compliance?.note).toBe("Passport seen on video call")
+    expect(snapshot.compliance?.noticePeriod).toBe("4 weeks")
+    expect(snapshot.compliance?.employerNotice).toMatch(/employer must run its own check/)
+    // Machine values must not leak into the frozen words.
+    expect(JSON.stringify(snapshot.compliance)).not.toMatch(/"seen"|not_required/)
+  })
+
+  it("states gaps plainly instead of omitting them", async () => {
+    wire([
+      { requirement_id: "r1", strength: "strong", quote: "Ran the bus", source_cite: "R1", origin: "interview" },
+      { requirement_id: "r2", strength: "missing", quote: null, source_cite: "", origin: "cv" },
+    ])
+    const { snapshot } = await generateHandoverPack(CTX, { roleId: "role-1", candidateId: "cand-1" })
+    expect(snapshot.evidence).toHaveLength(1)
+    expect(snapshot.gaps).toEqual([{ requirement: "NHS data standards", weight: "important" }])
+  })
+
+  it("carries the confidentiality footer — it has been dropped once before", async () => {
+    wire([])
+    const { snapshot } = await generateHandoverPack(CTX, { roleId: "role-1", candidateId: "cand-1" })
+    expect(snapshot.footer).toBe(HANDOVER_FOOTER)
+    expect(snapshot.footer).toMatch(/auto-rejected/)
+  })
+
+  it("refuses a candidate who is not on that role", async () => {
+    admin.from.mockImplementation((t: string) => {
+      if (t === "job_roles") return table({ data: { id: "role-1", ref: "ROL-2402" }, error: null })
+      if (t === "candidates")
+        return table({ data: { id: "cand-1", ref: "CAN-02", role_id: "role-OTHER" }, error: null })
+      return table({ data: null, error: null })
+    })
+    await expect(
+      generateHandoverPack(CTX, { roleId: "role-1", candidateId: "cand-1" })
+    ).rejects.toBeInstanceOf(AgencyAccessError)
+  })
+
+  it("refuses viewers before touching the database", async () => {
+    admin.from.mockImplementation(() => table({ data: null, error: null }))
+    await expect(
+      generateHandoverPack({ ...CTX, role: "viewer" }, { roleId: "r", candidateId: "c" })
+    ).rejects.toBeInstanceOf(AgencyAccessError)
+    expect(admin.from).not.toHaveBeenCalled()
+  })
+})
+
+describe("the referee notice is stamped only when the email went", () => {
+  it("the route marks it sent only on a successful send", () => {
+    const route = readFileSync(join(process.cwd(), "app/api/agency/candidates/[candidateId]/references/route.ts"), "utf8")
+    expect(route).toMatch(/if \(sent\.sent\) await markReferenceNoticeSent\(/)
+  })
+})

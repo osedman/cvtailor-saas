@@ -1,0 +1,23 @@
+Sophie Grant
+Bristol (hybrid) · o.oifoh+ba07@gmail.com · 07700 900907
+
+SUMMARY
+Business Analyst with six years in retail banking digital transformation. Strong Agile delivery and stakeholder skills; growing interest in AI after a customer-service chatbot project.
+
+EXPERIENCE
+
+Business Analyst, Digital Transformation — Severn Bank (2020–present)
+- Proven experience as a Business Analyst delivering change projects across mobile banking, payments and customer onboarding.
+- Proficient in process mapping, requirements documentation and data analysis (SQL, Excel).
+- Agile environment (Scrum): backlog management, sprint planning and user story creation for a mobile squad.
+- Excellent stakeholder management across product, IT, compliance and vendors.
+- Facilitated workshops and interviews with frontline colleagues and customers.
+- Requirements lead for a customer-service chatbot using an NLP intent model; some understanding of machine learning concepts from that project.
+- Translate technical concepts into business language for the change board.
+- Some awareness of data privacy considerations from onboarding work under GDPR.
+
+Junior Business Analyst — Severn Bank (2018–2020)
+- Supported requirements gathering and UAT for the branch platform.
+
+SKILLS
+Business analysis · Requirements · Process mapping · SQL · Scrum · Jira · Workshop facilitation · GDPR basics

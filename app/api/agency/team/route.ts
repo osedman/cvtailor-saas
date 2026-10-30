@@ -1,0 +1,265 @@
+/**
+ * Team management. Agency creation stays manual; teammates are self serve.
+ *
+ * GET    — the member list with names, for any member.
+ * POST   — owner invites by email: existing Tailr users are matched by
+ *          profile. A new address gets an UNCONFIRMED account and a Supabase
+ *          invite link in the email; clicking it is what confirms the address
+ *          (30 Sep 2026 access audit — this used to create the account
+ *          already confirmed, so an owner could vouch for any inbox).
+ *          Audit logged; a plain notification email goes to the invitee.
+ *          The response says whether that email ACTUALLY went: staging only
+ *          mails EMAIL_ALLOWLIST, and a bare {added:true} over a refused send
+ *          let a tester be added and never hear about it (21 Sep 2026).
+ * PATCH  — owner changes a member's role or suspends/reactivates them.
+ *          Suspension revokes access immediately (member_agency_ids only
+ *          returns active rows) but never erases their audit history.
+ */
+
+import { NextRequest, NextResponse } from "next/server"
+import { createAdminClient } from "@/lib/supabase/server"
+import { sendEmail } from "@/lib/email"
+import { b2bFrom } from "@/lib/email-senders"
+import { agencyAdmin, requireAgencyContext, writeAudit } from "@/lib/agency/db"
+import { getBusinessOrigin } from "@/lib/site-url"
+import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
+import { checkRateLimit } from "@/lib/rate-limit"
+
+export const maxDuration = 30
+
+function authFail(failure: "unauthenticated" | "no_agency") {
+  return NextResponse.json(
+    { error: failure === "unauthenticated" ? "Unauthorised" : "No agency membership" },
+    { status: failure === "unauthenticated" ? 401 : 403 }
+  )
+}
+
+async function GET_handler() {
+  try {
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+
+    const { data: members, error } = await auth.db
+      .from("members")
+      .select("user_id, role, status, created_at")
+      .eq("agency_id", auth.ctx.agencyId)
+      .order("created_at")
+    if (error) throw error
+
+    // Names live in public.profiles; the agency-bound client can't cross
+    // schemas, so resolve them with the public admin client.
+    const publicAdmin = createAdminClient()
+    const ids = (members ?? []).map((m) => m.user_id)
+    const { data: profiles } = ids.length
+      ? await publicAdmin.from("profiles").select("id, full_name, email").in("id", ids)
+      : { data: [] }
+    const profileById = new Map((profiles ?? []).map((p: { id: string }) => [p.id, p]))
+    // Whether each person has ever signed in — so an owner can tell an
+    // invite that landed from one still sitting in an inbox (or never sent).
+    const signedIn = new Map<string, boolean>()
+    await Promise.all(
+      ids.map(async (id) => {
+        const { data } = await publicAdmin.auth.admin.getUserById(id)
+        signedIn.set(id, Boolean(data?.user?.last_sign_in_at))
+      })
+    )
+
+    return NextResponse.json({
+      members: (members ?? []).map((m) => ({
+        ...m,
+        profile: profileById.get(m.user_id) ?? null,
+        signed_in: signedIn.get(m.user_id) ?? false,
+      })),
+      caller_id: auth.ctx.userId,
+      caller_role: auth.ctx.role,
+    })
+  } catch (error) {
+    return NextResponse.json(
+      { error: errorMessage(error) },
+      { status: 500 }
+    )
+  }
+}
+
+async function POST_handler(req: NextRequest) {
+  try {
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+    if (auth.ctx.role !== "owner") {
+      return NextResponse.json({ error: "Only owners can invite teammates" }, { status: 403 })
+    }
+    const limited = await checkRateLimit(auth.ctx.userId, "team_invite")
+    if (limited) return limited
+
+    const body = await req.json()
+    const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
+    const role = body?.role
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 320) {
+      return NextResponse.json({ error: "Valid email required" }, { status: 400 })
+    }
+    if (!["recruiter", "viewer"].includes(role)) {
+      return NextResponse.json({ error: "Role must be recruiter or viewer" }, { status: 400 })
+    }
+
+    // Match an existing Tailr account by email, otherwise invite one. New
+    // accounts have no password and stay unconfirmed until the invitee
+    // clicks the link we send: only the inbox owner can confirm an address.
+    const publicAdmin = createAdminClient()
+    // The business origin, not req.nextUrl.origin: this invites a recruiter to
+    // the agency product, and the link must land on the business door however
+    // the calling request happened to arrive (a preview host, an internal
+    // hostname, an apex redirect).
+    const origin = getBusinessOrigin()
+    const { data: existing } = await publicAdmin
+      .from("profiles")
+      .select("id")
+      .ilike("email", email)
+      .maybeSingle()
+
+    let userId = existing?.id as string | undefined
+    let inviteHash: string | null = null
+    if (!userId) {
+      const { data: invited, error: inviteError } = await publicAdmin.auth.admin.generateLink({
+        type: "invite",
+        email,
+        options: { redirectTo: `${origin}/auth/confirm` },
+      })
+      if (inviteError) throw inviteError
+      userId = invited.user?.id
+      inviteHash = invited.properties?.hashed_token ?? null
+    }
+    if (!userId) throw new Error("Could not resolve or create the invitee account")
+
+    const admin = agencyAdmin()
+    // Already here in this role: say so and change nothing, rather than
+    // re-sending an invite that reads as new.
+    const { data: current, error: currentError } = await admin
+      .from("members")
+      .select("role, status")
+      .eq("agency_id", auth.ctx.agencyId)
+      .eq("user_id", userId)
+      .maybeSingle()
+    if (currentError) throw currentError
+    if (current && current.status === "active" && current.role === role) {
+      return NextResponse.json({ added: false, already: true, role })
+    }
+
+    const { error: memberError } = await admin.from("members").upsert(
+      {
+        agency_id: auth.ctx.agencyId,
+        user_id: userId,
+        role,
+        status: "active",
+        invited_by: auth.ctx.userId,
+      },
+      { onConflict: "agency_id,user_id" }
+    )
+    if (memberError) throw memberError
+
+    // Inviting someone who is already a member changes them; the log says so
+    // rather than recording a fresh invite (30 Sep 2026 access audit).
+    await writeAudit(admin, {
+      agencyId: auth.ctx.agencyId,
+      actorId: auth.ctx.userId,
+      entityType: "member",
+      entityRef: userId,
+      action: current ? "changed" : "invited",
+      fromValue: current ? { role: current.role, status: current.status } : undefined,
+      toValue: { role, status: "active" },
+    })
+
+    const { data: agencyRow } = await admin
+      .from("agencies")
+      .select("name")
+      .eq("id", auth.ctx.agencyId)
+      .single()
+    // A new account gets its invite link (confirms the address and signs them
+    // in); an existing one signs in the usual way.
+    const signInUrl = inviteHash
+      ? `${origin}/auth/confirm?token_hash=${encodeURIComponent(inviteHash)}&type=invite&next=${encodeURIComponent("/agencies")}`
+      : `${origin}/login`
+    const mail = await sendEmail({ from: b2bFrom(),
+      to: email,
+      subject: `You have been added to ${agencyRow?.name ?? "an agency"} on Tailr`,
+      html: `<div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fffdfa;color:#1e1813;padding:32px 28px;"><p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#dc4f33;font-weight:700;">Tailr for Agencies</p><h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;">You are on the team.</h1><p style="margin:0 0 16px;line-height:1.6;">${escapeHtml(agencyRow?.name ?? "An agency")} has added you as a ${role} on Tailr. There is no password. ${inviteHash ? "Use the button below to confirm this address and sign in. After that, sign in with this email address and a login link arrives in your inbox." : "Sign in with this email address and a login link arrives in your inbox."}</p><p style="margin:0 0 16px;"><a href="${signInUrl}" style="display:inline-block;background:#1e1813;color:#fffdfa;border-radius:8px;padding:10px 16px;font-weight:600;text-decoration:none;">Sign in to Tailr</a></p></div>`,
+    })
+
+    return NextResponse.json(
+      { added: true, role, email: { sent: mail.sent, skipped: mail.skipped ?? mail.error ?? null } },
+      { status: 201 }
+    )
+  } catch (error) {
+    return NextResponse.json(
+      { error: errorMessage(error) },
+      { status: 500 }
+    )
+  }
+}
+
+async function PATCH_handler(req: NextRequest) {
+  try {
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+    if (auth.ctx.role !== "owner") {
+      return NextResponse.json({ error: "Only owners can change the team" }, { status: 403 })
+    }
+
+    const body = await req.json()
+    const userId = typeof body?.user_id === "string" ? body.user_id : ""
+    if (!userId) return NextResponse.json({ error: "user_id required" }, { status: 400 })
+    if (userId === auth.ctx.userId) {
+      return NextResponse.json({ error: "Owners cannot change their own membership" }, { status: 400 })
+    }
+
+    const patch: Record<string, string> = {}
+    if (["owner", "recruiter", "viewer"].includes(body?.role)) patch.role = body.role
+    if (["active", "suspended"].includes(body?.status)) patch.status = body.status
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json({ error: "Nothing to change" }, { status: 400 })
+    }
+
+    const admin = agencyAdmin()
+    const { data: before, error: beforeError } = await admin
+      .from("members")
+      .select("role, status")
+      .eq("agency_id", auth.ctx.agencyId)
+      .eq("user_id", userId)
+      .maybeSingle()
+    if (beforeError) throw beforeError
+    if (!before) return NextResponse.json({ error: "Not a member of your agency" }, { status: 404 })
+
+    const { error } = await admin
+      .from("members")
+      .update(patch)
+      .eq("agency_id", auth.ctx.agencyId)
+      .eq("user_id", userId)
+    if (error) throw error
+
+    await writeAudit(admin, {
+      agencyId: auth.ctx.agencyId,
+      actorId: auth.ctx.userId,
+      entityType: "member",
+      entityRef: userId,
+      action: patch.status === "suspended" ? "suspended" : "changed",
+      fromValue: before,
+      toValue: patch,
+    })
+
+    return NextResponse.json({ updated: patch })
+  } catch (error) {
+    return NextResponse.json(
+      { error: errorMessage(error) },
+      { status: 500 }
+    )
+  }
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+}
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/team", "GET", GET_handler)
+export const POST = withTiming("/api/agency/team", "POST", POST_handler)
+export const PATCH = withTiming("/api/agency/team", "PATCH", PATCH_handler)

@@ -1,0 +1,251 @@
+# DPIA decisions log
+
+Every decision in this project that changes **what personal data is disclosed,
+to whom, or for how long**. Newest first.
+
+A decision is logged here whether or not it has been reviewed — the point is
+that nothing of this kind happens without a written record a reviewer can pick
+up cold. **OPEN** means it is built and running on staging and has NOT been
+through legal / DPIA review. **CLEARED** means it has.
+
+A scheduled task emails Ose the OPEN items every Sunday at 17:00, so the list
+cannot go quiet just because nobody opened this file.
+
+> Nothing in this log may contain candidate names, emails or CV text. Refer to
+> people by their ref (CAN-01).
+
+---
+
+## 2026-09-28 · Names reach the hiring manager at shortlist, before any submission
+
+**Status: OPEN** — on staging (server 28 Sep; the screen built to Figma
+board 29, approved by Ose 28 Sep). No DPIA, no legal review.
+
+**Decided by Ose**, 28 Sep 2026: "the hiring manager should be able to see
+the names of the candidates, as soon as they're shortlisted."
+
+**What changes.** Until now a candidate's name reached the client only
+through a submission (22 Sep entry below), after the right-to-represent gate
+and under the disclosure the recruiter froze. Now the hiring manager's
+shortlist stage shows each shortlisted name the moment the recruiter adds
+them — before any submission, before the recruiter has chosen what else to
+disclose.
+
+| Data | Before | After |
+|---|---|---|
+| Name of a shortlisted candidate | At submission only | At shortlist, live |
+| Name of one who **declined or withdrew** permission | Never | **Still never** — not even their ref |
+| Name of one who **asked to be withheld** (`redacted`) | Ref only | **Still ref only** |
+| Name of one who **has not answered** the ask | At submission, only with the recruiter's audited override | **Named at shortlist** (`SHOW_NAMES_BEFORE_PERMISSION = true`, Ose 28 Sep — see below) |
+| CV, evidence, scores, contact details | At submission | **Still at submission** |
+
+**How it is constrained.** Names and the time they were added; nothing
+else leaves the server. Read live from the shortlist on every visit, never
+frozen, so taking someone off removes them and an erasure removes them
+everywhere. A candidate with a **pending** erasure or objection request
+(`agency.rights_requests`) is dropped before the purge runs — the review
+found the old `candidates.erasure_requested_at` column is never written, so
+it cannot be the guard. Scoped to the role's tie to the caller, the same
+check the role room already uses — which means **every client-side contact
+tied to the role** sees the names: the role's linked contact, brief
+contacts, un-revoked submission recipients, interview panellists and
+slot contacts. The recruiter's rail therefore names the company ("Meridian
+Health sees each name as you add it"), not one person. Right-to-represent is read in one place:
+`representClientVisibility` in `lib/agency/represent.ts`. Verified on
+staging 28 Sep: a shortlisted, unanswered candidate appeared to the tied
+contact as their ref, "awaiting permission", and disappeared when the
+decision was restored; a contact with no tie got nothing. Re-verified after
+the switch was turned on: the same unanswered candidate appeared by name,
+with no withheld flag, and disappeared again on restore. The recruiter's step 05 rail says names reach the
+client as they are added; its old caption ("nothing reaches the client
+until you build it there") is withdrawn.
+
+**What a reviewer needs to decide.**
+
+1. The Art 14 notice at ingestion must say a name may be shown to the
+   client as soon as the candidate is shortlisted. It has not been updated
+   (and the 22 Sep CV gap is still open).
+2. **Unanswered candidates are now named — the switch is ON.** Ose, 28
+   Sep 2026, in reply to "name or reference?": "show names for unanswered
+   too". Why: every shortlisted candidate on staging was unanswered, so the
+   default showed the hiring manager references only, which is not the
+   feature he asked for. What it means: a person who uploaded nothing and
+   agreed to nothing — their CV came from a recruiter — can be named to a
+   client the moment they are shortlisted, before the right-to-represent
+   ask has been answered, and **without the audited override the
+   submission still requires** for the same person. That asymmetry is the
+   thing to review: either the notice and terms cover it, or naming an
+   unanswered candidate should write an audit row as the override does.
+   Declined and withdrawn still never appear; asked-to-be-withheld still
+   shows as the ref. Turning the switch back to false restores the ref.
+3. Should each first disclosure of a name to a contact write an audit row,
+   as CV views do? Today it does not.
+4. A name seen and then removed has still been seen. Does the terms of
+   business need to cover what a client does with a name from a shortlist
+   that was later changed?
+
+**Where it is implemented.** `lib/agency/client-shortlisting.ts`,
+`app/api/hiring/roles/[roleId]/shortlisting/route.ts`; the screen in
+`app/hiring/roles/[roleId]/shortlist/page.tsx` after sign-off; the rail
+copy in `components/agency/shortlist-rail.tsx`.
+
+**Migration:** none.
+
+---
+
+## 2026-09-23 · Found by the E2E: two erasure/credential gaps that pre-date this week
+
+**Status: OPEN** — both need a migration; neither is new this week, both
+were found by the 23 Sep end-to-end test (`docs/E2E-2026-09-23.md`).
+
+1. **The `/rights` credential is stored in plaintext.** `candidates.rights_token`
+   defaults to a hex string and is matched directly; every agency member
+   (viewers included) can read it under the members SELECT policy and act
+   on the candidate's rights doorway — grant right-to-represent, file a
+   rights request — in the candidate's name. No expiry, no revocation. The
+   other four doorways store sha256 + expiry. Fix: hash the column, mint
+   raw once, revoke `authenticated` SELECT on the column, add
+   `revoked_at`/expiry. A reviewer should treat the current state as a
+   confidentiality weakness on the data-subject-rights channel itself.
+2. **Purge does not reach two snapshots.** `agency.purge_candidate()` deletes
+   the row and cascades, but `submissions.snapshot` keeps the candidate's
+   name, quotes and narrative per entry and stays servable to any live
+   portal token (3 live on staging), and `handover_packs.snapshot` keeps
+   the name with `candidate_id` nulled. Erasure is therefore incomplete
+   for anyone who was ever submitted. Fix: strip that ref's entry from
+   `snapshot->'shortlisted'` and void/redact packs on erasure.
+
+Also logged, lower: the doorway rate tier (`auth`, 15/day per IP) can lock
+out every candidate behind one office address — an availability issue on
+the rights/consent doorways, not a disclosure one.
+
+---
+
+## 2026-09-23 · The brief fixes what the client is shown, before any candidate exists
+
+**Status: OPEN** — folds into the 22 Sep CV item; no new data category.
+
+The client brief (frame 25) carries a **disclosure default** — score, evidence
+quotes, recruiter notes, the CV, logistics — that the client AGREES to and
+the recruiter can still override per submission. It changes nothing about
+what MAY be disclosed (the 22 Sep decision did that); it changes WHEN the
+decision is made and by whom: up front, jointly, on a signed version, rather
+than by the recruiter alone at send time.
+
+What a reviewer should note:
+1. The Art 14 notice at ingestion still does not describe the CV disclosure
+   (open from 22 Sep). With the brief, the honest wording is now
+   knowable per role BEFORE ingestion, which is the right time to say it.
+2. The brief names client-side people (contact ids) as interviewers and
+   offer authority. These are the agency's client contacts, already held;
+   nothing new is collected about them.
+3. `brief_config` is copied onto the role and outlives the brief's later
+   versions. It contains no candidate data.
+
+Implemented: `lib/agency/brief-options.ts` (disclosure section),
+`lib/agency/search-briefs.ts` (`connectRoleToBrief` copies it),
+`20260923120000_search_briefs.sql`.
+
+---
+
+## 2026-09-22 · The hiring manager sees the name, the evidence and the CV
+
+**Status: OPEN** — built on staging, no DPIA, no legal review.
+
+**Decided by Ose**, 22 Sep 2026, explicitly and against the existing rule:
+this is how recruitment works today. A hiring manager reads the CV and the
+evidence and decides from them; a product that withholds both is describing a
+market that does not exist.
+
+**What changed.** `lib/agency/client-auth.ts` said, in a boxed comment, that a
+client must never be returned `candidates.full_name`, `cv_storage_path`, any
+CV text, or any `candidate_evidence` row — and that needing otherwise would be
+"a product decision with a DPIA attached". That rule is now:
+
+| Data | Before | After |
+|---|---|---|
+| Candidate's name | Ref only (`CAN-01`) | Disclosed through a submission, unless the candidate asked to be withheld |
+| Evidence quotes | Never | Disclosed through a submission, capped at 24 rather than 3 |
+| The CV | Never, in any shape | Disclosed through a submission, as **text with all contact details stripped** |
+| Email, phone, links, postcode | Never | **Still never** |
+| The CV **file** (`cv_storage_path`) | Never | **Still never** — the text only |
+
+**How it is constrained.**
+
+- A sixth disclosure switch, `cv`, frozen into the submission snapshot at
+  generation like the other five. **Defaults ON for new submissions** (this is
+  the normal case) and **reads OFF for any snapshot that predates it** — a
+  submission sent under the old promise is not retroactively widened. Guarded
+  by tests in `lib/__tests__/client-shortlist-disclosure.test.ts`.
+- Contact details are stripped by `lib/agency/cv-disclosure.ts`
+  (`redactContactDetails`, version `v1-2026-09-22`): emails, UK and
+  international phone numbers, personal links, UK postcodes. 19 tests probe
+  both directions — what must go, and what must survive (dates, salaries,
+  headcounts, versions, the city, the name).
+- **Served live, never frozen into the snapshot.** `agency.purge_candidate()`
+  nulls `candidates.cv_text`; a copy sealed inside a `submissions` row would
+  outlive the erasure it exists to honour. The frozen part is the decision,
+  not the document.
+- `candidates.redacted` outranks the switch, checked twice — against the
+  snapshot and against the live row at serve time, so a candidate who
+  withdraws after the submission was sent is withheld from that moment.
+- **Every view writes an audit row** (`cv_viewed_by_client`) naming the
+  contact, the submission and the redaction version, in the same operation.
+  If the audit write fails, the CV does not go.
+- Route: `app/api/hiring/roles/[roleId]/candidates/[candidateRef]/cv`. Scoped
+  to the submission, never to the ref — refs repeat across roles.
+
+**What a reviewer needs to decide.**
+
+1. Is the Art 14 notice at ingestion accurate now? It must say the CV may be
+   shown to the client. **It has not been updated** — this is the largest
+   open gap.
+2. Is "text with contact details stripped" the right disclosure, or does the
+   client need the original document? Stripping is also commercial: a client
+   who can ring the candidate can cut the agency out of its fee.
+3. Retention: the client sees the CV live, so erasure works — but does the
+   client's own copy (what they read, printed or pasted) need addressing in
+   the terms of business?
+4. Does the audit row need to be surfaced to the candidate under a subject
+   access request, and in what form?
+
+**Where it is implemented.** `lib/agency/cv-disclosure.ts`,
+`lib/agency/client-auth.ts` (the rule block), `lib/agency/client-shortlist.ts`
+(the switch and the evidence cap), `app/api/agency/roles/[roleId]/submission/route.ts`
+(freezing the switch), the CV route above, `components/agency/hm-candidate.tsx`.
+
+**Migration:** none. The switch lives in the snapshot JSON.
+
+---
+
+## Earlier decisions, logged retrospectively on 22 Sep 2026
+
+These were taken before this log existed and are recorded here so the weekly
+reminder covers everything, not just what came after it.
+
+### Capture, transcription and per-round enrichment — **OPEN (gate)**
+
+Built behind a gate and deliberately not shipped: `round_artifacts.kind` has
+no `transcript` writer and the `agency-recordings` bucket does not exist. The
+consent copy is written (`docs/CONSENT-COPY-DRAFT.md`) and has never been sent
+to a real candidate. Blocked on the DPIA and a lawyer pass. Unchanged.
+
+### The AI Act question — **OPEN**
+
+`docs/LEGAL-REVIEW-PACK.md` §8.4. Tailr scores candidates against
+requirements with verbatim evidence and refuses any inference about a person
+(no tone, sentiment, confidence or fluency). Whether the scoring itself is
+high-risk under the EU AI Act is the unanswered question.
+
+### Art 14 candidate notice at ingestion — **CLEARED in design, LIVE**
+
+Notice fires at ingestion plus `notice_delay_days` (default 7, hard cap 28),
+and cannot be switched off. **See item 1 above: its content is now out of date
+and that is an open action.**
+
+### Retention on the hire — **OPEN, needs Ose**
+
+Closing a role starts retention on the person who was hired too, and
+`placements.candidate_id` cascades, so the purge deletes the placement record
+— fee and rebate window with it. Either exempt the hire from retention or make
+the placement survive with `set null`. Needs a migration in tailr-staging.

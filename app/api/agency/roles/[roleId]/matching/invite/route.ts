@@ -1,0 +1,54 @@
+/**
+ * Invite one matched person to apply. Audited. Their card on /found says a
+ * recruiter asked; nothing else changes hands until they apply.
+ */
+
+import { NextRequest, NextResponse } from "next/server"
+import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
+import { inviteMatchedPerson, withdrawMatchedInvite } from "@/lib/agency/matched-people"
+import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
+
+export const maxDuration = 30
+
+async function POST_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  try {
+    const { roleId } = await params
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return NextResponse.json({ error: auth.failure === "unauthenticated" ? "Unauthorised" : "No agency membership" }, { status: auth.failure === "unauthenticated" ? 401 : 403 })
+    const body = await req.json().catch(() => ({}))
+    const recommendationId = typeof body?.recommendationId === "string" ? body.recommendationId : ""
+    if (!recommendationId) return NextResponse.json({ error: "recommendationId is required" }, { status: 400 })
+    const person = await inviteMatchedPerson(auth.ctx, roleId, recommendationId)
+    return NextResponse.json({ person })
+  } catch (error) {
+    if (error instanceof AgencyAccessError) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+  }
+}
+
+/**
+ * DELETE { recommendationId } → take the invitation back.
+ *
+ * The card on their /found page goes; the match itself stays, because they
+ * still match and still chose to be seen. Refused once they have applied.
+ */
+async function DELETE_handler(req: NextRequest, { params }: { params: Promise<{ roleId: string }> }) {
+  try {
+    const { roleId } = await params
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return NextResponse.json({ error: auth.failure === "unauthenticated" ? "Unauthorised" : "No agency membership" }, { status: auth.failure === "unauthenticated" ? 401 : 403 })
+    const body = await req.json().catch(() => ({}))
+    const recommendationId = typeof body?.recommendationId === "string" ? body.recommendationId : ""
+    if (!recommendationId) return NextResponse.json({ error: "recommendationId is required" }, { status: 400 })
+    const person = await withdrawMatchedInvite(auth.ctx, roleId, recommendationId)
+    return NextResponse.json({ person })
+  } catch (error) {
+    if (error instanceof AgencyAccessError) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+  }
+}
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const POST = withTiming("/api/agency/roles/[roleId]/matching/invite", "POST", POST_handler)
+export const DELETE = withTiming("/api/agency/roles/[roleId]/matching/invite", "DELETE", DELETE_handler)

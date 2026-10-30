@@ -14,5 +14,12 @@ node_modules
 .next/
 .DS_Store
 .vercel
-.claude/
+# Contents, not the directory itself: git cannot re-include a path whose parent
+# directory is excluded, so `.claude/` would make the negation below dead.
+.claude/*
+# Project skills are shared context rather than local config. Several agents
+# work this repo, and the tailr-b2b skill is where the agencies build's
+# decisions, gates and hard-won bugs live — so it belongs in git.
+# settings.local.json and launch.json remain ignored by the rule above.
+!.claude/skills/
 .env*

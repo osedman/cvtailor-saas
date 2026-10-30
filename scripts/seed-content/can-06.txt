@@ -1,0 +1,25 @@
+Joseph Adeyemi
+London · o.oifoh+can06@gmail.com · 07700 900006
+
+SUMMARY
+Backend engineer, 12 years, with the last three on data-adjacent services.
+Strong engineer; data platform is not where most of my depth sits.
+
+EXPERIENCE
+
+Staff Engineer — Lantern Payments (2016–present)
+- Payments services in Python and Go. Twelve years of Python overall.
+- Built the event pipeline on Kinesis feeding the reconciliation service,
+  roughly 800GB/day.
+- Terraform for everything we run, on AWS.
+- Redshift for analytics, though the analytics team owns the models.
+- PCI-DSS and FCA regulated; I led the tokenisation work for card data.
+- I have mentored a lot of people — six formally, including two who are now
+  staff engineers.
+
+NOTES
+I have never used dbt. My SQL is good but I would not call it deep tuning work.
+No healthcare.
+
+SKILLS
+Python · Go · Kinesis · Terraform · AWS · Redshift · SQL

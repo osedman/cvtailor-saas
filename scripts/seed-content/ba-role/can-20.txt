@@ -1,0 +1,24 @@
+Nadia Hussain
+London
+
+SUMMARY
+Senior Business Analyst with eight years in legal technology, delivering innovation and change projects for two international law firms.
+
+EXPERIENCE
+
+Senior Business Analyst, Legal Technology — Sterling Mace LLP (2021–present)
+- Proven experience as a Business Analyst with a track record of delivering innovation and change projects: knowledge management search, AI document summarisation and matter pricing tools.
+- Strong understanding of AI concepts (NLP, machine learning, generative AI) and their applications in a legal context.
+- Proficiency in process mapping, requirements documentation and data analysis (SQL, Power BI).
+- Agile environment (Scrum): backlog management, sprint planning and user story creation.
+- Excellent stakeholder management across partners, IT, compliance and vendors.
+- Facilitated workshops, interviews and cross-functional collaboration sessions.
+- Translate complex technical concepts into clear business language.
+- Familiarity with legal tech platforms (iManage, NetDocuments, Litera, Harvey) and digital transformation frameworks.
+- Awareness of data privacy, legal privilege and ethical considerations in AI deployment.
+
+Business Analyst — Sterling Mace LLP (2018–2021)
+- Document management and e-billing change projects.
+
+SKILLS
+Business analysis · Requirements · Process mapping · SQL · Power BI · Scrum · Jira · iManage · NetDocuments · Litera · Harvey · Generative AI, NLP, ML · Data privacy

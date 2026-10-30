@@ -1,0 +1,188 @@
+/**
+ * The brief's server half — the promises the code has to keep that a mock
+ * would only agree with (23 Sep 2026, frame 25). Scans by function body,
+ * never by character count (the vacuous-slice lesson of 22 Sep).
+ */
+import { describe, it, expect } from "vitest"
+import { readFileSync } from "fs"
+import { join } from "path"
+
+const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
+const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+const sql = (src: string) => src.replace(/^\s*--.*$/gm, "")
+const lib = code(read("lib/agency/search-briefs.ts"))
+const migration = sql(read("supabase/migrations/20260923120000_search_briefs.sql"))
+const hmRoute = code(read("app/api/hiring/briefs/[briefId]/route.ts"))
+const files = code(read("lib/agency/brief-files.ts"))
+const fnBody = (src: string, marker: string): string => {
+  const start = src.indexOf(marker)
+  if (start === -1) throw new Error(`not found: ${marker}`)
+  const next = src.indexOf("\nexport ", start + marker.length)
+  return src.slice(start, next === -1 ? src.length : next)
+}
+
+describe("approved means both signatures on one version", () => {
+  it("a role connects only to an approved brief", () => {
+    const fn = fnBody(lib, "export async function connectRoleToBrief")
+    expect(fn).toMatch(/view\.state !== "approved"/)
+    expect(fn).toMatch(/AgencyAccessError/)
+  })
+  it("approving is for the CURRENT version only, on both sides", () => {
+    for (const m of ["export async function recruiterApprove", "export async function clientApprove"]) {
+      expect(fnBody(lib, m)).toMatch(/version !== view\.currentVersion/)
+    }
+  })
+  it("an amendment is a NEW row signed by its author only — nothing is un-signed", () => {
+    const r = fnBody(lib, "export async function recruiterAmend")
+    expect(r).toMatch(/\.insert\(/)
+    expect(r).toMatch(/recruiter_approved_at: now/)
+    expect(r).not.toMatch(/client_approved_at: null/)
+    const c = fnBody(lib, "export async function clientAmend")
+    expect(c).toMatch(/\.insert\(/)
+    expect(c).toMatch(/client_approved_at: now/)
+    expect(c).not.toMatch(/recruiter_approved_at: null/)
+  })
+  it("the database refuses a signature on an unsent draft", () => {
+    expect(migration).toMatch(/search_brief_versions_signed_means_sent[\s\S]{0,200}sent_at is not null\s+or \(recruiter_approved_at is null and client_approved_at is null\)/)
+  })
+})
+
+describe("the client's side is scoped and tiered", () => {
+  it("reads only briefs addressed to the caller's own contact ids", () => {
+    const fn = fnBody(lib, "export async function getBriefForClient")
+    expect(fn).toMatch(/clientContactIds\(ctx/)
+    expect(fn).toMatch(/return null/)
+  })
+  it("never shows a draft to the client", () => {
+    expect(fnBody(lib, "export async function getBriefForClient")).toMatch(/view\.state === "draft"\) return null/)
+    expect(fnBody(lib, "export async function listBriefsForClient")).toMatch(/!v\.sent_at\) continue/)
+  })
+  it("a client amendment goes through applyClientAmendment, so tier-2 keys cannot move", () => {
+    expect(fnBody(lib, "export async function clientAmend")).toMatch(/applyClientAmendment\(view\.latest\.config, proposed\)/)
+  })
+  it("the agency's internal ids stay on the agency's side", () => {
+    expect(hmRoute).toMatch(/const \{ agencyId, contactId, connectedRoles, \.\.\.rest \} = brief/)
+  })
+})
+
+describe("connecting copies; nothing reads the brief live", () => {
+  it("writes the whole config and the version onto the role together", () => {
+    const fn = fnBody(lib, "export async function connectRoleToBrief")
+    for (const k of ["brief_id: briefId", "brief_version: view.currentVersion", "brief_config: c", "brief_connected_at: now"]) expect(fn).toContain(k)
+  })
+  it("the database refuses half a connection", () => {
+    expect(migration).toMatch(/job_roles_brief_connection_whole/)
+    expect(migration).toMatch(/brief_id is not null and brief_version is not null and brief_config is not null and brief_connected_at is not null/)
+  })
+  it("divergence is computed from the COPY, on read", () => {
+    const fn = fnBody(lib, "export async function roleBriefStatus")
+    expect(fn).toMatch(/normaliseBrief\(role\.brief_config\)/)
+    expect(fn).not.toMatch(/differences_stored|divergence_flag/)
+  })
+  it("copies the job description's text into the role's intake ONLY when that is empty", () => {
+    const fn = fnBody(lib, "export async function connectRoleToBrief")
+    expect(fn).toMatch(/const intakeEmpty = !String\(role\.jd_raw \?\? ""\)\.trim\(\)/)
+    expect(fn).toMatch(/if \(intakeEmpty && c\.jdFileId\)/)
+    expect(fn).toMatch(/getBriefJdText\(briefId, c\.jdFileId\)/)
+    expect(fn).toMatch(/\.\.\.\(jdFromBrief \? \{ jd_raw: jdFromBrief\.text \} : \{\}\)/)
+    // The audit row says which file it came from.
+    expect(fn).toMatch(/jd_file: jdFromBrief \? jdFromBrief\.name : null/)
+    // Disconnect leaves the intake alone: what was copied is the recruiter's now.
+    expect(fnBody(lib, "export async function disconnectRoleFromBrief")).not.toMatch(/jd_raw/)
+  })
+  it("does not map the brief's time-of-day windows onto the settings' date windows", () => {
+    const fn = fnBody(lib, "export async function connectRoleToBrief")
+    expect(fn).not.toMatch(/windowFrom: c\.windowFrom|windowTo: c\.windowTo/)
+  })
+})
+
+describe("the tables are audit-coupled", () => {
+  it("grants the browser SELECT only and the service role the writes", () => {
+    for (const t of ["search_briefs", "search_brief_versions"]) {
+      expect(migration).toMatch(new RegExp(`grant select on agency\\.${t} to authenticated`))
+      expect(migration).toMatch(new RegExp(`grant select, insert, update, delete on agency\\.${t} to service_role`))
+      expect(migration).not.toMatch(new RegExp(`grant (insert|update|delete)[^;]*agency\\.${t} to authenticated`))
+    }
+  })
+  it("every write in the module writes an audit row", () => {
+    for (const m of ["createBrief", "sendBrief", "recruiterAmend", "recruiterApprove", "discardDraft", "clientAmend", "clientApprove", "connectRoleToBrief", "disconnectRoleFromBrief", "startRoleBrief"]) {
+      expect(fnBody(lib, `export async function ${m}`), m).toMatch(/writeAudit\(/)
+    }
+    // The one write that lives next door: attaching a job description.
+    expect(fnBody(files, "export async function storeBriefJd")).toMatch(/writeAudit\(/)
+    expect(fnBody(files, "export async function storeBriefJd")).toMatch(/action: "brief_jd_attached"/)
+  })
+  it("no version is written naming a job description that is not a live file on that brief", () => {
+    // normaliseBrief knows only that jdFileId is uuid-shaped. The three
+    // writes that record a config check the file before the row goes in, so
+    // a version both sides sign cannot describe a file that is not there.
+    for (const m of ["saveDraft", "recruiterAmend", "clientAmend"]) {
+      const body = fnBody(lib, `export async function ${m}`)
+      expect(body, m).toMatch(/await assertJdOnBrief\(briefId, config\.jdFileId\)/)
+      expect(body.indexOf("assertJdOnBrief("), m).toBeLessThan(body.search(/\.from\("search_brief_versions"\)\.(insert|update)\(/))
+    }
+  })
+  it("the client-facing notification kinds are NOT storable as preferences", () => {
+    const list = migration.slice(migration.lastIndexOf("event_kind in ("))
+    for (const k of ["brief_sent", "brief_changed", "brief_approved'"]) expect(list).not.toContain(`'${k}`)
+    for (const k of ["brief_amended_by_client", "brief_approved_by_client"]) expect(list).toContain(`'${k}'`)
+  })
+})
+
+describe("one brief per role, written on step 01 (frame 36, 2 Oct 2026)", () => {
+  const helper = (name: string) => {
+    const start = lib.indexOf(`async function ${name}(`)
+    if (start === -1) throw new Error(`not found: ${name}`)
+    const next = lib.indexOf("\nasync function ", start + 10)
+    const exp = lib.indexOf("\nexport ", start + 10)
+    const end = [next, exp].filter((i) => i > -1).sort((a, b) => a - b)[0]
+    return lib.slice(start, end ?? lib.length)
+  }
+
+  it("a role's brief is addressed to its hiring manager, so one must be named first", () => {
+    const fn = fnBody(lib, "export async function startRoleBrief")
+    expect(fn).toMatch(/if \(!role\.contact_id\) throw new AgencyAccessError/)
+    expect(fn).toMatch(/if \(role\.brief_id\) throw new AgencyAccessError/)
+  })
+
+  it("links the role in one guarded write, so two clicks cannot leave two briefs on one role", () => {
+    const fn = fnBody(lib, "export async function startRoleBrief")
+    for (const k of ["brief_id: briefId", "brief_version: view.currentVersion", "brief_config: c", "brief_connected_at: now"]) expect(fn).toContain(k)
+    expect(fn).toMatch(/\.is\("brief_id", null\)/)
+    // The loser's draft is discarded rather than left orphaned.
+    expect(fn).toMatch(/discarded_at: now/)
+  })
+
+  it("starts from the last brief agreed with the same client", () => {
+    expect(fnBody(lib, "export async function startRoleBrief")).toMatch(/b\.state === "approved" && b\.company\.trim\(\)\.toLowerCase\(\) === company/)
+  })
+
+  it("the role follows the recruiter's versions and signed ones — never a client's unanswered amendment", () => {
+    const fn = helper("followBrief")
+    expect(fn).toMatch(/view\.latest\.authoredBy === "recruiter" \|\| view\.state === "approved"/)
+    // Briefs shared by several roles before 2 Oct are left alone.
+    expect(fn).toMatch(/view\.connectedRoles\.length !== 1\) return/)
+    expect(fn).toMatch(/writeAudit\(/)
+    expect(fnBody(lib, "export async function clientAmend")).not.toMatch(/followBrief\(/)
+    for (const m of ["saveDraft", "sendBrief", "recruiterAmend", "recruiterApprove", "clientApprove"]) {
+      expect(fnBody(lib, `export async function ${m}`), m).toMatch(/followBrief\(/)
+    }
+  })
+
+  it("only interview terms that CHANGED are mapped, so a tweak on the interviews screen survives", () => {
+    const fn = helper("applyInterviewTerms")
+    expect(fn).toMatch(/!prev \|\| prev\.noticeHours !== c\.noticeHours/)
+    expect(fn).not.toMatch(/windowFrom|windowTo/)
+  })
+
+  it("a brief cannot be connected to a second role", () => {
+    expect(fnBody(lib, "export async function connectRoleToBrief")).toMatch(/view\.connectedRoles\.some\(\(r\) => r\.id !== roleId\)/)
+  })
+
+  it("the client sees the role's job description on the brief when nothing else was attached", () => {
+    const send = fnBody(lib, "export async function sendBrief")
+    expect(send).toMatch(/const config = await attachRoleJd\(ctx, briefId, view\.latest\.config\)/)
+    expect(send.indexOf("attachRoleJd(")).toBeLessThan(send.indexOf("sent_at: now"))
+    expect(helper("attachRoleJd")).toMatch(/if \(config\.jdFileId\) return config/)
+  })
+})

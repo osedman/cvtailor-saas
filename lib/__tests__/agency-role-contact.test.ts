@@ -1,0 +1,49 @@
+/**
+ * The brief is the recruiter's job description (smooth-flow plan, Wave 5a):
+ * the hiring-manager contact, the planned rounds and the start target are
+ * set at intake. Source scans pin the one line that matters — a role can
+ * never point at another agency's contact — and that the tie reaches the
+ * client's workspace and the header's client name.
+ */
+import { describe, it, expect } from "vitest"
+import { readFileSync } from "fs"
+import { join } from "path"
+import { tsCode } from "./helpers/source-scan"
+
+const read = (p: string) => tsCode(readFileSync(join(process.cwd(), p), "utf8"))
+
+describe("the role's contact", () => {
+  it("is checked against the caller's agency before it is written", () => {
+    const src = read("app/api/agency/roles/[roleId]/route.ts")
+    expect(src).toMatch(/from\("client_contacts"\)[\s\S]{0,120}\.eq\("agency_id", auth\.ctx\.agencyId\)[\s\S]{0,60}\.eq\("id", body\.contact_id\)/)
+    expect(src).toMatch(/That contact is not in your agency/)
+  })
+  it("planned rounds stay inside the schema's 1–6, or null", () => {
+    const src = read("app/api/agency/roles/[roleId]/route.ts")
+    expect(src).toMatch(/body\.planned_rounds >= 1 && body\.planned_rounds <= 6/)
+  })
+  it("ties the role to the client's workspace", () => {
+    const src = read("lib/agency/client-header.ts")
+    expect(src).toMatch(/from\("job_roles"\)\.select\("id, agency_id, contact_id"\)\.in\("contact_id", contactIds\)/)
+  })
+  it("names the client on the header from the role first, then the brief", () => {
+    const src = read("lib/agency/role-facts.ts")
+    // Same precedence, batched shape (10 Sep 2026): the brief contacts are
+    // grouped by role once rather than read per role.
+    expect(src).toMatch(/\(role\.contact_id as string \| null\) \?\? briefByRole\.get\(roleId\)/)
+  })
+  it("intake names the hiring manager and the start target; the brief sets the rounds", () => {
+    const src = read("app/agencies/roles/[roleId]/page.tsx")
+    expect(src).toMatch(/id="role-contact"/)
+    // The planned-rounds dropdown went with frame 36 (2 Oct 2026): the
+    // role's own brief names its rounds, and the role follows it.
+    expect(src).not.toMatch(/id="role-rounds"/)
+    expect(read("lib/agency/search-briefs.ts")).toMatch(/planned_rounds: c\.rounds\.length/)
+    expect(src).toMatch(/Start target/)
+    expect(src).toMatch(/fetch\("\/api\/agency\/clients"\)/)
+  })
+  it("the migration is additive and set-null", () => {
+    const sql = readFileSync(join(process.cwd(), "supabase/migrations/20260905100000_role_contact.sql"), "utf8")
+    expect(sql).toMatch(/add column if not exists contact_id uuid references agency\.client_contacts on delete set null/)
+  })
+})

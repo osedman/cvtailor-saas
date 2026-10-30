@@ -1,0 +1,452 @@
+/**
+ * Client submission generation.
+ *
+ * POST { format: 'document'|'email'|'portal', recipients?: [{contact_id}], extras?: { email?: boolean }, expires_days? }
+ *
+ * The scores in the snapshot are recomputed server-side HERE, at generation
+ * time, from current database state — no score supplied by any client is ever
+ * accepted, and a stale cache cannot leak because the cache is refreshed as
+ * part of generating. The snapshot is immutable once written; recruiter_notes
+ * never enter it. Portal recipients each get their own token (returned raw
+ * exactly once, stored only as a sha256 hash).
+ */
+
+import { createHash, randomBytes } from "crypto"
+import { NextRequest, NextResponse } from "next/server"
+import {
+  AgencyAccessError,
+  agencyAdmin,
+  assertWriter,
+  getJobRole,
+  requireAgencyContext,
+  writeAudit,
+} from "@/lib/agency/db"
+import { checkRepresentGate } from "@/lib/agency/represent"
+import { getAppOrigin, getBusinessOrigin } from "@/lib/site-url"
+import { createClientInvite } from "@/lib/agency/client-auth"
+import { sendEmail } from "@/lib/email"
+import { agencyNoticeFrom } from "@/lib/email-senders"
+import { shortlistEmailHtml, shortlistEmailSubject } from "@/lib/agency/shortlist-email"
+import { recomputeAndStore } from "@/lib/agency/rescore"
+import { probeAreasForClient } from "@/lib/agency/probes"
+import { listWrittenQuestions } from "@/lib/agency/screening-questions"
+import { errorMessage } from "@/lib/error-message"
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
+
+export const maxDuration = 60
+
+const DEFAULT_EXPIRY_DAYS = 30
+const MAX_EXPIRY_DAYS = 90
+
+function authFail(failure: "unauthenticated" | "no_agency") {
+  return NextResponse.json(
+    { error: failure === "unauthenticated" ? "Unauthorised" : "No agency membership" },
+    { status: failure === "unauthenticated" ? 401 : 403 }
+  )
+}
+
+async function GET_handler(
+  _req: NextRequest,
+  { params }: { params: Promise<{ roleId: string }> }
+) {
+  try {
+    const { roleId } = await params
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+    const { data, error } = await auth.db
+      .from("submissions")
+      .select("id, format, engine_version, generated_at, snapshot")
+      .eq("role_id", roleId)
+      // RLS admits every agency the caller belongs to; the ACTING agency is
+      // the boundary, as on every sibling read (23 Sep E2E).
+      .eq("agency_id", auth.ctx.agencyId)
+      .order("generated_at", { ascending: false })
+    if (error) throw error
+    return NextResponse.json({ submissions: data ?? [] })
+  } catch (error) {
+    return NextResponse.json(
+      { error: errorMessage(error) },
+      { status: 500 }
+    )
+  }
+}
+
+async function POST_handler(
+  req: NextRequest,
+  { params }: { params: Promise<{ roleId: string }> }
+) {
+  try {
+    const { roleId } = await params
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+    assertWriter(auth.ctx)
+
+    const body = await req.json()
+    const format = body?.format
+    if (!["document", "email", "portal"].includes(format)) {
+      return NextResponse.json({ error: "Invalid format" }, { status: 400 })
+    }
+
+    const role = await getJobRole(auth.db, auth.ctx, roleId)
+    if (!role) return NextResponse.json({ error: "Role not found" }, { status: 404 })
+
+    const admin = agencyAdmin()
+
+    const { data: decisions, error: decisionError } = await admin
+      .from("recruiter_reviews")
+      .select("candidate_id, decision, decision_note")
+      .eq("role_id", roleId)
+    if (decisionError) throw decisionError
+    const shortlisted = (decisions ?? []).filter((d) => d.decision === "shortlist")
+    if (shortlisted.length === 0) {
+      return NextResponse.json({ error: "Nothing shortlisted yet" }, { status: 400 })
+    }
+
+    // Right to represent, checked BEFORE anything renders. Declined and
+    // withdrawn refuse outright — those candidates answered, and a recruiter
+    // cannot answer over them. Unanswered needs the loud per-submission
+    // override, which is audited in the gate so the trail shows who overrode
+    // for whom. The 409 carries the refs so the screen can name names.
+    const gate = await checkRepresentGate(admin, {
+      agencyId: auth.ctx.agencyId,
+      roleId,
+      actorId: auth.ctx.userId,
+      candidateIds: shortlisted.map((d) => d.candidate_id as string),
+      overrideUnanswered: body?.representOverride === true,
+    })
+    if (!gate.ok) {
+      return gate.kind === "answered_no"
+        ? NextResponse.json(
+            {
+              error: `Cannot submit ${gate.refused.join(", ")} — they declined or withdrew permission to be put forward. Their answer stands.`,
+              refused: gate.refused,
+            },
+            { status: 400 }
+          )
+        : NextResponse.json(
+            {
+              error: `${gate.refused.join(", ")} ${gate.refused.length === 1 ? "has" : "have"} not answered the ask to be put forward.`,
+              needsRepresentOverride: gate.refused,
+            },
+            { status: 409 }
+          )
+    }
+
+    const { data: requirements } = await admin
+      .from("requirements")
+      .select("id, ref, text, weight")
+      .eq("role_id", roleId)
+      .order("sort_order")
+    const requirementById = new Map((requirements ?? []).map((r) => [r.id, r]))
+    // Questions the recruiter wrote, so the focus line can name them too
+    // (frame 37). The questions only — answers and the call record stay home.
+    const written = await listWrittenQuestions(auth.ctx.agencyId, roleId)
+
+    /**
+     * Build one snapshot entry per shortlisted candidate, on fresh scores.
+     *
+     * This ran one candidate after another until 13 Sep 2026 — roughly four
+     * sequential round-trip waves each, so ten candidates meant forty waves
+     * in series against maxDuration 60. It runs through a bounded pool now:
+     * still every candidate, still the same work, just not one at a time —
+     * which is what let MAX_CANDIDATES_PER_ROLE go to fifty on 14 Sep 2026.
+     *
+     * Results are written back at their own index rather than pushed, so the
+     * pre-sort ordering is identical to the sequential version — entries is
+     * sorted by score below, and this keeps ties in the same order too.
+     */
+    const buildEntry = async (decision: (typeof shortlisted)[number]) => {
+      // Purge race: a candidate erased after being shortlisted throws inside
+      // the rescore; omit them rather than rendering from stale data.
+      let score
+      try {
+        // requirements are role-level and already loaded above; passing them
+        // in stops the rescore re-reading the same rows once per candidate.
+        score = await recomputeAndStore(admin, auth.ctx.agencyId, decision.candidate_id, requirements ?? [])
+      } catch (raceError) {
+        if (raceError instanceof AgencyAccessError) return null
+        throw raceError
+      }
+
+      const [{ data: candidate }, { data: evidence }, { data: review }] = await Promise.all([
+        admin
+          .from("candidates")
+          .select("id, ref, full_name, current_title, years, location, redacted")
+          .eq("id", decision.candidate_id)
+          .maybeSingle(),
+        admin
+          .from("candidate_evidence")
+          .select("requirement_id, strength, quote, origin")
+          .eq("candidate_id", decision.candidate_id),
+        admin
+          .from("candidate_reviews")
+          .select("status, notes, call_answers, availability, salary_confirm")
+          .eq("candidate_id", decision.candidate_id)
+          .maybeSingle(),
+      ])
+
+      if (!candidate) return null
+
+      const strengths = (evidence ?? [])
+        .filter((e) => (score.effective[e.requirement_id] ?? e.strength) === "strong" && e.quote)
+        .slice(0, 5)
+        .map((e) => ({
+          requirement: requirementById.get(e.requirement_id)?.text ?? "",
+          quote: e.quote,
+        }))
+      const gaps = (requirements ?? [])
+        .filter((r) => (score.effective[r.id] ?? "missing") === "missing")
+        .map((r) => ({ requirement: r.text, weight: r.weight }))
+
+      return {
+        ref: candidate.ref,
+        full_name: candidate.full_name,
+        current_title: candidate.current_title,
+        years: candidate.years,
+        location: candidate.location,
+        redacted: candidate.redacted,
+        overall: score.overall,
+        original_overall: score.original_overall,
+        categories: {
+          requirement_coverage: score.requirement_coverage,
+          evidence_strength: score.evidence_strength,
+          seniority_calibration: score.seniority_calibration,
+          context_fit: score.context_fit,
+          confidence_completeness: score.confidence_completeness,
+        },
+        must_have_hit: score.must_have_hit,
+        must_have_total: score.must_have_total,
+        confidence_level: score.confidence_level,
+        reviewed: review?.status === "reviewed",
+        availability: review?.availability ?? "",
+        salary_confirm: review?.salary_confirm ?? "",
+        // The recruiter's own words, written for the client. Never
+        // recruiter_notes from the role (private) — this is the screening
+        // narrative the recruiter chose to record.
+        narrative: review?.notes ?? "",
+        strengths,
+        gaps,
+        // "Suggested interview focus" in the client document: the questions
+        // the recruiter actually put on the call script for this person,
+        // resolved from call_answers keys back into readable text.
+        probe_areas: probeAreasForClient(
+          review?.call_answers as Record<string, string> | null,
+          (requirements ?? []).map((r) => ({ ref: r.ref, text: r.text })),
+          written
+        ),
+      }
+    }
+
+    // Five at a time: enough to collapse the wall-clock, few enough that a
+    // fifty-candidate shortlist cannot open fifty connections at once.
+    const CONCURRENCY = 5
+    const built = new Array<Awaited<ReturnType<typeof buildEntry>>>(shortlisted.length).fill(null)
+    let cursor = 0
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, shortlisted.length) }, async () => {
+        for (let i = cursor++; i < shortlisted.length; i = cursor++) {
+          built[i] = await buildEntry(shortlisted[i])
+        }
+      })
+    )
+    const entries = built.filter((e): e is NonNullable<typeof e> => e !== null)
+
+    entries.sort((a, b) => b.overall - a.overall)
+
+    /**
+     * What the recruiter chose to disclose, frozen with everything else.
+     * Applying these at render time would let a stored submission look
+     * different later, which is exactly what an immutable snapshot exists to
+     * prevent — so the choice is part of the record, not a view setting.
+     */
+    // The recruiter's greeting, written in their words, capped like every
+    // other recruiter-typed field.
+    const intro = typeof body?.intro === "string" ? body.intro.slice(0, 1200) : ""
+    const d = (body?.disclosure ?? {}) as Record<string, unknown>
+    const disclosure = {
+      scores: d.scores !== false,
+      evidence: d.evidence !== false,
+      probes: d.probes !== false,
+      notes: d.notes === true,
+      logistics: d.logistics !== false,
+      /**
+       * The CV itself (22 Sep 2026). On by default, because showing the
+       * client the CV is how the process works and a default of OFF would
+       * make the normal case the one you have to remember. The switch still
+       * exists so a recruiter can withhold it deliberately, and — like the
+       * other five — it freezes here rather than being read at render time.
+       *
+       * The DOCUMENT is not frozen with it: see lib/agency/cv-disclosure.ts
+       * for why purge would otherwise never reach it.
+       */
+      cv: d.cv !== false,
+    }
+
+    const snapshot = {
+      generated_at: new Date().toISOString(),
+      disclosure,
+      intro,
+      role: {
+        ref: role.ref,
+        title: role.title,
+        company: role.company,
+        location: role.location,
+        salary_band: role.salary_band,
+      },
+      shortlisted: entries,
+      not_submitted_count: (decisions ?? []).filter((d) => d.decision !== "shortlist").length,
+    }
+
+    const { data: submission, error: subError } = await admin
+      .from("submissions")
+      .insert({
+        agency_id: auth.ctx.agencyId,
+        role_id: roleId,
+        format,
+        snapshot,
+        engine_version: "v1",
+        generated_by: auth.ctx.userId,
+      })
+      .select("id, generated_at")
+      .single()
+    if (subError) throw subError
+
+    // EVERY SEND REACHES THE CLIENT'S WORKSPACE (29 Sep 2026). A recipient row
+    // is the one door the hiring side opens by — getClientShortlist gates the
+    // shortlist, the interview room and the round set-up on it. Rows used to
+    // be minted for `portal` only, and the screen's default tab was
+    // `document`, so the ordinary send gave the client a file and nothing in
+    // Tailr to interview from (ROL-2420, ROL-2421). The format is now how the
+    // shortlist is ALSO delivered; the workspace delivery is not optional.
+    // Named recipients win; otherwise the role's own client contact.
+    const named: string[] = Array.isArray(body?.recipients)
+      ? (body.recipients as Array<{ contact_id?: unknown }>).map((r) => r?.contact_id).filter((id): id is string => typeof id === "string")
+      : []
+    const recipientIds = [...new Set(named.length > 0 ? named : role.contact_id ? [role.contact_id] : [])].slice(0, 10)
+
+    // One token per recipient, raw value returned exactly once.
+    const links: Array<{ contact_id: string; url: string; expires_at: string }> = []
+    const contactsById = new Map<string, { id: string; user_id: string | null; email: string | null; full_name: string | null; company: string | null }>()
+    if (recipientIds.length > 0) {
+      const days = Math.min(MAX_EXPIRY_DAYS, Math.max(1, Number(body?.expires_days) || DEFAULT_EXPIRY_DAYS))
+      const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString()
+      for (const contactId of recipientIds) {
+        const { data: contact } = await admin
+          .from("client_contacts")
+          .select("id, agency_id, user_id, email, full_name, company")
+          .eq("id", contactId)
+          .maybeSingle()
+        if (!contact || contact.agency_id !== auth.ctx.agencyId) {
+          throw new AgencyAccessError("contact not found in caller's agency")
+        }
+        contactsById.set(contactId, contact)
+        const raw = randomBytes(24).toString("base64url")
+        const { error: recError } = await admin.from("submission_recipients").insert({
+          agency_id: auth.ctx.agencyId,
+          submission_id: submission.id,
+          contact_id: contactId,
+          token_hash: createHash("sha256").update(raw).digest("hex"),
+          expires_at: expiresAt,
+        })
+        if (recError) throw recError
+        // Absolute, and built server-side on the consumer app origin. It was
+        // relative, so the recruiter's clipboard inherited whatever host they
+        // were standing on — which after the product split is the business
+        // domain, and the portal is a client-facing doorway that lives with
+        // the app. A copied link that resolves off-product is indistinguishable
+        // from a broken one.
+        links.push({
+          contact_id: contactId,
+          url: `${getAppOrigin()}/portal/${raw}`,
+          expires_at: expiresAt,
+        })
+      }
+    }
+
+    // DELIVERY (board 34). The workspace row above is the delivery; mail is
+    // how they hear about it. A contact with no workspace yet cannot reach
+    // the shortlist at all without an invitation, so theirs is always sent
+    // and carries the invite; a contact who has one is emailed only when the
+    // recruiter asked for the summary. The email is a pointer — names and a
+    // button — never the shortlist itself.
+    const emailSummary = body?.extras?.email === true
+    const delivery: Array<{ contact_id: string; name: string; workspace: boolean; invited: boolean; emailed: boolean }> = []
+    if (contactsById.size > 0) {
+      const { data: agencyRow } = await admin.from("agencies").select("name").eq("id", auth.ctx.agencyId).maybeSingle()
+      const agencyName = (agencyRow?.name as string | undefined) ?? ""
+      const user = await sessionUser(auth.db)
+      const replyTo = typeof user?.email === "string" && user.email.includes("@") ? user.email : undefined
+      // The same line every door draws: a withheld name travels as the ref.
+      const people = entries.map((e) => ({
+        name: e.redacted || !e.full_name ? e.ref : e.full_name,
+        title: e.current_title ?? "",
+      }))
+      for (const contactId of recipientIds) {
+        const contact = contactsById.get(contactId)
+        if (!contact) continue
+        const workspace = Boolean(contact.user_id)
+        let invited = false
+        let emailed = false
+        let url = `${getBusinessOrigin()}/hiring/roles/${roleId}/shortlist`
+        let inviteExpiresAt: string | undefined
+        if (!workspace) {
+          const invite = await createClientInvite(auth.ctx, contactId)
+          invited = true
+          url = `${getBusinessOrigin()}/hiring/invite/${encodeURIComponent(invite.rawToken)}`
+          inviteExpiresAt = invite.expiresAt
+        }
+        if ((emailSummary || !workspace) && contact.email) {
+          const sent = await sendEmail({
+            from: agencyNoticeFrom(agencyName),
+            to: contact.email,
+            subject: shortlistEmailSubject({ roleTitle: role.title, count: people.length }),
+            html: shortlistEmailHtml({
+              agencyName,
+              company: role.company,
+              roleTitle: role.title,
+              intro,
+              people,
+              url,
+              invite: !workspace,
+              inviteExpiresAt,
+            }),
+            ...(replyTo ? { replyTo } : {}),
+          })
+          emailed = sent.sent
+        }
+        delivery.push({ contact_id: contactId, name: contact.full_name || contact.company || "Client contact", workspace, invited, emailed })
+      }
+    }
+
+    await writeAudit(admin, {
+      agencyId: auth.ctx.agencyId,
+      roleId,
+      actorId: auth.ctx.userId,
+      entityType: "submission",
+      entityRef: role.ref,
+      action: "generated",
+      toValue: {
+        format,
+        shortlisted: entries.length,
+        recipients: links.length,
+        invited: delivery.filter((d) => d.invited).length,
+        emailed: delivery.filter((d) => d.emailed).length,
+      },
+    })
+
+    return NextResponse.json({ submission: { ...submission, snapshot }, links, delivery }, { status: 201 })
+  } catch (error) {
+    if (error instanceof AgencyAccessError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
+    return NextResponse.json(
+      { error: errorMessage(error) },
+      { status: 500 }
+    )
+  }
+}
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/roles/[roleId]/submission", "GET", GET_handler)
+export const POST = withTiming("/api/agency/roles/[roleId]/submission", "POST", POST_handler)

@@ -1,0 +1,96 @@
+/**
+ * Agency settings: retention, and when candidates are told.
+ *
+ * GET   → current values plus whether the caller may change them
+ * PATCH → owners only, audit logged
+ *
+ * Validation lives in lib/agency/settings beside the constants that mirror the
+ * DB's CHECK constraints, so the message a person reads and the rule Postgres
+ * enforces cannot drift apart.
+ */
+
+import { NextRequest, NextResponse } from "next/server"
+import { AgencyAccessError, requireAgencyContext } from "@/lib/agency/db"
+import { getAgencySettings, updateAgencySettings } from "@/lib/agency/settings"
+import {
+  getAgencyInterviewDefaults,
+  setAgencyInterviewDefaults,
+} from "@/lib/agency/interview-settings"
+import { withTiming } from "@/lib/server-timing"
+
+export const maxDuration = 15
+
+function authFail(f: "unauthenticated" | "no_agency") {
+  return NextResponse.json(
+    { error: f === "unauthenticated" ? "Unauthorised" : "No agency membership" },
+    { status: f === "unauthenticated" ? 401 : 403 }
+  )
+}
+
+async function GET_handler() {
+  try {
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+    const [settings, interviews] = await Promise.all([
+      getAgencySettings(auth.ctx),
+      getAgencyInterviewDefaults(auth.ctx.agencyId),
+    ])
+    // `saved` travels so the screen can say "inherited" rather than implying
+    // somebody chose these numbers.
+    return NextResponse.json({
+      settings,
+      interviewDefaults: interviews.settings,
+      interviewDefaultsSaved: interviews.saved,
+    })
+  } catch (e) {
+    if (e instanceof AgencyAccessError) {
+      return NextResponse.json({ error: e.message }, { status: 403 })
+    }
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 })
+  }
+}
+
+async function PATCH_handler(req: NextRequest) {
+  try {
+    const auth = await requireAgencyContext()
+    if (!auth.ok) return authFail(auth.failure)
+
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
+    // Retention and notice timing are owner-only; interview defaults are for
+    // any writer. The owner-only save ran unconditionally first, so a
+    // recruiter sending only interview defaults was refused (30 Sep 2026).
+    const touchesOwnerSettings = typeof body.retentionDays === "number" || typeof body.noticeDelayDays === "number"
+    const settings = touchesOwnerSettings
+      ? await updateAgencySettings(auth.ctx, {
+          retentionDays:
+            typeof body.retentionDays === "number" ? body.retentionDays : undefined,
+          noticeDelayDays:
+            typeof body.noticeDelayDays === "number" ? body.noticeDelayDays : undefined,
+        })
+      : await getAgencySettings(auth.ctx)
+    /*
+     * Interview defaults are optional on this PATCH and handled separately,
+     * because they are a different object with its own validator and its own
+     * audit entry. Sending them is what makes the agency's default exist;
+     * omitting them leaves whatever is there alone.
+     */
+    let interviewDefaults = (await getAgencyInterviewDefaults(auth.ctx.agencyId)).settings
+    if (body.interviewDefaults && typeof body.interviewDefaults === "object") {
+      interviewDefaults = await setAgencyInterviewDefaults(auth.ctx, body.interviewDefaults)
+    }
+    return NextResponse.json({ settings, interviewDefaults })
+  } catch (e) {
+    if (e instanceof AgencyAccessError) {
+      return NextResponse.json({ error: e.message }, { status: 403 })
+    }
+    // Validation messages here are written for the owner reading them.
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Could not save those settings" },
+      { status: 400 }
+    )
+  }
+}
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/settings", "GET", GET_handler)
+export const PATCH = withTiming("/api/agency/settings", "PATCH", PATCH_handler)

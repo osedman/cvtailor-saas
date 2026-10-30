@@ -1,0 +1,29 @@
+Siobhan Gallagher
+Brighton (hybrid) · o.oifoh+po11@gmail.com · 07700 900211
+
+SUMMARY
+Digital Product Manager at a health charity, responsible for our information website and symptom-checker tool. I set direction and work with an agency to deliver, but have not worked inside a Scrum team as its Product Owner.
+
+EXPERIENCE
+
+Digital Product Manager — Fernbrook Heart Charity (2021–present)
+- Own the product strategy and roadmap for the charity's website and online symptom checker, with 2.3 million visits a year.
+- Brief and manage an external development agency; agree scope, budget and delivery milestones each quarter.
+- Worked with cardiologists and specialist nurses on clinical content review and sign-off.
+- Set outcome metrics for the website (task completion, helpline deflection); helpline calls about common questions fell by 15%.
+- Use GA4 to report on traffic and journeys to trustees each month.
+- Led an accessibility review against WCAG 2.2 AA with a specialist supplier.
+- Commissioned user research with patients and carers ahead of the symptom-checker redesign.
+- Wrote high-level requirements and briefs for the agency; the agency's delivery lead ran their own sprints and wrote the detailed stories.
+- Managed a digital budget of £350,000 a year and the agency contract renewal in 2024.
+- Completed a DPIA with our data protection lead for the symptom checker, which stores no identifiable data.
+- Presented the digital roadmap to the executive team and trustees twice a year.
+
+Digital Content Manager — Fernbrook Heart Charity (2018–2021)
+- Managed the content team and the CMS; wrote user journeys for the website rebuild.
+
+EDUCATION
+BA English Literature — University of Sussex
+
+SKILLS
+Digital product management · Roadmapping · Agency and supplier management · GA4 · WCAG 2.2 · User research · Clinical content governance · Stakeholder management · Content strategy
