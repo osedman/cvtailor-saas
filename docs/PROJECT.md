@@ -8873,3 +8873,18 @@ Ose: "merge 67 and keep going with the ports".
   role mode on the tailor, and staging's `access-audit.test.ts`.
 - Each of #68–#70: tsc clean, tests pass, build clean (54 pages); they
   touch no common files. Merges await Ose.
+
+### Ports 6–8 merged — consumer catch-up complete (30 Oct 2026)
+
+Ose: "merge 68, 69, 70". All three were green with no conflicts.
+- [osedman/cvtailor-saas#68](https://github.com/osedman/cvtailor-saas/pull/68) → `3f08249`
+- [osedman/cvtailor-saas#69](https://github.com/osedman/cvtailor-saas/pull/69) → `78a6f11`
+- [osedman/cvtailor-saas#70](https://github.com/osedman/cvtailor-saas/pull/70) → `213be6d`
+
+Merged `main` checked locally after the third merge: tsc clean, 365 pass
+(38 files), build clean. Move 1 (the consumer catch-up) is done. What
+remains for production is move 2, the agency product, carrying port 9
+(calendar, `.ics`), the settings page, the tailor's role mode and the
+access-audit test. It needs the 57 agency migrations rehearsed and run on
+prod, and the Vercel production variables set, first
+(`docs/B2B-PROD-READINESS.md` §1–3).
