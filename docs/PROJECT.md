@@ -8888,3 +8888,34 @@ remains for production is move 2, the agency product, carrying port 9
 access-audit test. It needs the 57 agency migrations rehearsed and run on
 prod, and the Vercel production variables set, first
 (`docs/B2B-PROD-READINESS.md` §1–3).
+
+### Agency migrations rehearsed on production — all 56 pass (30 Oct 2026)
+
+Ose: "start the migration rehearsal", then "carry on". No other session or
+branch was working on it (checked: repo branches, prod ledger, Notion,
+other Claude sessions — "Tailr B2B screen text cleanup" is idle and stale:
+its last message offers "start chunk 6", which is already merged).
+
+- **Run list:** the 58 migration files on `staging` not on `main`, in
+  filename order, minus `20260930120000_harden_public` and
+  `20260930120100_harden_agency` (staging-only until Ose decides) = **56**.
+- **Method:** production itself, inside one transaction that always rolls
+  back (a probe proved the connector's rollback first). Comment-only lines
+  stripped (129 KB); loaded in five pieces into a private
+  `rehearsal_tmp` schema (no anon/authenticated access), each checked by
+  md5 against the local file; a runner executes them file by file and
+  names the first failure.
+- **Result:** all 56 apply cleanly — 43 agency tables, 11 agency
+  functions, 6 new public tables (matching + calendar), buckets
+  `agency-briefs`, `agency-cvs`, `agency-recordings`. Then, still inside
+  the transaction, writes **as `service_role`** succeeded on the 17 tables
+  the routes write (the 22 Aug "grant table looked complete" trap).
+- **Consumer table touched:** `public.profiles` gains
+  `recruiter_visibility(+_updated_at)` and an email index; the update
+  grant is narrowed to a column list that matches production's current 10
+  columns exactly, so users keep the same edit rights.
+- **After:** production verified unchanged (no agency schema, 0 buckets, no
+  new tables, `profiles` grant as before). `rehearsal_tmp` kept for the
+  real apply; drop it afterwards.
+- **Real apply:** awaits Ose's go. Then the Vercel production variables,
+  Resend verification and the agency code port (move 2).
