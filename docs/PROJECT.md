@@ -8952,3 +8952,24 @@ Verified by effect afterwards:
 
 Nothing reads these tables on production yet: the agency code port (move 2)
 comes after the Vercel production variables and Resend.
+
+### Agency code port opened — move 2 (30 Oct 2026)
+
+Ose: "open the agency code port PR".
+[osedman/cvtailor-saas#71](https://github.com/osedman/cvtailor-saas/pull/71),
+branch `port/agency` (one commit, 589 files): everything on staging that
+move 1 did not carry. That is the recruiter and hiring-manager apps, the
+candidate doorways, matching (incl. the tailor's role mode and the settings
+page), calendar (port 9), the agency cron in `vercel.json`, the 58 migration
+files (56 applied to prod 30 Oct; the two hardening files are files only,
+not applied), the product docs the tests read, and all staging tests.
+Left on staging: mockups, email/marketing drafts, rescued files, agent
+notes, build cache; `docs/PROJECT.md` keeps main's copy (main has rows
+staging lacks).
+
+tsc clean, 2,223 pass, build clean (98 pages). Carried files scanned: no
+secrets; the seed CVs' addresses are plus-tags of one mailbox already on
+`staging`. **Must not merge before** the PR's production checklist: domain
+on Vercel + auto-renew, Supabase prod redirect URLs and magic-link template,
+Production variables (`NEXT_PUBLIC_BUSINESS_URL`, `CRON_SECRET`, then
+`DOMAIN_SPLIT_ENABLED`), Resend verification, and the hardening decision.
