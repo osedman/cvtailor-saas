@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { toTemplateId, CV_TEMPLATES } from '@/lib/cv-templates'
+import { errorMessage } from '@/lib/error-message'
+import { sessionUser } from "@/lib/supabase/session-user"
+import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 10
 
 /** Read the signed-in user's display preferences. */
-export async function GET() {
+async function GET_handler() {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
     const { data, error } = await supabase
@@ -22,16 +25,16 @@ export async function GET() {
     // product must degrade to the default, never render an undefined token set.
     return NextResponse.json({ cvTemplate: toTemplateId(data?.cv_template) })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
 
 /** Update preferences: { cvTemplate: CvTemplateId } */
-export async function PATCH(req: NextRequest) {
+async function PATCH_handler(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
     const body = await req.json()
@@ -48,7 +51,11 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ cvTemplate: requested })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/preferences", "GET", GET_handler)
+export const PATCH = withTiming("/api/preferences", "PATCH", PATCH_handler)
