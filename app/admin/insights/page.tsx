@@ -125,7 +125,7 @@ export default function AdminInsightsPage() {
   useEffect(() => {
     if (authLoading) return
     if (!user) {
-      router.push("/tailor")
+      router.push("/login?next=/admin/insights")
       return
     }
     void load()

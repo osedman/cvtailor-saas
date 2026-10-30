@@ -490,7 +490,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (authLoading) return
     if (!user) {
-      router.push("/tailor")
+      router.push("/login?next=/admin")
       return
     }
     void load()
