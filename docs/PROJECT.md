@@ -8846,3 +8846,30 @@ block: as `service_role` a share row inserts and the bump takes
 4 policies present; 0 rows left afterwards. This unblocks
 [osedman/cvtailor-saas#67](https://github.com/osedman/cvtailor-saas/pull/67)
 (port 5/9, Career Arc) and the `/api/admin/stats` count on `main`.
+
+### Port 5 merged; ports 6–8 opened; port 6 migration run on prod (30 Oct 2026)
+
+Ose: "merge 67 and keep going with the ports".
+- **#67 (Career Arc) merged** into `main` as `8a4ae4e` (CI green; migration
+  020 was applied to prod on 29 Oct).
+- **Port 6/9, career path and courses:**
+  [osedman/cvtailor-saas#68](https://github.com/osedman/cvtailor-saas/pull/68).
+  Plan review, effort estimates kept and rounded to whole hours, timing on
+  the career-path, first-cv, upskill and admin course routes. Its migration
+  `20260807120000_plan_review` (adds `career_roadmaps.plan_started_at`,
+  backfills existing plans as reviewed) was **applied to production** first
+  and verified: column present, all 4 existing plans with a target marked
+  reviewed, 0 left unreviewed. The course-sync cron stays daily on `main`.
+- **Port 7/9, admin and debug:**
+  [osedman/cvtailor-saas#69](https://github.com/osedman/cvtailor-saas/pull/69).
+  Signed-out admin visitors go to `/login?next=…`; session check and timing
+  on stats, insights and market-check; `/api/debug` 404s on production.
+- **Port 8/9, billing, Stripe, preferences, tracker:**
+  [osedman/cvtailor-saas#70](https://github.com/osedman/cvtailor-saas/pull/70).
+  `lib/tracker-body.ts` stops a request body setting a tracker row's id,
+  owner or timestamps (30 Sep access audit); timing on the rest.
+- **Moved to move 2 (the agency product):** port 9 (calendar connections,
+  `.ics`), `app/settings/page.tsx` (reads `/api/matching/preferences`),
+  role mode on the tailor, and staging's `access-audit.test.ts`.
+- Each of #68–#70: tsc clean, tests pass, build clean (54 pages); they
+  touch no common files. Merges await Ose.
