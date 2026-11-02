@@ -9113,3 +9113,15 @@ an RPC endpoint (a trigger function; revoking EXECUTE is safe, the same fix
 the hardening made for `handle_new_user`), `increment_tailors_used` callable
 by signed-in users (intended: own counter only), and leaked-password
 protection off (a dashboard switch).
+
+### 2 Nov 2026 — `handle_new_subscription` closed as an endpoint on production
+
+The trigger on `public.profiles` that gives each new profile its
+`subscriptions` row was also callable by anyone, signed out included, as
+`/rest/v1/rpc/handle_new_subscription`. `20261102130000_lock_handle_new_subscription.sql`
+revokes EXECUTE (triggers don't check it) and pins its search_path to nothing;
+it does nothing where the function is absent (staging never had it).
+
+Rehearsed first and rolled back: a simulated sign-up still created the profile
+and its subscription row; signed-out and signed-in calls were refused. Then
+applied to prod (md5-checked, ledger 73 → 74).
