@@ -9093,3 +9093,23 @@ and members after): an owner can create a role and edit its title; writing
 `rights_links` is unreadable to signed-in users; `rights_token` is gone.
 Security advisor: no new warnings (`rights_links` shows as server-only, by
 design). #71 carries the code that reads the new table.
+
+### 2 Nov 2026 — `get_monthly_usage` locked to the server on production
+
+The advisor's last real finding on prod. `public.get_monthly_usage(p_user_id)`
+(from `001_initial.sql`) was SECURITY DEFINER, callable by anyone with the
+public key, anon included, with no pinned search_path. So anyone could read
+any user's monthly usage count. Nothing in the app calls it (usage moved to
+`profiles.tailors_used`), `usage_logs` is empty, and staging never had it.
+
+`20261102120000_lock_get_monthly_usage.sql` pins its search_path and makes it
+server-only; it does nothing where the function doesn't exist. Applied to prod
+(md5-checked, ledger 72 → 73). Verified by effect (rolled back): anon refused,
+signed-in refused, service role still gets a count. The advisor no longer
+flags it.
+
+Still on the prod advisor, untouched: `handle_new_subscription()` exposed as
+an RPC endpoint (a trigger function; revoking EXECUTE is safe, the same fix
+the hardening made for `handle_new_user`), `increment_tailors_used` callable
+by signed-in users (intended: own counter only), and leaked-password
+protection off (a dashboard switch).
