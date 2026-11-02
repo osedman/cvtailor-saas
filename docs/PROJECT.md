@@ -9071,3 +9071,9 @@ Verified on staging by effect (rolled back): owner edits a role title, yes;
 writes `owner_id`, `discarded_at` or agency retention directly, refused;
 `rights_links` unreadable to signed-in users; 78/78 hashes match.
 Production: all three migrations wait for Ose, and for #71.
+
+**Raw rights token dropped on staging (30 Oct, 11:51 UTC).** Ran
+`20261030120100_drop_raw_rights_token.sql` after 5e9ce11 reached staging.
+`agency.candidates.rights_token` is gone. 78 hashed links remain, one per
+candidate, none expired. Production still runs all three migrations in one go
+with #71, on Ose's say-so.
