@@ -9077,3 +9077,19 @@ Production: all three migrations wait for Ose, and for #71.
 `agency.candidates.rights_token` is gone. 78 hashed links remain, one per
 candidate, none expired. Production still runs all three migrations in one go
 with #71, on Ose's say-so.
+
+### 2 Nov 2026 — the three security migrations applied to production
+
+On Ose's go. `20261030120000_rights_links_hashed`, `20261030120100_drop_raw_rights_token`
+and `20261030120200_agency_column_grants` ran on prod (`wgpaaafseibcqagiiavt`)
+as one block: each file md5-checked against `origin/staging`, executed in
+order, ledger 69 → 72. Prod had no agency data yet (0 agencies, roles,
+candidates), so there was nothing to migrate and the raw column could go in
+the same step.
+
+Verified by effect, in a throwaway agency that rolled back (0 agencies, roles
+and members after): an owner can create a role and edit its title; writing
+`owner_id`, `discarded_at` or agency retention directly is refused;
+`rights_links` is unreadable to signed-in users; `rights_token` is gone.
+Security advisor: no new warnings (`rights_links` shows as server-only, by
+design). #71 carries the code that reads the new table.
