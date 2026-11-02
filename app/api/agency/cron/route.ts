@@ -1,0 +1,225 @@
+/**
+ * Agency housekeeping cron — THE launch gate for real candidate data.
+ *
+ * Runs daily (vercel.json, 03:30 UTC):
+ *   1. Retention purge: agency.purge_expired() erases candidates whose
+ *      retention window lapsed, then this route deletes their CV files from
+ *      the agency-cvs bucket (SQL cannot delete storage blobs safely).
+ *   2. Candidate notices: sends due Art 14 notices (scheduled_for <= now)
+ *      through the single implementation in lib/agency/notices, which
+ *      handles suppression, missing contact details, and audit rows. There
+ *      is deliberately no configuration read here that can skip a due notice.
+ *
+ * Machine endpoint: guarded by CRON_SECRET, no user session, no rate limit.
+ * Response contains counts only — candidate PII never appears in cron logs.
+ */
+
+import { NextRequest, NextResponse } from "next/server"
+import { agencyAdmin } from "@/lib/agency/db"
+import { sendOneNotice } from "@/lib/agency/notices"
+import { runQueuedMatchScans } from "@/lib/matching/scan"
+import { runQueuedTranscriptions } from "@/lib/agency/transcription"
+import { runInterviewReminders } from "@/lib/agency/interview-reminders"
+import { releaseDueWaves } from "@/lib/agency/waves"
+import {
+  RECORDING_BUCKET,
+  listRecordingsDueForDeletion,
+  markRecordingsDeleted,
+} from "@/lib/agency/artifacts"
+import { withTiming } from "@/lib/server-timing"
+
+export const maxDuration = 300
+
+const NOTICE_BATCH = 50
+
+async function GET_handler(req: NextRequest) {
+  return run(req)
+}
+
+async function POST_handler(req: NextRequest) {
+  return run(req)
+}
+
+async function run(req: NextRequest) {
+  const secret = process.env.CRON_SECRET
+  if (!secret) {
+    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 503 })
+  }
+  if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
+  }
+
+  const admin = agencyAdmin()
+  const summary = {
+    purged: 0,
+    files_removed: 0,
+    recordings_removed: 0,
+    recordings_failed: 0,
+    notices_sent: 0,
+    notices_suppressed: 0,
+    notices_failed: 0,
+    match_scans_run: 0,
+    transcriptions_run: 0,
+    interview_nudges: 0,
+    interview_reminders: 0,
+    waves_released: 0,
+  }
+
+  // ---- 1. Retention purge -----------------------------------
+  const { data: purged, error: purgeError } = await admin.rpc("purge_expired")
+  if (purgeError) {
+    return NextResponse.json({ error: `purge failed: ${purgeError.message}` }, { status: 500 })
+  }
+  const purgedRows = (purged ?? []) as Array<{
+    candidate_id: string
+    ref: string
+    storage_path: string | null
+    // Added by migration 11. purge_expired() collects these BEFORE the cascade
+    // takes the artifact rows, because afterwards there is nothing left to ask.
+    recording_paths: string[] | null
+  }>
+  summary.purged = purgedRows.length
+
+  const paths = purgedRows.map((r) => r.storage_path).filter((p): p is string => !!p)
+  if (paths.length > 0) {
+    const { data: removed, error: removeError } = await admin.storage
+      .from("agency-cvs")
+      .remove(paths)
+    if (removeError) {
+      // Purged rows are already gone from the DB; orphaned files must not be
+      // silent. Surface loudly — the next run will NOT retry these paths.
+      console.error("[agency-cron] storage removal failed:", removeError.message)
+    }
+    summary.files_removed = removed?.length ?? 0
+  }
+
+  // Erasure takes the audio with it. Separate bucket from CVs, so a separate
+  // call — and the same loud failure, because an orphaned recording is a
+  // person's voice we said we had deleted.
+  const purgedRecordings = purgedRows.flatMap((r) => r.recording_paths ?? [])
+  if (purgedRecordings.length > 0) {
+    const { data: gone, error: recError } = await admin.storage
+      .from(RECORDING_BUCKET)
+      .remove(purgedRecordings)
+    if (recError) {
+      console.error("[agency-cron] recording removal failed on purge:", recError.message)
+      summary.recordings_failed += purgedRecordings.length
+    }
+    summary.recordings_removed += gone?.length ?? 0
+  }
+
+  // ---- 1b. Audio whose transcript has been checked -----------
+  //
+  // "The audio is deleted as soon as the transcript is checked" is a promise in
+  // writing to every candidate who agreed to be recorded
+  // (docs/CONSENT-COPY-DRAFT.md §2). This is the job that keeps it.
+  //
+  // Delete the blob FIRST, stamp only what actually went. Stamping first would
+  // leave audio on disk that the product believes it destroyed, which is the
+  // one direction of this race that breaks the promise silently.
+  try {
+    const due = await listRecordingsDueForDeletion()
+    if (due.length > 0) {
+      const { data: gone, error: sweepError } = await admin.storage
+        .from(RECORDING_BUCKET)
+        .remove(due.map((d) => d.recordingPath))
+      if (sweepError) {
+        console.error("[agency-cron] verified-recording sweep failed:", sweepError.message)
+        summary.recordings_failed += due.length
+      } else {
+        const removedPaths = new Set((gone ?? []).map((g) => g.name))
+        const confirmed = due.filter((d) => removedPaths.has(d.recordingPath))
+        summary.recordings_removed += await markRecordingsDeleted(
+          confirmed.map((c) => c.artifactId)
+        )
+        // Anything storage did not confirm stays unstamped and is retried on
+        // the next run rather than quietly considered done.
+        summary.recordings_failed += due.length - confirmed.length
+      }
+    }
+  } catch (e) {
+    console.error("[agency-cron] recording sweep threw:", e instanceof Error ? e.message : e)
+  }
+
+  // ---- 2. Due notices ---------------------------------------
+  const { data: due, error: dueError } = await admin
+    .from("candidate_notices")
+    .select("id")
+    .eq("status", "scheduled")
+    .lte("scheduled_for", new Date().toISOString())
+    .limit(NOTICE_BATCH)
+  if (dueError) {
+    return NextResponse.json({ error: `notice query failed: ${dueError.message}` }, { status: 500 })
+  }
+
+  for (const notice of due ?? []) {
+    // One row that throws must not stop the rest of the day's notices, nor
+    // the scans, reminders and wave releases below (23 Sep E2E).
+    let outcome: Awaited<ReturnType<typeof sendOneNotice>>
+    try {
+      outcome = await sendOneNotice(admin, notice.id)
+    } catch {
+      summary.notices_failed++
+      continue
+    }
+    if (outcome === "sent") summary.notices_sent++
+    else if (outcome === "suppressed_list" || outcome === "suppressed_no_contact")
+      summary.notices_suppressed++
+    else if (outcome === "failed") summary.notices_failed++
+  }
+
+  // ---- 3. Match scans that queued and never ran --------------
+  //
+  // Publishing hands the scan to after(); if the process died in between, a
+  // queued ingestion_jobs row is the only trace. This sweep is the guarantee
+  // that queued means "will happen", not "probably happened" — a scan that
+  // can be silently lost is a matched-count that quietly stops being true.
+  // The claim inside runMatchScan makes this safe to race with after().
+  try {
+    summary.match_scans_run = await runQueuedMatchScans()
+  } catch (e) {
+    console.error("[agency-cron] match-scan sweep threw:", e instanceof Error ? e.message : e)
+  }
+
+  // ---- 4. Transcriptions ------------------------------------
+  //
+  // Queued only by an explicit recruiter action on a round that already has
+  // consented audio; this is just the runner. It cannot reach 1b in the same
+  // pass — a fresh transcript has verified_at null until a HUMAN checks it
+  // and names the candidate's speaker, and that is the event that releases
+  // the audio for deletion. The gap between these two steps is a person, on
+  // purpose.
+  // Each sweep has its own try (21 Sep 2026): they shared one, so a single
+  // transcription error skipped the day's interview reminders AND wave
+  // releases — and this cron runs once a day.
+  try {
+    summary.transcriptions_run = await runQueuedTranscriptions()
+  } catch (e) {
+    console.error("[agency-cron] transcription sweep threw:", e instanceof Error ? e.message : e)
+  }
+
+  // Interview reminders: nudges to people who have not booked, and the
+  // reminder before an interview they did. Each is stamped on the round so
+  // running this often cannot mail the same person twice.
+  try {
+    const reminders = await runInterviewReminders()
+    summary.interview_nudges = reminders.nudged
+    summary.interview_reminders = reminders.reminded
+  } catch (e) {
+    console.error("[agency-cron] reminder sweep threw:", e instanceof Error ? e.message : e)
+  }
+
+  // Waves due out: a reserve whose wave has had its time, or where a
+  // window has freed up. releaseWave does nothing when nothing is due.
+  try {
+    summary.waves_released = await releaseDueWaves()
+  } catch (e) {
+    console.error("[agency-cron] wave sweep threw:", e instanceof Error ? e.message : e)
+  }
+
+  return NextResponse.json(summary)
+}
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/cron", "GET", GET_handler)
+export const POST = withTiming("/api/agency/cron", "POST", POST_handler)

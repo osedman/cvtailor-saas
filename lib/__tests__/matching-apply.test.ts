@@ -1,0 +1,193 @@
+/**
+ * Applying — the one moment quiet matching shares anything.
+ *
+ * The pure mapper is tested on values; the wall properties are source scans
+ * over the route, the lib and the RPC migration, because the failure modes
+ * that matter are structural: a notice that should not exist, a limit that
+ * would auto-reject, a payload trusted from a client.
+ */
+import { describe, it, expect } from "vitest"
+import { readFileSync } from "fs"
+import { join } from "path"
+import { sqlCode } from "./helpers/source-scan"
+import { buildAgencyEvidence } from "@/lib/matching/apply"
+
+const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
+
+const REQS = [
+  { id: "id-1", ref: "R01", text: "Stakeholders", weight: "must" as const },
+  { id: "id-2", ref: "R02", text: "SQL", weight: "nice" as const },
+]
+
+describe("buildAgencyEvidence", () => {
+  it("maps refs onto live requirement ids", () => {
+    const rows = buildAgencyEvidence(REQS, [
+      { requirement_ref: "R01", strength: "strong", quote: "Ran the workshops" },
+    ])
+    expect(rows[0]).toMatchObject({ requirement_id: "id-1", strength: "strong", quote: "Ran the workshops" })
+  })
+
+  it("a requirement with no entry is missing — never invented", () => {
+    const rows = buildAgencyEvidence(REQS, [])
+    expect(rows).toHaveLength(2)
+    for (const row of rows) expect(row).toMatchObject({ strength: "missing", quote: null })
+  })
+
+  it("missing carries a null quote and empty cite, satisfying both DB constraints", () => {
+    const rows = buildAgencyEvidence(REQS, [
+      { requirement_ref: "R01", strength: "strong", quote: "   " },
+    ])
+    expect(rows[0]).toMatchObject({ strength: "missing", quote: null, source_cite: "" })
+  })
+
+  it("caps quotes at the DB's 1000 characters", () => {
+    const rows = buildAgencyEvidence(REQS, [
+      { requirement_ref: "R01", strength: "partial", quote: "x".repeat(3000) },
+    ])
+    expect(rows[0].quote).toHaveLength(1000)
+  })
+})
+
+describe("what the apply path must never do", () => {
+  const migration = read("supabase/migrations/20260816120000_apply_matched.sql")
+  const lib = read("lib/matching/apply.ts")
+  const route = read("app/api/found/[id]/apply/route.ts")
+
+  it("no Art 14 notice — the manifest IS the notice", () => {
+    // The RPC must not insert candidate_notices: matched applicants get
+    // Art 13 at the moment of applying, and a delayed second notice would
+    // tell them about a share they themselves performed.
+    const body = migration.slice(migration.indexOf("create or replace function"))
+    expect(body).not.toMatch(/candidate_notices/)
+  })
+
+  it("no candidate limit — arithmetic must not auto-reject the eleventh applicant", () => {
+    // The header COMMENT names the constant to explain why it is absent, so
+    // this checks for code usage — an import or a comparison — not the word.
+    expect(lib).not.toMatch(/import[^\n]*MAX_CANDIDATES_PER_ROLE/)
+    expect(lib).not.toMatch(/MAX_CANDIDATES_PER_ROLE\s*[<>=)]/)
+  })
+
+  it("no model call — what they confirmed is what crosses", () => {
+    expect(lib).not.toMatch(/extractAssessment|anthropic/)
+  })
+
+  it("suppression is an audited override, not a block", () => {
+    expect(migration).toMatch(/suppression_overridden_by_application/)
+    // And the RPC must not RAISE on suppression.
+    const suppressed = migration.slice(migration.indexOf("v_suppressed := false"))
+    const block = suppressed.slice(0, suppressed.indexOf("return jsonb_build_object"))
+    expect(block).not.toMatch(/raise exception.*suppress/i)
+  })
+
+  it("the claim comes first and a settled state aborts everything", () => {
+    const claimAt = migration.indexOf("set state = 'applied'")
+    const consentAt = migration.indexOf("insert into public.matching_consent_events")
+    const candidateAt = migration.indexOf("insert into agency.candidates")
+    expect(claimAt).toBeGreaterThan(-1)
+    expect(claimAt).toBeLessThan(consentAt)
+    expect(consentAt).toBeLessThan(candidateAt)
+    expect(migration).toMatch(/already settled/)
+  })
+
+  it("the Candidate source union matches the CHECK constraint, value for value", () => {
+    // The union omitted "matched" while the apply path was already writing it
+    // and five rows on staging already carried it — a declared type that
+    // disagreed with Postgres. Derived from the migration now, so the two
+    // cannot drift apart again without this failing.
+    const migration = readFileSync(
+      join(process.cwd(), "supabase/migrations/20260815090000_quiet_matching.sql"),
+      "utf8",
+    )
+    const check = /check \(source in \(([^)]*)\)\)/.exec(migration)
+    expect(check, "candidates_source_check not found in the migration").toBeTruthy()
+    const fromSql = (check![1].match(/'([^']+)'/g) ?? []).map((v) => v.slice(1, -1)).sort()
+
+    const types = readFileSync(join(process.cwd(), "lib/agency/types.ts"), "utf8")
+    const decl = /\n  source: ([^\n]+)\n/.exec(types)
+    expect(decl, "Candidate.source declaration not found").toBeTruthy()
+    const fromTs = (decl![1].match(/"([^"]+)"/g) ?? []).map((v) => v.slice(1, -1)).sort()
+
+    expect(fromTs).toEqual(fromSql)
+  })
+
+  it("evidence crosses with origin 'matched', not 'tailr_profile'", () => {
+    // Different consent, different word — the audit trail must tell
+    // enrichment and self-application apart.
+    expect(migration).toMatch(/'matched'\)/)
+    const fn = migration.slice(migration.indexOf("create or replace function"))
+    expect(fn).not.toMatch(/'tailr_profile'/)
+  })
+
+  it("the RPC is service-role only", () => {
+    expect(migration).toMatch(/revoke all on function public\.apply_matched_recommendation[\s\S]*from public, anon, authenticated/)
+    expect(migration).toMatch(/grant execute on function public\.apply_matched_recommendation[\s\S]*to service_role/)
+  })
+
+  it("the POST accepts no body fields — the server recomputes the payload", () => {
+    const post = route.slice(route.indexOf("async function POST"))
+    expect(post).not.toMatch(/req\.json\(\)/)
+  })
+
+  it("staleness refuses rather than remapping", () => {
+    expect(lib).toMatch(/requirementsHash\(requirements\) !== snapshot\.requirements_hash/)
+    expect(route).toMatch(/stale/)
+  })
+
+  it("someone else's recommendation reads as not found, not forbidden", () => {
+    // Its existence is itself information.
+    expect(lib).toMatch(/rec\.user_id !== userId\) return \{ failure: "not_found" as const \}/)
+  })
+})
+
+describe("the tailored CV retires when EITHER side moves", () => {
+  /**
+   * The bug, 22 Aug -> 14 Sep 2026. tailor_history_id points at a tailor RUN
+   * and applying sent that run's document, guarded only by
+   * tailored_against_hash — which fingerprints THE ROLE. Change the PERSON
+   * and nothing happened: someone who updated their evidence bank and then
+   * applied to a role they tailored last week sent a document built from a
+   * bank that no longer existed, while /found still called it tailored.
+   */
+  const lib = readFileSync(join(process.cwd(), "lib/matching/apply.ts"), "utf8")
+
+  it("reads the person side as well as the role side", () => {
+    expect(lib).toMatch(/tailored_source_hash/)
+    expect(lib).toMatch(/const sourceHolds = tailoredSourceStillMatches\(/)
+  })
+
+  it("discards the tailored CV when the bank has moved", () => {
+    // Not "skips the fetch" — discards the RESULT. The history row is read
+    // on the role check alone, so the guard has to bite at the point the
+    // document is chosen.
+    expect(lib).toMatch(/const tailoredCv = sourceHolds\s*\n?\s*\?/)
+  })
+
+  it("hashes what is rendered, through the one definition", () => {
+    // profileHash already existed for the scan's skip-on-unchanged and is
+    // tested there. A second implementation is how ROL-2403's apply 409'd
+    // forever — copies that differ only in invisible separator bytes.
+    expect(lib).toMatch(/profileHash\(bankRows\)/)
+    expect(lib).toMatch(/from "\.\/scan-core"/)
+    const core = readFileSync(join(process.cwd(), "lib/matching/scan-core.ts"), "utf8")
+    expect((core.match(/export function profileHash/g) ?? []).length).toBe(1)
+  })
+
+  it("an unprovable link is not honoured", () => {
+    const core = readFileSync(join(process.cwd(), "lib/matching/scan-core.ts"), "utf8")
+    const fn = core.slice(core.indexOf("export function tailoredSourceStillMatches"))
+    expect(fn.slice(0, 300)).toMatch(/typeof stored === "string" && stored\.length > 0 && stored === current/)
+  })
+
+  it("the column is unwritable by the client, and nothing new was granted", () => {
+    const quiet = readFileSync(join(process.cwd(), "supabase/migrations/20260815090000_quiet_matching.sql"), "utf8")
+    // Column-scoped UPDATE is what makes a new column safe by default.
+    expect(quiet).toMatch(/grant update \(state, seen_at, dismissed_at\) on public\.role_recommendations to authenticated/)
+    // Comments stripped: this migration's own header explains WHY no grant
+    // is needed, so a raw scan matches its own documentation — the exact
+    // trap this repo has already shipped once.
+    const mig = sqlCode(readFileSync(join(process.cwd(), "supabase/migrations/20260914140000_tailored_source_hash.sql"), "utf8"))
+    expect(mig).toMatch(/add column if not exists tailored_source_hash text/)
+    expect(mig).not.toMatch(/grant /i)
+  })
+})

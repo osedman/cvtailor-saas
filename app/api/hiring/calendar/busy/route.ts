@@ -1,0 +1,40 @@
+/**
+ * Busy intervals from the connected calendar between two instants. Only
+ * intervals: no titles, no attendees, nothing stored. The horizon is capped
+ * so a stray query cannot pull a year of someone's diary.
+ */
+
+import { NextRequest, NextResponse } from "next/server"
+import { requireHiringContext } from "@/lib/agency/client-auth"
+import { busyBetween, CalendarReauthRequired } from "@/lib/calendar/connections"
+import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
+
+export const maxDuration = 30
+const MAX_DAYS = 31
+
+async function GET_handler(req: NextRequest) {
+  try {
+    const auth = await requireHiringContext()
+    if (!auth.ok) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
+    const from = req.nextUrl.searchParams.get("from") ?? ""
+    const to = req.nextUrl.searchParams.get("to") ?? ""
+    const f = Date.parse(from)
+    const t = Date.parse(to)
+    if (!Number.isFinite(f) || !Number.isFinite(t) || t <= f) return NextResponse.json({ error: "from and to must be valid instants" }, { status: 400 })
+    if (t - f > MAX_DAYS * 86_400_000) return NextResponse.json({ error: `at most ${MAX_DAYS} days at a time` }, { status: 400 })
+    const busy = await busyBetween(auth.ctx.userId, new Date(f).toISOString(), new Date(t).toISOString())
+    return NextResponse.json({ busy })
+  } catch (error) {
+    // 409, and `reconnect: true` so the screen can offer the way back rather
+    // than repeating a scan that can only fail. The stale row has already
+    // been deleted, so a fresh status call reports not-connected.
+    if (error instanceof CalendarReauthRequired) {
+      return NextResponse.json({ error: error.message, reconnect: true }, { status: 409 })
+    }
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+  }
+}
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/hiring/calendar/busy", "GET", GET_handler)

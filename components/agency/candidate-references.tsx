@@ -1,0 +1,328 @@
+"use client"
+
+/**
+ * References for one candidate: the list, the ask/chase acts, and adding a
+ * referee. Extracted from the close-out page (23→24 Aug 2026) so the
+ * candidate file — the operational screen outside the shortlist workflow —
+ * and close-out render the SAME control instead of two drifting copies.
+ *
+ * Self-contained by candidateId, like candidate-compliance and
+ * candidate-placement: own fetches, own state. `onRefsChange` reports the
+ * rows upward because close-out's pack warning ("2 references still
+ * outstanding") is computed from them — the parent needs the facts, not a
+ * second fetch.
+ */
+
+import { useCallback, useEffect, useState } from "react"
+
+export interface ReferenceListRow {
+  id: string
+  refereeName: string
+  relationship: string
+  status: "drafted" | "requested" | "chasing" | "received" | "declined"
+  /** Character or HR (23 Sep 2026). Decides which form their link opens and
+   *  what the request email says they are being asked for. */
+  kind: "character" | "hr"
+  noticeSentAt: string | null
+}
+
+const KIND_LABEL: Record<ReferenceListRow["kind"], string> = {
+  character: "Character",
+  hr: "HR",
+}
+
+const STATUS_TONE: Record<ReferenceListRow["status"], string> = {
+  received: "var(--ag-ok, #4c7c54)",
+  requested: "var(--ag-coral)",
+  chasing: "var(--ag-coral-deep)",
+  drafted: "var(--ag-ink-3)",
+  declined: "var(--ag-ink-3)",
+}
+
+const STATUS_LABEL: Record<ReferenceListRow["status"], string> = {
+  received: "Received",
+  requested: "Asked",
+  chasing: "Chasing",
+  drafted: "Not asked yet",
+  declined: "Declined",
+}
+
+export function CandidateReferences({
+  candidateId,
+  onRefsChange,
+}: {
+  candidateId: string
+  onRefsChange?: (refs: ReferenceListRow[] | null) => void
+}) {
+  const [refs, setRefs] = useState<ReferenceListRow[] | null>(null)
+  const [newRef, setNewRef] = useState<{
+    refereeName: string
+    refereeEmail: string
+    relationship: string
+    kind: ReferenceListRow["kind"]
+  }>({ refereeName: "", refereeEmail: "", relationship: "", kind: "character" })
+  const [askedLink, setAskedLink] = useState<{ id: string; url: string; emailed: boolean } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    if (!candidateId) return setRefs(null)
+    try {
+      const res = await fetch(`/api/agency/candidates/${candidateId}/references`)
+      // A failed load must not read as "No referees named yet" — and the
+      // parent's outstanding-references warning must not silently vanish.
+      if (!res.ok) {
+        setRefs(null)
+        onRefsChange?.(null)
+        return setError("Could not load references. Reload the page before handing anything over.")
+      }
+      const body = await res.json()
+      const rows = Array.isArray(body?.references) ? (body.references as ReferenceListRow[]) : []
+      setError(null)
+      setRefs(rows)
+      onRefsChange?.(rows)
+    } catch {
+      setRefs(null)
+      onRefsChange?.(null)
+      setError("Could not load references. Reload the page before handing anything over.")
+    }
+    // onRefsChange is a notification, not an input; re-running on its identity
+    // would refetch every parent render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidateId])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  async function addReferee() {
+    if (!newRef.refereeName.trim() || !newRef.refereeEmail.trim()) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/candidates/${candidateId}/references`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newRef),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setError(typeof body?.error === "string" ? body.error : "Could not add that referee.")
+        return
+      }
+      // The kind persists between adds: naming two character referees in a
+      // row is the common case, and resetting it invites the wrong form.
+      setNewRef((prev) => ({ refereeName: "", refereeEmail: "", relationship: "", kind: prev.kind }))
+      await load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function ask(referenceId: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/candidates/${candidateId}/references`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referenceId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not send that request.")
+        return
+      }
+      setAskedLink({ id: referenceId, url: String(body.url ?? ""), emailed: Boolean(body.emailed) })
+      await load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * Take a referee off (22 Sep 2026). A wrong address or the wrong person
+   * used to be permanent, and the only move left was to email a stranger.
+   *
+   * Two different acts, and the server decides which: deleted outright while
+   * nothing has been sent, withdrawn once the request has gone. The confirm
+   * says which one is about to happen, because "remove" meaning two things
+   * without saying so is how people delete what they meant to keep.
+   */
+  async function remove(r: ReferenceListRow) {
+    const contacted = Boolean(r.noticeSentAt)
+    const ok = window.confirm(
+      contacted
+        ? `${r.refereeName} has already been asked. We cannot unsend that, so they will be marked as not answering and no more chasers will go. Their record stays. Continue?`
+        : `Remove ${r.refereeName}? Nothing has been sent to them, so there is nothing to undo — the row goes entirely.`
+    )
+    if (!ok) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agency/candidates/${candidateId}/references`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referenceId: r.id }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : "Could not remove that referee.")
+        return
+      }
+      // The link panel belongs to a referee who may no longer be here.
+      setAskedLink((prev) => (prev?.id === r.id ? null : prev))
+      await load()
+    } catch {
+      setError("Could not remove that referee. Nothing has changed.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const total = refs?.length ?? 0
+  const received = (refs ?? []).filter((r) => r.status === "received").length
+
+  return (
+    <section className="ag-card ag-print-hide" style={{ padding: "18px 22px" }} aria-labelledby="refs">
+      <div className="ag-card-head" style={{ padding: 0, border: "none" }}>
+        <span className="ag-card-title" id="refs">
+          References
+          {refs ? ` — ${received} of ${total} in` : ""}
+        </span>
+        <span className="ag-grow" />
+        <span className="ag-pill">Audit logged</span>
+      </div>
+
+      {error && <p className="ag-banner" role="alert" style={{ marginTop: 10 }}>{error}</p>}
+
+      <div className="ag-stack" style={{ gap: 10, marginTop: 12 }}>
+        {(refs ?? []).map((r) => (
+          <div key={r.id} className="ag-sentlink">
+            <span className="ag-ref-dot" style={{ background: STATUS_TONE[r.status] }} aria-hidden />
+            <span className="ag-grow" style={{ minWidth: 0 }}>
+              <span style={{ fontSize: 13 }}>{r.refereeName}</span>
+              <span className="ag-meta" style={{ display: "block" }}>
+                {KIND_LABEL[r.kind]} · {r.relationship || "Referee"}
+                {r.noticeSentAt ? " · notice sent" : " · no notice yet"}
+              </span>
+            </span>
+            <span className="ag-meta">{STATUS_LABEL[r.status]}</span>
+            {r.status !== "received" && r.status !== "declined" && (
+              <button className="ag-btn ag-btn-secondary" onClick={() => ask(r.id)} disabled={busy}>
+                {r.status === "drafted" ? "Ask" : "Chase"}
+              </button>
+            )}
+            {/* A reference already given stays: those are the referee's own
+                words, and removing them would be editing the evidence. */}
+            {r.status !== "received" && (
+              <button
+                className="ag-btn ag-btn-secondary"
+                onClick={() => remove(r)}
+                disabled={busy}
+                aria-label={`Remove ${r.refereeName}`}
+              >
+                Remove
+              </button>
+            )}
+            {askedLink?.id === r.id && !askedLink.emailed && (
+              <p className="ag-note ag-ask-result">
+                We could not email them — send this link yourself:
+                <code className="ag-ask-url">{askedLink.url}</code>
+              </p>
+            )}
+          </div>
+        ))}
+        {refs !== null && refs.length === 0 && <p className="ag-note">No referees named yet.</p>}
+      </div>
+
+      <div
+        className="ag-stack"
+        style={{ gap: 8, marginTop: 14, borderTop: "1px solid var(--ag-border)", paddingTop: 12 }}
+      >
+        {/*
+          Which kind, chosen BEFORE the name (23 Sep 2026, Figma frame 24
+          band C). It decides which form their link opens and what the
+          request email says they are being asked for, so it is part of who
+          this referee is — not a setting applied afterwards. Radios rather
+          than a select: two options that must be read, and neither is a
+          default the recruiter should sleepwalk past.
+        */}
+        <fieldset className="ag-kind-pick">
+          <legend className="ag-field-label">What are you asking them for?</legend>
+          {([
+            ["character", "Character reference", "Someone who worked with them — when, and what they were like to work with."],
+            ["hr", "HR reference", "The employer's HR team, confirming dates and job title. Facts only."],
+          ] as const).map(([value, label, hint]) => (
+            <label key={value} className="ag-kind-opt" htmlFor={`ref-kind-${value}`}>
+              <input
+                id={`ref-kind-${value}`}
+                type="radio"
+                name="referee-kind"
+                value={value}
+                checked={newRef.kind === value}
+                onChange={() => setNewRef({ ...newRef, kind: value })}
+              />
+              <span>
+                <b>{label}</b>
+                <span className="ag-meta" style={{ display: "block" }}>{hint}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+
+        <label className="ag-field-label" htmlFor="ref-name">
+          Referee name
+        </label>
+        <input
+          id="ref-name"
+          className="ag-input"
+          name="refereeName"
+          autoComplete="off"
+          placeholder="Dr Sarah Lindqvist"
+          value={newRef.refereeName}
+          onChange={(e) => setNewRef({ ...newRef, refereeName: e.target.value })}
+        />
+        <label className="ag-field-label" htmlFor="ref-email">
+          Referee email
+        </label>
+        {/* type=email gets the right keyboard and validation; spellcheck off
+            because an address is not prose. */}
+        <input
+          id="ref-email"
+          className="ag-input"
+          type="email"
+          name="refereeEmail"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="s.lindqvist@example.nhs.uk"
+          value={newRef.refereeEmail}
+          onChange={(e) => setNewRef({ ...newRef, refereeEmail: e.target.value })}
+        />
+        <label className="ag-field-label" htmlFor="ref-rel">
+          Relationship
+        </label>
+        <input
+          id="ref-rel"
+          className="ag-input"
+          name="relationship"
+          autoComplete="off"
+          placeholder="Manager, NHS Digital 2022–2025"
+          value={newRef.relationship}
+          onChange={(e) => setNewRef({ ...newRef, relationship: e.target.value })}
+        />
+        <div>
+          <button className="ag-btn ag-btn-secondary" onClick={addReferee} disabled={busy}>
+            Add referee
+          </button>
+        </div>
+      </div>
+
+      <p className="ag-note" style={{ marginTop: 12 }}>
+        Referees are data subjects too. The request and their fair-processing notice are the same
+        email — they cannot be asked without being told what you hold — and their words join the
+        pack attributed, never paraphrased.
+      </p>
+    </section>
+  )
+}

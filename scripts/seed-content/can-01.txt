@@ -1,0 +1,30 @@
+Priya Raman
+London · o.oifoh+can01@gmail.com · 07700 900001
+
+SUMMARY
+Data engineer, 9 years. Built and ran the clinical data platform at a hospital
+group for four years. Comfortable owning a pipeline end to end, from ingestion
+to the models analysts use.
+
+EXPERIENCE
+
+Lead Data Engineer — Northgate Health Group (2021–present)
+- Owned the batch and streaming pipelines carrying roughly 3TB/day of
+  appointment, referral and outcomes data across 22 hospital sites.
+- Rebuilt 180 dbt models in production, introduced testing and cut overnight
+  model failures from about nine a week to under one.
+- Ran Apache Airflow across three environments, including the on-call rota.
+- Moved the warehouse from on-premise Postgres to Snowflake over eleven months
+  with no interruption to clinical reporting.
+- Sat on the information governance board as engineering representative; wrote
+  the DPIA for the outcomes data pipeline under UK GDPR.
+- Line-managed two engineers and mentored three more through a graduate scheme.
+
+Senior Data Engineer — Belfry Logistics (2018–2021)
+- Kafka pipelines for fleet telemetry, about 400GB/day.
+- Terraform for all data infrastructure on AWS.
+- Deep SQL tuning work on tables in the low billions of rows.
+
+SKILLS
+Python (9 yrs) · SQL · Airflow · dbt · Snowflake · Kafka · Terraform · AWS
+FHIR (working knowledge, built two HL7v2 to FHIR translators)

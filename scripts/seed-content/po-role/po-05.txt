@@ -1,0 +1,29 @@
+Rhiannon Price
+Cardiff (hybrid, happy to travel to London) · o.oifoh+po05@gmail.com · 07700 900205
+
+SUMMARY
+Product Owner with five years owning patient-facing products in a private hospital group and a health-tech scale-up. Known for tight acceptance criteria, well-run prioritisation and honest outcome reporting.
+
+EXPERIENCE
+
+Product Owner, Digital Front Door — Oakhollow Private Hospitals (2022–present)
+- Own the backlog for web booking, pre-admission forms and patient messaging across six hospitals; Scrum team of eight.
+- Wrote the user stories and acceptance criteria for a new self-pay booking journey that lifted self-pay online conversion from 3.1% to 5.4%.
+- Work with consultants, pre-assessment nurses and admissions managers to agree priorities; introduced a weighted scoring model so trade-offs are visible.
+- Analyse the funnel in Amplitude and in SQL against our Snowflake warehouse; each roadmap item carries a target metric before it is started.
+- Own the 12-month roadmap and quarterly OKRs; digital pre-admission completion grew from 30% to 77%.
+- Contributed hazard analysis to the DCB0129 safety case and completed UK GDPR data protection impact assessments for two new features.
+- Run usability sessions with our researcher every second sprint and share clips with stakeholders.
+
+Product Owner — Saltmarsh Health Tech (2020–2022)
+- Owned a physiotherapy exercise app backlog; grew weekly active users from 4,000 to 19,000.
+- Wrote user stories, ran refinement and planning; worked with an offshore development supplier on delivery and quality.
+
+Graduate Analyst — Saltmarsh Health Tech (2019–2020)
+- Reporting and analytics support for the product team.
+
+EDUCATION
+BSc Psychology — Cardiff University
+
+SKILLS
+Product ownership · Scrum · User stories & acceptance criteria · Amplitude · Snowflake SQL · Roadmapping & OKRs · Clinical stakeholder management · DCB0129 · UK GDPR · DPIAs · Usability testing · Offshore supplier management

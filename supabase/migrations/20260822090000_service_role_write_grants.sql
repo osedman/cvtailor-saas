@@ -1,0 +1,61 @@
+-- ============================================================
+-- Migration 26 · The two tables the service role could not write
+-- ============================================================
+-- A BUG FIX, not a feature. agency.candidate_compliance (migration 24) and
+-- agency.placements (migration 25) are audit-coupled tables: they carry NO
+-- authenticated write grants on purpose, because "I verified this person's
+-- right to work" and "this placement is worth £14,000" must not be writable
+-- without the audit row that accompanies them. The route writes both in one
+-- operation, using the service role.
+--
+-- Except the service role had no grants on either table, so it could not
+-- write them at all. Both routes fail 42501 permission denied. Both tables
+-- have zero rows, which is exactly why this went unnoticed: there was never
+-- a successful write to compare against a failed one.
+--
+-- HOW IT HAPPENED, because the mechanism will do it again.
+--
+-- 20260805120000_agency_core.sql:425 says:
+--
+--     grant all on all tables in schema agency to service_role;
+--
+-- That reads like a standing rule for the schema. It is not. It is a
+-- POINT-IN-TIME grant against the tables that existed the moment it ran, and
+-- there is no default ACL for schema agency (pg_default_acl holds no row for
+-- it), so a table created afterwards inherits nothing. Every later migration
+-- that added a table re-granted explicitly — scoring, candidates,
+-- submissions, retention, client_auth, the interview loop, all of them. Two
+-- did not, and those two are the only tables of the thirty-two in this schema
+-- where service_role has no privilege whatsoever.
+--
+-- WHY THE TESTS WERE HAPPY. lib/__tests__/agency-compliance.test.ts asserts
+-- the table grants authenticated SELECT and no authenticated writes. That is
+-- true, and it passed, and it is only half the invariant. Nothing asserted
+-- that the role which DOES write it can. The unit tests mock Supabase, so
+-- they agree with the code rather than with Postgres — the same shape as the
+-- cancelled-round/slot bug found by reading the deployed schema in August.
+--
+-- "RLS policies are meaningless without GRANTS" is already written down in
+-- CLAUDE.md. This is the other direction of the same mistake: the policy and
+-- the read grant were both written, and the write grant that makes the
+-- feature function was not.
+--
+-- Idempotent: grants are declarative, so this is safe to re-run, and safe to
+-- run against a database where it has already been applied.
+
+grant select, insert, update, delete on agency.candidate_compliance to service_role;
+grant select, insert, update, delete on agency.placements to service_role;
+
+-- Deliberately NOT granting to authenticated. The whole reason these two
+-- tables are separate from agency.candidates — which does carry a
+-- table-level authenticated UPDATE grant — is that a compliance assertion
+-- and a fee must be unwritable except alongside their audit row.
+--
+-- Verify by effect, not by reading this file:
+--
+--   select has_table_privilege('service_role','agency.candidate_compliance','INSERT'),
+--          has_table_privilege('service_role','agency.placements','INSERT'),
+--          has_table_privilege('authenticated','agency.candidate_compliance','INSERT'),
+--          has_table_privilege('authenticated','agency.placements','INSERT');
+--
+-- Expected: true, true, false, false.

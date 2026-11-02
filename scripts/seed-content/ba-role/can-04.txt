@@ -1,0 +1,23 @@
+Daniel Achebe
+Birmingham (remote) · o.oifoh+ba04@gmail.com · 07700 900904
+
+SUMMARY
+Business Analyst at a legal technology vendor, six years delivering change for law firm and in-house legal customers. Strong on Agile delivery and on the legal tech landscape.
+
+EXPERIENCE
+
+Product Business Analyst — Lexora (contract lifecycle management SaaS) (2020–present)
+- Business Analyst delivering innovation and change projects for law firm customers implementing Lexora, from discovery to go-live, twelve implementations to date.
+- Strong understanding of AI concepts: our clause extraction uses NLP and machine learning, and I wrote the requirements for the generative AI drafting assistant.
+- Agile: Scrum backlog management, sprint planning and user story creation for a product squad of eight.
+- Stakeholder management across all seniority levels: general counsel, partners, IT directors, compliance officers and integration vendors.
+- Facilitated discovery workshops and cross-functional collaboration sessions with customers and engineering.
+- Deep familiarity with legal tech platforms: iManage, NetDocuments, DocuSign CLM, Ironclad, and digital transformation frameworks used by legal operations teams.
+- Translate complex technical concepts such as model confidence and integration architecture into clear business language.
+- Awareness of data privacy, legal privilege and ethical considerations in AI deployment across UK and EU customers.
+
+Business Analyst — Midland Water (2018–2020)
+- Process mapping and requirements documentation for billing transformation.
+
+SKILLS
+Business analysis · Requirements · Process mapping · Scrum · Jira · Product analytics (Mixpanel) · Legal tech: iManage, NetDocuments, Ironclad, DocuSign CLM · NLP and generative AI concepts · GDPR

@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { courseProviderPrompt } from '@/lib/course-sources/registry'
+import type { RoleMatch } from '@/lib/matching/role-match'
 import { timedFetch } from '@/lib/server-timing'
 
 export const anthropic = new Anthropic({
@@ -73,6 +74,12 @@ export interface TailorResult {
   seniority?: string
   /** The untouched AI output, kept from the first hand-edit so it can be restored */
   tailoredCVOriginal?: string
+  /**
+   * Role mode only: the tailored CV scored on /found's scale — same assessor,
+   * same requirement list, same weights as the "before" number. Absent on
+   * free tailoring and on role-mode runs made before this existed.
+   */
+  roleMatch?: RoleMatch
 }
 
 // Extended results generated on-demand
@@ -685,6 +692,18 @@ export interface CareerProfileSections {
   qualities: CareerProfileQuality[]
 }
 
+export const CAREER_EVIDENCE_CATEGORIES = ['quant', 'scope', 'leadership', 'systems', 'craft'] as const
+export type CareerEvidenceCategory = (typeof CAREER_EVIDENCE_CATEGORIES)[number]
+
+export interface CareerEvidenceCard {
+  category: CareerEvidenceCategory
+  claim: string
+  sourceRole: string
+  sourceCompany: string
+  sourceSpan: string
+  cvLine: number | null
+}
+
 export interface CareerQuestion {
   key: "origin" | "turning_point" | "proudest" | "ambition"
   question: string
@@ -869,19 +888,32 @@ export const CAREER_PROFILE_TOOL: Anthropic.Tool = {
   },
 }
 
-// ── Career evidence (ported with the evidence sidebar, 11 Aug 2026) ─────
-export const CAREER_EVIDENCE_CATEGORIES = ['quant', 'scope', 'leadership', 'systems', 'craft'] as const
-export type CareerEvidenceCategory = (typeof CAREER_EVIDENCE_CATEGORIES)[number]
-
-export interface CareerEvidenceCard {
-  category: CareerEvidenceCategory
-  claim: string
-  sourceRole: string
-  sourceCompany: string
-  sourceSpan: string
-  cvLine: number | null
+export const CAREER_EVIDENCE_TOOL: Anthropic.Tool = {
+  name: "submit_career_evidence",
+  description: "Extract the evidence bank from a CV: the candidate's strongest reusable proof statements, each traceable to one CV bullet or line. Every fact, figure, name, and date must appear in the CV text. Never invent, merge, or embellish. If the CV is thin, return fewer cards; never pad.",
+  input_schema: {
+    type: "object",
+    properties: {
+      cards: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            category: { type: "string", enum: ["quant", "scope", "leadership", "systems", "craft"], description: "quant: anchored on a figure that appears literally in the CV (money, %, counts). scope: breadth of remit (teams, sites, budgets, markets). leadership: people outcomes (promotions, retention, mentoring, hiring). systems: process/tooling/platform work. craft: hands-on quality of execution." },
+            claim: { type: "string", description: "One self-contained proof statement in sentence case, 8-30 words, drawn from a specific CV bullet. Tighten wording only — every fact, figure, name, and date must appear in the CV. Never merge facts from different roles into one claim. Never include the line-number prefix." },
+            sourceRole: { type: "string", description: "REQUIRED for every card: the job title whose section this claim sits under, exactly as in the CV. Empty string ONLY if the CV genuinely has no role headings." },
+            sourceCompany: { type: "string", description: "REQUIRED for every card: the company for that role, exactly as in the CV. Empty string ONLY if the CV genuinely names no companies." },
+            sourceSpan: { type: "string", description: "That role's date span as written in the CV, e.g. '2023-26'. Empty string if the CV shows no dates for it." },
+            cvLine: { type: "number", description: "The line number where the supporting text appears — read it directly from the N| prefix on each CV line. Null only if the claim's support spans no single line." },
+          },
+          required: ["category", "claim", "sourceRole", "sourceCompany", "sourceSpan", "cvLine"],
+        },
+        description: "8-14 cards covering the candidate's strongest proofs. Include EVERY quantified achievement in the CV as a quant card (the figure must appear literally). Spread across categories wherever the CV supports it. Order strongest first.",
+      },
+    },
+    required: ["cards"],
+  },
 }
-
 
 export const CAREER_REPHRASE_TOOL: Anthropic.Tool = {
   name: "submit_rephrase",

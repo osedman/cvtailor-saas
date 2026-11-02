@@ -1,0 +1,30 @@
+Leila Farahani
+London · o.oifoh+po09@gmail.com · 07700 900209
+
+SUMMARY
+Product Owner with four years in healthcare, owning a patient app for a private dermatology group. Strong clinical relationships and user research practice; I lean on qualitative insight more than numbers.
+
+EXPERIENCE
+
+Product Owner — Linmere Skin Clinics (2022–present)
+- Own the backlog for the patient app and online booking across 12 clinics; Scrum team of five.
+- Write user stories and acceptance criteria; run refinement and sprint planning.
+- Work closely with consultant dermatologists, nurses and clinic managers; I sit in on clinic sessions every month to see the journey first-hand.
+- Launched photo-based follow-up consultations, now used for roughly a third of follow-ups.
+- Run interviews and usability tests with patients every sprint alongside our part-time researcher.
+- Maintain the product roadmap and share it with the leadership team each quarter.
+- Completed the UK GDPR DPIA for image storage with our DPO.
+- Improved app store rating from 3.4 to 4.3 by fixing the issues patients raised most in interviews.
+- Prioritise mainly from patient interviews, complaints and clinician feedback; we do not yet have product analytics set up beyond basic app store downloads.
+- Liaise with the app development agency on releases and bug fixes.
+- Introduced a WCAG checklist into the definition of done after patient feedback about text size.
+
+Service Designer — Brambleford Health Partners (2020–2022)
+- Mapped patient journeys for GP online access; facilitated co-design workshops with patients and practice staff.
+
+EDUCATION
+MA Service Design — Royal College of Art
+BA Anthropology — SOAS University of London
+
+SKILLS
+Product ownership · Scrum · User stories · Acceptance criteria · Clinical stakeholder management · User research · Service design · Journey mapping · UK GDPR · Miro · Figma · Jira
