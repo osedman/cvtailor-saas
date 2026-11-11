@@ -1,0 +1,24 @@
+Yusuf Demir
+Leeds (hybrid) · o.oifoh+ba06@gmail.com · 07700 900906
+
+SUMMARY
+Senior Business Analyst with ten years, the last five in Legal Operations at a national law firm, delivering innovation and change projects including two AI deployments.
+
+EXPERIENCE
+
+Senior Business Analyst, Legal Operations — Harcourt Bell LLP (2020–present)
+- Track record of delivering innovation and change projects: AI-assisted due diligence, automated document assembly, and a client-facing self-service portal.
+- Strong understanding of AI concepts (NLP, machine learning, generative AI) and their applications in a legal context; led the evaluation of three generative AI vendors.
+- Proficient in process mapping, requirements documentation and data analysis; SQL and Power BI daily.
+- Agile environment using Scrum and DSDM; backlog management, sprint planning and user story creation.
+- Excellent stakeholder management across all seniority levels and disciplines — partners, IT, compliance and vendors.
+- Experience facilitating workshops, interviews and cross-functional collaboration sessions.
+- Translate complex technical concepts into clear business language for both technical and non-technical audiences.
+- Awareness of data privacy, legal privilege and ethical considerations in AI deployment; member of the firm's AI governance group.
+- Stay current on legal tech trends and regulatory changes and contribute to the innovation roadmap.
+
+Business Analyst — Yorkshire Health Informatics (2015–2020)
+- Clinical systems change projects; requirements, process mapping, UAT.
+
+SKILLS
+Business analysis · Requirements · Process mapping · SQL · Power BI · Scrum · DSDM · Jira · Generative AI, NLP, ML · AI governance · Workshop facilitation

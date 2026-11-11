@@ -1,0 +1,23 @@
+Tomasz Wierzbicki
+Manchester (hybrid) · o.oifoh+ba02@gmail.com · 07700 900902
+
+SUMMARY
+Lead Business Analyst with eight years in legal services technology. Track record of delivering change projects from discovery through adoption, most recently an AI-assisted disclosure platform.
+
+EXPERIENCE
+
+Lead Business Analyst, Legal Technology — Northcote Legal Services (2020–present)
+- Delivered the analysis for an AI-assisted disclosure and eDiscovery platform using machine learning classification and NLP entity extraction, adopted by 400 fee earners.
+- Proficient in process mapping (Visio, BPMN), requirements documentation and data analysis in SQL and Excel; built the baseline measures the benefits case relied on.
+- Agile delivery in Scrum: backlog management, sprint planning and user story creation for two squads.
+- Stakeholder management across partners, IT, information security, compliance and three vendors, including contract negotiation support for Relativity.
+- Facilitated requirements workshops and one-to-one interviews with lawyers, paralegals and clients.
+- Explained technical concepts such as predictive coding recall and precision in clear business language to non-technical audiences on the steering group.
+- Familiar with legal tech platforms including Relativity, iManage and Litera, and with digital transformation frameworks (TOGAF-lite, Prosci ADKAR).
+- Aware of data privacy, legal privilege and ethical considerations in AI deployment; co-authored the DPIA for the disclosure platform.
+
+Business Analyst — Pennine Building Society (2016–2020)
+- Change projects on mortgage origination; requirements, process redesign, UAT.
+
+SKILLS
+Business analysis · BPMN · Requirements · SQL · Excel · Scrum · Jira · Relativity · iManage · Litera · Machine learning and NLP concepts · DPIA · Prosci ADKAR

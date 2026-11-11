@@ -1,0 +1,19 @@
+Liam O'Connor
+Glasgow (hybrid) · o.oifoh+ba16@gmail.com · 07700 900916
+
+SUMMARY
+Data Analyst with five years in retail analytics. Strong SQL and dashboarding; exposure to machine learning models built by colleagues.
+
+EXPERIENCE
+
+Data Analyst — Clyde Retail Group (2021–present)
+- Strong data analysis in SQL and Power BI; own the trading dashboards.
+- Supported the data science team's demand forecasting model with feature analysis; some understanding of machine learning concepts.
+- Present findings to trading and marketing managers in clear business language.
+- Work in a Kanban team with weekly planning.
+
+Junior Analyst — Clyde Retail Group (2019–2021)
+- Reporting and data quality checks.
+
+SKILLS
+SQL · Power BI · Python (basic) · Kanban · Data analysis · ML concepts (exposure)

@@ -1,0 +1,29 @@
+Ada Okonkwo
+Bristol · o.oifoh+can03@gmail.com · 07700 900003
+
+SUMMARY
+Platform and infrastructure engineer, 11 years, who has drifted into data.
+Strongest on infrastructure, streaming and reliability.
+
+EXPERIENCE
+
+Principal Engineer, Data Platform — Corvus Insurance (2019–present)
+- Built the streaming backbone: Kafka with about 60 topics, 1.5TB/day, exactly
+  once semantics for the claims stream.
+- All infrastructure in Terraform; I wrote the modules the rest of the company
+  uses.
+- Redshift warehouse, then migrated to Snowflake in 2023.
+- Python throughout, 11 years.
+- Insurance is FCA regulated — I handled special category health data for the
+  underwriting models and worked with our DPO on the lawful basis assessment.
+- Mentored four engineers formally, two of whom are now seniors.
+
+Infrastructure Engineer — Tessellate (2014–2019)
+- Kubernetes, Terraform, CI. Not a data role.
+
+NOTES
+I have used dbt only on a small internal project — I would not claim production
+depth there. Airflow yes, three years.
+
+SKILLS
+Python · Kafka · Terraform · Snowflake · Redshift · Airflow · SQL · AWS

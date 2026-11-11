@@ -1,0 +1,106 @@
+/**
+ * Today, on both hats, and the client projection behind the client's routes.
+ * Source scans, the same way the hiring payload's disclosure line is pinned:
+ * both queues must come from the one ladder, and the client's must go
+ * through the tie check and the coarsening in lib/agency/client-header.ts.
+ */
+import { describe, it, expect } from "vitest"
+import { readFileSync } from "fs"
+import { join } from "path"
+import { tsCode, screenSource } from "./helpers/source-scan"
+
+const read = (p: string) => tsCode(readFileSync(join(process.cwd(), p), "utf8"))
+
+describe("the recruiter's Today route", () => {
+  const src = read("app/api/agency/today/route.ts")
+  it("derives every row from the ladder, never from a stage column", () => {
+    // Batched since 10 Sep 2026: one assembly for every role, not one each.
+    expect(src).toMatch(/getRoleFactsBatch\(auth\.ctx, \(roles \?\? \[\]\)\.map/)
+    expect(src).toMatch(/nextAction\(f, "recruiter", f\.roleId\)/)
+    expect(src).not.toMatch(/stage_state/)
+  })
+  it("leaves closed roles out", () => {
+    expect(src).toMatch(/\.neq\("status", "closed"\)/)
+  })
+})
+
+describe("the client projection", () => {
+  const src = read("lib/agency/client-header.ts")
+  it("ties a role to the caller through agency-written tables only, checked against the caller's own ids", () => {
+    for (const t of ["job_roles", "role_briefs", "submission_recipients", "interview_rounds"]) {
+      expect(src, t).toMatch(new RegExp(`from\\("${t}"\\)[\\s\\S]{0,160}\\.in\\("contact_id", contactIds\\)`))
+    }
+    // A window the client offered is written by the client, so it proves
+    // nothing (30 Sep 2026 access audit — lib/__tests__/access-audit.test.ts).
+    expect(src).not.toMatch(/from\("availability_slots"\)/)
+    expect(src).toMatch(/ctx\.links\.find\(\(l\) => l\.contactId === contactId && l\.agencyId === agencyId\)/)
+  })
+  it("coarsens the shortlist phase and projects for the client hat", () => {
+    expect(src).toMatch(/nextAction\(facts, "client", tie\.roleId\)/)
+    expect(src).toMatch(/chip: "SHORTLIST IN PROGRESS"/)
+    expect(src).toMatch(/handoff: inShortlist \? null/)
+  })
+  it("never serialises the recruiter's counts", () => {
+    const response = src.slice(src.lastIndexOf("return {"))
+    for (const field of ["candidates", "reviewed", "undecided", "failures", "ownerId"]) {
+      expect(response, field).not.toMatch(new RegExp(`\\b${field}:`))
+    }
+  })
+})
+
+describe("the client's routes go through the projection", () => {
+  it.each(["app/api/hiring/roles/[roleId]/header/route.ts", "app/api/hiring/today/route.ts"])("%s", (p) => {
+    const src = read(p)
+    expect(src).toMatch(/listClientRoles\(auth\.ctx\)/)
+    expect(src).toMatch(/getClientRoleHeaders?\(auth\.ctx/)
+    expect(src).not.toMatch(/getRoleFacts\(/)
+    expect(src).not.toMatch(/status: 403[^\n]*Role/)
+  })
+})
+
+describe("the header renders where the plan says", () => {
+  it.each([
+    "app/agencies/roles/[roleId]/page.tsx",
+    "app/agencies/roles/[roleId]/candidates/[candidateId]/page.tsx",
+    "app/agencies/roles/[roleId]/interviews/page.tsx",
+    "app/agencies/roles/[roleId]/close-out/page.tsx",
+    "app/agencies/roles/[roleId]/candidates/[candidateId]/dossier/page.tsx",
+  ])("%s — recruiter", (p) => {
+    // screenSource, not read: candidate detail is a shell plus an extracted
+    // component since 14 Sep 2026, and the header lives in the component.
+    const src = screenSource(p)
+    expect(src).toMatch(/<RoleHeader roleId=\{roleId\} hat="recruiter" \/>/)
+    // The header owns the owner select now; the sidebar box that held it goes.
+    expect(src).not.toMatch(/ag-active-role/)
+  })
+  it("the client's role room — every stage page carries the room header (frame 23)", () => {
+    for (const p of [
+      "app/hiring/roles/[roleId]/shortlist/page.tsx",
+      "app/hiring/roles/[roleId]/round/[n]/page.tsx",
+      "app/hiring/roles/[roleId]/decision/page.tsx",
+      "app/hiring/roles/[roleId]/handover/page.tsx",
+    ]) {
+      expect(read(p), p).toMatch(/<RoomHeader room=\{room\} roleId=\{roleId\}/)
+    }
+  })
+  it("both homes read their queue from the ladder's routes", () => {
+    expect(read("app/agencies/page.tsx")).toMatch(/fetch\("\/api\/agency\/today"\)/)
+    // The hiring side loads once, in the shared hook every place uses.
+    expect(read("components/agency/hm-room.tsx")).toMatch(/fetch\("\/api\/hiring\/today"\)/)
+    expect(read("app/hiring/page.tsx")).toMatch(/useHiringData\(\)/)
+  })
+})
+
+describe("the header component", () => {
+  const src = read("components/agency/role-header.tsx")
+  it("renders nothing until loaded", () => {
+    expect(src).toMatch(/if \(!data\) return null/)
+  })
+  it("refreshes on focus and on the role-changed event", () => {
+    expect(src).toMatch(/addEventListener\("focus", onFocus\)/)
+    expect(src).toMatch(/addEventListener\(ROLE_CHANGED, onFocus\)/)
+  })
+  it("only a writer sees the owner select", () => {
+    expect(src).toMatch(/data\.callerRole !== "viewer"/)
+  })
+})

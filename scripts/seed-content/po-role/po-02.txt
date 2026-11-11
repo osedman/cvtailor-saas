@@ -1,0 +1,29 @@
+Callum Fraser
+London (hybrid) · o.oifoh+po02@gmail.com · 07700 900202
+
+SUMMARY
+Product Owner with six years building patient portals and remote monitoring products for NHS and private providers. Strong on analytics, regulated delivery and turning clinical input into buildable stories.
+
+EXPERIENCE
+
+Product Owner, Patient Portal — Linmere Digital Health (2021–present)
+- Product Owner for a patient portal used by 11 hospital providers and 1.4 million patients; own the backlog for a Scrum team of eight.
+- Write user stories with explicit acceptance criteria and test notes; the team has sustained a 92% sprint goal hit rate over the last 18 months.
+- Chair a clinical reference group of consultants, specialist nurses and outpatient operations managers that agrees priorities each quarter.
+- Launched digital pre-assessment questionnaires; 64% of eligible patients now complete them online, freeing an estimated 3,100 nurse hours a year.
+- Prioritise using GA4 funnels and SQL in BigQuery; found and fixed a registration drop-off that lifted activation from 52% to 71%.
+- Own the product roadmap and outcome metrics (activation, monthly active patients, message response time), reviewed with the customer advisory board.
+- Authored the DCB0129 clinical safety case with our CSO and supported customers' DCB0160 assessments; led our DSPT submission two years running.
+- Worked with two research agencies on diary studies and usability testing with patients aged 70+.
+
+Associate Product Owner — Brambleford Health Partners (2018–2021)
+- Owned a smaller backlog for a remote blood pressure monitoring app across 40 GP practices.
+- Wrote stories and acceptance criteria; ran demos for practice managers and GPs.
+- Managed the SMS gateway supplier and its monthly service reviews.
+
+EDUCATION
+MSc Health Informatics — University of Manchester
+BA Geography — University of Durham
+
+SKILLS
+Product ownership · Scrum · Backlog management · User stories · Acceptance criteria · GA4 · BigQuery SQL · Roadmaps & outcome metrics · Clinical stakeholder management · DCB0129 · DCB0160 · DSPT · UK GDPR · UX research · Supplier management

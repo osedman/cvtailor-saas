@@ -1,0 +1,493 @@
+"use client"
+
+/**
+ * The invite doorway — Figma "Tailr — Hiring Manager Concept", 01 · Hiring
+ * manager → HM · Accept invite.
+ *
+ * A recruiter issued a raw-once token (§5.4) and emailed it to one address.
+ * This page turns that token into hiring-manager access, and it can only do so
+ * once the visitor has proved they own the mailbox it was sent to. Three
+ * things follow from that, and all three are load-bearing:
+ *
+ * 1. ONE DEAD-LINK STATE. Unknown, revoked, expired, already used and
+ *    orphaned all render the same sentence. /api/hiring/invite already
+ *    collapses them to a single 404 and this page must not re-separate them —
+ *    "that link expired" tells a stranger the token was real, which is the one
+ *    bit they were fishing for.
+ *
+ * 2. THE ADDRESS IS ONLY EVER SHOWN MASKED. The server masks it before it
+ *    leaves the database (m•••@meridian.nhs.uk). Whoever holds this URL has
+ *    not proved they are the invitee — links get forwarded, pasted into Slack
+ *    and read over shoulders. The mask is enough for the real invitee to
+ *    recognise their own mailbox and not enough for anyone else to write to
+ *    it. The same rule governs the mismatch state below.
+ *
+ * 3. SIGN-IN IS THE EXISTING ONE. No second auth path: this calls the same
+ *    /api/auth/request-otp magic-link endpoint as the rest of Tailr, through
+ *    the same AuthProvider wrapper, with `next` pointing back at this page so
+ *    the link returns here to finish. One auth pool, three hats (§5.4) — the
+ *    person signing in may already have a Tailr account, and they keep it.
+ *
+ * Theme: this page sits inside the hiring layout's AgencyShell
+ * (`ag-app ag-themed`, next-themes defaultTheme "system"), so every --ag-*
+ * token here follows the visitor's light/dark preference. Anything rendered
+ * on this page must read those tokens — including the busy/retry card below,
+ * whose cs- tokens are re-pointed at them.
+ *
+ * Only a 404 is the dead link (28 Sep 2026). A 429 from the rate limiter — a
+ * colleague in the same office opening their own invite — or our own failure
+ * used to render "isn't valid any more" too, telling someone to give up on a
+ * good link. Those now show the shared busy/retry card the other token
+ * doorways use (DoorwayLoadIssue, consent.css's cs- classes).
+ */
+
+import { use, useCallback, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/components/auth/auth-provider"
+import { DoorwayLoadIssue } from "@/components/agency/doorway-load-issue"
+import { Hint } from "@/components/agency/hint"
+import { doorwayLoadState, retryAfterSeconds, type DoorwayLoadState } from "@/lib/agency/doorway-messages"
+import { tooManyAcceptsMessage } from "@/lib/agency/hiring-invite-messages"
+import { createClient } from "@/lib/supabase/client"
+import "../../../consent/consent.css"
+
+interface InvitePreview {
+  agencyName: string
+  company: string
+  maskedEmail: string
+}
+
+type Lookup = "loading" | "dead" | "ready"
+/** What the signed-in half of the page is doing. `mismatch` is terminal until
+ * they sign in as somebody else. */
+type Phase = "idle" | "accepting" | "mismatch"
+
+const DEAD_TITLE = "This invite link isn't valid any more"
+const DEAD_BODY = "Used, expired or revoked. Ask your recruiter for a fresh link."
+
+/** Frame 44: the sign-in mechanics, said once per state as "How this works"
+ *  instead of three notes down the card. */
+const HOW_THIS_WORKS = (
+  <Hint
+    info
+    content={
+      <>
+        <span className="ag-hint-block">
+          No password — we email a link and a 6-digit code, each working once for about an hour.
+        </span>
+        <span className="ag-hint-block">Sign in with the invited address; accepting checks it.</span>
+        <span className="ag-hint-block">
+          If you already use Tailr, this signs into that account rather than creating a second one.
+        </span>
+      </>
+    }
+  >
+    How this works
+  </Hint>
+)
+
+export default function HiringInvitePage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = use(params)
+  const router = useRouter()
+  const { user, loading: authLoading, signInWithEmail, signOut } = useAuth()
+
+  const [lookup, setLookup] = useState<Lookup>("loading")
+  const [invite, setInvite] = useState<InvitePreview | null>(null)
+  /** A load refused for a reason that is NOT a dead link: busy (429) or our
+   *  own failure (5xx, network). */
+  const [loadIssue, setLoadIssue] = useState<DoorwayLoadState | null>(null)
+  /** Bumped by the busy card's retry to run the preview again. */
+  const [attempt, setAttempt] = useState(0)
+
+  const [phase, setPhase] = useState<Phase>("idle")
+  const [acceptError, setAcceptError] = useState<string | null>(null)
+
+  const [email, setEmail] = useState("")
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [signInError, setSignInError] = useState<string | null>(null)
+  const [code, setCode] = useState("")
+  const [verifying, setVerifying] = useState(false)
+
+  // Where the magic link comes back to. Same-origin relative path, which is
+  // what /api/auth/request-otp will accept — it rejects anything else.
+  const nextPath = `/hiring/invite/${encodeURIComponent(token)}`
+
+  useEffect(() => {
+    let live = true
+    async function peek() {
+      try {
+        const res = await fetch(`/api/hiring/invite?token=${encodeURIComponent(token)}`)
+        if (!live) return
+        const issue = doorwayLoadState({
+          status: res.status,
+          retryAfter: retryAfterSeconds(res.headers.get("Retry-After")),
+          what: "this invitation",
+        })
+        if (issue?.kind === "dead") return setLookup("dead")
+        if (issue) return setLoadIssue(issue)
+        setLoadIssue(null)
+        const body = (await res.json()) as { invite?: InvitePreview }
+        if (!live) return
+        if (!body.invite) return setLookup("dead")
+        setInvite(body.invite)
+        setLookup("ready")
+      } catch {
+        // A network failure says nothing about the token, so it is our
+        // failure to report, never the dead link.
+        if (live) setLoadIssue(doorwayLoadState({ status: null, retryAfter: null, what: "this invitation" }))
+      }
+    }
+    void peek()
+    return () => {
+      live = false
+    }
+  }, [token, attempt])
+
+  const reload = useCallback(() => {
+    setLoadIssue(null)
+    setAttempt((n) => n + 1)
+  }, [])
+
+  const accept = useCallback(async () => {
+    setPhase("accepting")
+    setAcceptError(null)
+    try {
+      const res = await fetch("/api/hiring/accept", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      })
+      if (res.ok) {
+        router.push("/hiring")
+        return
+      }
+      const body = (await res.json().catch(() => ({}))) as { error?: string; reason?: string }
+      if (res.status === 403 && body.reason === "email_mismatch") {
+        setPhase("mismatch")
+        return
+      }
+      if (res.status === 403) {
+        // The invite died between the preview and the click.
+        setLookup("dead")
+        return
+      }
+      if (res.status === 401) {
+        // Session expired mid-flow: fall back to the signed-out half.
+        setPhase("idle")
+        setAcceptError("Your session has expired. Sign in again to accept this invitation.")
+        return
+      }
+      if (res.status === 429) {
+        // Busy, not refused: say how long, so an immediate retry is not
+        // refused again.
+        setPhase("idle")
+        setAcceptError(tooManyAcceptsMessage(retryAfterSeconds(res.headers.get("Retry-After"))))
+        return
+      }
+      setPhase("idle")
+      setAcceptError(body.error || "Something went wrong. Try again in a moment.")
+    } catch {
+      setPhase("idle")
+      setAcceptError("Something went wrong. Check your connection and try again.")
+    }
+  }, [router, token])
+
+  const requestLink = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+      if (!email) return
+      setSending(true)
+      setSignInError(null)
+      const { error } = await signInWithEmail(email, { next: nextPath })
+      setSending(false)
+      if (error) setSignInError(error)
+      else setSent(true)
+    },
+    [email, nextPath, signInWithEmail]
+  )
+
+  const verifyCode = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+      const otp = code.replace(/\s/g, "")
+      if (!email || otp.length < 6) return
+      setVerifying(true)
+      setSignInError(null)
+      const supabase = createClient()
+      const { error } = await supabase.auth.verifyOtp({ email, token: otp, type: "email" })
+      if (error) {
+        setSignInError(error.message || "That code didn't work. Try again or request a new link.")
+        setVerifying(false)
+        return
+      }
+      try {
+        await fetch("/api/auth/post-login", { method: "POST" })
+      } catch {
+        /* the session is already set; this is bookkeeping */
+      }
+      setVerifying(false)
+      // The AuthProvider picks the new session up and the signed-in half of
+      // this page renders — no navigation, so the token never leaves the tab.
+    },
+    [code, email]
+  )
+
+  const startOver = useCallback(async () => {
+    await signOut()
+    setPhase("idle")
+    setAcceptError(null)
+    setSent(false)
+    setCode("")
+    setEmail("")
+  }, [signOut])
+
+  const busy = lookup === "loading" || (lookup === "ready" && authLoading)
+
+  if (loadIssue && loadIssue.kind !== "dead") {
+    // consent.css scopes its tokens to .cs-app with fixed light values. Here
+    // they are pointed at the hiring shell's --ag-* tokens (inline style beats
+    // the class rule), so the card follows the shell's light/dark theme
+    // instead of flashing cream in dark mode. The shell's Geist is its face.
+    return (
+      <div
+        className="cs-app"
+        style={
+          {
+            flex: 1,
+            minWidth: 0,
+            "--cs-sans": "var(--font-ag-sans)",
+            "--cs-ink": "var(--ag-ink)",
+            "--cs-ink-2": "var(--ag-ink-2)",
+            "--cs-ink-3": "var(--ag-ink-3)",
+            "--cs-paper": "var(--ag-paper)",
+            "--cs-cream": "var(--ag-cream)",
+            "--cs-border": "var(--ag-border)",
+            "--cs-line": "var(--ag-line-2)",
+            "--cs-coral": "var(--ag-coral)",
+            "--cs-coral-text": "var(--ag-coral-text)",
+            "--cs-tint": "var(--ag-tint-1)",
+          } as React.CSSProperties
+        }
+      >
+        <DoorwayLoadIssue issue={loadIssue} onRetry={reload} eyebrow="Hiring manager" />
+      </div>
+    )
+  }
+
+  return (
+    <main className="hm-door">
+      <div className="ag-card hm-door-card">
+        <div className="ag-card-body" style={{ padding: 28 }}>
+          <div className="hm-door-mark">
+            <div className="ag-brand-mark" aria-hidden="true">
+              T
+            </div>
+            <div>
+              <div className="ag-brand-name">Tailr</div>
+              <div className="ag-brand-sub">Hiring manager</div>
+            </div>
+          </div>
+
+          <div role="status" aria-live="polite" aria-busy={busy}>
+            {busy && (
+              <div style={{ textAlign: "center", padding: "28px 0" }}>
+                <span className="ag-spin" />
+                <p className="ag-note" style={{ marginTop: 12 }}>
+                  Checking this invitation.
+                </p>
+              </div>
+            )}
+
+            {/* ---- one dead-link state, for every failure mode ---- */}
+            {!busy && lookup === "dead" && (
+              <>
+                <h1 className="ag-title" style={{ fontSize: "var(--t-title)" }}>
+                  {DEAD_TITLE}
+                </h1>
+                <p className="ag-note" style={{ marginTop: 10 }}>
+                  {DEAD_BODY}
+                </p>
+              </>
+            )}
+
+            {/* ---- valid, signed in, wrong mailbox ---- */}
+            {!busy && lookup === "ready" && invite && user && phase === "mismatch" && (
+              <>
+                <h1 className="ag-title" style={{ fontSize: "var(--t-title)" }}>
+                  This invitation is for a different address
+                </h1>
+                <p className="ag-note" style={{ marginTop: 10 }}>
+                  {invite.agencyName} sent it to:
+                </p>
+                <p className="hm-masked" style={{ margin: "8px 0 14px" }}>
+                  {invite.maskedEmail}
+                </p>
+                <p className="ag-note">
+                  Access goes only to the mailbox shown. Sign in with it and reopen this link — if it
+                  isn&apos;t yours, tell your recruiter.
+                </p>
+                <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
+                  <button className="ag-btn ag-btn-coral" onClick={startOver}>
+                    Sign out and use another address
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ---- valid, signed in, ready to bind ---- */}
+            {!busy && lookup === "ready" && invite && user && phase !== "mismatch" && (
+              <>
+                <h1 className="ag-title" style={{ fontSize: "var(--t-title)" }}>
+                  {invite.agencyName} invited you
+                </h1>
+                <div className="hm-how">{HOW_THIS_WORKS}</div>
+                <p className="ag-note" style={{ marginTop: 10 }}>
+                  Brief roles, offer interview times and record decisions for{" "}
+                  <b style={{ color: "var(--ag-ink)" }}>{invite.company}</b>.
+                </p>
+                <p className="ag-note" style={{ marginTop: 10 }}>
+                  Your recruiter sees everything you do here; you don&apos;t see their working notes.
+                </p>
+                {acceptError && (
+                  <p
+                    className="ag-note"
+                    role="alert"
+                    style={{ marginTop: 12, color: "var(--ag-coral-deep)" }}
+                  >
+                    {acceptError}
+                  </p>
+                )}
+                <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
+                  <button
+                    className="ag-btn ag-btn-coral"
+                    onClick={accept}
+                    disabled={phase === "accepting"}
+                  >
+                    {phase === "accepting" && <span className="ag-spin" />}
+                    {phase === "accepting" ? "Accepting…" : "Accept and open my workspace"}
+                  </button>
+                  <button className="ag-btn ag-btn-secondary" onClick={startOver}>
+                    Not me — sign out
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ---- valid, not signed in ---- */}
+            {!busy && lookup === "ready" && invite && !user && (
+              <>
+                <h1 className="ag-title" style={{ fontSize: "var(--t-title)" }}>
+                  {invite.agencyName} invited you
+                </h1>
+                <div className="hm-how">{HOW_THIS_WORKS}</div>
+                <p className="ag-note" style={{ marginTop: 10 }}>
+                  Be the hiring manager for <b style={{ color: "var(--ag-ink)" }}>{invite.company}</b>: brief
+                  roles, offer interview times, record decisions.
+                </p>
+                <p className="ag-note" style={{ marginTop: 10 }}>
+                  The invitation was sent to:
+                </p>
+                <p className="hm-masked" style={{ margin: "8px 0 16px" }}>
+                  {invite.maskedEmail}
+                </p>
+
+                {sent ? (
+                  <>
+                    <p className="ag-card-title" style={{ margin: 0 }}>
+                      Check your email
+                    </p>
+                    <p className="ag-note" style={{ marginTop: 6 }}>
+                      Open the link on this device, or enter the 6-digit code.
+                    </p>
+                    <form onSubmit={verifyCode} style={{ marginTop: 14 }}>
+                      <label className="ag-label" htmlFor="hm-otp">
+                        6-digit code
+                      </label>
+                      <input
+                        id="hm-otp"
+                        className="ag-input"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        pattern="[0-9]*"
+                        maxLength={8}
+                        placeholder="000000"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                        style={{ letterSpacing: "0.3em", textAlign: "center" }}
+                      />
+                      {signInError && (
+                        <p
+                          className="ag-note"
+                          role="alert"
+                          style={{ marginTop: 8, color: "var(--ag-coral-deep)" }}
+                        >
+                          {signInError}
+                        </p>
+                      )}
+                      <button
+                        type="submit"
+                        className="ag-btn ag-btn-coral"
+                        style={{ marginTop: 12 }}
+                        disabled={verifying || code.replace(/\s/g, "").length < 6}
+                      >
+                        {verifying && <span className="ag-spin" />}
+                        {verifying ? "Verifying…" : "Verify code"}
+                      </button>
+                    </form>
+                    <button
+                      className="ag-btn"
+                      style={{ marginTop: 8, paddingLeft: 0, textDecoration: "underline" }}
+                      onClick={() => {
+                        setSent(false)
+                        setCode("")
+                        setSignInError(null)
+                      }}
+                    >
+                      Use a different address
+                    </button>
+                  </>
+                ) : (
+                  <form onSubmit={requestLink}>
+                    <label className="ag-label" htmlFor="hm-email">
+                      Sign in with the invited address
+                    </label>
+                    <input
+                      id="hm-email"
+                      className="ag-input"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      required
+                      placeholder="you@company.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                    {signInError && (
+                      <p
+                        className="ag-note"
+                        role="alert"
+                        style={{ marginTop: 8, color: "var(--ag-coral-deep)" }}
+                      >
+                        {signInError}
+                      </p>
+                    )}
+                    <button
+                      type="submit"
+                      className="ag-btn ag-btn-coral"
+                      style={{ marginTop: 14 }}
+                      disabled={sending || !email}
+                    >
+                      {sending && <span className="ag-spin" />}
+                      {sending ? "Sending…" : "Email me a sign-in link"}
+                    </button>
+                  </form>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </main>
+  )
+}

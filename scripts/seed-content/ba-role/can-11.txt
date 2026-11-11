@@ -1,0 +1,22 @@
+Ingrid Solberg
+Reading (hybrid) · o.oifoh+ba11@gmail.com · 07700 900911
+
+SUMMARY
+Business Analyst with six years at a software house, writing requirements for B2B products and working alongside a data science team.
+
+EXPERIENCE
+
+Business Analyst — Kestrel Software (2019–present)
+- Business Analyst delivering change projects on the core product; requirements documentation and process mapping are daily work.
+- Data analysis in SQL to inform prioritisation.
+- Agile environment (Scrum and Kanban): backlog management, sprint planning and user story creation.
+- Liaison to the data science team building recommendation models; transferable understanding of machine learning concepts.
+- Stakeholder management with product managers, engineering and a small number of enterprise customers.
+- Facilitated requirements workshops with customer teams.
+- Translate technical concepts into clear business language in release notes and customer briefings.
+
+Support Analyst — Kestrel Software (2017–2019)
+- Second-line support; wrote the knowledge base.
+
+SKILLS
+Business analysis · Requirements · Process mapping · SQL · Scrum · Kanban · Jira · Workshop facilitation

@@ -1,0 +1,329 @@
+/* The consent doorway.
+ *
+ * One column, generous measure, brand colours, nothing else. The person
+ * reading this is deciding about their own voice, usually on a phone, often
+ * while nervous about an interview — so the type is a size up from the product
+ * default and the two options are visually identical.
+ *
+ * No mono anywhere: every word here is human prose, and the typography
+ * guardrail has nothing new to approve.
+ */
+
+.cs-app {
+  --cs-ink: #1e1813;
+  --cs-ink-2: #4e463d;
+  --cs-ink-3: #6f675b;
+  --cs-paper: #fffdfa;
+  --cs-cream: #f9f6f0;
+  --cs-border: #eee6da;
+  --cs-line: #ded4c1;
+  --cs-coral: #dc4f33;
+  --cs-coral-text: #c6391d;
+  --cs-tint: #fff7f4;
+  font-family: var(--cs-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  color: var(--cs-ink);
+  background: var(--cs-cream);
+  min-height: 100vh;
+}
+
+.cs-wrap {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 48px 20px 72px;
+}
+
+.cs-card {
+  background: var(--cs-paper);
+  border: 1px solid var(--cs-border);
+  border-radius: 16px;
+  padding: 32px 30px;
+}
+
+.cs-eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cs-coral-text);
+}
+
+.cs-title {
+  margin: 0 0 18px;
+  font-size: 26px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* The saved heading takes focus programmatically so the change is announced.
+ * Nobody tabs to a heading, so the ring would only ever be confusing. */
+.cs-title:focus { outline: none; }
+
+.cs-body {
+  margin: 0 0 16px;
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--cs-ink-2);
+}
+.cs-body b { color: var(--cs-ink); font-weight: 600; }
+.cs-small { font-size: 14px; color: var(--cs-ink-3); }
+
+/* The two options are deliberately identical: same border, same background,
+ * same weight. Styling one as primary would be answering for them. */
+/* The "you pressed X in the email" note. Tinted, not alarmed: it is
+ * reassurance that a click registered, plus the correction that it did not
+ * count. Sits immediately above the choice it refers to. */
+.cs-intent {
+  margin: 24px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--cs-line);
+  border-left: 3px solid var(--cs-coral);
+  border-radius: 8px;
+  background: var(--cs-tint);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--cs-ink-2);
+}
+
+.cs-intent b { color: var(--cs-ink); font-weight: 600; }
+
+.cs-choice {
+  border: none;
+  margin: 24px 0 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cs-legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cs-ink-3);
+}
+.cs-option {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border: 1px solid var(--cs-line);
+  border-radius: 12px;
+  background: var(--cs-paper);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--cs-ink-2);
+  cursor: pointer;
+}
+.cs-option:hover { border-color: var(--cs-ink-3); }
+.cs-option:has(input:checked) {
+  border-color: var(--cs-coral);
+  background: var(--cs-tint);
+}
+.cs-option:has(input:focus-visible) {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--cs-tint);
+  border-color: var(--cs-coral);
+}
+.cs-option input {
+  margin-top: 3px;
+  accent-color: var(--cs-coral);
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.cs-option b { color: var(--cs-ink); font-weight: 600; }
+
+.cs-btn {
+  display: inline-block;
+  background: var(--cs-ink);
+  color: var(--cs-paper);
+  border: none;
+  border-radius: 10px;
+  padding: 14px 22px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cs-btn:disabled { opacity: 0.45; cursor: default; }
+.cs-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--cs-tint); }
+
+.cs-error { margin: 14px 0 0; font-size: 14px; color: var(--cs-coral-text); }
+.cs-quiet { padding: 48px 20px; color: var(--cs-ink-3); text-align: center; }
+.cs-foot {
+  margin: 26px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--cs-border);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--cs-ink-3);
+}
+
+/* Referee answers. Generous by default: someone writing about a colleague
+ * should not feel metered. */
+.cs-textarea {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--cs-line);
+  border-radius: 10px;
+  background: var(--cs-paper);
+  color: var(--cs-ink);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+  resize: vertical;
+}
+.cs-textarea:focus { outline: none; border-color: var(--cs-coral); box-shadow: 0 0 0 3px var(--cs-tint); }
+
+/* Declining is a real option, not a footnote — same size and shape as the
+ * primary, quieter only in fill. */
+.cs-btn-quiet {
+  background: var(--cs-paper);
+  color: var(--cs-ink-2);
+  border: 1px solid var(--cs-line);
+  margin-left: 10px;
+}
+
+
+/* ── The referee's dates and hints (23 Sep 2026, Figma frame 24 band H) ──
+ *
+ * The dates are free text, not a date picker: a picker demands a precision
+ * nobody has about a job they left in 2021, and "spring 2021" is a more
+ * honest answer than a wrong day. Two fields side by side above 480px and
+ * stacked below it, because a phone keyboard leaves no room for a pair. */
+.cs-fieldset {
+  margin: 0 0 4px;
+  padding: 0;
+  border: 0;
+}
+.cs-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 480px) {
+  .cs-pair { grid-template-columns: 1fr; }
+}
+.cs-input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  min-height: 44px;
+  border: 1px solid var(--cs-line);
+  border-radius: 10px;
+  background: var(--cs-paper);
+  color: var(--cs-ink);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.cs-input:focus { outline: none; border-color: var(--cs-coral); box-shadow: 0 0 0 3px var(--cs-tint); }
+.cs-input:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* A hint is guidance, not a label: it sits under the question and never
+ * replaces it, because a placeholder that vanishes on focus is not a label. */
+.cs-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--cs-ink-3);
+}
+
+/* "We still work together". The whole row is the target — a 13px checkbox
+ * on a phone is not one. */
+.cs-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin-top: 10px;
+  font-size: 15px;
+  color: var(--cs-ink-2);
+  cursor: pointer;
+}
+.cs-check input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--cs-coral);
+  cursor: pointer;
+}
+
+/* The doorway animates nothing, but the focus ring is a transition on some
+ * browsers' defaults — say so explicitly rather than rely on that. */
+@media (prefers-reduced-motion: reduce) {
+  .cs-option,
+  .cs-btn,
+  .cs-textarea,
+  .cs-input {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ── The form's rhythm (ui-ux-pro-max pass, 23 Sep 2026) ────────────────────
+ *
+ * Ose's screenshot: the legend was 13px grey under 16px bold questions, the
+ * two date inputs sat at different heights because their labels were
+ * different lengths, and "Would you work with them again" was jammed against
+ * the textarea above it. One block class with one vertical gap fixes the
+ * rhythm; one label class at one weight fixes the hierarchy; short labels fix
+ * the alignment. Spacing is a 4/8 scale: 24 between blocks, 8 label→hint,
+ * 8 hint→field. */
+.cs-q {
+  display: block;
+  margin: 24px 0 0;
+  min-width: 0;
+}
+.cs-q-label {
+  display: block;
+  margin: 0;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--cs-ink);
+}
+.cs-q .cs-hint { margin-top: 6px; }
+.cs-q .cs-textarea,
+.cs-q .cs-pair { margin-top: 10px; }
+
+/* "From" / "To". Small, quiet, the same length — the question is the legend
+ * above them, so these only have to name the box. */
+.cs-sub {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--cs-ink-3);
+}
+.cs-sub .cs-input { margin-top: 6px; }
+
+/* A focus ring you can see from across the room. The border alone read as a
+ * hover state; the ring is the affordance, the border just agrees with it. */
+.cs-input:focus-visible,
+.cs-textarea:focus-visible {
+  outline: none;
+  border-color: var(--cs-coral);
+  box-shadow: 0 0 0 4px var(--cs-tint);
+}
+
+/* Two buttons of equal standing. Side by side where there is room; one
+ * above the other on a phone, primary first, both full width and 48px. */
+.cs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
+}
+.cs-actions .cs-btn { min-height: 48px; }
+.cs-actions .cs-btn-quiet { margin-left: 0; }
+@media (max-width: 480px) {
+  .cs-actions { flex-direction: column; }
+  .cs-actions .cs-btn { width: 100%; }
+}

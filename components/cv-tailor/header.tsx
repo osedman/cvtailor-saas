@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { LogOut, ChevronDown, Clock, Kanban, ShieldCheck, Target, TrendingUp } from "lucide-react"
+import { LogOut, ChevronDown, Clock, Kanban, ShieldCheck, Settings, Target, TrendingUp } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { SignInModal } from "@/components/auth/sign-in-modal"
 import { isAdminViewer } from "@/lib/admin"
@@ -20,12 +20,34 @@ export function Header({ onSignInClick, onHistoryClick, enhanced = false }: Head
   const [showUserMenu, setShowUserMenu] = useState(false)
   const { user, loading, signOut } = useAuth()
   const careerBeta = useCareerBeta()
+  // Roles that found this person and are still open. Counts only — the
+  // summary route never carries role content around the app. Zero renders
+  // nothing at all: a permanent empty nav item would be noise, and the pill
+  // exists to be believed when it does appear.
+  const [foundOpen, setFoundOpen] = useState(0)
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10)
     window.addEventListener("scroll", handleScroll)
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
+
+  useEffect(() => {
+    if (!user) {
+      setFoundOpen(0)
+      return
+    }
+    let live = true
+    fetch("/api/found/summary")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (live && s) setFoundOpen(Number(s.open) || 0)
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [user])
 
   function handleSignInClick() {
     if (onSignInClick) onSignInClick()
@@ -59,6 +81,16 @@ export function Header({ onSignInClick, onHistoryClick, enhanced = false }: Head
             {/* Nav links — only for signed-in users */}
             {!loading && user && (
               <>
+                {foundOpen > 0 && (
+                  <Link
+                    href="/found"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#b3341b] bg-[#fff7f4] border border-[#f5d9d0] rounded-full hover:bg-[#ffeae4] transition-colors"
+                    title="A role matched your evidence — only you can see it"
+                  >
+                    <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#dc4f33]" />
+                    <span>A role found you</span>
+                  </Link>
+                )}
                 {onHistoryClick && (
                   <button
                     onClick={onHistoryClick}
@@ -128,6 +160,19 @@ export function Header({ onSignInClick, onHistoryClick, enhanced = false }: Head
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setShowUserMenu(false)} />
                       <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl border border-gray-100 shadow-lg z-20 py-1 overflow-hidden">
+                        {/* The signed-off frame shows Settings as a nav tab.
+                            The real nav is already conditional (Career Path,
+                            Career Arc, Admin) and would crowd at mobile widths,
+                            so it lives in the account menu — where a consent
+                            control is conventionally looked for anyway. */}
+                        <Link
+                          href="/settings"
+                          onClick={() => setShowUserMenu(false)}
+                          className="w-full px-4 py-2.5 text-sm text-left text-gray-600 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                        >
+                          <Settings className="w-4 h-4" />
+                          Settings
+                        </Link>
                         <button
                           onClick={() => { signOut(); setShowUserMenu(false) }}
                           className="w-full px-4 py-2.5 text-sm text-left text-gray-600 hover:bg-gray-50 flex items-center gap-2 transition-colors"

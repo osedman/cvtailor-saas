@@ -67,6 +67,14 @@ another agent's feature branch on 28 Jul because they pushed mid-task.
 Every change gets a row in `docs/PROJECT.md` AND a card on the Notion board
 (data source `4dd8b2b7-23f0-48a5-92a3-4ffdfbb32fa6`). Both, every time.
 
+## Test fixtures (staging)
+
+Keep until Ose says otherwise: role **ROL-2421** (Product Owner, Meridian
+Health, Halcyon Search) with its seeded candidates, and Ose's two consumer
+accounts used for matching. Never close or discard ROL-2421 (closing starts
+the retention purge), never delete or re-seed its candidates. Details:
+`scripts/seed-content/po-role/README.md`.
+
 ## Never
 
 - Merge to `main` or ship to production without Ose saying so explicitly.

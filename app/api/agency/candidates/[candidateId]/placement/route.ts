@@ -1,0 +1,157 @@
+/**
+ * The placement on one candidate.
+ *
+ * GET reads; PUT records or updates. The table has no authenticated write
+ * grants, so this route is the only way a placement changes, and the audit
+ * row rides the same operation.
+ *
+ * Status mapping: 422 for a fall-through with no reason, and for a placement
+ * on a candidate the client never advanced with no reason either — both are
+ * refusals to accept an INCOMPLETE RECORD rather than permission problems.
+ *
+ * GET also returns advanceDecision so the screen can ask up front instead of
+ * refusing the recruiter after they have filled the form.
+ */
+
+import { NextRequest, NextResponse } from "next/server"
+import { requireAgencyContext, AgencyAccessError } from "@/lib/agency/db"
+import {
+  getPlacementForCandidate,
+  setPlacement,
+  voidPlacement,
+  hasAdvanceDecision,
+  PLACEMENT_STATUSES,
+  type PlacementStatus,
+} from "@/lib/agency/placements"
+import { agencyAdmin } from "@/lib/agency/db"
+import { errorMessage } from "@/lib/error-message"
+import { withTiming } from "@/lib/server-timing"
+
+async function auth() {
+  const result = await requireAgencyContext()
+  if (result.ok) return { ok: true as const, ctx: result.ctx }
+  return {
+    ok: false as const,
+    response: NextResponse.json(
+      { error: result.failure === "unauthenticated" ? "Unauthorised" : "No agency access" },
+      { status: result.failure === "unauthenticated" ? 401 : 403 }
+    ),
+  }
+}
+
+const num = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : null
+
+async function GET_handler(
+  _req: NextRequest,
+  { params }: { params: Promise<{ candidateId: string }> }
+) {
+  try {
+    const { candidateId } = await params
+    const a = await auth()
+    if (!a.ok) return a.response
+    const placement = await getPlacementForCandidate(a.ctx, candidateId)
+
+    /**
+     * Whether the client ever advanced this person, sent alongside so the
+     * screen can ask for the reason BEFORE the recruiter fills the form
+     * rather than refusing them after it. The refusal below is still the
+     * wall — this is only so the wall is not a surprise.
+     */
+    const admin = agencyAdmin()
+    const { data: candidate } = await admin
+      .from("candidates")
+      .select("id, agency_id, role_id")
+      .eq("id", candidateId)
+      .maybeSingle()
+    const advanceDecision =
+      candidate && candidate.agency_id === a.ctx.agencyId
+        ? await hasAdvanceDecision(admin, a.ctx.agencyId, candidate.role_id as string, candidateId)
+        : true
+
+    return NextResponse.json({ placement, advanceDecision })
+  } catch (error) {
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+  }
+}
+
+async function PUT_handler(
+  req: NextRequest,
+  { params }: { params: Promise<{ candidateId: string }> }
+) {
+  try {
+    const { candidateId } = await params
+    const a = await auth()
+    if (!a.ok) return a.response
+
+    const body = await req.json()
+    const status = body?.status
+    if (typeof status !== "string" || !PLACEMENT_STATUSES.includes(status as PlacementStatus)) {
+      return NextResponse.json(
+        { error: `status must be one of: ${PLACEMENT_STATUSES.join(", ")}.` },
+        { status: 400 }
+      )
+    }
+
+    const placement = await setPlacement(a.ctx, candidateId, {
+      status: status as PlacementStatus,
+      startDate: typeof body?.startDate === "string" ? body.startDate : null,
+      feePercent: num(body?.feePercent),
+      feeValue: num(body?.feeValue),
+      currency: typeof body?.currency === "string" ? body.currency : "GBP",
+      rebateWeeks: num(body?.rebateWeeks),
+      fellThroughReason: typeof body?.fellThroughReason === "string" ? body.fellThroughReason : "",
+      notes: typeof body?.notes === "string" ? body.notes : "",
+      outsideProcessReason:
+        typeof body?.outsideProcessReason === "string" ? body.outsideProcessReason : "",
+    })
+    return NextResponse.json({ placement })
+  } catch (error) {
+    if (error instanceof AgencyAccessError) {
+      // "say what happened" is an incomplete record, not a permission failure.
+      const incomplete = /teaches nobody|travels with the record/.test(errorMessage(error))
+      return NextResponse.json({ error: errorMessage(error) }, { status: incomplete ? 422 : 403 })
+    }
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+  }
+}
+
+/**
+ * DELETE { placementId, reason } → void a placement.
+ *
+ * For a placement recorded against the wrong candidate or at the wrong fee.
+ * NOT `declined` or `fell_through`: those are outcomes about a person, and
+ * using one to correct a clerical mistake writes a false fact about somebody's
+ * career into an audited table. The row survives, out of every number, with
+ * the reason on the record. See voidPlacement().
+ */
+async function DELETE_handler(req: NextRequest) {
+  try {
+    const auth = await requireAgencyContext()
+    if (!auth.ok) {
+      return NextResponse.json(
+        { error: auth.failure === "unauthenticated" ? "Unauthorised" : "No agency membership" },
+        { status: auth.failure === "unauthenticated" ? 401 : 403 }
+      )
+    }
+    const body = await req.json().catch(() => ({}))
+    const placementId = typeof body?.placementId === "string" ? body.placementId : ""
+    const reason = typeof body?.reason === "string" ? body.reason : ""
+    if (!placementId) return NextResponse.json({ error: "placementId is required" }, { status: 400 })
+
+    await voidPlacement(auth.ctx, placementId, reason)
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    if (error instanceof AgencyAccessError) {
+      // A missing reason is an incomplete record, not a permission failure.
+      const incomplete = /say why/.test(errorMessage(error))
+      return NextResponse.json({ error: errorMessage(error) }, { status: incomplete ? 422 : 403 })
+    }
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+  }
+}
+
+// Server-Timing + the [slow] log (lib/server-timing.ts, 30 Sep 2026).
+export const GET = withTiming("/api/agency/candidates/[candidateId]/placement", "GET", GET_handler)
+export const PUT = withTiming("/api/agency/candidates/[candidateId]/placement", "PUT", PUT_handler)
+export const DELETE = withTiming("/api/agency/candidates/[candidateId]/placement", "DELETE", DELETE_handler)
