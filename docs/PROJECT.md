@@ -9125,3 +9125,20 @@ it does nothing where the function is absent (staging never had it).
 Rehearsed first and rolled back: a simulated sign-up still created the profile
 and its subscription row; signed-out and signed-in calls were refused. Then
 applied to prod (md5-checked, ledger 73 → 74).
+
+### 11 Nov 2026 — #71 merged: the agency product is on production
+
+On Ose's go ("merge 71"). Before the merge, via a team-scoped Vercel token:
+production `NEXT_PUBLIC_BUSINESS_URL=https://tailrecruit.com` added (the deploy
+bakes it in). Found already in place: `tailrecruit.com` bought through Vercel,
+DNS on Vercel, auto-renew ON; production `CRON_SECRET` and `DOMAIN_SPLIT_ENABLED`.
+
+Merge commit 61fe685 → production deploy `dpl_BJCdBWuAqjw8WJ68gdpGoMfxKn9V`
+READY: functions in **fra1**, aliases app./www./gettailr.com, crons
+`/api/agency/cron` 03:30 and `/api/cron/weekly`. Not yet checked end to end:
+the session's network can't reach the site and the log stream didn't return.
+
+**Still open:** attach `tailrecruit.com` to the project (the session's safety
+check refused domain changes; one click in Vercel → Domains); Supabase prod
+redirect URLs + magic-link template; Resend domain + `B2B_MAIL_DOMAIN`;
+production calendar keys; DPIA before the first real CV; post-launch checks.
