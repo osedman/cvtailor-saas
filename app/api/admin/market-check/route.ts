@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { isAdminEmail } from '@/lib/admin'
+import { requireAdmin } from '@/lib/admin-access'
 import { isMarketEnabled, fetchMarket } from '@/lib/job-market'
 import { errorMessage } from '@/lib/error-message'
-import { sessionUser } from "@/lib/supabase/session-user"
 import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
@@ -19,11 +17,10 @@ export const maxDuration = 30
  * Reports presence and lengths only — never the key itself.
  */
 async function GET_handler() {
-  const supabase = await createClient()
-  const user = await sessionUser(supabase)
-  if (!user || !isAdminEmail(user.email)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  // twoStep is not required here yet: these routes pre-date the two-step
+  // setup screen. Flip to { twoStep: true } when that screen ships.
+  const gate = await requireAdmin('admin')
+  if (!gate.ok) return gate.response
 
   const key = process.env.REED_API_KEY ?? ''
   const env = {

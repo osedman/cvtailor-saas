@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isAdminEmail } from '@/lib/admin'
-import { createAdminClient, createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/admin-access'
+import { createAdminClient } from '@/lib/supabase/server'
 import { syncCourseCatalog } from '@/lib/course-sync'
 import { errMessage } from '@/lib/err'
-import { sessionUser } from "@/lib/supabase/session-user"
 import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 300
@@ -14,11 +13,10 @@ export const maxDuration = 300
  * an explicit confirmation query so merely visiting the path cannot write.
  */
 async function GET_handler(req: NextRequest) {
-  const supabase = await createClient()
-  const user = await sessionUser(supabase)
-  if (!user || !isAdminEmail(user.email)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  // twoStep is not required here yet: these routes pre-date the two-step
+  // setup screen. Flip to { twoStep: true } when that screen ships.
+  const gate = await requireAdmin('admin')
+  if (!gate.ok) return gate.response
   if (req.nextUrl.searchParams.get('confirm') !== '1') {
     return NextResponse.json(
       { error: 'Add ?confirm=1 to run the course sync.' },

@@ -89,9 +89,10 @@ describe('course repository wiring', () => {
 
   it('offers a browser-friendly sync only to a signed-in admin', () => {
     const route = read('app/api/admin/course-sync/route.ts')
-    // The session's verified token (sessionUser → getClaims, 30 Sep 2026).
-    expect(route).toContain('sessionUser(supabase)')
-    expect(route).toContain('isAdminEmail(user.email)')
+    // The shared admin gate, which reads the session's verified token
+    // (lib/admin-access.ts → getClaims; 12 Nov 2026).
+    expect(route).toContain("requireAdmin('admin')")
+    expect(route).toContain('if (!gate.ok) return gate.response')
     expect(route).toContain("searchParams.get('confirm')")
     expect(route).toContain('createAdminClient()')
   })
