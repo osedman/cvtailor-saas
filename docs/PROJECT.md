@@ -9142,3 +9142,26 @@ the session's network can't reach the site and the log stream didn't return.
 check refused domain changes; one click in Vercel → Domains); Supabase prod
 redirect URLs + magic-link template; Resend domain + `B2B_MAIL_DOMAIN`;
 production calendar keys; DPIA before the first real CV; post-launch checks.
+
+### 12 Nov 2026 — agency mail moves to tailrecruit.com (staging)
+
+Ose confirmed `tailrecruit.com` is **Verified** in Resend. Its records were
+already in Vercel DNS: DKIM `resend._domainkey`, SPF and bounce MX on `send`
+(eu-west-1), DMARC `p=none`, inbound MX on the apex. Set
+`B2B_MAIL_DOMAIN=tailrecruit.com` on **Preview, branch `staging` only**, so
+staging agency mail now sends from `hello@` / `notices@tailrecruit.com`
+(`lib/email-senders.ts`). This commit redeploys staging so the variable is
+picked up. **Production is not set.** It waits for Ose's go, then needs a
+redeploy.
+
+Same day, frame 47 (interview recording, consent emails) went up for sign-off.
+Ose approved adding two consent gaps to it as section E:
+1. A CV can reach an employer before the candidate has had their Art 14
+   notice. The notice goes out on day 7, and the unanswered-represent override
+   allows an earlier submit. Art 14(3)(c) says no later than first disclosure.
+2. "May we put you forward?" only reaches an uploaded candidate inside the
+   day-7 notice. It needs its own email at shortlist, plus a reminder and a
+   receipt.
+
+Section E is not drawn yet: Figma's Starter-plan MCP call limit was hit.
+Nothing is built until the frame is signed off.
