@@ -30,26 +30,52 @@ describe("admin roles", () => {
 })
 
 describe("admin route gating", () => {
-  it("read-only stats and insights accept viewers", () => {
-    expect(read("app/api/admin/stats/route.ts")).toContain("isAdminViewer(user.email)")
-    expect(read("app/api/admin/insights/route.ts")).toContain("isAdminViewer(user.email)")
-  })
-
-  // The boundary that matters: anything that CHANGES state — approving courses
-  // into the live catalog, triggering syncs, market checks — stays full-admin.
-  const writeRoutes = [
-    "app/api/admin/course-catalog/route.ts",
-    "app/api/admin/course-candidates/route.ts",
-    "app/api/admin/course-sync/route.ts",
-    "app/api/admin/market-check/route.ts",
+  // Every admin route goes through the one gate (lib/admin-access.ts); none
+  // does its own email check any more.
+  const routes: Array<[string, "viewer" | "support" | "admin"]> = [
+    ["app/api/admin/stats/route.ts", "viewer"],
+    ["app/api/admin/insights/route.ts", "viewer"],
+    ["app/api/admin/activity/route.ts", "support"],
+    // The boundary that matters: anything that CHANGES state — approving
+    // courses into the live catalog, triggering syncs, market checks,
+    // managing admins — stays full-admin.
+    ["app/api/admin/course-catalog/route.ts", "admin"],
+    ["app/api/admin/course-candidates/route.ts", "admin"],
+    ["app/api/admin/course-sync/route.ts", "admin"],
+    ["app/api/admin/market-check/route.ts", "admin"],
+    ["app/api/admin/admins/route.ts", "admin"],
   ]
-  for (const route of writeRoutes) {
-    it(`${route} stays admin-only`, () => {
+  for (const [route, level] of routes) {
+    it(`${route} requires ${level}`, () => {
       const src = read(route)
-      expect(src).toContain("isAdminEmail")
-      expect(src).not.toContain("isAdminViewer")
+      const levels = [...src.matchAll(/requireAdmin\(["'](\w+)["']/g)].map((m) => m[1])
+      expect(levels.length).toBeGreaterThan(0)
+      expect(new Set(levels)).toEqual(new Set([level]))
+      expect(src).not.toContain("isAdminEmail(")
+      expect(src).not.toContain("isAdminViewer(")
+      expect(src).not.toContain("sessionUser(")
     })
   }
+
+  it("every route under app/api/admin is in the list above", () => {
+    const { readdirSync } = require("fs") as typeof import("fs")
+    const found = readdirSync(join(root, "app/api/admin")).map((d) => `app/api/admin/${d}/route.ts`).sort()
+    // /me answers "what access do I have" for any admin, so it has no level.
+    const listed = [...routes.map(([r]) => r), "app/api/admin/me/route.ts"].sort()
+    expect(found).toEqual(listed)
+  })
+
+  it("changing the admin list needs two-step verification; reading it does not", () => {
+    const src = read("app/api/admin/admins/route.ts")
+    expect(src).toContain('requireAdmin("admin", { twoStep: true })')
+    expect(src.match(/requireAdmin\("admin"\)/g)?.length).toBe(1) // GET only
+    expect(src).toContain('admin.rpc("admin_set_platform_admin"')
+  })
+
+  it("the activity log has no write handler", () => {
+    const src = read("app/api/admin/activity/route.ts")
+    expect(src).not.toMatch(/export const (POST|PATCH|PUT|DELETE)/)
+  })
 
   it("viewer access does not imply career-path beta", () => {
     const gate = read("lib/feature-gate.ts")

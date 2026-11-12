@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isAdminEmail } from '@/lib/admin'
-import { createAdminClient, createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/admin-access'
+import { createAdminClient } from '@/lib/supabase/server'
 import { errMessage } from '@/lib/err'
-import { sessionUser } from "@/lib/supabase/session-user"
 import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 60
@@ -23,15 +22,13 @@ export const maxDuration = 60
 
 const PAGE = 40
 
-function gate(email: string | undefined | null) {
-  return !!email && isAdminEmail(email)
-}
+// twoStep is not required here yet: these routes pre-date the two-step
+// setup screen. Flip to { twoStep: true } when that screen ships.
 
 async function GET_handler(req: NextRequest) {
   try {
-    const supabase = await createClient()
-    const user = await sessionUser(supabase)
-    if (!gate(user?.email)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const gate = await requireAdmin('admin')
+    if (!gate.ok) return gate.response
 
     const sp = req.nextUrl.searchParams
     const q = (sp.get('q') ?? '').trim().slice(0, 120)
@@ -84,9 +81,8 @@ async function GET_handler(req: NextRequest) {
 /** Retire (or restore) catalogue entries. */
 async function POST_handler(req: NextRequest) {
   try {
-    const supabase = await createClient()
-    const user = await sessionUser(supabase)
-    if (!gate(user?.email)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const gate = await requireAdmin('admin')
+    if (!gate.ok) return gate.response
 
     const body = await req.json().catch(() => ({}))
     const action = String(body?.action ?? '')

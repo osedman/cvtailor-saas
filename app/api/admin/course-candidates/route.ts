@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isAdminEmail } from '@/lib/admin'
-import { createAdminClient, createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/admin-access'
+import { createAdminClient } from '@/lib/supabase/server'
 import { errMessage } from '@/lib/err'
-import { sessionUser } from "@/lib/supabase/session-user"
 import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 60
@@ -24,16 +23,14 @@ const UPSERT_CHUNK = 200
  * the same video never reappears — the sync skips URLs it has already seen.
  */
 
-function gate(email: string | undefined | null) {
-  return !!email && isAdminEmail(email)
-}
+// twoStep is not required here yet: these routes pre-date the two-step
+// setup screen. Flip to { twoStep: true } when that screen ships.
 
 /** Pending candidates, newest first. */
 async function GET_handler() {
   try {
-    const supabase = await createClient()
-    const user = await sessionUser(supabase)
-    if (!gate(user?.email)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const gate = await requireAdmin('admin')
+    if (!gate.ok) return gate.response
 
     const admin = createAdminClient()
     const [{ data: rows, error }, { count: catalogCount }] = await Promise.all([
@@ -84,9 +81,8 @@ async function GET_handler() {
 /** Act on a selection: approve into the catalogue, or reject. */
 async function POST_handler(req: NextRequest) {
   try {
-    const supabase = await createClient()
-    const user = await sessionUser(supabase)
-    if (!gate(user?.email)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const gate = await requireAdmin('admin')
+    if (!gate.ok) return gate.response
 
     const body = await req.json().catch(() => ({}))
     const action = String(body?.action ?? '')
