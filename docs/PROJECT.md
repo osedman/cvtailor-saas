@@ -9165,3 +9165,14 @@ Ose approved adding two consent gaps to it as section E:
 
 Section E is not drawn yet: Figma's Starter-plan MCP call limit was hit.
 Nothing is built until the frame is signed off.
+
+### 13 Nov 2026 — first agency on production: Meridian Health (Ose's test)
+
+Done on Ose's go ("for prod set up meridian health with my email"). Inserted
+`agency.agencies` (name and notice sender "Meridian Health", slug
+`meridian-health`, defaults of 180-day retention and 7-day notice) and an
+`agency.members` row: Ose's existing, confirmed prod account, role
+`owner`, status `active`. Checked as Ose's own session (role
+`authenticated`, rolled back): row security shows the agency and the owner
+role. Mail on prod still sends from gettailr.com until `B2B_MAIL_DOMAIN` is
+set on Production.
