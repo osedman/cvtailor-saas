@@ -9176,3 +9176,12 @@ Done on Ose's go ("for prod set up meridian health with my email"). Inserted
 `authenticated`, rolled back): row security shows the agency and the owner
 role. Mail on prod still sends from gettailr.com until `B2B_MAIL_DOMAIN` is
 set on Production.
+
+### 13 Nov 2026 — agency mail from tailrecruit.com on production
+
+On Ose's go ("prod too"). Set `B2B_MAIL_DOMAIN=tailrecruit.com` on Production
+and redeployed the same build (61fe685) as `dpl_7nVaDMXc4cWWsaBJTr41czM6BSyN`.
+It is READY and holds every production alias, tailrecruit.com and gettailr.com
+included. Agency mail on prod now sends from `hello@` / `notices@tailrecruit.com`.
+Consumer mail is unchanged. Still to check by effect: the From line on a real
+prod agency email (Ose).
