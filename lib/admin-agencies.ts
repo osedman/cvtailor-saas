@@ -40,6 +40,8 @@ export function isUuid(v: unknown): v is string {
 /** "Halcyon Search Ltd." → "halcyon-search-ltd". */
 export function slugifyAgencyName(name: string): string {
   return name
+    // Letters NFKD does not split into a base letter plus an accent.
+    .replace(/[øØ]/g, "o").replace(/[æÆ]/g, "ae").replace(/ß/g, "ss").replace(/[łŁ]/g, "l").replace(/[đĐ]/g, "d")
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()

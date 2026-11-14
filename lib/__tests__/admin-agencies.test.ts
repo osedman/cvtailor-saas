@@ -22,7 +22,7 @@ const read = (p: string) => readFileSync(join(__dirname, "../..", p), "utf-8")
 describe("short names", () => {
   it("makes a clean slug from a real agency name", () => {
     expect(slugifyAgencyName("Halcyon Search Ltd.")).toBe("halcyon-search-ltd")
-    expect(slugifyAgencyName("  Ørsted & Sons — Zürich  ")).toBe("rsted-and-sons-zurich")
+    expect(slugifyAgencyName("  Ørsted & Sons — Zürich  ")).toBe("orsted-and-sons-zurich")
     expect(slugifyAgencyName("A".repeat(90))).toHaveLength(60)
     expect(slugifyAgencyName("x".repeat(59) + " y")).not.toMatch(/-$/)
   })
@@ -205,6 +205,48 @@ describe("migration 20261114120000_admin_agency_ops", () => {
 
   it("no email address enters the migration — the repo is public", () => {
     expect(sql).not.toMatch(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i)
+  })
+})
+
+describe("the agency screens", () => {
+  const list = read("app/admin/agencies/page.tsx")
+  const one = read("app/admin/agencies/[id]/page.tsx")
+
+  it("the nav offers Agencies at the level the list route allows", () => {
+    expect(read("components/admin/admin-shell.tsx")).toMatch(/href: "\/admin\/agencies"[^}]*needs: "support"/)
+  })
+
+  it("only an admin is shown the create form or editable settings", () => {
+    expect(list).toContain('const canCreate = roleAllows(me.role, "admin")')
+    expect(list).toContain("{canCreate && (")
+    expect(one).toContain('const canEditSettings = roleAllows(me.role, "admin")')
+  })
+
+  it("every change sends a reason", () => {
+    expect(list).toContain("ownerEmail, reason })")
+    expect(one).toContain("{ ...patch, reason: settingsReason }")
+    expect(one).toContain("role, reason: addReason }")
+    expect(one).toContain("role: pending.role, reason: pendingReason }")
+    expect(one).toContain("status: pending.status, reason: pendingReason }")
+  })
+
+  it("says so when the owner or member was not actually emailed", () => {
+    expect(list).toContain("was not sent")
+    expect(one).toContain("the email was not sent")
+  })
+
+  it("offers no way to delete a member, or to close or discard a role", () => {
+    for (const src of [tsCode(list), tsCode(one)]) {
+      expect(src).not.toMatch(/method: "DELETE"|"DELETE"/)
+      expect(src).not.toMatch(/Close role|Discard|Remove member|Delete/)
+    }
+  })
+
+  it("uses the admin styles and no mono", () => {
+    for (const src of [list, one]) {
+      expect(src).toContain("ns-admin-card")
+      expect(src).not.toMatch(/font-mono|monospace/)
+    }
   })
 })
 

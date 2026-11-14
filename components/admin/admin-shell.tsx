@@ -45,6 +45,7 @@ const TABS: Array<{ href: string; label: string; short: string; needs: AdminRole
   { href: "/admin", label: "Product health", short: "Health", needs: "viewer" },
   { href: "/admin/insights", label: "Insights & ops", short: "Insights", needs: "viewer" },
   { href: "/admin/courses", label: "Courses", short: "Courses", needs: "admin" },
+  { href: "/admin/agencies", label: "Agencies", short: "Agencies", needs: "support" },
   { href: "/admin/admins", label: "Admins", short: "Admins", needs: "admin" },
   { href: "/admin/activity", label: "Activity", short: "Activity", needs: "support" },
 ]
