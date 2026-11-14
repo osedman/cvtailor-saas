@@ -9208,3 +9208,11 @@ Only the welcome and match-preview emails say "reply UNSUBSCRIBE".
 
 Frame 47 §E is still not drawn: Figma's Starter limit blocked the write again
 on 14 Nov.
+
+### 14 Nov 2026 — consent copy cleared by the lawyer; §E drawn as HTML
+
+Ose reports the lawyer has approved the consent draft (`docs/CONSENT-COPY-DRAFT.md`,
+including the §8 Art 14 notice wording). Frame 47 §E was drawn as an HTML page
+for review, because Figma's Starter limit still blocks writes. It goes into
+Figma when the limit lifts. The build waits for Ose's sign-off on frame 47 and
+§E.
