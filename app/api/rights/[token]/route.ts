@@ -16,9 +16,10 @@
  *      Every filing is audit logged.
  */
 
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
 import { agencyAdmin, writeAudit } from "@/lib/agency/db"
 import { answerRepresent } from "@/lib/agency/represent"
+import { scheduleRepresentReceipt } from "@/lib/agency/put-forward"
 import { withTiming } from "@/lib/server-timing"
 import { checkDoorwayLimit, checkDoorwayWriteLimit } from "@/lib/rate-limit"
 import { resolveRightsCandidate } from "@/lib/agency/rights-link"
@@ -135,6 +136,11 @@ async function POST_handler(
       const outcome = await answerRepresent(token, body.represent)
       if (outcome === "not_found") {
         return NextResponse.json({ error: "This link is no longer valid" }, { status: 404 })
+      }
+      // Frame 47 §E email 8: a receipt for every changed answer.
+      if (outcome === "agreed" || outcome === "declined" || outcome === "withdrawn") {
+        const candidateId = candidate.id as string
+        scheduleRepresentReceipt(after, candidateId, outcome)
       }
       return NextResponse.json({ ok: true, represent_status: outcome === "unchanged" ? candidate.represent_status : outcome })
     }

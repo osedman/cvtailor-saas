@@ -15,13 +15,14 @@
  * tab should not lose the forty-nine people who are still here.
  */
 
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
 import {
   AgencyAccessError,
   agencyAdmin,
   assertWriter,
   requireAgencyContext,
 } from "@/lib/agency/db"
+import { scheduleAskAtShortlist } from "@/lib/agency/put-forward"
 import {
   applyDecision,
   loadPreviousDecisions,
@@ -104,6 +105,15 @@ async function PATCH_handler(
         }
         throw error
       }
+    }
+
+    // Frame 47 §E: everyone newly shortlisted gets the put-forward ask.
+    const newlyShortlisted = updated
+      .filter((u) => u.decision === "shortlist" && u.previous !== "shortlist")
+      .map((u) => u.candidateId)
+    if (newlyShortlisted.length > 0) {
+      const ctx = auth.ctx
+      scheduleAskAtShortlist(after, ctx.agencyId, newlyShortlisted, ctx.userId)
     }
 
     return NextResponse.json({ updated, skipped })

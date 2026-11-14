@@ -22,6 +22,11 @@ import { tsCode } from "./helpers/source-scan"
 const admin = vi.hoisted(() => ({ from: vi.fn() }))
 const writeAudit = vi.hoisted(() => vi.fn())
 const requireAgencyContext = vi.hoisted(() => vi.fn())
+const scheduleAskAtShortlist = vi.hoisted(() => vi.fn())
+
+// The put-forward ask after shortlisting (frame 47 §E) runs after the
+// response; here it is a spy so the batch's own reads stay countable.
+vi.mock("@/lib/agency/put-forward", () => ({ scheduleAskAtShortlist }))
 
 vi.mock("@/lib/agency/db", async () => {
   const actual = await vi.importActual<typeof import("../agency/db")>("../agency/db")
@@ -565,6 +570,9 @@ describe("PATCH /api/agency/roles/[roleId]/decisions, executed", () => {
     })
     // One candidates read and one reviews read for the whole batch: no per-person lookups.
     expect(db.reads.filter((t) => t === "candidates")).toHaveLength(1)
+    // Both newly shortlisted people are asked; the one not on the role is not.
+    expect(scheduleAskAtShortlist).toHaveBeenCalledTimes(1)
+    expect(scheduleAskAtShortlist.mock.calls[0].slice(1)).toEqual(["agency-1", ["cand-a", "cand-b"], "rec-1"])
     expect(db.reads.filter((t) => t === "recruiter_reviews")).toHaveLength(3) // 1 read + 2 upserts
   })
 

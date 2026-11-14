@@ -15,7 +15,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { createHash } from "crypto"
 
-const admin = vi.hoisted(() => ({ from: vi.fn() }))
+const removed = vi.hoisted(() => [] as string[][])
+const admin = vi.hoisted(() => ({
+  from: vi.fn(),
+  storage: {
+    from: (_bucket: string) => ({
+      remove: async (paths: string[]) => {
+        removed.push(paths)
+        return { data: paths.map((name) => ({ name })), error: null }
+      },
+    }),
+  },
+}))
 const writeAudit = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/agency/db", async () => {
@@ -32,6 +43,23 @@ vi.mock("@/lib/agency/db", async () => {
 
 const notify = vi.hoisted(() => vi.fn(async () => ({ sent: 0 })))
 vi.mock("../agency/notify", () => ({ notify }))
+
+const recomputeAndStore = vi.hoisted(() => vi.fn(async () => ({})))
+vi.mock("../agency/rescore", () => ({ recomputeAndStore }))
+
+const sendCandidateMail = vi.hoisted(() => vi.fn(async () => true))
+vi.mock("../agency/candidate-mail", async () => {
+  const actual = await vi.importActual<typeof import("../agency/candidate-mail")>("../agency/candidate-mail")
+  return {
+    ...actual,
+    loadCandidateMail: async () => ({
+      candidateId: "cand-1", agencyId: "agency-1", roleId: "role-1", email: "a@example.com",
+      firstName: "Amara", agencyName: "Halcyon", replyTo: "", roleTitle: "SDE",
+      company: "the employer", retentionDays: 180, source: "paste",
+    }),
+    sendCandidateMail,
+  }
+})
 
 import { requestCapture, peekConsent, recordDecision } from "../agency/consent"
 import { AgencyAccessError } from "../agency/db"
@@ -76,7 +104,11 @@ const ROUND = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  removed.length = 0
 })
+
+/** Every token in these tests opens round-1 through consent_links. */
+const LINK = { data: { round_id: "round-1" }, error: null }
 
 describe("requestCapture", () => {
   it("mints a token and leaves consent pending — asking is not answering", async () => {
@@ -88,27 +120,51 @@ describe("requestCapture", () => {
         return table({ data: { id: "cand-1", ref: "CAN-02", full_name: "Amara Okafor", email: "a@example.com" }, error: null })
       if (t === "job_roles") return table({ data: { title: "Senior Data Engineer" }, error: null })
       if (t === "agencies") return table({ data: { retention_days: 180 }, error: null })
+      if (t === "consent_links")
+        return table({ data: null, error: null }, (op, payload) => ops.push({ op: `links:${op}`, payload }))
       return table({ data: null, error: null })
     })
 
     const res = await requestCapture(CTX, "round-1")
     expect(res.rawToken).toHaveLength(32)
 
+    // The hash goes into consent_links, beside any earlier links.
+    const link = ops.find((o) => o.op === "links:insert")?.payload as Record<string, unknown>
+    expect(link.token_hash).toBe(createHash("sha256").update(res.rawToken).digest("hex"))
+    expect(link.round_id).toBe("round-1")
+    // The round is stamped as asked; the status is untouched.
     const update = ops.find((o) => o.op === "update")?.payload as Record<string, unknown>
-    // The hash is stored; the status is untouched.
-    expect(update.consent_token_hash).toBe(
-      createHash("sha256").update(res.rawToken).digest("hex")
-    )
-    expect(Object.keys(update)).not.toContain("capture_consent_status")
+    expect(Object.keys(update)).toEqual(["capture_requested_at"])
+    expect(res.resend).toBe(false)
+  })
+
+  it("asking again keeps the earlier links working: no round update, a new link row", async () => {
+    const ops: Array<{ op: string; payload?: unknown }> = []
+    admin.from.mockImplementation((t: string) => {
+      if (t === "interview_rounds")
+        return table({ data: { ...ROUND, capture_requested_at: "2026-11-12T10:00:00Z" }, error: null }, (op, payload) => ops.push({ op, payload }))
+      if (t === "candidates")
+        return table({ data: { id: "cand-1", ref: "CAN-02", full_name: "A", email: "a@example.com" }, error: null })
+      if (t === "consent_links")
+        return table({ data: null, error: null }, (op, payload) => ops.push({ op: `links:${op}`, payload }))
+      return table({ data: null, error: null })
+    })
+    const res = await requestCapture(CTX, "round-1")
+    expect(res.resend).toBe(true)
+    expect(ops.filter((o) => o.op === "links:insert")).toHaveLength(1)
+    expect(ops.find((o) => o.op === "update")).toBeUndefined()
+    expect(ops.find((o) => o.op === "links:delete")).toBeUndefined()
   })
 
   it("stores only the hash — never the raw token", async () => {
     let stored: Record<string, unknown> = {}
     admin.from.mockImplementation((t: string) => {
-      if (t === "interview_rounds")
-        return table({ data: ROUND, error: null }, (op, p) => {
-          if (op === "update") stored = p as Record<string, unknown>
+      if (t === "consent_links")
+        return table({ data: null, error: null }, (op, p) => {
+          if (op === "insert") stored = p as Record<string, unknown>
         })
+      if (t === "interview_rounds")
+        return table({ data: ROUND, error: null })
       if (t === "candidates")
         return table({ data: { id: "cand-1", ref: "CAN-02", full_name: "A", email: null }, error: null })
       return table({ data: null, error: null })
@@ -154,14 +210,15 @@ describe("peekConsent", () => {
   })
 
   it("returns null for a cancelled interview — no question left to answer", async () => {
-    admin.from.mockImplementation(() =>
-      table({ data: { ...ROUND, status: "cancelled" }, error: null })
+    admin.from.mockImplementation((t: string) =>
+      t === "consent_links" ? table(LINK) : table({ data: { ...ROUND, status: "cancelled" }, error: null })
     )
     expect(await peekConsent(TOKEN)).toBeNull()
   })
 
   it("never returns the candidate's full name, only a first name", async () => {
     admin.from.mockImplementation((t: string) => {
+      if (t === "consent_links") return table(LINK)
       if (t === "interview_rounds") return table({ data: ROUND, error: null })
       if (t === "candidates") return table({ data: { full_name: "Amara Okafor" }, error: null })
       if (t === "agencies") return table({ data: { name: "Halcyon", retention_days: 180 }, error: null })
@@ -185,13 +242,14 @@ describe("recordDecision", () => {
     await recordDecision(TOKEN, "granted")
     // Nothing to assert on the query builder itself, so assert the contract:
     // an unknown hash yields null rather than throwing.
-    expect(seen[0]).toBe("interview_rounds")
+    expect(seen[0]).toBe("consent_links")
     expect(HASH).toHaveLength(64)
   })
 
   it("granting does not delete anything", async () => {
     const ops: string[] = []
     admin.from.mockImplementation((t: string) => {
+      if (t === "consent_links") return table(LINK)
       if (t === "interview_rounds") return table({ data: ROUND, error: null }, (op) => ops.push(op))
       if (t === "candidates") return table({ data: { ref: "CAN-02" }, error: null })
       return table({ data: [], error: null }, (op) => ops.push(op))
@@ -206,6 +264,7 @@ describe("recordDecision", () => {
   it("withdrawal deletes the artifact, returns the blob path, and flags a rescore", async () => {
     const deleted: string[] = []
     admin.from.mockImplementation((t: string) => {
+      if (t === "consent_links") return table(LINK)
       if (t === "interview_rounds") return table({ data: ROUND, error: null })
       if (t === "round_artifacts")
         return table(
@@ -227,10 +286,45 @@ describe("recordDecision", () => {
     expect(deleted).toContain("candidate_evidence")
     // Derived evidence went, so the score built on it is now wrong.
     expect(res?.rescoreCandidateId).toBe("cand-1")
+    // ...and since 14 Nov 2026 the cascade finishes here: the blob is gone
+    // through the Storage API, the candidate is rescored, and only then is
+    // the deletion confirmed to them.
+    expect(removed).toEqual([["agency-1/role-1/cand-1/r1.m4a"]])
+    expect(recomputeAndStore).toHaveBeenCalledWith(admin, "agency-1", "cand-1")
+    expect(sendCandidateMail).toHaveBeenCalledTimes(1)
+    expect((sendCandidateMail.mock.calls[0] as unknown[])[2]).toMatchObject({ kind: "recording_deleted" })
+  })
+
+  it("a storage failure stops the withdrawal before the rows go, so a retry can finish it", async () => {
+    const deleted: string[] = []
+    const failing = {
+      from: admin.from,
+      storage: { from: () => ({ remove: async () => ({ data: null, error: new Error("storage down") }) }) },
+    }
+    const original = admin.storage
+    ;(admin as { storage: unknown }).storage = failing.storage
+    admin.from.mockImplementation((t: string) => {
+      if (t === "consent_links") return table(LINK)
+      if (t === "interview_rounds") return table({ data: ROUND, error: null })
+      if (t === "round_artifacts")
+        return table(
+          { data: [{ id: "art-1", recording_path: "p.m4a" }], error: null },
+          (op) => op === "delete" && deleted.push("round_artifacts")
+        )
+      return table({ data: [], error: null })
+    })
+    try {
+      await expect(recordDecision(TOKEN, "withdrawn")).rejects.toThrow("storage down")
+      expect(deleted).toEqual([])
+      expect(sendCandidateMail).not.toHaveBeenCalled()
+    } finally {
+      ;(admin as { storage: unknown }).storage = original
+    }
   })
 
   it("records the candidate as the actor by absence — never a recruiter's id", async () => {
     admin.from.mockImplementation((t: string) => {
+      if (t === "consent_links") return table(LINK)
       if (t === "interview_rounds") return table({ data: ROUND, error: null })
       if (t === "candidates") return table({ data: { ref: "CAN-02" }, error: null })
       return table({ data: [], error: null })
@@ -255,6 +349,7 @@ describe("recordDecision", () => {
 describe("recordDecision — repeating an answer changes nothing", () => {
   function rounds(status: string, ops: string[]) {
     admin.from.mockImplementation((t: string) => {
+      if (t === "consent_links") return table(LINK)
       if (t === "interview_rounds")
         return table({ data: { ...ROUND, capture_consent_status: status }, error: null }, (op) => ops.push(`${t}:${op}`))
       if (t === "candidates") return table({ data: { ref: "CAN-02" }, error: null })
@@ -270,6 +365,7 @@ describe("recordDecision — repeating an answer changes nothing", () => {
     expect(ops).not.toContain("interview_rounds:update")
     expect(writeAudit).not.toHaveBeenCalled()
     expect(notify).not.toHaveBeenCalled()
+    expect(sendCandidateMail).not.toHaveBeenCalled()
   })
 
   it("a changed answer is recorded, audited and sent to the agency once", async () => {
@@ -280,6 +376,9 @@ describe("recordDecision — repeating an answer changes nothing", () => {
     expect(writeAudit).toHaveBeenCalledTimes(1)
     expect(notify).toHaveBeenCalledTimes(1)
     expect((notify.mock.calls[0] as unknown[])[1]).toMatchObject({ kind: "consent_answered" })
+    // The candidate gets a receipt (frame 47 §B email 2).
+    expect(sendCandidateMail).toHaveBeenCalledTimes(1)
+    expect((sendCandidateMail.mock.calls[0] as unknown[])[2]).toMatchObject({ kind: "recording_receipt", answer: "granted" })
   })
 
   it("a repeated withdrawal with nothing left to remove is silent", async () => {
@@ -295,6 +394,7 @@ describe("recordDecision — repeating an answer changes nothing", () => {
   it("a repeated withdrawal still removes anything that reappeared, and audits that — but emails nobody", async () => {
     const deleted: string[] = []
     admin.from.mockImplementation((t: string) => {
+      if (t === "consent_links") return table(LINK)
       if (t === "interview_rounds") return table({ data: { ...ROUND, capture_consent_status: "withdrawn" }, error: null })
       if (t === "round_artifacts")
         return table(

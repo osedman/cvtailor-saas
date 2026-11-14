@@ -12,6 +12,11 @@ import { agencyNoticeFrom } from "@/lib/email-senders"
 import { getAppOrigin } from "@/lib/site-url"
 import { writeAudit, type AgencyClient } from "./db"
 import { mintRightsLinkOrNone } from "./rights-link"
+import { art14NoticeHtml } from "./candidate-mail"
+
+/** Stamped on every notice sent from 14 Nov 2026: the lawyer-cleared Art 14
+ * items (CONSENT-COPY-DRAFT.md §8) are in the body. */
+export const NOTICE_TEMPLATE_VERSION = "notice-v2-art14"
 
 export type NoticeOutcome =
   | "sent"
@@ -34,7 +39,7 @@ export async function sendOneNotice(admin: AgencyClient, noticeId: string): Prom
 
   const { data: candidate } = await admin
     .from("candidates")
-    .select("id, agency_id, role_id, ref, full_name, email")
+    .select("id, agency_id, role_id, ref, full_name, email, source")
     .eq("id", notice.candidate_id)
     .maybeSingle()
   if (!candidate) {
@@ -108,6 +113,8 @@ export async function sendOneNotice(admin: AgencyClient, noticeId: string): Prom
       roleLocation: role?.location ?? "",
       retentionDays: agency?.retention_days ?? 180,
       personalNote: notice.personal_note ?? "",
+      replyTo: agency?.notice_reply_to ?? "",
+      source: (candidate.source as string | null) ?? "",
       // The consumer app origin, via the one helper. This read
       // NEXT_PUBLIC_SITE_URL directly with an apex default, which is a third
       // answer to a question lib/site-url.ts already answers — and the rights
@@ -121,9 +128,9 @@ export async function sendOneNotice(admin: AgencyClient, noticeId: string): Prom
   if (result.sent) {
     await admin
       .from("candidate_notices")
-      .update({ status: "sent", sent_at: new Date().toISOString() })
+      .update({ status: "sent", sent_at: new Date().toISOString(), template_version: NOTICE_TEMPLATE_VERSION })
       .eq("id", notice.id)
-    await audit("sent", undefined, { template_version: notice.template_version })
+    await audit("sent", undefined, { template_version: NOTICE_TEMPLATE_VERSION })
     return "sent"
   }
 
@@ -132,8 +139,9 @@ export async function sendOneNotice(admin: AgencyClient, noticeId: string): Prom
   return "failed"
 }
 
-/** Template v1. Good news first, rights beneath, no client company, no
- * marketing. Dash free prose per brand voice. Copy pending Ose's sign off. */
+/** Template v2 (14 Nov 2026). Good news first, then the Art 14 items cleared
+ * by the lawyer (art14NoticeHtml, shared with the put-forward ask), rights
+ * link beneath. No client company, no marketing. */
 export function noticeHtml(opts: {
   candidateName: string
   agencyName: string
@@ -142,6 +150,8 @@ export function noticeHtml(opts: {
   retentionDays: number
   personalNote: string
   rightsUrl?: string
+  replyTo?: string
+  source?: string
 }): string {
   const firstName = opts.candidateName.split(" ")[0] || "there"
   const where = opts.roleLocation ? ` in ${opts.roleLocation}` : ""
@@ -171,9 +181,12 @@ export function noticeHtml(opts: {
       )} may put you forward to the hiring company — nothing is sent to them until you say so, or your recruiter records why they went ahead.</p>`
       : ""
   }
-  <p style="margin:0 0 16px;line-height:1.6;">If nothing comes of this role, your CV data is kept for ${
-    opts.retentionDays
-  } days after the role closes and is then deleted automatically.</p>
+  ${art14NoticeHtml({
+    agencyName: opts.agencyName,
+    replyTo: opts.replyTo ?? "",
+    source: opts.source ?? "",
+    retentionDays: opts.retentionDays,
+  })}
   <p style="margin:24px 0 0;font-size:12px;color:#7a7266;line-height:1.5;">This notice was sent on behalf of ${escapeHtml(
     opts.agencyName
   )}, who is responsible for your data. Tailr processes it on their behalf.</p>
