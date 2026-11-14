@@ -73,3 +73,30 @@ export function rpcRefusal(error: { message?: string } | null): NextResponse | n
   const known = agencyRpcError(error?.message)
   return known ? NextResponse.json({ error: known.message }, { status: known.status }) : null
 }
+
+/**
+ * Record an admin action that the database functions do not log themselves
+ * (client invites and job reruns reuse existing agency code). Written AFTER
+ * the action succeeds; a failure here is thrown so the admin is told the
+ * action happened but was not logged, rather than it passing silently.
+ */
+export async function logAgencyAdminAction(input: {
+  actorId: string
+  agencyId: string
+  action: string
+  reason: string
+  from?: Record<string, unknown> | null
+  to?: Record<string, unknown> | null
+}): Promise<void> {
+  const { error } = await createAdminClient().from("admin_audit_log").insert({
+    actor_id: input.actorId,
+    area: "agencies",
+    action: input.action,
+    target_type: "agency",
+    target_id: input.agencyId,
+    from_value: input.from ?? null,
+    to_value: input.to ?? null,
+    reason: input.reason.trim(),
+  })
+  if (error) throw new Error(`The change was made but could not be written to the activity log: ${error.message}`)
+}

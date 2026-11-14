@@ -35,6 +35,11 @@ function roleOf(value: unknown): string | null {
   return ROLE_LABELS[role as AdminRole] ?? role
 }
 
+const JOB_KIND: Record<string, string> = {
+  jd_parse: "job description read", cv_parse: "CV read", score: "scoring job",
+  match_scan: "match scan", transcribe: "transcription",
+}
+
 const AGENCY_ROLE: Record<string, string> = { owner: "Owner", recruiter: "Recruiter", viewer: "Viewer" }
 
 function field(value: unknown, key: string): unknown {
@@ -83,6 +88,12 @@ export function describeActivity(
       if (fromRole && toRole && fromRole !== toRole) return `${e.actorName} changed ${who} at ${target} from ${fromRole} to ${toRole}`
       if (fromStatus !== "active" && toStatus === "active") return `${e.actorName} reactivated ${who} at ${target}`
     }
+    const company = typeof field(e.to, "company") === "string" && field(e.to, "company") ? String(field(e.to, "company")) : "a client contact"
+    if (e.action === "client_invite_resent") return `${e.actorName} sent a new client invite for ${company} at ${target}`
+    if (e.action === "client_access_removed") return `${e.actorName} removed client access for ${company} at ${target}`
+    const jobKind = JOB_KIND[String(field(e.to, "kind"))] ?? "job"
+    if (e.action === "job_rerun") return `${e.actorName} ran a ${jobKind} again at ${target}`
+    if (e.action === "job_marked_failed") return `${e.actorName} marked a stuck ${jobKind} as failed at ${target}`
     if (e.action === "settings_changed") {
       const changes = settingsChanges(e.from, e.to)
       return `${e.actorName} changed ${target}${changes.length ? `: ${changes.join(", ")}` : " settings"}`

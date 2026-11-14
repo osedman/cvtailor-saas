@@ -164,3 +164,70 @@ export function agencyAccessEmail(input: {
     html: `<div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fffdfa;color:#1e1813;padding:32px 28px;"><p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#dc4f33;font-weight:700;">Tailr for Agencies</p><h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;">You are on the team.</h1><p style="margin:0 0 16px;line-height:1.6;">Tailr has added you to ${name} as ${role === "owner" ? "an" : "a"} ${role}. There is no password. ${how}</p><p style="margin:0 0 16px;"><a href="${escapeHtml(input.signInUrl)}" style="display:inline-block;background:#1e1813;color:#fffdfa;border-radius:8px;padding:10px 16px;font-weight:600;text-decoration:none;">Sign in to Tailr</a></p></div>`,
   }
 }
+
+// ── Jobs that need attention ──────────────────────────────────────────────
+
+/** A job is "stuck" once it has waited or run this long. Far above any
+ * route's maxDuration, so a job this old is not still genuinely running. */
+export const JOB_STALE_MINUTES = 15
+
+export const JOB_KIND_LABELS: Record<string, string> = {
+  jd_parse: "Job description read",
+  cv_parse: "CV read",
+  score: "Scoring",
+  match_scan: "Match scan",
+  transcribe: "Transcription",
+}
+
+/** Kinds that sit in a queue and can be run again without the person who
+ * started them. The others run inside a recruiter's own request, with a file
+ * or form only that request holds, so the only fix is for them to try again. */
+const QUEUE_KINDS = new Set(["match_scan", "transcribe"])
+
+export type JobState = "waiting" | "stuck" | "failed"
+export type JobAction = "run" | "mark_failed"
+
+export interface JobFacts {
+  kind: string
+  status: string
+  createdAt: string
+  startedAt: string | null
+}
+
+/**
+ * Whether a job needs attention, and what an admin may do about it.
+ *
+ *   queued too long        → run it now (the cron only sweeps once a day)
+ *   running too long       → the process died: run it again if it is a queue
+ *                            job, otherwise mark it failed so the agency's
+ *                            screen stops waiting on it
+ *   failed match scan      → run it again
+ *   failed transcription   → nothing here: the recruiter asks again, which
+ *                            re-checks that there is consented audio
+ *   failed read or scoring → nothing here: the recruiter retries with the file
+ */
+export function jobAttention(job: JobFacts, now: number): { state: JobState; actions: JobAction[] } | null {
+  const stale = (iso: string | null) => !!iso && now - new Date(iso).getTime() >= JOB_STALE_MINUTES * 60_000
+  const queue = QUEUE_KINDS.has(job.kind)
+  if (job.status === "queued") {
+    return stale(job.createdAt) ? { state: "waiting", actions: queue ? ["run"] : ["mark_failed"] } : null
+  }
+  if (job.status === "running") {
+    if (!stale(job.startedAt ?? job.createdAt)) return null
+    return { state: "stuck", actions: queue ? ["run", "mark_failed"] : ["mark_failed"] }
+  }
+  if (job.status === "failed") {
+    return { state: "failed", actions: job.kind === "match_scan" ? ["run"] : [] }
+  }
+  return null
+}
+
+export function isJobAction(v: unknown): v is JobAction {
+  return v === "run" || v === "mark_failed"
+}
+
+export type ClientAccessAction = "resend_invite" | "unlink"
+
+export function isClientAccessAction(v: unknown): v is ClientAccessAction {
+  return v === "resend_invite" || v === "unlink"
+}

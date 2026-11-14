@@ -244,6 +244,21 @@ export async function requireHiringContext(): Promise<
 // ============================================================
 
 /**
+ * Set when the caller is a Tailr admin acting from the admin area rather than
+ * a member of the agency (14 Nov 2026). The audit row then carries no actor
+ * and a reason starting "Tailr support:", which the agency's audit page
+ * labels as Tailr support — the admin is not a teammate, and writing their id
+ * as the actor would say they were.
+ */
+export interface SupportAction {
+  reason: string
+}
+
+function auditActor(ctx: AgencyContext, support?: SupportAction): { actorId: string | null; reason?: string } {
+  return support ? { actorId: null, reason: `Tailr support: ${support.reason.trim()}` } : { actorId: ctx.userId }
+}
+
+/**
  * Mint an invite for one of the caller's own client contacts.
  *
  * Exactly one live invite exists per contact: any earlier un-accepted,
@@ -259,7 +274,8 @@ export async function requireHiringContext(): Promise<
  */
 export async function createClientInvite(
   ctx: AgencyContext,
-  contactId: string
+  contactId: string,
+  support?: SupportAction
 ): Promise<{ inviteId: string; rawToken: string; expiresAt: string }> {
   assertWriter(ctx)
   const admin = agencyAdmin()
@@ -296,18 +312,18 @@ export async function createClientInvite(
   if ((superseded ?? []).length > 0) {
     await writeAudit(admin, {
       agencyId: ctx.agencyId,
-      actorId: ctx.userId,
+      actorId: support ? null : ctx.userId,
       entityType: "client_invite",
       entityRef: contact.company,
       action: "revoked",
-      reason: "superseded_by_reinvite",
+      reason: support ? "Tailr support: superseded by a new invite" : "superseded_by_reinvite",
       toValue: { contact_id: contactId, count: (superseded ?? []).length },
     })
   }
 
   await writeAudit(admin, {
     agencyId: ctx.agencyId,
-    actorId: ctx.userId,
+    ...auditActor(ctx, support),
     entityType: "client_invite",
     entityRef: contact.company,
     action: "created",
@@ -371,13 +387,18 @@ export async function revokeClientInvite(ctx: AgencyContext, inviteId: string): 
  *
  * Any still-live invite for the contact is revoked at the same time.
  * Otherwise "unlink" could be undone by an old email sitting in an inbox.
- * No-ops (no audit row) when the contact was not linked.
+ * No-ops (no audit row) when the contact was not linked, and returns false
+ * so a caller can say so.
  */
-export async function unlinkClientContact(ctx: AgencyContext, contactId: string): Promise<void> {
+export async function unlinkClientContact(
+  ctx: AgencyContext,
+  contactId: string,
+  support?: SupportAction
+): Promise<boolean> {
   assertWriter(ctx)
   const admin = agencyAdmin()
   const contact = await assertOwnContact(admin, contactId, ctx.agencyId)
-  if (!contact.user_id) return
+  if (!contact.user_id) return false
 
   const nowIso = new Date().toISOString()
 
@@ -399,13 +420,14 @@ export async function unlinkClientContact(ctx: AgencyContext, contactId: string)
 
   await writeAudit(admin, {
     agencyId: ctx.agencyId,
-    actorId: ctx.userId,
+    ...auditActor(ctx, support),
     entityType: "client_invite",
     entityRef: contact.company,
     action: "unlinked",
     fromValue: { user_id: contact.user_id },
     toValue: { contact_id: contactId, user_id: null },
   })
+  return true
 }
 
 /**

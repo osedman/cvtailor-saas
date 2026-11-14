@@ -17,6 +17,7 @@ import Link from "next/link"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { TWO_STEP_PATH, adminErrorMessage, useAdmin } from "@/components/admin/admin-shell"
+import { ClientAccessSection, JobsSection } from "@/components/admin/agency-support-sections"
 import { MIN_REASON_LENGTH, roleAllows } from "@/lib/admin-roles"
 import { AGENCY_MEMBER_ROLES, AGENCY_ROLE_LABELS, type AgencyMemberRole } from "@/lib/admin-agencies"
 import { NOTICE_MAX, NOTICE_MIN, RETENTION_MAX, RETENTION_MIN } from "@/lib/agency/settings-limits"
@@ -333,6 +334,8 @@ export default function AdminAgencyPage({ params }: { params: Promise<{ id: stri
         Suspending removes access straight away and keeps the person’s history. Members are never deleted, and an agency always keeps at least one active owner.
       </p>
 
+      <ClientAccessSection agencyId={id} canWrite={canWrite} />
+
       {/* ── Roles ────────────────────────────────────────────────── */}
       <div className="mt-7 flex items-end justify-between gap-3">
         <h2 className="text-[13.5px] font-semibold">Roles</h2>
@@ -359,6 +362,8 @@ export default function AdminAgencyPage({ params }: { params: Promise<{ id: stri
       <p className="mt-3.5 text-[11.5px] leading-[1.5] text-[#5c534c]">
         Titles and status only{roles.length === 50 ? ", latest 50" : ""}. Roles are opened, closed and discarded by the agency: closing one starts the clock on removing its candidates’ data.
       </p>
+
+      <JobsSection agencyId={id} canWrite={canWrite} />
     </main>
   )
 }

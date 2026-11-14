@@ -770,6 +770,13 @@ with `actor_id` NULL and a reason starting `Tailr support:` —
 "A teammate" or "The system". Nothing in the migration touches `job_roles` or
 candidates, and nothing closes a role.
 
+Also from the admin area, with no schema change: client invites are resent and
+client access removed through `createClientInvite` / `unlinkClientContact`
+themselves (optional `support` argument → same "Tailr support" audit rows),
+and stale `ingestion_jobs` are re-queued or marked failed with guarded
+updates. §5.4 holds: there is no admin action that links a person to a
+contact.
+
 ## 5. Decisions (5 Aug 2026)
 
 | # | Question | Decision |
