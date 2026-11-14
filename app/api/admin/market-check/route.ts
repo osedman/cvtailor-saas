@@ -17,9 +17,8 @@ export const maxDuration = 30
  * Reports presence and lengths only — never the key itself.
  */
 async function GET_handler() {
-  // twoStep is not required here yet: these routes pre-date the two-step
-  // setup screen. Flip to { twoStep: true } when that screen ships.
-  const gate = await requireAdmin('admin')
+  // Read-only diagnostic: admin level, no second step needed.
+    const gate = await requireAdmin('admin')
   if (!gate.ok) return gate.response
 
   const key = process.env.REED_API_KEY ?? ''

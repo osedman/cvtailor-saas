@@ -91,7 +91,7 @@ describe('course repository wiring', () => {
     const route = read('app/api/admin/course-sync/route.ts')
     // The shared admin gate, which reads the session's verified token
     // (lib/admin-access.ts → getClaims; 12 Nov 2026).
-    expect(route).toContain("requireAdmin('admin')")
+    expect(route).toContain("requireAdmin('admin', { twoStep: true })")
     expect(route).toContain('if (!gate.ok) return gate.response')
     expect(route).toContain("searchParams.get('confirm')")
     expect(route).toContain('createAdminClient()')

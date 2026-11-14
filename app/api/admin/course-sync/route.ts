@@ -13,9 +13,8 @@ export const maxDuration = 300
  * an explicit confirmation query so merely visiting the path cannot write.
  */
 async function GET_handler(req: NextRequest) {
-  // twoStep is not required here yet: these routes pre-date the two-step
-  // setup screen. Flip to { twoStep: true } when that screen ships.
-  const gate = await requireAdmin('admin')
+  // This GET writes (it runs the sync), so it needs two-step verification.
+    const gate = await requireAdmin('admin', { twoStep: true })
   if (!gate.ok) return gate.response
   if (req.nextUrl.searchParams.get('confirm') !== '1') {
     return NextResponse.json(

@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Loader2, ExternalLink, RefreshCw, Search } from "lucide-react"
+import { Loader2, ExternalLink, RefreshCw, Search } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-provider"
 
@@ -40,6 +40,12 @@ const fmtDuration = (m: number | null) => {
 const ROW: React.CSSProperties = {
   padding: "12px 14px", borderRadius: 10, background: "var(--ns-paper)",
 }
+/** The gate's machine codes, as sentences. */
+function adminError(code: unknown): string {
+  if (code === "two_step_required") return "Turn on two-step verification to make changes."
+  return typeof code === "string" && code ? code : "Failed."
+}
+
 const BTN = "px-3 py-1.5 rounded-lg text-[11.5px] font-medium transition-colors disabled:opacity-40"
 
 export default function CoursesPage() {
@@ -108,7 +114,7 @@ export default function CoursesPage() {
         body: JSON.stringify({ action, ids: [...selected] }),
       })
       const d = await res.json()
-      if (!res.ok) throw new Error(d?.error || "Failed.")
+      if (!res.ok) throw new Error(adminError(d?.error))
       toast.success(`${Object.values(d)[0]} ${action}d`)
       await after()
     } catch (err) {
@@ -135,7 +141,7 @@ export default function CoursesPage() {
           body: JSON.stringify({ action, provider: name }),
         })
         const d = await res.json()
-        if (!res.ok) throw new Error(d?.error || "Failed.")
+        if (!res.ok) throw new Error(adminError(d?.error))
         done += (d.approved ?? d.rejected ?? 0) as number
         if (action === "reject" || !d.remaining) break
       }
@@ -164,11 +170,7 @@ export default function CoursesPage() {
   return (
     <div className="ns min-h-screen" style={{ background: "var(--ns-cream)" }}>
       <main className="max-w-[880px] mx-auto px-6 sm:px-10 py-9">
-        <Link href="/admin" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-400 hover:text-[#1e1813] transition-colors">
-          <ArrowLeft className="w-3.5 h-3.5" />Admin
-        </Link>
-
-        <div className="t-eyebrow" style={{ marginTop: 22, marginBottom: 10 }}>Admin · Courses</div>
+        <div className="t-eyebrow" style={{ marginBottom: 10 }}>Admin · Courses</div>
         <h1 className="t-title" style={{ fontSize: 26, margin: 0 }}>
           {view === "pending" ? "Review queue" : "Course catalogue"}
           <span style={{ color: "var(--ns-coral)" }}>.</span>
