@@ -9185,3 +9185,26 @@ It is READY and holds every production alias, tailrecruit.com and gettailr.com
 included. Agency mail on prod now sends from `hello@` / `notices@tailrecruit.com`.
 Consumer mail is unchanged. Still to check by effect: the From line on a real
 prod agency email (Ose).
+
+### 14 Nov 2026 — consent gaps 3 and 4 (staging)
+
+Gap 3, fixed on staging: the CV assessment prompt (`lib/agency/assessment.ts`)
+had no rule against protected characteristics. It now forbids using, quoting
+or inferring age, sex, race, ethnicity, nationality, religion, health,
+pregnancy, family status, sexual orientation or appearance. Right-to-work is
+allowed only when a requirement asks for it. A requirement that only such a
+characteristic could meet returns missing. `ENGINE_VERSION` is not bumped: the
+maths is unchanged, and a bump would invalidate every stored score hash.
+Evidence extracted before today was not re-read. Guarded by
+`agency-assessment-shared.test.ts`. Full suite: 2228 passed, tsc clean.
+
+Gap 4, found: the Art 14 notice lacks most of the items Article 14 requires
+(lawful basis, source, recipients including Anthropic, the US transfer, the
+right to object, ICO). Proposed wording is in `docs/CONSENT-COPY-DRAFT.md`
+§8. Not shipped: it is candidate copy and needs sign-off.
+
+Gap 5, downgraded: the weekly path digest already has a one-click unsubscribe.
+Only the welcome and match-preview emails say "reply UNSUBSCRIBE".
+
+Frame 47 §E is still not drawn: Figma's Starter limit blocked the write again
+on 14 Nov.
