@@ -256,3 +256,63 @@ export async function sendRepresentReceipt(
     console.error("[put-forward] receipt failed", { name: e instanceof Error ? e.name : typeof e })
   }
 }
+
+export type PutForwardState = "not_told" | "told" | "waiting" | "agreed" | "declined" | "withdrawn"
+
+export interface PutForwardRow {
+  candidateId: string
+  ref: string
+  name: string
+  state: PutForwardState
+  askedAt: string | null
+  remindedAt: string | null
+  answeredAt: string | null
+  hasEmail: boolean
+}
+
+/**
+ * Where every shortlisted candidate on a role stands before submission
+ * (frame 47 §E cards 8–10). Order follows the shortlist; nobody is filtered
+ * out or ranked by their answer — this only labels each person.
+ */
+export async function putForwardRows(
+  admin: AgencyClient,
+  agencyId: string,
+  roleId: string
+): Promise<PutForwardRow[]> {
+  const { data: reviews, error } = await admin
+    .from("recruiter_reviews")
+    .select("candidate_id, decision")
+    .eq("agency_id", agencyId)
+    .eq("role_id", roleId)
+    .eq("decision", "shortlist")
+  if (error) throw error
+  const ids = (reviews ?? []).map((r) => r.candidate_id as string)
+  if (ids.length === 0) return []
+  const { told } = await toldCandidateIds(admin, ids)
+  const { data: cands, error: candError } = await admin
+    .from("candidates")
+    .select("id, ref, full_name, email, represent_status, represent_answered_at, represent_asked_at, represent_reminded_at")
+    .eq("agency_id", agencyId)
+    .in("id", ids)
+  if (candError) throw candError
+  return ((cands ?? []) as Array<Record<string, unknown>>)
+    .map((c) => {
+      const answer = c.represent_status as string
+      let state: PutForwardState
+      if (answer === "agreed" || answer === "declined" || answer === "withdrawn") state = answer
+      else if (!told.has(c.id as string)) state = "not_told"
+      else state = c.represent_asked_at ? "waiting" : "told"
+      return {
+        candidateId: c.id as string,
+        ref: c.ref as string,
+        name: (c.full_name as string) ?? "",
+        state,
+        askedAt: (c.represent_asked_at as string | null) ?? null,
+        remindedAt: (c.represent_reminded_at as string | null) ?? null,
+        answeredAt: (c.represent_answered_at as string | null) ?? null,
+        hasEmail: Boolean(c.email),
+      }
+    })
+    .sort((a, b) => (a.ref < b.ref ? -1 : 1))
+}

@@ -26,6 +26,7 @@ import { recomputeAndStore } from "@/lib/agency/rescore"
 import {
   evidenceRows,
   validateFindings,
+  candidateLines,
   type EnrichmentRequirement,
   type RawEnrichmentFinding,
 } from "@/lib/agency/enrichment"
@@ -111,7 +112,7 @@ async function POST_handler(
     if (!round) return NextResponse.json({ error: "Round not found in your agency" }, { status: 404 })
 
     const [{ data: artifact }, { data: reqRows }, { data: candidate }] = await Promise.all([
-      admin.from("round_artifacts").select("kind, content").eq("round_id", roundId).maybeSingle(),
+      admin.from("round_artifacts").select("kind, content, verified_at").eq("round_id", roundId).maybeSingle(),
       admin
         .from("requirements")
         .select("id, ref, text, weight")
@@ -120,21 +121,40 @@ async function POST_handler(
       admin.from("candidates").select("ref").eq("id", round.candidate_id as string).maybeSingle(),
     ])
 
-    if (!artifact || artifact.kind !== "debrief") {
+    // Two sources, never mixed (frame 47 §A card 6, 14 Nov 2026):
+    //   - the interviewer's write-up, or
+    //   - a CHECKED transcript, read for the candidate's own lines only.
+    // An unchecked transcript is not a source: until a person has named the
+    // candidate's voice, nobody knows whose words are whose.
+    const isTranscript = artifact?.kind === "transcript"
+    if (!artifact || (artifact.kind !== "debrief" && !isTranscript)) {
       return NextResponse.json(
         { error: "There is no write-up on this round yet. The write-up is what this reads." },
         { status: 400 }
       )
     }
-    const content = (artifact.content ?? {}) as { notes?: string; answers?: Array<{ question?: string; answer?: string }> }
-    // The write-up is the notes plus any answered probe questions — the whole
-    // of what the interviewer recorded, and nothing else.
-    const writeUp = [
-      String(content.notes ?? ""),
-      ...(content.answers ?? []).map((a) => `${a?.question ?? ""} ${a?.answer ?? ""}`),
-    ]
-      .join("\n")
-      .trim()
+    if (isTranscript && !artifact.verified_at) {
+      return NextResponse.json(
+        { error: "Check the transcript first: say which voice is the candidate's." },
+        { status: 400 }
+      )
+    }
+    let writeUp: string
+    if (isTranscript) {
+      writeUp = candidateLines(
+        artifact.content as { segments?: Array<{ speaker: number; text: string }>; candidateSpeaker?: number | null }
+      )
+    } else {
+      const content = (artifact.content ?? {}) as { notes?: string; answers?: Array<{ question?: string; answer?: string }> }
+      // The write-up is the notes plus any answered probe questions — the whole
+      // of what the interviewer recorded, and nothing else.
+      writeUp = [
+        String(content.notes ?? ""),
+        ...(content.answers ?? []).map((a) => `${a?.question ?? ""} ${a?.answer ?? ""}`),
+      ]
+        .join("\n")
+        .trim()
+    }
     if (writeUp.length < 40) {
       return NextResponse.json({ error: "The write-up is too short to read anything from." }, { status: 400 })
     }
@@ -154,7 +174,9 @@ async function POST_handler(
           role: "user",
           content:
             `Requirements for this role:\n${requirements.map((r) => `${r.ref} (${r.weight}): ${r.text}`).join("\n")}\n\n` +
-            `The interviewer's write-up of round ${round.round_number}:\n<write_up>\n${writeUp.slice(0, 12_000)}\n</write_up>`,
+            (isTranscript
+              ? `The candidate's own answers in round ${round.round_number}, from a checked transcript. Treat them exactly as you would a write-up: quote verbatim, never describe the person.\n<write_up>\n${writeUp.slice(0, 12_000)}\n</write_up>`
+              : `The interviewer's write-up of round ${round.round_number}:\n<write_up>\n${writeUp.slice(0, 12_000)}\n</write_up>`),
         },
       ],
     })
@@ -186,7 +208,7 @@ async function POST_handler(
           candidateId: round.candidate_id as string,
           roundId,
           roundNumber: Number(round.round_number),
-        })
+        }, isTranscript ? "transcript" : "write-up")
       )
       if (insertError) throw insertError
     }
@@ -208,6 +230,7 @@ async function POST_handler(
       toValue: {
         round_id: roundId,
         round_number: round.round_number,
+        source: isTranscript ? "transcript" : "write-up",
         wrote: findings.length,
         dropped: dropped.length,
         requirements: findings.map((f) => f.requirementRef),
