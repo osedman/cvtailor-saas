@@ -72,6 +72,18 @@ describe("admin route gating", () => {
     expect(src).toContain('admin.rpc("admin_set_platform_admin"')
   })
 
+  it("course writes need two-step verification; reading the queue does not", () => {
+    for (const route of ["app/api/admin/course-catalog/route.ts", "app/api/admin/course-candidates/route.ts"]) {
+      const src = read(route)
+      const [get, post] = [src.slice(0, src.indexOf("async function POST_handler")), src.slice(src.indexOf("async function POST_handler"))]
+      expect(get).toContain("requireAdmin('admin')")
+      expect(get).not.toContain("twoStep: true")
+      expect(post).toContain("requireAdmin('admin', { twoStep: true })")
+    }
+    // The manual sync is a GET that writes.
+    expect(read("app/api/admin/course-sync/route.ts")).toContain("requireAdmin('admin', { twoStep: true })")
+  })
+
   it("the activity log has no write handler", () => {
     const src = read("app/api/admin/activity/route.ts")
     expect(src).not.toMatch(/export const (POST|PATCH|PUT|DELETE)/)

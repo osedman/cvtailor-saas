@@ -11,9 +11,8 @@
  *
  * `twoStep: true` additionally requires the session to have passed a second
  * factor (Supabase assurance level aal2). Every route that CHANGES something
- * for another person or tenant passes it. Routes that pre-date the two-step
- * setup screen (course review, course sync) do not yet — see the note on
- * each; they flip to true when that screen ships.
+ * for another person or tenant passes it; the setup screen is
+ * /admin/two-step.
  *
  * Server-only: it uses the service-role client.
  */

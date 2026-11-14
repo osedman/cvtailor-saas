@@ -2,15 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import {
-  ArrowLeft, Loader2, RefreshCw, ShieldCheck,
+  Loader2, RefreshCw, ShieldCheck,
   TrendingUp, Clock, Users, RotateCcw, AlertTriangle,
   LogIn, Sparkles, Kanban,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-provider"
-import { isAdminEmail } from "@/lib/admin"
 import type {
   ProductHealth, FunnelStage, CohortWeek, StuckBucket, VolumeMetrics, DayCount,
   ActivityDirectory,
@@ -520,12 +518,6 @@ export default function AdminPage() {
         {/* Header */}
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <Link
-              href="/tailor"
-              className="mb-3 inline-flex items-center gap-1.5 text-[13px] text-[#1e1813]/55 hover:text-[#1e1813]"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" /> Back
-            </Link>
             <h1 className="text-2xl font-semibold tracking-tight text-[#1e1813]">
               Product health
             </h1>
@@ -534,20 +526,6 @@ export default function AdminPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Link
-              href="/admin/insights"
-              className="rounded-lg border border-[#eee6da] bg-white px-3 py-2 text-[13px] text-[#1e1813]/70 hover:border-[#dc4f33]/40"
-            >
-              Insights & ops
-            </Link>
-            {isAdminEmail(user?.email) && (
-              <Link
-                href="/admin/courses"
-                className="rounded-lg border border-[#eee6da] bg-white px-3 py-2 text-[13px] text-[#1e1813]/70 hover:border-[#dc4f33]/40"
-              >
-                Course review
-              </Link>
-            )}
             <button
               type="button"
               onClick={() => void load(true)}

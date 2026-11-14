@@ -22,8 +22,7 @@ export const maxDuration = 60
 
 const PAGE = 40
 
-// twoStep is not required here yet: these routes pre-date the two-step
-// setup screen. Flip to { twoStep: true } when that screen ships.
+// Reading needs admin; anything that writes also needs two-step verification.
 
 async function GET_handler(req: NextRequest) {
   try {
@@ -81,7 +80,7 @@ async function GET_handler(req: NextRequest) {
 /** Retire (or restore) catalogue entries. */
 async function POST_handler(req: NextRequest) {
   try {
-    const gate = await requireAdmin('admin')
+    const gate = await requireAdmin('admin', { twoStep: true })
     if (!gate.ok) return gate.response
 
     const body = await req.json().catch(() => ({}))
