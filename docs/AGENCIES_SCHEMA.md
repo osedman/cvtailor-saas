@@ -749,6 +749,27 @@ frozen evidence map, state. No email, no CV, no other roles. The bucket
 (`matched_bucket`) still covers everyone else. Lawyer pass on the switch copy
 before a real user sees it, as with the capture consent.
 
+#### 4.1 — 14 Nov 2026: admin operations on agencies (migration `20261114120000`)
+
+No new tables. Three `security definer` functions in `public`, executable by
+`service_role` only, called from `/api/admin/agencies/**` behind
+`lib/admin-access.ts`:
+
+- `admin_create_agency(actor, name, slug, owner, reason)` — ends "agency
+  creation stays manual". Inserts the agency and its first owner.
+- `admin_set_agency_member(actor, agency, user, role, status, reason)` — add,
+  re-role, suspend, reactivate. Refuses any change that would leave the agency
+  with no active owner (`last_owner`). Never deletes a member.
+- `admin_update_agency_settings(actor, agency, name, retention, notice, reason)`
+  — same bounds as `lib/agency/settings-limits.ts`.
+
+Each writes its change plus BOTH audit rows in one transaction:
+`public.admin_audit_log` (which Tailr admin, and why) and `agency.audit_log`
+with `actor_id` NULL and a reason starting `Tailr support:` —
+`lib/agency/audit-view.ts` labels those rows "Tailr support" rather than
+"A teammate" or "The system". Nothing in the migration touches `job_roles` or
+candidates, and nothing closes a role.
+
 ## 5. Decisions (5 Aug 2026)
 
 | # | Question | Decision |

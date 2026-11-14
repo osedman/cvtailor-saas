@@ -21,8 +21,8 @@ describe("activity wording", () => {
   })
 
   it("an action it has no wording for is still legible", () => {
-    expect(describeActivity({ area: "agencies", action: "member_suspended", actorName: "Amara Okoye", targetName: "Halcyon Search", from: null, to: null }))
-      .toBe("Amara Okoye · member suspended · Halcyon Search")
+    expect(describeActivity({ area: "config", action: "flag_switched_off", actorName: "Amara Okoye", targetName: "market insights", from: null, to: null }))
+      .toBe("Amara Okoye · flag switched off · market insights")
   })
 
   it("malformed values never throw", () => {

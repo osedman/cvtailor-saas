@@ -32,37 +32,48 @@ describe("admin roles", () => {
 describe("admin route gating", () => {
   // Every admin route goes through the one gate (lib/admin-access.ts); none
   // does its own email check any more.
-  const routes: Array<[string, "viewer" | "support" | "admin"]> = [
-    ["app/api/admin/stats/route.ts", "viewer"],
-    ["app/api/admin/insights/route.ts", "viewer"],
-    ["app/api/admin/activity/route.ts", "support"],
+  type Level = "viewer" | "support" | "admin"
+  // Route → the levels its handlers ask for (reads first, then writes).
+  const routes: Array<[string, Level[]]> = [
+    ["app/api/admin/stats/route.ts", ["viewer"]],
+    ["app/api/admin/insights/route.ts", ["viewer"]],
+    ["app/api/admin/activity/route.ts", ["support"]],
     // The boundary that matters: anything that CHANGES state — approving
     // courses into the live catalog, triggering syncs, market checks,
     // managing admins — stays full-admin.
-    ["app/api/admin/course-catalog/route.ts", "admin"],
-    ["app/api/admin/course-candidates/route.ts", "admin"],
-    ["app/api/admin/course-sync/route.ts", "admin"],
-    ["app/api/admin/market-check/route.ts", "admin"],
-    ["app/api/admin/admins/route.ts", "admin"],
+    ["app/api/admin/course-catalog/route.ts", ["admin"]],
+    ["app/api/admin/course-candidates/route.ts", ["admin"]],
+    ["app/api/admin/course-sync/route.ts", ["admin"]],
+    ["app/api/admin/market-check/route.ts", ["admin"]],
+    ["app/api/admin/admins/route.ts", ["admin"]],
+    // Agencies: support reads and fixes team access; creating an agency and
+    // changing its retention settings is admin.
+    ["app/api/admin/agencies/route.ts", ["support", "admin"]],
+    ["app/api/admin/agencies/[id]/route.ts", ["support", "admin"]],
+    ["app/api/admin/agencies/[id]/members/route.ts", ["support"]],
   ]
-  for (const [route, level] of routes) {
-    it(`${route} requires ${level}`, () => {
+  for (const [route, levels] of routes) {
+    it(`${route} requires ${levels.join(" / ")}`, () => {
       const src = read(route)
-      const levels = [...src.matchAll(/requireAdmin\(["'](\w+)["']/g)].map((m) => m[1])
-      expect(levels.length).toBeGreaterThan(0)
-      expect(new Set(levels)).toEqual(new Set([level]))
+      const found = [...src.matchAll(/requireAdmin\(["'](\w+)["']/g)].map((m) => m[1])
+      expect(found.length).toBeGreaterThan(0)
+      expect(new Set(found)).toEqual(new Set(levels))
       expect(src).not.toContain("isAdminEmail(")
       expect(src).not.toContain("isAdminViewer(")
       expect(src).not.toContain("sessionUser(")
     })
   }
 
-  it("every route under app/api/admin is in the list above", () => {
-    const { readdirSync } = require("fs") as typeof import("fs")
-    const found = readdirSync(join(root, "app/api/admin")).map((d) => `app/api/admin/${d}/route.ts`).sort()
+  it("every route file under app/api/admin is in the list above", () => {
+    const { readdirSync, statSync } = require("fs") as typeof import("fs")
+    const walk = (dir: string): string[] =>
+      readdirSync(join(root, dir)).flatMap((name: string) => {
+        const rel = `${dir}/${name}`
+        return statSync(join(root, rel)).isDirectory() ? walk(rel) : name === "route.ts" ? [rel] : []
+      })
     // /me answers "what access do I have" for any admin, so it has no level.
     const listed = [...routes.map(([r]) => r), "app/api/admin/me/route.ts"].sort()
-    expect(found).toEqual(listed)
+    expect(walk("app/api/admin").sort()).toEqual(listed)
   })
 
   it("changing the admin list needs two-step verification; reading it does not", () => {

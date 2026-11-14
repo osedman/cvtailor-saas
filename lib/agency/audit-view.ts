@@ -93,8 +93,15 @@ function resolveActor(
   entityType: string,
   action: string,
   actorId: string | null,
-  callerId: string
+  callerId: string,
+  reason = ""
 ): { kind: AuditActorKind; label: string } {
+  // Changes made from Tailr's admin area (migration
+  // 20261114120000_admin_agency_ops.sql) carry no actor and say so in the
+  // reason. Named for what it was: not a teammate, and not an automatic job.
+  if (!actorId && reason.startsWith("Tailr support:")) {
+    return { kind: "system", label: "Tailr support" }
+  }
   if (actorId) {
     if (actorId === callerId) return { kind: "you", label: "You" }
     // Teammate names would mean reading auth.users; the log does not need a
@@ -171,7 +178,7 @@ export async function listAuditEntries(
     return {
       id: row.id as number,
       at: row.created_at as string,
-      actor: resolveActor(entityType, action, (row.actor_id as string | null) ?? null, ctx.userId),
+      actor: resolveActor(entityType, action, (row.actor_id as string | null) ?? null, ctx.userId, (row.reason as string | null) ?? ""),
       entityType,
       entityRef: (row.entity_ref as string) ?? "",
       action,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/server"
+import { agencyAdmin } from "@/lib/agency/db"
 import { requireAdmin } from "@/lib/admin-access"
 import { isAuditArea } from "@/lib/admin-roles"
 import { errorMessage } from "@/lib/error-message"
@@ -54,18 +55,52 @@ async function GET_handler(req: NextRequest) {
     if (error) throw error
     const rows = (data ?? []) as AuditRow[]
 
-    // Names for the people involved: actors, and targets that are users.
+    // Names for the people and agencies involved. Entries about an agency
+    // member carry that member's id inside from/to (user_id, or owner_id on
+    // creation); it is resolved to a name here and never sent as an id.
+    const subjectId = (r: AuditRow): string | null => {
+      for (const v of [r.to_value, r.from_value]) {
+        if (v && typeof v === "object") {
+          const o = v as Record<string, unknown>
+          const id = o.user_id ?? o.owner_id
+          if (typeof id === "string") return id
+        }
+      }
+      return null
+    }
+    const strip = (v: unknown): unknown => {
+      if (!v || typeof v !== "object") return v
+      const { user_id: _u, owner_id: _o, ...rest } = v as Record<string, unknown>
+      void _u; void _o
+      return rest
+    }
     const ids = new Set<string>()
+    const agencyIds = new Set<string>()
     for (const r of rows) {
       ids.add(r.actor_id)
       if (r.target_type === "user" && r.target_id) ids.add(r.target_id)
+      if (r.target_type === "agency" && r.target_id) agencyIds.add(r.target_id)
+      const subject = subjectId(r)
+      if (subject) ids.add(subject)
     }
-    const { data: profiles } = ids.size
-      ? await admin.from("profiles").select("id, email, full_name").in("id", [...ids])
-      : { data: [] }
+    const [{ data: profiles }, { data: agencies }] = await Promise.all([
+      ids.size
+        ? admin.from("profiles").select("id, email, full_name").in("id", [...ids])
+        : Promise.resolve({ data: [] }),
+      agencyIds.size
+        ? agencyAdmin().from("agencies").select("id, name").in("id", [...agencyIds])
+        : Promise.resolve({ data: [] }),
+    ])
     const nameById = new Map<string, string>()
     for (const p of (profiles ?? []) as Array<{ id: string; email: string | null; full_name: string | null }>) {
       nameById.set(p.id, p.full_name || p.email || "Unknown")
+    }
+    const agencyById = new Map<string, string>()
+    for (const a of (agencies ?? []) as Array<{ id: string; name: string }>) agencyById.set(a.id, a.name)
+    const targetName = (r: AuditRow): string => {
+      if (r.target_type === "user") return nameById.get(r.target_id) ?? "Deleted account"
+      if (r.target_type === "agency") return agencyById.get(r.target_id) ?? "Deleted agency"
+      return r.target_id
     }
 
     return NextResponse.json({
@@ -75,9 +110,10 @@ async function GET_handler(req: NextRequest) {
         action: r.action,
         actorName: nameById.get(r.actor_id) ?? "Deleted account",
         targetType: r.target_type,
-        targetName: r.target_type === "user" ? nameById.get(r.target_id) ?? "Deleted account" : r.target_id,
-        from: r.from_value,
-        to: r.to_value,
+        targetName: targetName(r),
+        subjectName: subjectId(r) ? nameById.get(subjectId(r) as string) ?? "Deleted account" : null,
+        from: strip(r.from_value),
+        to: strip(r.to_value),
         reason: r.reason,
         at: r.created_at,
       })),
