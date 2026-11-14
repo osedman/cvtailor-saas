@@ -64,3 +64,16 @@ describe("the CV assessment lives in exactly one place", () => {
     expect(definers).toEqual(["lib/agency/assessment.ts"])
   })
 })
+
+describe("the assessment prompt rules out protected characteristics", () => {
+  const prompt = readFileSync(join(process.cwd(), "lib/agency/assessment.ts"), "utf8")
+  it("forbids using, quoting or inferring them", () => {
+    expect(prompt).toContain("Never use, quote or infer anything about age or date of birth")
+    for (const c of ["sex or gender", "race, ethnicity or nationality", "religion or belief", "health or disability", "pregnancy", "sexual orientation", "photographs"]) {
+      expect(prompt).toContain(c)
+    }
+  })
+  it("returns missing when only a characteristic could meet a requirement", () => {
+    expect(prompt).toContain("If a requirement can only be met by one of these characteristics, return missing with an empty quote.")
+  })
+})
