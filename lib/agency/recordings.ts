@@ -275,7 +275,18 @@ export interface CaptureView {
   verifiedAt: string | null
   jobStatus: string | null
   jobError: string | null
+  /** When the candidate was first asked, and when they answered (frame 47 §A). */
+  requestedAt: string | null
+  remindedAt: string | null
+  answeredAt: string | null
+  /** The transcript, for reading before naming a voice. Recruiter-only, like
+   *  everything on this panel; capped so a long call stays a sane payload. */
+  lines: Array<{ speaker: number; start: number; text: string }>
+  /** Quotes this round added to the candidate's evidence (card 6). */
+  quotes: Array<{ ref: string; requirement: string; weight: string; strength: string; quote: string; source: string }>
 }
+
+const LINE_CAP = 400
 
 export async function getCaptureState(
   ctx: AgencyContext,
@@ -285,10 +296,21 @@ export async function getCaptureState(
 
   const { data: round } = await admin
     .from("interview_rounds")
-    .select("id, agency_id, capture_consent_status")
+    .select("id, agency_id, capture_consent_status, capture_consent_at, capture_requested_at, capture_reminded_at")
     .eq("id", roundId)
     .maybeSingle()
   if (!round || round.agency_id !== ctx.agencyId) return null
+
+  const { data: evidence } = await admin
+    .from("candidate_evidence")
+    .select("quote, strength, source_cite, requirement_id")
+    .eq("round_id", roundId)
+    .eq("origin", "interview")
+  const reqIds = [...new Set((evidence ?? []).map((e) => e.requirement_id as string))]
+  const { data: reqs } = reqIds.length
+    ? await admin.from("requirements").select("id, ref, text, weight, sort_order").in("id", reqIds)
+    : { data: [] as Array<{ id: string; ref: string; text: string; weight: string; sort_order: number }> }
+  const reqById = new Map((reqs ?? []).map((r) => [r.id as string, r]))
 
   const { data: artifact } = await admin
     .from("round_artifacts")
@@ -306,7 +328,7 @@ export async function getCaptureState(
     .maybeSingle()
 
   const content = (artifact?.content ?? {}) as {
-    segments?: Array<{ speaker: number }>
+    segments?: Array<{ speaker: number; start?: number; text?: string }>
     candidateSpeaker?: number | null
   }
   const segments = content.segments ?? []
@@ -336,6 +358,32 @@ export async function getCaptureState(
     verifiedAt: (transcript?.verified_at as string | null) ?? null,
     jobStatus: (job?.status as string | null) ?? null,
     jobError: (job?.error_detail as string | null) ?? null,
+    requestedAt: (round.capture_requested_at as string | null) ?? null,
+    remindedAt: (round.capture_reminded_at as string | null) ?? null,
+    answeredAt: consentStatus === "pending" ? null : ((round.capture_consent_at as string | null) ?? null),
+    lines:
+      transcript && segments.length > 0
+        ? segments.slice(0, LINE_CAP).map((seg) => ({
+            speaker: seg.speaker,
+            start: Number(seg.start ?? 0),
+            text: String(seg.text ?? ""),
+          }))
+        : [],
+    quotes: (evidence ?? [])
+      .map((e) => {
+        const r = reqById.get(e.requirement_id as string)
+        return {
+          ref: (r?.ref as string) ?? "",
+          requirement: (r?.text as string) ?? "",
+          weight: (r?.weight as string) ?? "",
+          strength: e.strength as string,
+          quote: e.quote as string,
+          source: (e.source_cite as string) ?? "",
+          order: Number(r?.sort_order ?? 0),
+        }
+      })
+      .sort((a, b) => a.order - b.order)
+      .map(({ order: _order, ...q }) => q),
   }
 }
 

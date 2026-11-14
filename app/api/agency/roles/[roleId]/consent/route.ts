@@ -34,12 +34,18 @@ async function POST_handler(req: NextRequest, { params }: { params: Promise<{ ro
       return NextResponse.json({ error: "Viewers have read only access" }, { status: 403 })
     }
 
-    const body = (await req.json().catch(() => ({}))) as { roundId?: unknown }
+    const body = (await req.json().catch(() => ({}))) as { roundId?: unknown; send?: unknown }
     const roundId = typeof body.roundId === "string" ? body.roundId : ""
     if (!roundId) return NextResponse.json({ error: "roundId is required" }, { status: 400 })
 
     const request = await requestCapture(auth.ctx, roundId)
     const base = `${getAppOrigin()}/consent/${request.rawToken}`
+
+    // "Copy their link" (frame 47 §A card 2): a working link for the recruiter
+    // to send themselves, no email. It still counts as asking.
+    if (body.send === false) {
+      return NextResponse.json({ ok: true, emailed: false, resend: request.resend, url: base })
+    }
 
     // No candidate email on file (redacted CVs exist). Hand the recruiter the
     // link rather than failing: the ask still has to reach a real person.

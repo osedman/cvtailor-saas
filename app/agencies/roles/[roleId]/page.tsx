@@ -39,6 +39,7 @@ import {
   type DeliveryRow,
   type SubmissionRow,
 } from "@/components/agency/submission-parts"
+import { PutForwardPanel } from "@/components/agency/put-forward-panel"
 import { roleLandingPath, type PhaseKey } from "@/lib/agency/phases"
 import {
   ArrowUpRight, Banknote, Briefcase, ChevronUp, FileText,
@@ -223,6 +224,8 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
   const [removing, setRemoving] = useState<string | null>(null)
   const [removeBusy, setRemoveBusy] = useState(false)
   const [representAsk, setRepresentAsk] = useState<{ refs: string[]; format: string } | null>(null)
+  // Bumped to reload the "Before it goes" card (frame 47 §E).
+  const [putForwardRefresh, setPutForwardRefresh] = useState(0)
   /** The deliberate second send. Never a default; see the send bar below. */
   const [resendAsk, setResendAsk] = useState(false)
   const [jdUrl, setJdUrl] = useState("")
@@ -1143,6 +1146,13 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
       // 409: candidates who have not answered the ask to be put forward. Not
       // an error to bury in the banner — the override must be a conscious,
       // named act, and it is audited server-side.
+      // 409: someone has not been told we hold their CV (frame 47 §E). No
+      // override exists for this; the card above offers "Tell them and ask now".
+      if (res.status === 409 && Array.isArray(body.notTold)) {
+        setError(String(body.error ?? "Someone has not been told yet."))
+        setPutForwardRefresh((k) => k + 1)
+        return
+      }
       if (res.status === 409 && Array.isArray(body.needsRepresentOverride)) {
         setRepresentAsk({ refs: body.needsRepresentOverride as string[], format })
         return
@@ -3028,6 +3038,15 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                   </div>
                 )}
 
+                {!alreadySent && (
+                  <PutForwardPanel
+                    roleId={roleId}
+                    company={role?.company ?? ""}
+                    refreshKey={putForwardRefresh}
+                    canWrite={callerRole !== "viewer"}
+                  />
+                )}
+
                 {representAsk && (
                   <div className="ag-card" style={{ marginBottom: 16, borderColor: "var(--ag-warn)" }} role="alertdialog" aria-labelledby="rep-ask-title">
                     <div className="ag-card-body" style={{ padding: 18 }}>
@@ -3035,9 +3054,9 @@ export default function RoleWorkflowPage({ params }: { params: Promise<{ roleId:
                         {representAsk.refs.join(", ")} {representAsk.refs.length === 1 ? "has" : "have"} not agreed to be put forward.
                       </div>
                       <p className="ag-note" style={{ margin: "0 0 6px" }}>
-                        The ask is on their rights page, unanswered — and unanswered is not yes. Going
-                        ahead is your call and audit-logged; they can still withdraw, which stops future
-                        submissions.
+                        They have been told and asked, and have not answered — and unanswered is not
+                        yes. Going ahead is your call and audit-logged; they can still withdraw, which
+                        stops future submissions.
                       </p>
                       <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
                         <button

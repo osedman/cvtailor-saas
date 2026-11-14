@@ -190,9 +190,6 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
     return () => clearInterval(id)
   }, [])
   const [error, setError] = useState<string | null>(null)
-  // The consent link, surfaced once. If the email fails the recruiter still
-  // has something to send — the ask has to reach a real person either way.
-  const [askResult, setAskResult] = useState<{ roundId: string; url: string; emailed: boolean } | null>(null)
 
   // Candidates book themselves now, so this screen's first job is showing
   // the recruiter what has actually been booked (Ose, 11 Sep 2026).
@@ -337,36 +334,6 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
       await load()
     } catch {
       setError("Could not book that interview.")
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  /**
-   * Ask the candidate whether this round may be recorded.
-   *
-   * Their answer is theirs: this mints a link and emails it, and cannot set
-   * the answer. Nothing on this screen ever shows what they chose — the
-   * candidate is told the interviewer will not be told, and
-   * getHiringDashboard has a build-failing test keeping that true.
-   */
-  async function askConsent(roundId: string) {
-    setBusy(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/agency/roles/${roleId}/consent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roundId }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(typeof body?.error === "string" ? body.error : "Could not send that request.")
-        return
-      }
-      setAskResult({ roundId, url: String(body.url ?? ""), emailed: Boolean(body.emailed) })
-    } catch {
-      setError("Could not send that request.")
     } finally {
       setBusy(false)
     }
@@ -726,7 +693,7 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                 <p className="ag-callout ag-book-warn">
                   Tailr does not host or record this call. Use your own meeting link and, if the
                   candidate agrees to it, upload the recording afterwards — the ask, the upload and
-                  the transcript live on the round below. Per-round enrichment is not built yet.
+                  the transcript live on the round below.
                 </p>
               </div>
 
@@ -825,14 +792,6 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                         </button>
                       </>
                     )}
-                    {askResult?.roundId === r.id && (
-                      <p className="ag-note ag-ask-result">
-                        {askResult.emailed
-                          ? "Asked. The candidate has the link; you will not be told what they choose."
-                          : "We could not email them, so send this link yourself — it is shown once:"}
-                        {!askResult.emailed && <code className="ag-ask-url">{askResult.url}</code>}
-                      </p>
-                    )}
                   </div>
                   {/*
                     THE DECISION, AND THE WORDS BEHIND IT (18 Sep 2026, Ose's
@@ -911,29 +870,17 @@ export default function BookInterviewPage({ params }: { params: Promise<{ roleId
                       never shows here. Cancelled rounds have nothing to record. */}
                   {r.status !== "cancelled" && (
                     <details className="ag-rec-details">
-                      <summary className="ag-rec-summary">
-                        Recording &amp; capture
-                        <span className="ag-meta" style={{ marginLeft: 8 }}>
-                          {r.captureConsentStatus === "pending" ? "not asked yet" : "asked — their answer is theirs"}
-                        </span>
-                      </summary>
-                      {r.status === "scheduled" && (
-                        <div style={{ margin: "10px 0 4px" }}>
-                          <button
-                            className="ag-btn ag-btn-secondary"
-                            onClick={() => askConsent(r.id)}
-                            disabled={busy || r.captureConsentStatus !== "pending"}
-                            title={
-                              r.captureConsentStatus === "pending"
-                                ? "Emails the candidate a link asking whether this call may be recorded. Their answer is theirs; you are not told what they chose."
-                                : "Already asked. Their answer is theirs, and this screen never shows it."
-                            }
-                          >
-                            {r.captureConsentStatus === "pending" ? "Ask about recording" : "Recording asked"}
-                          </button>
-                        </div>
-                      )}
-                      <InterviewCapture roundId={r.id} candidateName={r.candidateName} />
+                      <summary className="ag-rec-summary">Recording</summary>
+                      {/* Frame 47 §A: the ask, its state and everything after
+                          it live in the panel. The hiring manager never sees
+                          any of it. */}
+                      <InterviewCapture
+                        roundId={r.id}
+                        roleId={roleId}
+                        roundNumber={r.roundNumber}
+                        scheduled={r.status === "scheduled"}
+                        candidateName={r.candidateName}
+                      />
                     </details>
                   )}
                   </div>

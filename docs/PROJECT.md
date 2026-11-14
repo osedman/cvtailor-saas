@@ -9216,3 +9216,42 @@ including the §8 Art 14 notice wording). Frame 47 §E was drawn as an HTML page
 for review, because Figma's Starter limit still blocks writes. It goes into
 Figma when the limit lifts. The build waits for Ose's sign-off on frame 47 and
 §E.
+
+### 14 Nov 2026 — frame 47 + §E built on staging (interview recording, consent emails, told-first)
+
+Signed off by Ose; consent copy cleared by the lawyer. Migration
+`20261114120000_consent_asks.sql` was applied to **staging** before the code
+and checked: `consent_links` is unreadable by anon and authenticated, and the 5
+new columns exist. **Production still needs this migration, before any merge
+that carries this code.**
+
+- **Recording (frame 47 §A/§B).** The panel shows not asked, asked
+  (reminder, copy link), agreed, declined and withdrawn. Asking again adds a
+  link (`consent_links`) instead of killing the first. The transcript is
+  readable at the speaker check. Naming the voice verifies it, then reads the
+  candidate's own lines into quotes (`enrich` now accepts a checked
+  transcript; `source_cite` "… · transcript").
+- **Emails** (`lib/agency/candidate-mail.ts`): request, receipt (yes/no),
+  reminder within 48h of an unanswered round, and confirmation after
+  withdrawal. Each is from the agency, names the employer, uses reply-to and
+  carries the rights link.
+- **Withdrawal.** Audio is removed via Storage before its rows, the candidate
+  is rescored, then the email is sent. A storage failure stops it, and a
+  retry finishes it.
+- **§E.** "May we put you forward?" is its own email at shortlist
+  (`agencies.ask_at_shortlist`, on by default). The cleared Art 14 notice is
+  inline on first contact and closes the day-7 notice. One reminder after 2
+  days, plus receipts. "Before it goes" card on the submission step.
+  **Submission refuses anyone not yet told, with no override.**
+- **Day-7 notice** now carries the cleared Art 14 items (`notice-v2-art14`).
+- Not built: the hiring-manager recording notice (waits on legal 8.7); the
+  agency settings toggle for `ask_at_shortlist` (DB default on); a real
+  transcription vendor.
+
+**Staging side effect:** ROL-2421's seeded candidates are uploads whose
+notices are still scheduled, so submission now asks to tell them first. With
+`EMAIL_ALLOWLIST` on Preview, mail to their seeded addresses is skipped, so
+"Tell them and ask now" reports a send failure for them.
+
+Tests: 2248 passed. tsc clean. Not yet checked in a browser: the session
+cannot sign in to staging.

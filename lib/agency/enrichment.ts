@@ -158,7 +158,10 @@ export function validateFindings(
 /** The rows, ready for insert. Shape mirrors what ingest writes for a CV. */
 export function evidenceRows(
   findings: EnrichmentFinding[],
-  ctx: { agencyId: string; candidateId: string; roundId: string; roundNumber: number }
+  ctx: { agencyId: string; candidateId: string; roundId: string; roundNumber: number },
+  /** What the quotes were read from: the interviewer's write-up, or the
+   *  candidate's own lines in a checked transcript (frame 47 §A card 6). */
+  sourceKind: "write-up" | "transcript" = "write-up"
 ) {
   return findings.map((f) => ({
     agency_id: ctx.agencyId,
@@ -167,8 +170,26 @@ export function evidenceRows(
     strength: f.strength,
     quote: f.quote,
     // Where a recruiter can go to read it in full.
-    source_cite: `Interview · round ${ctx.roundNumber} · write-up`,
+    source_cite: `Interview · round ${ctx.roundNumber} · ${sourceKind}`,
     origin: "interview" as const,
     round_id: ctx.roundId,
   }))
+}
+
+/**
+ * The text enrichment may read from a checked transcript: the candidate's own
+ * lines and nobody else's (the speaker the recruiter named when checking). The
+ * interviewer's questions are not the candidate's evidence, and another voice
+ * is never quoted against them.
+ */
+export function candidateLines(
+  content: { segments?: Array<{ speaker: number; text: string }>; candidateSpeaker?: number | null } | null | undefined
+): string {
+  const speaker = content?.candidateSpeaker
+  if (speaker == null) return ""
+  return (content?.segments ?? [])
+    .filter((s) => s.speaker === speaker)
+    .map((s) => s.text)
+    .join("\n")
+    .trim()
 }
