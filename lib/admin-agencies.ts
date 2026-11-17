@@ -3,7 +3,7 @@
  *
  * Safe to import from client components. The server half is
  * lib/admin-agency-server.ts; the database half is
- * supabase/migrations/20261114120000_admin_agency_ops.sql, whose checks are
+ * supabase/migrations/20261114130000_admin_agency_ops.sql, whose checks are
  * the backstop for everything validated here.
  */
 import { NOTICE_MAX, NOTICE_MIN, RETENTION_MAX, RETENTION_MIN } from "@/lib/agency/settings-limits"

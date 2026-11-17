@@ -749,7 +749,7 @@ frozen evidence map, state. No email, no CV, no other roles. The bucket
 (`matched_bucket`) still covers everyone else. Lawyer pass on the switch copy
 before a real user sees it, as with the capture consent.
 
-#### 4.1 — 14 Nov 2026: admin operations on agencies (migration `20261114120000`)
+#### 4.1 — 14 Nov 2026: admin operations on agencies (migration `20261114130000`)
 
 No new tables. Three `security definer` functions in `public`, executable by
 `service_role` only, called from `/api/admin/agencies/**` behind

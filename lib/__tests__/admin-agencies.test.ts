@@ -170,8 +170,8 @@ describe("the routes", () => {
   })
 })
 
-describe("migration 20261114120000_admin_agency_ops", () => {
-  const sql = read("supabase/migrations/20261114120000_admin_agency_ops.sql")
+describe("migration 20261114130000_admin_agency_ops", () => {
+  const sql = read("supabase/migrations/20261114130000_admin_agency_ops.sql")
   const fns = [
     "admin_create_agency(uuid, text, text, uuid, text)",
     "admin_set_agency_member(uuid, uuid, uuid, text, text, text)",

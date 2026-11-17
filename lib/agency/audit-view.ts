@@ -97,7 +97,7 @@ function resolveActor(
   reason = ""
 ): { kind: AuditActorKind; label: string } {
   // Changes made from Tailr's admin area (migration
-  // 20261114120000_admin_agency_ops.sql) carry no actor and say so in the
+  // 20261114130000_admin_agency_ops.sql) carry no actor and say so in the
   // reason. Named for what it was: not a teammate, and not an automatic job.
   if (!actorId && reason.startsWith("Tailr support:")) {
     return { kind: "system", label: "Tailr support" }
