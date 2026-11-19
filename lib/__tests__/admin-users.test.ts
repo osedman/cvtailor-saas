@@ -126,3 +126,46 @@ describe("activity wording for accounts", () => {
     expect(describeActivity({ ...base, action: "unsubscribed", from: null })).toBe("Amara Okoye removed Daniel Reyes from the mailing list")
   })
 })
+
+describe("the Users screens", () => {
+  const list = read("app/admin/users/page.tsx")
+  const one = read("app/admin/users/[id]/page.tsx")
+
+  it("the nav offers Users at the level the routes allow", () => {
+    expect(read("components/admin/admin-shell.tsx")).toMatch(/href: "\/admin\/users"[^}]*needs: "support"/)
+  })
+
+  it("nothing is fetched until the search is long enough", () => {
+    const code = tsCode(list)
+    expect(code).toContain("const ready = term.length >= USER_SEARCH_MIN")
+    expect(code.indexOf("if (!ready)")).toBeLessThan(code.indexOf("fetch(`/api/admin/users?q="))
+  })
+
+  it("a slower earlier search cannot overwrite a newer one", () => {
+    expect(tsCode(list)).toContain("if (call !== latest.current) return")
+  })
+
+  it("offers an action only when the shared rule allows it, and says why not", () => {
+    expect(one).toContain("const why = refusal(a.action)")
+    expect(one).toContain("disabled={!canWrite || busy || !!why}")
+    expect(one).toContain("userActionRefusal({")
+  })
+
+  it("every action sends a reason", () => {
+    expect(one).toContain("body: JSON.stringify({ action: pending, reason })")
+  })
+
+  it("offers only the five actions, with no delete, impersonate or email change", () => {
+    const code = tsCode(one)
+    const offered = [...code.matchAll(/action: "(\w+)", title:/g)].map((m) => m[1]).sort()
+    expect(offered).toEqual(["reinstate", "reset_limits", "reset_usage", "suspend", "unsubscribe"])
+    expect(code).not.toMatch(/Delete account|Sign in as|Change email/)
+  })
+
+  it("uses the admin styles and no mono", () => {
+    for (const src of [list, one]) {
+      expect(src).toContain("ns-admin-card")
+      expect(src).not.toMatch(/font-mono|monospace/)
+    }
+  })
+})
