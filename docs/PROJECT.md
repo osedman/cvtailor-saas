@@ -9255,3 +9255,19 @@ notices are still scheduled, so submission now asks to tell them first. With
 
 Tests: 2248 passed. tsc clean. Not yet checked in a browser: the session
 cannot sign in to staging.
+
+### 19 Nov 2026 — frame 47 + §E shipped to production (#73)
+
+On Ose's go ("ship it"). Order kept: the migration first, then the code.
+- `20261114120000_consent_asks.sql` applied to **prod** and checked:
+  `consent_links` is unreadable by anon and authenticated, and all 5 columns
+  exist.
+- Port PR #73: the three code commits cherry-picked onto main. Staging's
+  docs, mockups and marketing were left out, as with #71. main's
+  `tracker-body.test.ts` is kept. CI green (vitest 2251, tsc clean).
+- Merged as fb905c3 → prod deploy `dpl_HzYxiroEnJPHY7bu22iYdt4sj53e` READY,
+  serving gettailr.com, app./www.gettailr.com and tailrecruit.com
+  (+www).
+
+Still to verify by effect, by Ose on Meridian Health: the shortlist ask
+arrives from notices@tailrecruit.com.
