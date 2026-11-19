@@ -53,6 +53,9 @@ describe("admin route gating", () => {
     ["app/api/admin/agencies/[id]/members/route.ts", ["support"]],
     ["app/api/admin/agencies/[id]/clients/route.ts", ["support"]],
     ["app/api/admin/agencies/[id]/jobs/route.ts", ["support"]],
+    // Consumer accounts: support finds a person and fixes their account.
+    ["app/api/admin/users/route.ts", ["support"]],
+    ["app/api/admin/users/[id]/route.ts", ["support"]],
   ]
   for (const [route, levels] of routes) {
     it(`${route} requires ${levels.join(" / ")}`, () => {

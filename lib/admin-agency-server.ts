@@ -9,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase/server"
 import { sendEmail } from "@/lib/email"
 import { b2bFrom } from "@/lib/email-senders"
 import { getBusinessOrigin } from "@/lib/site-url"
+import { logAdminAction } from "@/lib/admin-log"
 import { agencyAccessEmail, agencyRpcError, type AgencyMemberRole } from "@/lib/admin-agencies"
 
 export interface ResolvedAccount {
@@ -75,10 +76,9 @@ export function rpcRefusal(error: { message?: string } | null): NextResponse | n
 }
 
 /**
- * Record an admin action that the database functions do not log themselves
- * (client invites and job reruns reuse existing agency code). Written AFTER
- * the action succeeds; a failure here is thrown so the admin is told the
- * action happened but was not logged, rather than it passing silently.
+ * Record an admin action on an agency that the database functions do not log
+ * themselves (client invites and job reruns reuse existing agency code).
+ * See lib/admin-log.ts.
  */
 export async function logAgencyAdminAction(input: {
   actorId: string
@@ -88,15 +88,14 @@ export async function logAgencyAdminAction(input: {
   from?: Record<string, unknown> | null
   to?: Record<string, unknown> | null
 }): Promise<void> {
-  const { error } = await createAdminClient().from("admin_audit_log").insert({
-    actor_id: input.actorId,
+  await logAdminAction({
+    actorId: input.actorId,
     area: "agencies",
     action: input.action,
-    target_type: "agency",
-    target_id: input.agencyId,
-    from_value: input.from ?? null,
-    to_value: input.to ?? null,
-    reason: input.reason.trim(),
+    targetType: "agency",
+    targetId: input.agencyId,
+    reason: input.reason,
+    from: input.from,
+    to: input.to,
   })
-  if (error) throw new Error(`The change was made but could not be written to the activity log: ${error.message}`)
 }

@@ -73,6 +73,14 @@ export function describeActivity(
     if (e.action === "role_changed" && from && to) return `${e.actorName} changed ${target} from ${from} to ${to}`
     if (e.action === "removed") return `${e.actorName} removed ${target}`
   }
+  if (e.area === "users") {
+    const was = field(e.from, "tailors_used")
+    if (e.action === "limits_reset") return `${e.actorName} reset the limits for ${target}`
+    if (e.action === "usage_reset") return `${e.actorName} reset the usage count for ${target}${typeof was === "number" ? ` (was ${was})` : ""}`
+    if (e.action === "suspended") return `${e.actorName} suspended ${target}’s account`
+    if (e.action === "reinstated") return `${e.actorName} reinstated ${target}’s account`
+    if (e.action === "unsubscribed") return `${e.actorName} removed ${target} from the mailing list`
+  }
   if (e.area === "agencies") {
     const who = e.subjectName || "someone"
     const fromRole = AGENCY_ROLE[String(field(e.from, "role"))]
