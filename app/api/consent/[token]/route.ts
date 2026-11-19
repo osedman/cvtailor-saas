@@ -68,17 +68,10 @@ async function POST_handler(req: NextRequest, { params }: { params: Promise<{ to
     const result = await recordDecision(token, decision as "granted" | "declined" | "withdrawn")
     if (!result) return notFound()
 
-    // Withdrawal deletes the derived evidence in the same operation; the blobs
-    // and the rescore are the caller's to finish. Both are logged loudly rather
-    // than silently swallowed — a half-done withdrawal is a broken promise.
-    if (result.recordingPaths.length > 0) {
-      console.error(
-        `[consent] ${result.recordingPaths.length} recording blob(s) need deletion after withdrawal`
-      )
-    }
-    if (result.rescoreCandidateId) {
-      console.error(`[consent] candidate needs rescoring after withdrawal`)
-    }
+    // Withdrawal finishes inside recordDecision since 14 Nov 2026: the audio
+    // is removed from storage before its rows, the candidate is rescored, and
+    // the confirmation email goes only after both. A storage failure throws,
+    // lands in the 500 below, and the candidate's retry runs the cascade again.
 
     return NextResponse.json({ ok: true, decision: result.decision })
   } catch {

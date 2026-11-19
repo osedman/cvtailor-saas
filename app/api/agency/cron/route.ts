@@ -21,6 +21,8 @@ import { runQueuedMatchScans } from "@/lib/matching/scan"
 import { runQueuedTranscriptions } from "@/lib/agency/transcription"
 import { runInterviewReminders } from "@/lib/agency/interview-reminders"
 import { releaseDueWaves } from "@/lib/agency/waves"
+import { runCaptureReminders } from "@/lib/agency/consent"
+import { runRepresentReminders } from "@/lib/agency/put-forward"
 import {
   RECORDING_BUCKET,
   listRecordingsDueForDeletion,
@@ -63,6 +65,8 @@ async function run(req: NextRequest) {
     interview_nudges: 0,
     interview_reminders: 0,
     waves_released: 0,
+    capture_reminders: 0,
+    represent_reminders: 0,
   }
 
   // ---- 1. Retention purge -----------------------------------
@@ -207,6 +211,19 @@ async function run(req: NextRequest) {
     summary.interview_reminders = reminders.reminded
   } catch (e) {
     console.error("[agency-cron] reminder sweep threw:", e instanceof Error ? e.message : e)
+  }
+
+  // Consent reminders (frame 47 §B email 3, §E email 7): one nudge each,
+  // stamped before sending, and silence is never a yes.
+  try {
+    summary.capture_reminders = await runCaptureReminders()
+  } catch (e) {
+    console.error("[agency-cron] capture reminder sweep threw:", e instanceof Error ? e.message : e)
+  }
+  try {
+    summary.represent_reminders = await runRepresentReminders()
+  } catch (e) {
+    console.error("[agency-cron] represent reminder sweep threw:", e instanceof Error ? e.message : e)
   }
 
   // Waves due out: a reserve whose wave has had its time, or where a

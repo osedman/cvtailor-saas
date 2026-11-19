@@ -23,8 +23,12 @@
  */
 
 import { createHash, randomBytes } from "crypto"
+import { getAppOrigin } from "@/lib/site-url"
 import { agencyAdmin, assertWriter, writeAudit, AgencyAccessError } from "./db"
 import { notify } from "./notify"
+import { RECORDING_BUCKET } from "./artifacts"
+import { recomputeAndStore } from "./rescore"
+import { loadCandidateMail, sendCandidateMail, whenLine } from "./candidate-mail"
 import type { AgencyContext } from "./types"
 
 export type ConsentDecision = "granted" | "declined" | "withdrawn"
@@ -39,8 +43,40 @@ function tokenLooksPlausible(raw: string): boolean {
   return typeof raw === "string" && raw.length >= 16 && raw.length <= 64
 }
 
+/**
+ * The round a raw consent token opens, or null. Every link minted for a round
+ * lives in consent_links and keeps working (14 Nov 2026), so asking again
+ * never kills the link in an earlier email. Links minted before then are on
+ * the round itself.
+ */
+async function roundIdForToken(
+  admin: ReturnType<typeof agencyAdmin>,
+  rawToken: string
+): Promise<string | null> {
+  const hash = hashToken(rawToken)
+  const { data: link, error } = await admin
+    .from("consent_links")
+    .select("round_id")
+    .eq("token_hash", hash)
+    .maybeSingle()
+  if (error) throw error
+  if (link) return link.round_id as string
+  const { data: legacy, error: legacyError } = await admin
+    .from("interview_rounds")
+    .select("id")
+    .eq("consent_token_hash", hash)
+    .maybeSingle()
+  if (legacyError) throw legacyError
+  return (legacy?.id as string | undefined) ?? null
+}
+
 export interface CaptureRequest {
   rawToken: string
+  candidateId: string
+  /** True when this round had been asked before: the email is a resend. */
+  resend: boolean
+  /** The employer the interview is with, from the round's contact. */
+  company: string | null
   candidateEmail: string | null
   candidateName: string
   roleTitle: string
@@ -63,7 +99,7 @@ export async function requestCapture(
 
   const { data: round, error } = await admin
     .from("interview_rounds")
-    .select("id, agency_id, role_id, candidate_id, scheduled_at, capture_consent_status")
+    .select("id, agency_id, role_id, candidate_id, contact_id, scheduled_at, capture_consent_status, capture_requested_at")
     .eq("id", roundId)
     .eq("agency_id", ctx.agencyId)
     .maybeSingle()
@@ -78,7 +114,7 @@ export async function requestCapture(
     )
   }
 
-  const [{ data: candidate }, { data: role }, { data: agency }] = await Promise.all([
+  const [{ data: candidate }, { data: role }, { data: agency }, { data: contact }] = await Promise.all([
     admin
       .from("candidates")
       .select("id, ref, full_name, email")
@@ -92,16 +128,30 @@ export async function requestCapture(
       .eq("agency_id", ctx.agencyId)
       .maybeSingle(),
     admin.from("agencies").select("retention_days").eq("id", ctx.agencyId).maybeSingle(),
+    round.contact_id
+      ? admin.from("client_contacts").select("company").eq("id", round.contact_id as string).maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
   if (!candidate) throw new AgencyAccessError("candidate not found in your agency")
 
+  // A new link, alongside any earlier ones (they keep working). The round is
+  // stamped as asked so the panel stops reading 'pending' as "not asked".
   const raw = randomBytes(24).toString("base64url")
-  const { error: updateError } = await admin
-    .from("interview_rounds")
-    .update({ consent_token_hash: hashToken(raw) })
-    .eq("id", roundId)
-    .eq("agency_id", ctx.agencyId)
-  if (updateError) throw updateError
+  const { error: linkError } = await admin.from("consent_links").insert({
+    agency_id: ctx.agencyId,
+    round_id: roundId,
+    token_hash: hashToken(raw),
+  })
+  if (linkError) throw linkError
+  const resend = !!round.capture_requested_at
+  if (!resend) {
+    const { error: updateError } = await admin
+      .from("interview_rounds")
+      .update({ capture_requested_at: new Date().toISOString() })
+      .eq("id", roundId)
+      .eq("agency_id", ctx.agencyId)
+    if (updateError) throw updateError
+  }
 
   await writeAudit(admin, {
     agencyId: ctx.agencyId,
@@ -110,13 +160,16 @@ export async function requestCapture(
     actorId: ctx.userId,
     entityType: "round",
     entityRef: (candidate.ref as string) ?? "",
-    action: "capture_requested",
+    action: resend ? "capture_reasked" : "capture_requested",
     // No token, no address. Asking is the event; the answer is the candidate's.
     toValue: { round_id: roundId },
   })
 
   return {
     rawToken: raw,
+    candidateId: round.candidate_id as string,
+    resend,
+    company: ((contact as { company?: string } | null)?.company as string | undefined) ?? null,
     candidateEmail: (candidate.email as string | null) ?? null,
     candidateName: (candidate.full_name as string) ?? "",
     roleTitle: (role?.title as string) ?? "the role",
@@ -147,12 +200,14 @@ export async function peekConsent(rawToken: string): Promise<ConsentView | null>
   if (!tokenLooksPlausible(rawToken)) return null
   const admin = agencyAdmin()
 
+  const roundId = await roundIdForToken(admin, rawToken)
+  if (!roundId) return null
   const { data: round, error } = await admin
     .from("interview_rounds")
     .select(
       "id, agency_id, role_id, candidate_id, contact_id, scheduled_at, duration_minutes, status, capture_consent_status"
     )
-    .eq("consent_token_hash", hashToken(rawToken))
+    .eq("id", roundId)
     .maybeSingle()
   if (error) throw error
   if (!round) return null
@@ -212,12 +267,13 @@ export async function recordDecision(
 ): Promise<DecisionResult | null> {
   if (!tokenLooksPlausible(rawToken)) return null
   const admin = agencyAdmin()
-  const tokenHash = hashToken(rawToken)
+  const tokenRoundId = await roundIdForToken(admin, rawToken)
+  if (!tokenRoundId) return null
 
   const { data: round, error } = await admin
     .from("interview_rounds")
-    .select("id, agency_id, role_id, candidate_id, status, capture_consent_status")
-    .eq("consent_token_hash", tokenHash)
+    .select("id, agency_id, role_id, candidate_id, contact_id, scheduled_at, status, capture_consent_status")
+    .eq("id", tokenRoundId)
     .maybeSingle()
   if (error) throw error
   if (!round || round.status === "cancelled") return null
@@ -260,6 +316,15 @@ export async function recordDecision(
     for (const a of artifacts ?? []) {
       const path = a.recording_path as string | null
       if (path) recordingPaths.push(path)
+    }
+    // The audio goes FIRST, through the Storage API (deleting storage.objects
+    // rows in SQL orphans the blob). If it fails we stop before the rows go:
+    // the artifact still names the path, so the candidate's retry — or the
+    // nightly sweep — can finish the job. Deleting the rows first would leave
+    // a voice in storage that nothing points at any more.
+    if (recordingPaths.length > 0) {
+      const { error: blobError } = await admin.storage.from(RECORDING_BUCKET).remove(recordingPaths)
+      if (blobError) throw blobError
     }
     if ((artifacts ?? []).length > 0) {
       const { error: delArtifact } = await admin
@@ -329,5 +394,108 @@ export async function recordDecision(
     })
   }
 
+  // Withdrawal's last step: the score must stop counting what was deleted.
+  if (rescoreCandidateId) {
+    await recomputeAndStore(admin, agencyId, rescoreCandidateId)
+  }
+
+  // The candidate hears back every time their answer changes, and after a
+  // withdrawal only once the deletion above has actually happened.
+  const mailCtx = await loadCandidateMail(admin, candidateId)
+  if (mailCtx) {
+    if (round.contact_id) {
+      const { data: contact } = await admin
+        .from("client_contacts")
+        .select("company")
+        .eq("id", round.contact_id as string)
+        .maybeSingle()
+      if (contact?.company) mailCtx.company = contact.company as string
+    }
+    const when = whenLine(round.scheduled_at as string | null)
+    const consentUrl = `${getAppOrigin()}/consent/${rawToken}`
+    const removedSomething = recordingPaths.length > 0 || rescoreCandidateId !== null
+    if (decision === "withdrawn" && removedSomething) {
+      await sendCandidateMail(admin, mailCtx, {
+        kind: "recording_deleted",
+        roundDate: round.scheduled_at
+          ? new Date(round.scheduled_at as string).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Europe/London" })
+          : "",
+      })
+    } else if (!unchanged) {
+      await sendCandidateMail(admin, mailCtx, {
+        kind: "recording_receipt",
+        answer: decision === "granted" ? "granted" : "declined",
+        when,
+        consentUrl,
+      })
+    }
+  }
+
   return { ok: true, decision, recordingPaths, rescoreCandidateId }
+}
+
+/**
+ * The one reminder (frame 47 §B email 3): a round in the next two days whose
+ * candidate was asked and has not answered gets a single nudge, stamped on the
+ * round so a re-run of the cron cannot send it twice. Silence after that means
+ * no recording — never an assumed yes. Each reminder carries a new link; the
+ * earlier ones keep working. Returns how many were sent.
+ */
+export async function runCaptureReminders(): Promise<number> {
+  const admin = agencyAdmin()
+  const now = new Date()
+  const horizon = new Date(now.getTime() + 48 * 3_600_000)
+  const { data: rounds, error } = await admin
+    .from("interview_rounds")
+    .select("id, agency_id, candidate_id, contact_id, scheduled_at")
+    .eq("capture_consent_status", "pending")
+    .eq("status", "scheduled")
+    .not("capture_requested_at", "is", null)
+    .is("capture_reminded_at", null)
+    .gt("scheduled_at", now.toISOString())
+    .lte("scheduled_at", horizon.toISOString())
+    .limit(100)
+  if (error) throw error
+
+  let sent = 0
+  for (const round of rounds ?? []) {
+    try {
+      // Stamp first: a reminder that might go twice is worse than one that
+      // might not go at all, for a question that defaults to no.
+      const { data: claimed } = await admin
+        .from("interview_rounds")
+        .update({ capture_reminded_at: now.toISOString() })
+        .eq("id", round.id as string)
+        .is("capture_reminded_at", null)
+        .select("id")
+      if (!claimed || claimed.length === 0) continue
+
+      const mailCtx = await loadCandidateMail(admin, round.candidate_id as string)
+      if (!mailCtx?.email) continue
+      if (round.contact_id) {
+        const { data: contact } = await admin
+          .from("client_contacts")
+          .select("company")
+          .eq("id", round.contact_id as string)
+          .maybeSingle()
+        if (contact?.company) mailCtx.company = contact.company as string
+      }
+      const raw = randomBytes(24).toString("base64url")
+      const { error: linkError } = await admin.from("consent_links").insert({
+        agency_id: round.agency_id as string,
+        round_id: round.id as string,
+        token_hash: hashToken(raw),
+      })
+      if (linkError) throw linkError
+      const ok = await sendCandidateMail(admin, mailCtx, {
+        kind: "recording_reminder",
+        when: whenLine(round.scheduled_at as string),
+        consentUrl: `${getAppOrigin()}/consent/${raw}`,
+      })
+      if (ok) sent++
+    } catch (e) {
+      console.error("[consent] reminder failed", { name: e instanceof Error ? e.name : typeof e })
+    }
+  }
+  return sent
 }

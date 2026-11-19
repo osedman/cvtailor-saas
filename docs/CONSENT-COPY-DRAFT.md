@@ -220,3 +220,26 @@ These are not copy questions; they are promises the code has to keep.
 Once §1 is answered I can write the consent route, the page, the withdrawal
 path and the debrief fallback. None of it is large. All of it is blocked on
 words, not code.
+
+## 8. The Art 14 candidate notice is missing required items (found 14 Nov 2026)
+
+`noticeHtml` in `lib/agency/notices.ts` (template v1) tells the candidate who
+holds their data, that they have rights, and how long it is kept. Article 14
+also requires the items below, and the notice says none of them. This is
+proposed wording for the lawyer and Ose. **Not shipped**: the notice is
+candidate-facing copy, so it needs the frame and sign-off first.
+
+| Art 14 item | Missing today | Proposed line |
+|---|---|---|
+| (1)(a) controller identity and contact | the agency is named, with no contact | "{Agency}, {address}, is responsible for your data. Contact: {reply-to}." |
+| (1)(c) purposes and lawful basis | none | "We use it to assess you for this role and others like it, on the basis of our legitimate interest in finding candidates for our clients." |
+| (2)(b) the legitimate interest | none | covered by the line above |
+| (1)(d) categories of data | none | "Your CV and the details in it: work history, skills, education and contact details." |
+| (2)(f) source | none | "We received your CV from {source: you / a job board / a referral}." |
+| (1)(e) recipients | none | "Tailr hosts it for us. Its AI provider, Anthropic, reads the CV to match it against the role. We share it with the hiring company only if you agree." |
+| (1)(f) transfer outside the UK | none | "Anthropic processes data in the United States under the UK International Data Transfer Addendum." *(confirm the mechanism in the DPA)* |
+| (2)(c) right to object | the rights listed are see, correct and delete | add "object to us using it" |
+| (2)(e) right to complain | none | "You can complain to the ICO at ico.org.uk." |
+
+The "may we put you forward?" email in frame 47 §E carries this notice inline
+when it is the candidate's first contact, so the same text serves both.

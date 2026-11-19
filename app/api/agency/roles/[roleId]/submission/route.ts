@@ -22,6 +22,7 @@ import {
   writeAudit,
 } from "@/lib/agency/db"
 import { checkRepresentGate } from "@/lib/agency/represent"
+import { untoldRefs } from "@/lib/agency/put-forward"
 import { getAppOrigin, getBusinessOrigin } from "@/lib/site-url"
 import { createClientInvite } from "@/lib/agency/client-auth"
 import { sendEmail } from "@/lib/email"
@@ -101,6 +102,24 @@ async function POST_handler(
     const shortlisted = (decisions ?? []).filter((d) => d.decision === "shortlist")
     if (shortlisted.length === 0) {
       return NextResponse.json({ error: "Nothing shortlisted yet" }, { status: 400 })
+    }
+
+    // Told first (frame 47 §E, 14 Nov 2026). Art 14(3)(c): a candidate is
+    // told we hold their CV no later than its first disclosure. Anyone not yet
+    // told is refused with NO override — the fix is to tell them, which the
+    // screen offers as "Tell her and ask now".
+    const notTold = await untoldRefs(
+      admin,
+      shortlisted.map((d) => d.candidate_id as string)
+    )
+    if (notTold.length > 0) {
+      return NextResponse.json(
+        {
+          error: `${notTold.join(", ")} ${notTold.length === 1 ? "has" : "have"} not been told we hold their CV yet. Tell them and ask before submitting.`,
+          notTold,
+        },
+        { status: 409 }
+      )
     }
 
     // Right to represent, checked BEFORE anything renders. Declined and

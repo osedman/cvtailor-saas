@@ -7,9 +7,10 @@
  * set 'reject'.
  */
 
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
 import { AgencyAccessError, assertWriter, requireAgencyContext } from "@/lib/agency/db"
 import { applyDecision, parseDecision } from "@/lib/agency/decisions"
+import { scheduleAskAtShortlist } from "@/lib/agency/put-forward"
 import { errorMessage } from "@/lib/error-message"
 import { withTiming } from "@/lib/server-timing"
 
@@ -38,6 +39,14 @@ async function PATCH_handler(
     const note = typeof body?.note === "string" ? body.note.slice(0, 2000) : ""
 
     const applied = await applyDecision(auth.ctx, candidateId, decision, { note, source: "single" })
+
+    // Frame 47 §E: shortlisting sends "may we put you forward?" (agency
+    // setting, on by default). After the response, and never able to undo
+    // the decision.
+    if (applied.decision === "shortlist" && applied.previous !== "shortlist") {
+      const ctx = auth.ctx
+      scheduleAskAtShortlist(after, ctx.agencyId, [candidateId], ctx.userId)
+    }
 
     return NextResponse.json({ decision: applied.decision, candidate_ref: applied.candidateRef })
   } catch (error) {
