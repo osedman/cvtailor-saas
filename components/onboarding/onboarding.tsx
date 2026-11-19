@@ -13,7 +13,9 @@ import {
 const ACCENT = "#dc4f33"
 
 // Only surface onboarding inside the signed-in app, never on marketing/auth.
-const APP_PREFIXES = ["/tailor", "/history", "/tracker", "/career-path", "/career-arc", "/admin"]
+// /admin is deliberately absent (13 Nov 2026): the checklist is for people
+// using the product, and on a phone it sat on top of the admin controls.
+const APP_PREFIXES = ["/tailor", "/history", "/tracker", "/career-path", "/career-arc"]
 
 /** Subscribe to the cross-app onboarding change event + storage + focus. */
 function useOnboardingTick() {

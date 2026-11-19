@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { isAdminEmail } from '@/lib/admin'
-import { isMarketEnabled, fetchMarket } from '@/lib/job-market'
+import { requireAdmin } from '@/lib/admin-access'
+import { isMarketEnabled, isMarketLive, fetchMarket } from '@/lib/job-market'
 import { errorMessage } from '@/lib/error-message'
-import { sessionUser } from "@/lib/supabase/session-user"
 import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
@@ -19,11 +17,9 @@ export const maxDuration = 30
  * Reports presence and lengths only — never the key itself.
  */
 async function GET_handler() {
-  const supabase = await createClient()
-  const user = await sessionUser(supabase)
-  if (!user || !isAdminEmail(user.email)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  // Read-only diagnostic: admin level, no second step needed.
+    const gate = await requireAdmin('admin')
+  if (!gate.ok) return gate.response
 
   const key = process.env.REED_API_KEY ?? ''
   const env = {
@@ -34,6 +30,8 @@ async function GET_handler() {
     reedKeyHasQuotes: key.startsWith('"') || key.startsWith("'"),
     killSwitchValue: process.env.MARKET_INSIGHTS_ENABLED ?? '(unset)',
     isMarketEnabled: isMarketEnabled(),
+    // The environment can have it on while an admin off switch holds it off.
+    isMarketLive: await isMarketLive(),
     // NAMES ONLY, no values. When one of a pair of variables arrives and the
     // other doesn't, a typo in the name is the usual cause — this makes it
     // visible instead of guessable.

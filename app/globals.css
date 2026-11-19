@@ -441,3 +441,84 @@
   .ns .ns-pulse { animation: none; }
   .ns-celebrate, .ns-celebrate-inner { animation: none; }
 }
+
+/* ── Admin area (12 Nov 2026) ─────────────────────────────────────────────
+   Shell + the Admins / Activity / Two-step screens. Built to the Figma frames
+   "Admin — Admins", "Admin — Activity" and "Admin — Two-step verification
+   setup" (figma.com/design/PyzSuQcvilrl80EjFrUP73). Extends the ns- system:
+   same tokens, no new colours. */
+.ns .ns-admin-nav {
+  background: #fdfcf9;
+  border-bottom: 1px solid var(--ns-border);
+}
+.ns .ns-admin-tabs { overflow-x: auto; scrollbar-width: none; }
+.ns .ns-admin-tabs::-webkit-scrollbar { display: none; }
+.ns .ns-admin-tab {
+  display: inline-flex; align-items: center;
+  padding: 17px 0 15px; white-space: nowrap;
+  font-size: 12.5px; font-weight: 500; color: #8a8178;
+  border-bottom: 2px solid transparent;
+  transition: color 120ms ease;
+}
+.ns .ns-admin-tab:hover { color: var(--ns-ink); }
+.ns .ns-admin-tab[aria-current="page"] {
+  color: var(--ns-ink); font-weight: 600; border-bottom-color: var(--ns-coral);
+}
+.ns .ns-admin-pill {
+  display: inline-flex; align-items: center;
+  padding: 3px 8px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 600; line-height: 1.4;
+  background: var(--ns-tint-1); border: 1px solid var(--ns-tint-2); color: var(--ns-coral-deep);
+}
+.ns .ns-admin-card {
+  background: var(--ns-paper); border: 1px solid var(--ns-border); border-radius: 10px;
+}
+.ns .ns-admin-panel {
+  background: var(--ns-tint-1); border: 1px solid var(--ns-tint-2); border-radius: 10px;
+}
+.ns .ns-admin-label { display: block; font-size: 11.5px; font-weight: 500; color: #5c534c; margin-bottom: 6px; }
+.ns .ns-admin-input {
+  width: 100%; min-height: 38px;
+  background: var(--ns-paper); border: 1px solid var(--ns-border); border-radius: 8px;
+  padding: 8px 12px; font-size: 12.5px; color: var(--ns-ink);
+}
+.ns .ns-admin-input::placeholder { color: #8a8178; }
+.ns .ns-admin-input:disabled { opacity: 0.6; cursor: not-allowed; }
+.ns .ns-admin-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 38px; padding: 8px 14px; border-radius: 8px; white-space: nowrap;
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  background: var(--ns-paper); border: 1px solid var(--ns-border); color: var(--ns-ink);
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.ns .ns-admin-btn:hover:not(:disabled) { border-color: var(--ns-ink-40); }
+.ns .ns-admin-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.ns .ns-admin-btn-primary { background: var(--ns-ink); border-color: var(--ns-ink); color: var(--ns-cream); }
+.ns .ns-admin-btn-primary:hover:not(:disabled) { background: #000; border-color: #000; }
+.ns .ns-admin-btn-danger { color: var(--ns-coral-deep); }
+.ns .ns-admin-btn-sm { min-height: 32px; padding: 6px 10px; font-size: 11.5px; }
+.ns .ns-admin-chip {
+  display: inline-flex; align-items: center;
+  padding: 4px 9px; border-radius: 999px; white-space: nowrap;
+  font-size: 11px; font-weight: 500; color: #5c534c;
+  background: #fdfcf9; border: 1px solid var(--ns-border);
+}
+.ns .ns-admin-chip-warn { background: var(--ns-tint-1); border-color: var(--ns-tint-2); color: var(--ns-coral-deep); }
+.ns .ns-admin-filter {
+  padding: 7px 14px; border-radius: 999px; white-space: nowrap; cursor: pointer;
+  font-size: 12px; font-weight: 500; color: #5c534c;
+  background: #fdfcf9; border: 1px solid var(--ns-border);
+}
+.ns .ns-admin-filter[aria-pressed="true"] { background: var(--ns-ink); border-color: var(--ns-ink); color: var(--ns-cream); }
+.ns .ns-admin-nav a:focus-visible,
+.ns .ns-admin-btn:focus-visible,
+.ns .ns-admin-filter:focus-visible,
+.ns .ns-admin-input:focus-visible {
+  outline: 2px solid var(--ns-coral); outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  /* Thumb-sized targets where the controls stack. */
+  .ns .ns-admin-btn, .ns .ns-admin-input { min-height: 44px; }
+  .ns .ns-admin-btn-sm { min-height: 40px; }
+  .ns .ns-admin-filter { padding: 11px 14px; }
+}

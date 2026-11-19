@@ -4,12 +4,13 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
-  ArrowLeft, Loader2, RefreshCw, AlertTriangle, CheckCircle2,
+  Loader2, RefreshCw, AlertTriangle, CheckCircle2,
   Clock, Gauge, Users, BookOpen, Moon,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-provider"
-import { isAdminEmail } from "@/lib/admin"
+import { roleAllows } from "@/lib/admin-roles"
+import { useAdmin } from "@/components/admin/admin-shell"
 import type { AdminInsights, OpsAlert } from "@/lib/admin-insights"
 
 interface Payload {
@@ -97,6 +98,7 @@ function AlertStrip({ alerts }: { alerts: OpsAlert[] }) {
 
 export default function AdminInsightsPage() {
   const { user, loading: authLoading } = useAuth()
+  const { me } = useAdmin()
   const router = useRouter()
   const [data, setData] = useState<Payload | null>(null)
   const [loading, setLoading] = useState(true)
@@ -151,12 +153,6 @@ export default function AdminInsightsPage() {
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <Link
-              href="/admin"
-              className="mb-3 inline-flex items-center gap-1.5 text-[13px] text-[#1e1813]/55 hover:text-[#1e1813]"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" /> Product health
-            </Link>
             <h1 className="text-2xl font-semibold tracking-tight text-[#1e1813]">
               Insights & ops
             </h1>
@@ -165,14 +161,6 @@ export default function AdminInsightsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {isAdminEmail(user?.email) && (
-              <Link
-                href="/admin/courses"
-                className="rounded-lg border border-[#eee6da] bg-white px-3 py-2 text-[13px] text-[#1e1813]/70 hover:border-[#dc4f33]/40"
-              >
-                Course review
-              </Link>
-            )}
             <button
               type="button"
               onClick={() => void load(true)}
@@ -367,7 +355,7 @@ export default function AdminInsightsPage() {
                 </ul>
               </div>
             )}
-            {isAdminEmail(user?.email) && (
+            {roleAllows(me.role, "admin") && (
               <Link
                 href="/admin/courses"
                 className="mt-4 inline-block text-[13px] text-[#dc4f33] hover:underline"

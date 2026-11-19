@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { isAdminViewer } from '@/lib/admin'
+import { createAdminClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/admin-access'
 import { buildAdminInsights, type CourseOpsInput } from '@/lib/admin-insights'
 import type { MetricsRun } from '@/lib/admin-metrics'
 import { errorMessage } from '@/lib/error-message'
-import { sessionUser } from "@/lib/supabase/session-user"
 import { withTiming } from "@/lib/server-timing"
 
 export const maxDuration = 30
@@ -108,11 +107,8 @@ async function loadCourseOps(
 
 async function GET_handler() {
   try {
-    const supabase = await createClient()
-    const user = await sessionUser(supabase)
-    if (!user || !isAdminViewer(user.email)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const gate = await requireAdmin('viewer')
+    if (!gate.ok) return gate.response
 
     const admin = createAdminClient()
     const since30 = daysAgo(30)

@@ -3,7 +3,7 @@ import { isCareerPathBeta, BETA_LOCKED } from '@/lib/feature-gate'
 import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { errMessage } from "@/lib/err"
 import {
-  fetchMarket, isMarketEnabled, isFresh, normaliseRoleKey, computeUnlocks,
+  fetchMarket, isMarketLive, isFresh, normaliseRoleKey, computeUnlocks,
   type MarketJob, type SalaryBand,
 } from "@/lib/job-market"
 import type { CareerRoadmapItem } from "@/lib/anthropic"
@@ -66,7 +66,7 @@ async function POST_handler(req: Request) {
     const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
-    if (!isMarketEnabled()) return NextResponse.json({ enabled: false })
+    if (!(await isMarketLive())) return NextResponse.json({ enabled: false })
 
     const body = await req.json().catch(() => ({}))
     const roles = (Array.isArray(body?.roles) ? body.roles : [])
@@ -94,7 +94,7 @@ async function GET_handler() {
     const user = await sessionUser(supabase)
     if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
     if (!(await isCareerPathBeta(user.email))) return NextResponse.json(BETA_LOCKED, { status: 403 })
-    if (!isMarketEnabled()) return NextResponse.json({ enabled: false })
+    if (!(await isMarketLive())) return NextResponse.json({ enabled: false })
 
     const { data: rm } = await supabase
       .from("career_roadmaps").select("target_role").eq("user_id", user.id).maybeSingle()
