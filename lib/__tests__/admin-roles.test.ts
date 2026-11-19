@@ -56,6 +56,8 @@ describe("admin route gating", () => {
     // Consumer accounts: support finds a person and fixes their account.
     ["app/api/admin/users/route.ts", ["support"]],
     ["app/api/admin/users/[id]/route.ts", ["support"]],
+    // Configuration: support reads; only an admin changes a switch.
+    ["app/api/admin/config/route.ts", ["support", "admin"]],
   ]
   for (const [route, levels] of routes) {
     it(`${route} requires ${levels.join(" / ")}`, () => {

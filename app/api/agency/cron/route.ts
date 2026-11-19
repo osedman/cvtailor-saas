@@ -29,6 +29,8 @@ import {
   markRecordingsDeleted,
 } from "@/lib/agency/artifacts"
 import { withTiming } from "@/lib/server-timing"
+import { safeCronSummary } from "@/lib/admin-config"
+import { recordCronRun } from "@/lib/admin-settings"
 
 export const maxDuration = 300
 
@@ -51,6 +53,7 @@ async function run(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorised" }, { status: 401 })
   }
 
+  const startedAt = new Date()
   const admin = agencyAdmin()
   const summary = {
     purged: 0,
@@ -72,6 +75,7 @@ async function run(req: NextRequest) {
   // ---- 1. Retention purge -----------------------------------
   const { data: purged, error: purgeError } = await admin.rpc("purge_expired")
   if (purgeError) {
+    await recordCronRun("agency-daily", startedAt, false, { failed_at: "purge" })
     return NextResponse.json({ error: `purge failed: ${purgeError.message}` }, { status: 500 })
   }
   const purgedRows = (purged ?? []) as Array<{
@@ -153,6 +157,7 @@ async function run(req: NextRequest) {
     .lte("scheduled_for", new Date().toISOString())
     .limit(NOTICE_BATCH)
   if (dueError) {
+    await recordCronRun("agency-daily", startedAt, false, { failed_at: "notices" })
     return NextResponse.json({ error: `notice query failed: ${dueError.message}` }, { status: 500 })
   }
 
@@ -234,6 +239,8 @@ async function run(req: NextRequest) {
     console.error("[agency-cron] wave sweep threw:", e instanceof Error ? e.message : e)
   }
 
+  // For the admin Configuration screen: counts only (lib/admin-config.ts).
+  await recordCronRun("agency-daily", startedAt, true, safeCronSummary(summary))
   return NextResponse.json(summary)
 }
 

@@ -1,3 +1,4 @@
+import { stagingAllowlistExtras } from "@/lib/admin-settings"
 import { appPath, getMarketingOrigin, marketingPath } from '@/lib/site-url'
 
 /**
@@ -54,10 +55,16 @@ function normalizeAddress(addr: string): string {
   return m ? m[1] + m[2] : a
 }
 
-function blockedByEnvironment(to: string): string | null {
+async function blockedByEnvironment(to: string): Promise<string | null> {
+  // Production returns before the settings are ever read: the admin list can
+  // have no effect there, by construction rather than by a later check.
   if (process.env.VERCEL_ENV === "production") return null
   const raw = (process.env.EMAIL_ALLOWLIST ?? "").trim()
-  const allowed = (raw ? raw.split(",") : DEFAULT_NON_PROD_ALLOWLIST)
+  // Addresses an admin allowed from the Configuration screen ADD to the
+  // environment's list (19 Nov 2026). They are exact addresses only — a
+  // domain entry from that source is dropped here as well as refused there.
+  const extras = (await stagingAllowlistExtras()).filter((a) => !a.trim().startsWith("@"))
+  const allowed = [...(raw ? raw.split(",") : DEFAULT_NON_PROD_ALLOWLIST), ...extras]
     .map(normalizeAddress)
     .filter(Boolean)
   const target = normalizeAddress(to)
@@ -89,7 +96,7 @@ export async function sendEmail(opts: {
 
   // Environment guard BEFORE any network call, so a blocked send costs nothing
   // and can never be half-performed.
-  const blocked = blockedByEnvironment(opts.to)
+  const blocked = await blockedByEnvironment(opts.to)
   if (blocked) return { sent: false, skipped: blocked }
 
   const from = opts.from || process.env.WELCOME_FROM || "Tailr <hello@gettailr.com>"

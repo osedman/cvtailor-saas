@@ -49,6 +49,7 @@ const TABS: Array<{ href: string; label: string; short: string; needs: AdminRole
   { href: "/admin/agencies", label: "Agencies", short: "Agencies", needs: "support" },
   { href: "/admin/admins", label: "Admins", short: "Admins", needs: "admin" },
   { href: "/admin/activity", label: "Activity", short: "Activity", needs: "support" },
+  { href: "/admin/config", label: "Configuration", short: "Config", needs: "support" },
 ]
 
 export function AdminShell({ children }: { children: React.ReactNode }) {

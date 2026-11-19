@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { withTiming } from "@/lib/server-timing"
+import { recordCronRun } from "@/lib/admin-settings"
 
 export const maxDuration = 300
 
@@ -32,12 +33,16 @@ async function GET_handler(req: NextRequest) {
     return NextResponse.json({ ran: null, reason: `no job scheduled for weekday ${day}` })
   }
 
+  const startedAt = new Date()
   const target = new URL(path, req.nextUrl.origin)
   const res = await fetch(target, {
     headers: { authorization: req.headers.get("authorization") ?? "" },
     signal: AbortSignal.timeout(290_000),
   })
   const body = await res.json().catch(() => ({}))
+  // Which job and whether it answered OK. The job's own body is not stored:
+  // the path digest's can name people.
+  await recordCronRun(`weekly:${path}`, startedAt, res.ok, { status: res.status })
   return NextResponse.json({ ran: path, status: res.status, result: body }, { status: res.ok ? 200 : 502 })
 }
 

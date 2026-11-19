@@ -1,3 +1,4 @@
+import { anyKilled } from "@/lib/admin-settings"
 /**
  * Live job-market insight for the career path. Pure helpers here are unit
  * tested; the network call is isolated in fetchMarket().
@@ -107,12 +108,20 @@ export function topCompanies(jobs: MarketJob[], limit = 4): string[] {
     .map(([name]) => name)
 }
 
+/** The environment's answer only. Use isMarketLive() to decide whether to
+ * serve the feature: it also honours the admin off switch. */
 export function isMarketEnabled(): boolean {
   // On whenever the Reed key exists — the key IS the opt-in, so enabling a
   // new environment is one env var, not two. MARKET_INSIGHTS_ENABLED=0
   // remains as an explicit kill switch.
   if (process.env.MARKET_INSIGHTS_ENABLED === "0") return false
   return !!process.env.REED_API_KEY
+}
+
+/** On in the environment AND not switched off from the admin area. */
+export async function isMarketLive(): Promise<boolean> {
+  if (!isMarketEnabled()) return false
+  return !(await anyKilled(["kill.market_insights"]))
 }
 
 /** True while a cached snapshot is still fresh (7 days). */
@@ -154,7 +163,7 @@ export interface MarketFetch {
  * is off or the upstream fails — callers must degrade silently, never block
  * the path. */
 export async function fetchMarket(role: string, region: string): Promise<MarketFetch | null> {
-  if (!isMarketEnabled()) return null
+  if (!(await isMarketLive())) return null
   if ((region || "GB").toUpperCase() !== "GB") return null
   const url = new URL("https://www.reed.co.uk/api/1.0/search")
   url.searchParams.set("keywords", role.slice(0, 120))

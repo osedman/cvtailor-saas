@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-access'
-import { isMarketEnabled, fetchMarket } from '@/lib/job-market'
+import { isMarketEnabled, isMarketLive, fetchMarket } from '@/lib/job-market'
 import { errorMessage } from '@/lib/error-message'
 import { withTiming } from "@/lib/server-timing"
 
@@ -30,6 +30,8 @@ async function GET_handler() {
     reedKeyHasQuotes: key.startsWith('"') || key.startsWith("'"),
     killSwitchValue: process.env.MARKET_INSIGHTS_ENABLED ?? '(unset)',
     isMarketEnabled: isMarketEnabled(),
+    // The environment can have it on while an admin off switch holds it off.
+    isMarketLive: await isMarketLive(),
     // NAMES ONLY, no values. When one of a pair of variables arrives and the
     // other doesn't, a typo in the name is the usual cause — this makes it
     // visible instead of guessable.

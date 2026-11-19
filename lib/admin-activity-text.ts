@@ -35,6 +35,18 @@ function roleOf(value: unknown): string | null {
   return ROLE_LABELS[role as AdminRole] ?? role
 }
 
+const SETTING_NAMES: Record<string, string> = {
+  "kill.market_insights": "the live job market",
+  "kill.course_sources": "course sync",
+  "kill.course_youtube": "YouTube courses",
+  "kill.course_microsoft_learn": "Microsoft Learn courses",
+}
+
+function listOf(value: unknown): string[] {
+  const list = field(value, "addresses")
+  return Array.isArray(list) ? list.filter((a): a is string => typeof a === "string") : []
+}
+
 const JOB_KIND: Record<string, string> = {
   jd_parse: "job description read", cv_parse: "CV read", score: "scoring job",
   match_scan: "match scan", transcribe: "transcription",
@@ -72,6 +84,17 @@ export function describeActivity(
     if (e.action === "added") return `${e.actorName} added ${target}${to ? ` as ${to}` : ""}`
     if (e.action === "role_changed" && from && to) return `${e.actorName} changed ${target} from ${from} to ${to}`
     if (e.action === "removed") return `${e.actorName} removed ${target}`
+  }
+  if (e.area === "config" && e.action === "setting_changed") {
+    const name = SETTING_NAMES[target]
+    if (target === "email.staging_allowlist") {
+      const before = listOf(e.from), after = listOf(e.to)
+      const added = after.filter((a) => !before.includes(a)), removed = before.filter((a) => !after.includes(a))
+      if (added.length === 1 && removed.length === 0) return `${e.actorName} allowed staging to email ${added[0]}`
+      if (removed.length === 1 && added.length === 0) return `${e.actorName} stopped staging emailing ${removed[0]}`
+      return `${e.actorName} changed who staging may email`
+    }
+    if (name) return `${e.actorName} switched ${name} ${field(e.to, "off") === true ? "off" : "back on"}`
   }
   if (e.area === "users") {
     const was = field(e.from, "tailors_used")
